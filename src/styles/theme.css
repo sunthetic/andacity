@@ -1,0 +1,179 @@
+/* Trip Booking UI — Tailwind v4 CSS-first theme */
+
+@theme {
+  /* -----------------------------------------
+     Color ramps (23 shades each)
+     Indices: 25,50,75,100,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,925,950,975
+  ----------------------------------------- */
+
+  /* Primary — “Sky Route Blue” (actions, links, focus) */
+  --color-primary-25: #F2F5FE;
+  --color-primary-50: #E4E9FC;
+  --color-primary-75: #DBE1FA;
+  --color-primary-100: #D3DAF9;
+  --color-primary-150: #C3CCF7;
+  --color-primary-200: #B3BFF5;
+  --color-primary-250: #A5B3F2;
+  --color-primary-300: #95A5F0;
+  --color-primary-350: #8798EE;
+  --color-primary-400: #7589EB;
+  --color-primary-450: #6578E8;
+  --color-primary-500: #2563EB;
+  --color-primary-550: #2059D6;
+  --color-primary-600: #1B4FBE;
+  --color-primary-650: #1846A8;
+  --color-primary-700: #143C91;
+  --color-primary-750: #11337B;
+  --color-primary-800: #0E2B66;
+  --color-primary-850: #0C2455;
+  --color-primary-900: #0A1E46;
+  --color-primary-925: #081A3E;
+  --color-primary-950: #071637;
+  --color-primary-975: #061231;
+
+  /* Secondary — “Sea Glass Teal” (success-ish accents, supportive highlights) */
+  --color-secondary-25: #EEFCFA;
+  --color-secondary-50: #E0F5F1;
+  --color-secondary-75: #D7F0EC;
+  --color-secondary-100: #CFECE7;
+  --color-secondary-150: #BFE4DD;
+  --color-secondary-200: #B1DED5;
+  --color-secondary-250: #A3D7CD;
+  --color-secondary-300: #95D1C4;
+  --color-secondary-350: #88CABE;
+  --color-secondary-400: #77C1B5;
+  --color-secondary-450: #67B8AB;
+  --color-secondary-500: #14B8A6;
+  --color-secondary-550: #12A796;
+  --color-secondary-600: #109586;
+  --color-secondary-650: #0E8678;
+  --color-secondary-700: #0C776A;
+  --color-secondary-750: #0A695D;
+  --color-secondary-800: #095C52;
+  --color-secondary-850: #084F47;
+  --color-secondary-900: #07433E;
+  --color-secondary-925: #063C38;
+  --color-secondary-950: #053533;
+  --color-secondary-975: #042E2D;
+
+  /* Tertiary — “Sun Ticket Amber” (price emphasis, deals, urgency that isn’t red) */
+  --color-tertiary-25: #FFF8F0;
+  --color-tertiary-50: #FDF0E2;
+  --color-tertiary-75: #FDEAD9;
+  --color-tertiary-100: #FCE4D1;
+  --color-tertiary-150: #FBD9BE;
+  --color-tertiary-200: #FACFAB;
+  --color-tertiary-250: #F9C69A;
+  --color-tertiary-300: #F8BC86;
+  --color-tertiary-350: #F7B375;
+  --color-tertiary-400: #F6A85E;
+  --color-tertiary-450: #F59F47;
+  --color-tertiary-500: #F59E0B;
+  --color-tertiary-550: #DE900A;
+  --color-tertiary-600: #C78209;
+  --color-tertiary-650: #B17608;
+  --color-tertiary-700: #9B6907;
+  --color-tertiary-750: #855C06;
+  --color-tertiary-800: #715105;
+  --color-tertiary-850: #5F4504;
+  --color-tertiary-900: #503B04;
+  --color-tertiary-925: #463404;
+  --color-tertiary-950: #3D2D03;
+  --color-tertiary-975: #342703;
+
+  /* Neutral — “Clean Slate” (dominant palette for cleanliness) */
+  --color-neutral-25: #FAFAFB;
+  --color-neutral-50: #EEEFF1;
+  --color-neutral-75: #E6E7EA;
+  --color-neutral-100: #DFE1E5;
+  --color-neutral-150: #D2D5DC;
+  --color-neutral-200: #C6CAD3;
+  --color-neutral-250: #BBC0CB;
+  --color-neutral-300: #B0B6C2;
+  --color-neutral-350: #A4ACBA;
+  --color-neutral-400: #959EAE;
+  --color-neutral-450: #8892A5;
+  --color-neutral-500: #64748B;
+  --color-neutral-550: #5B6A7F;
+  --color-neutral-600: #515F73;
+  --color-neutral-650: #49566A;
+  --color-neutral-700: #404D60;
+  --color-neutral-750: #384556;
+  --color-neutral-800: #303C4C;
+  --color-neutral-850: #293443;
+  --color-neutral-900: #232D3B;
+  --color-neutral-925: #1F2835;
+  --color-neutral-950: #1B232F;
+  --color-neutral-975: #171E2A;
+
+  /* -----------------------------------------
+     Semantic tokens (use these everywhere)
+  ----------------------------------------- */
+
+  /* Background stack */
+  --color-bg: var(--color-neutral-25);
+  --color-surface: #FFFFFF;
+  --color-panel: var(--color-neutral-50);
+  --color-elevated: #FFFFFF;
+
+  /* Text */
+  --color-text: var(--color-neutral-900);
+  --color-text-strong: #0B1220;
+  --color-text-muted: var(--color-neutral-600);
+  --color-text-subtle: var(--color-neutral-500);
+  --color-text-inverse: #FFFFFF;
+
+  /* Lines */
+  --color-border: color-mix(in oklab, var(--color-neutral-300) 75%, #0000);
+  --color-border-strong: color-mix(in oklab, var(--color-neutral-400) 85%, #0000);
+  --color-divider: color-mix(in oklab, var(--color-neutral-200) 70%, #0000);
+
+  /* Focus ring */
+  --color-focus: var(--color-primary-500);
+  --ring-focus: 0 0 0 4px color-mix(in oklab, var(--color-primary-200) 70%, #0000);
+
+  /* Primary action */
+  --color-action: var(--color-primary-500);
+  --color-action-hover: var(--color-primary-550);
+  --color-action-press: var(--color-primary-600);
+  --color-action-soft: var(--color-primary-50);
+
+  /* Secondary action */
+  --color-action-2: var(--color-neutral-900);
+  --color-action-2-hover: var(--color-neutral-950);
+
+  /* Pricing / deal emphasis */
+  --color-price: var(--color-tertiary-500);
+  --color-deal-soft: var(--color-tertiary-50);
+
+  /* States */
+  --color-success: var(--color-secondary-600);
+  --color-success-soft: var(--color-secondary-50);
+  --color-warning: var(--color-tertiary-600);
+  --color-warning-soft: var(--color-tertiary-50);
+  --color-danger: #DC2626;
+  --color-danger-soft: #FEF2F2;
+
+  /* -----------------------------------------
+     Elevation (clean, low-chrome shadows)
+     Use sparingly; prefer border + subtle tint
+  ----------------------------------------- */
+  --shadow-e1: 0 1px 2px color-mix(in oklab, var(--color-neutral-900) 8%, #0000);
+  --shadow-e2: 0 6px 18px color-mix(in oklab, var(--color-neutral-900) 10%, #0000);
+  --shadow-e3: 0 14px 40px color-mix(in oklab, var(--color-neutral-900) 14%, #0000);
+
+  /* -----------------------------------------
+     Easy gradients (apply to hero strips / CTAs)
+  ----------------------------------------- */
+  --grad-primary: linear-gradient(135deg,
+      color-mix(in oklab, var(--color-primary-500) 92%, #fff 8%),
+      color-mix(in oklab, var(--color-secondary-500) 70%, #fff 30%));
+
+  --grad-surface: linear-gradient(180deg,
+      #FFFFFF,
+      color-mix(in oklab, var(--color-neutral-50) 75%, #fff 25%));
+
+  --grad-deal: linear-gradient(135deg,
+      var(--color-tertiary-50),
+      color-mix(in oklab, var(--color-tertiary-200) 55%, #fff 45%));
+}

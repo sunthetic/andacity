@@ -1,0 +1,67 @@
+@import 'tailwindcss';
+@import './theme.css';
+
+@layer base {
+  :root {
+    color-scheme: light;
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  ::selection {
+    background: var(--color-primary-100);
+  }
+}
+
+/* “Recipes” — optional but recommended */
+@layer components {
+  .t-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-e1);
+  }
+
+  .t-panel {
+    background: var(--color-panel);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+  }
+
+  .t-btn-primary {
+    background: var(--color-action);
+    color: var(--color-text-inverse);
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+
+  .t-btn-primary:hover {
+    background: var(--color-action-hover);
+  }
+
+  .t-btn-primary:active {
+    background: var(--color-action-press);
+  }
+
+  .t-btn-primary:focus-visible {
+    box-shadow: var(--ring-focus);
+  }
+
+  .t-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    border: 1px solid var(--color-border);
+    background: var(--color-neutral-50);
+    color: var(--color-text);
+  }
+
+  .t-badge--deal {
+    background: var(--color-deal-soft);
+    border-color: var(--color-tertiary-150);
+    color: var(--color-tertiary-700);
+  }
+}
