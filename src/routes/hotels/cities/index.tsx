@@ -1,0 +1,119 @@
+import { component$ } from '@builder.io/qwik'
+import type { DocumentHead } from '@builder.io/qwik-city'
+import { HOTEL_CITIES } from '~/data/hotel-cities'
+
+export default component$(() => {
+  const items = HOTEL_CITIES
+
+  return (
+    <div class="mx-auto max-w-6xl px-4 py-10">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+            Hotel cities
+          </h1>
+          <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
+            Indexable city guides that link into noindex search results. This is your scalable SEO layer.
+          </p>
+        </div>
+
+        <a class="t-btn-primary px-5 text-center" href="/search/hotels/anywhere/1">
+          Search hotels
+        </a>
+      </div>
+
+      <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((c) => (
+          <a
+            key={c.slug}
+            class="t-card block overflow-hidden hover:bg-white"
+            href={`/hotels/cities/${encodeURIComponent(c.slug)}`}
+          >
+            <div class="p-5">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">{c.city}</div>
+                  <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                    {c.region}, {c.country} · {c.hotelSlugs.length} hotels
+                  </div>
+                </div>
+
+                <span class="t-badge">
+                  From {formatMoney(c.priceFrom, 'USD')}
+                  <span class="ml-1 text-[color:var(--color-text-muted)]">/night</span>
+                </span>
+              </div>
+
+              <div class="mt-4 text-xs text-[color:var(--color-text-muted)]">
+                Top areas:{' '}
+                <span class="text-[color:var(--color-text)]">
+                  {c.topNeighborhoods.slice(0, 3).map((x) => x.name).join(' · ') || '—'}
+                </span>
+              </div>
+
+              <div class="mt-4 text-sm text-[color:var(--color-action)]">View city →</div>
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  )
+})
+
+export const head: DocumentHead = ({ url }) => {
+  const title = 'Hotel Cities | Andacity Travel'
+  const description =
+    'Browse indexable hotel city guides. Each city page links into noindex hotel search results while earning rankings.'
+
+  const canonicalHref = new URL('/hotels/cities', url.origin).href
+
+  const jsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Hotels', item: new URL('/hotels', url.origin).href },
+          { '@type': 'ListItem', position: 2, name: 'Cities', item: canonicalHref },
+        ],
+      },
+      {
+        '@type': 'ItemList',
+        name: 'Andacity hotel cities',
+        itemListElement: HOTEL_CITIES.map((c, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          name: c.city,
+          url: new URL(`/hotels/cities/${encodeURIComponent(c.slug)}`, url.origin).href,
+        })),
+      },
+    ],
+  })
+
+  return {
+    title,
+    meta: [
+      { name: 'description', content: description },
+
+      { property: 'og:type', content: 'website' },
+      { property: 'og:title', content: title },
+      { property: 'og:description', content: description },
+      { property: 'og:url', content: canonicalHref },
+
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: title },
+      { name: 'twitter:description', content: description },
+
+      { name: 'json-ld', content: jsonLd },
+    ],
+    links: [{ rel: 'canonical', href: canonicalHref }],
+  }
+}
+
+const formatMoney = (amount: number, currency: string) => {
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount)
+  } catch {
+    return `${Math.round(amount)} ${currency}`
+  }
+}
