@@ -2,6 +2,8 @@ import { component$, useSignal } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { getOgSecret, encodeOgPayload, signOgPayload } from '~/lib/seo/og-sign'
+import { HOTELS } from '~/data/hotels'
+import type { Hotel } from '~/data/hotels'
 
 export const useSearchHotelsPage = routeLoader$(({ params, url, error }) => {
   const vertical = normalizeVertical(params.vertical)
@@ -28,8 +30,7 @@ export const useSearchHotelsPage = routeLoader$(({ params, url, error }) => {
     }
   }
 
-  // Demo inventory (replace with real search index)
-  const inventory = buildDemoHotels(query)
+  const inventory = mapHotelsToResults(HOTELS, query)
 
   // Active filters from query params
   const active = parseActiveFilters(url.searchParams)
@@ -739,7 +740,7 @@ const HotelResultCard = component$(({ h, nights }: HotelResultCardProps) => {
   const total = nights ? h.priceFrom * nights : null
 
   return (
-    <a class="t-card block overflow-hidden hover:bg-white" href={`/hotels/${encodeURIComponent(h.slug)}`}>
+    <a class="t-card block overflow-hidden hover:bg-white" href={`/hotel/${encodeURIComponent(h.slug)}`}>
       <div class="grid gap-0 lg:grid-cols-[220px_1fr]">
         <div class="bg-[color:var(--color-neutral-50)]">
           <img class="h-44 w-full object-cover lg:h-full" src={h.image} alt={h.name} loading="lazy" />
@@ -989,56 +990,8 @@ const renderActiveChips = (a: ActiveFilters, pathBase: string, page: number, sor
 }
 
 /* -----------------------------
-   Demo data + facets
+   Facets etc.
 ----------------------------- */
-
-const buildDemoHotels = (query: string): HotelResult[] => {
-  // Stable seed from query length (cheap determinism)
-  const seed = Math.max(1, Math.min(999, String(query).length * 37))
-
-  const neighborhoods = ['Downtown', 'Old Town', 'Waterfront', 'Airport', 'Midtown', 'Arts District']
-  const amenityPool = ['Free Wi-Fi', 'Pool', 'Breakfast', 'Parking', 'Gym', 'Pet-friendly', 'Spa']
-
-  const out: HotelResult[] = []
-  for (let i = 0; i < 72; i++) {
-    const stars = [2, 3, 4, 5][(seed + i) % 4] as 2 | 3 | 4 | 5
-    const neighborhood = neighborhoods[(seed + i * 3) % neighborhoods.length]
-    const refundable = ((seed + i) % 3) !== 0
-    const rating = clampFloat(3.6 + ((seed + i * 13) % 15) / 10, 3.5, 5.0)
-    const reviewCount = 120 + ((seed + i * 91) % 8000)
-    const priceFrom = Math.round(95 + stars * 30 + ((seed + i * 17) % 120))
-    const amenities = [
-      amenityPool[(seed + i) % amenityPool.length],
-      amenityPool[(seed + i + 2) % amenityPool.length],
-      amenityPool[(seed + i + 4) % amenityPool.length],
-    ].filter((x, idx, arr) => arr.indexOf(x) === idx)
-
-    const score =
-      (rating * 0.55) +
-      (stars * 0.18) +
-      (refundable ? 0.25 : 0) +
-      (Math.max(0, 240 - priceFrom) / 240) * 0.4
-
-    out.push({
-      id: `demo-${seed}-${i}`,
-      slug: 'harborline-suites-miami',
-      name: `${neighborhood} ${stars}★ Stay`,
-      neighborhood,
-      stars,
-      rating,
-      reviewCount,
-      priceFrom,
-      currency: 'USD',
-      refundable,
-      amenities,
-      image: `/img/demo/hotel-${(i % 4) + 1}.jpg`,
-      badges: [stars >= 4 ? 'Top rated' : 'Best value', refundable ? 'Pay later' : 'Deal'],
-      score,
-    })
-  }
-
-  return out
-}
 
 const buildFacets = (items: HotelResult[]) => {
   const stars: Record<string, number> = {}
@@ -1071,6 +1024,39 @@ const buildEmptyFacets = () => ({
   neighborhoods: [] as { name: string; count: number }[],
   amenities: [] as { name: string; count: number }[],
 })
+
+const mapHotelsToResults = (hotels: Hotel[], query: string): HotelResult[] => {
+  const q = String(query || '').toLowerCase()
+
+  return hotels.map((h, i) => {
+    const score =
+      (h.rating * 0.55) +
+      (h.stars * 0.18) +
+      (h.policies.freeCancellation ? 0.25 : 0) +
+      (Math.max(0, 240 - h.fromNightly) / 240) * 0.4
+
+    return {
+      id: `hotel-${h.slug}-${i}`,
+      slug: h.slug,
+      name: h.name,
+      neighborhood: h.neighborhood,
+      stars: h.stars,
+      rating: h.rating,
+      reviewCount: h.reviewCount,
+      priceFrom: h.fromNightly,
+      currency: h.currency,
+      refundable: h.policies.freeCancellation,
+      amenities: h.amenities.slice(0, 6),
+      image: h.images[0] || '/img/demo/hotel-1.jpg',
+      badges: [
+        h.stars >= 4 ? 'Top rated' : 'Best value',
+        h.policies.payLater ? 'Pay later' : 'Deal',
+        q && h.cityQuery.includes(q) ? 'Great match' : 'Popular',
+      ].slice(0, 3),
+      score,
+    }
+  })
+}
 
 /* -----------------------------
    General helpers

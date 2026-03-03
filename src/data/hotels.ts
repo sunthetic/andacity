@@ -2,112 +2,151 @@ export const HOTELS: Hotel[] = [
   {
     slug: 'harborline-suites-miami',
     name: 'Harborline Suites',
-    destinationSlug: 'miami',
-    city: 'Miami, FL',
-    address: {
-      street: '1200 Ocean Ave',
-      locality: 'Miami Beach',
-      region: 'FL',
-      postalCode: '33139',
-      country: 'US',
-    },
-    geo: { lat: 25.790654, lng: -80.130045 },
+    city: 'Miami',
+    region: 'FL',
+    country: 'US',
+    cityQuery: 'miami',
+    neighborhood: 'Waterfront',
+    addressLine: '100 Bayside Ave',
+    currency: 'USD',
+    stars: 4,
     rating: 4.6,
     reviewCount: 2841,
-    stars: 4,
-    amenities: ['Free Wi-Fi', 'Pool', 'Fitness center', 'Air conditioning', '24-hour front desk'],
-    images: ['/img/demo/hotel-1.jpg', '/img/demo/hotel-2.jpg', '/img/demo/hotel-3.jpg', '/img/demo/hotel-4.jpg'],
+    fromNightly: 219,
+    summary:
+      'Modern waterfront suites with fast check-in, bright rooms, and walkable access to dining. Designed for clean stays: clear policies, solid amenities, and transparent totals.',
+    images: ['/img/demo/hotel-1.jpg', '/img/demo/hotel-2.jpg', '/img/demo/hotel-3.jpg'],
+    amenities: [
+      'Free Wi-Fi',
+      'Pool',
+      'Gym',
+      'Breakfast available',
+      'Parking',
+      'Air conditioning',
+      'Pet-friendly',
+      '24h front desk',
+      'Workspace',
+      'Hot tub',
+      'Laundry',
+      'Restaurant',
+    ],
     policies: {
-      checkIn: '3:00 PM',
-      checkOut: '11:00 AM',
-      cancellation: 'Free cancellation available on select rates. Check the rate rules before booking.',
-      payment: 'Pay now or pay later options may be available depending on rate.',
-      fees: 'Some properties may charge resort fees. Always review total price breakdown.',
+      freeCancellation: true,
+      payLater: true,
+      noResortFees: false,
+      checkInTime: '3:00 PM',
+      checkOutTime: '11:00 AM',
+      cancellationBlurb:
+        'Many rooms offer free cancellation until a cutoff time. Always review the room policy before booking.',
+      paymentBlurb:
+        'Some rooms support pay-later. Others require prepayment. Your selection will show the exact schedule.',
+      feesBlurb:
+        'Taxes and fees vary by dates and room. We show estimates early and confirm totals at checkout.',
     },
     rooms: [
       {
-        id: 'king-city',
-        name: 'King Room · City View',
-        beds: '1 king',
+        id: 'studio-king',
+        name: 'Studio King',
         sleeps: 2,
-        refundability: 'Free cancellation',
-        priceNightlyFrom: 219,
-        currency: 'USD',
-        inclusions: ['Wi-Fi included'],
+        beds: '1 king',
+        sizeSqft: 320,
+        priceFrom: 219,
+        refundable: true,
+        payLater: true,
+        badges: ['Best value'],
+        features: ['City view', 'Kitchenette', 'Work desk'],
       },
       {
-        id: 'queen-2',
-        name: 'Two Queens · Partial Ocean',
-        beds: '2 queens',
+        id: 'suite-1br',
+        name: 'One Bedroom Suite',
         sleeps: 4,
-        refundability: 'Non-refundable',
-        priceNightlyFrom: 189,
-        currency: 'USD',
-        inclusions: ['Wi-Fi included'],
+        beds: '1 king + sofa',
+        sizeSqft: 540,
+        priceFrom: 289,
+        refundable: true,
+        payLater: false,
+        badges: ['Top pick'],
+        features: ['Separate living area', 'Water view', 'Balcony'],
       },
       {
-        id: 'suite',
-        name: 'Suite · Ocean View',
-        beds: '1 king + sofa bed',
+        id: 'suite-premium',
+        name: 'Premium Waterfront Suite',
         sleeps: 4,
-        refundability: 'Free cancellation',
-        priceNightlyFrom: 289,
-        currency: 'USD',
-        inclusions: ['Breakfast available', 'Wi-Fi included'],
+        beds: '1 king + sofa',
+        sizeSqft: 620,
+        priceFrom: 349,
+        refundable: false,
+        payLater: false,
+        badges: ['Premium'],
+        features: ['Waterfront', 'Corner unit', 'Upgraded bath'],
       },
     ],
     faq: [
-      { q: 'Does this hotel include parking?', a: 'Parking availability and pricing vary. Confirm during booking before you pay.' },
-      { q: 'Are resort fees included in the nightly price?', a: 'Not always. Compare totals and review fee line items before booking.' },
-      { q: 'Can I cancel for free?', a: 'Some rates allow free cancellation, others do not. Check the rate rules for the room you choose.' },
+      { q: 'Is parking available?', a: 'Yes. Parking is available on-site. Fees may apply depending on dates.' },
+      { q: 'Are pets allowed?', a: 'Many stays are pet-friendly. Specific rooms may have restrictions and fees.' },
+      { q: 'Does this hotel have free cancellation?', a: 'Many room types do. Always check the selected room’s cancellation terms.' },
     ],
   },
 ]
 
-export const HOTELS_BY_SLUG: Record<string, Hotel> = Object.fromEntries(
-  HOTELS.map((h) => [h.slug, h])
-) as Record<string, Hotel>
+export const HOTELS_BY_SLUG = Object.fromEntries(HOTELS.map((h) => [h.slug, h])) as Record<string, Hotel>
+
+export const getHotelBySlug = (slug: string) => {
+  const key = String(slug || '').trim().toLowerCase()
+  return HOTELS_BY_SLUG[key] || null
+}
 
 /* -----------------------------
    Types
 ----------------------------- */
 
+export type HotelPolicy = {
+  freeCancellation: boolean
+  payLater: boolean
+  noResortFees: boolean
+  checkInTime: string
+  checkOutTime: string
+  cancellationBlurb: string
+  paymentBlurb: string
+  feesBlurb: string
+}
+
+export type Room = {
+  id: string
+  name: string
+  sleeps: number
+  beds: string
+  sizeSqft: number
+  priceFrom: number
+  refundable: boolean
+  payLater: boolean
+  badges: string[]
+  features: string[]
+}
+
+export type FAQ = {
+  q: string
+  a: string
+}
+
 export type Hotel = {
   slug: string
   name: string
-  destinationSlug: string
   city: string
-  address: {
-    street: string
-    locality: string
-    region: string
-    postalCode: string
-    country: string
-  }
-  geo: { lat: number; lng: number }
+  region: string
+  country: string
+  cityQuery: string
+  neighborhood: string
+  addressLine: string
+  currency: string
+  stars: 2 | 3 | 4 | 5
   rating: number
   reviewCount: number
-  stars: number
-  amenities: string[]
+  fromNightly: number
+  summary: string
   images: string[]
-  policies: {
-    checkIn: string
-    checkOut: string
-    cancellation: string
-    payment: string
-    fees: string
-  }
-  rooms: HotelRoom[]
-  faq: { q: string; a: string }[]
-}
-
-export type HotelRoom = {
-  id: string
-  name: string
-  beds: string
-  sleeps: number
-  refundability: 'Free cancellation' | 'Non-refundable' | 'Partial refund'
-  priceNightlyFrom: number
-  currency: string
-  inclusions: string[]
+  amenities: string[]
+  policies: HotelPolicy
+  rooms: Room[]
+  faq: FAQ[]
 }
