@@ -1,40 +1,23 @@
 import type { RequestHandler } from '@builder.io/qwik-city'
-import { getPublicBaseUrl, shouldIndex } from '~/lib/seo/env'
 
-export const onGet: RequestHandler = ({ url, headers, send }) => {
-  const baseUrl = getPublicBaseUrl(url)
-  const prod = shouldIndex(baseUrl)
+export const onGet: RequestHandler = async ({ cacheControl, send, url }) => {
+  cacheControl({
+    public: true,
+    maxAge: 60 * 60, // 1h
+    sMaxAge: 60 * 60, // 1h
+  })
 
-  headers.set('content-type', 'text/plain; charset=utf-8')
+  const origin = url.origin
+  const body = [
+    'User-agent: *',
+    'Allow: /',
+    '',
+    // Keep search noindex at the page-level; we still disallow crawling to reduce noise.
+    'Disallow: /search/',
+    '',
+    `Sitemap: ${origin}/sitemap.xml`,
+    '',
+  ].join('\n')
 
-  if (!prod) {
-    // Hard block all crawling in staging/previews/local
-    send(
-      200,
-      [
-        'User-agent: *',
-        'Disallow: /',
-        '',
-        `Sitemap: ${new URL('/sitemap.xml', baseUrl).href}`,
-        '',
-      ].join('\n')
-    )
-    return
-  }
-
-  // Prod crawl policy:
-  // - Disallow search (infinite permutations)
-  // - Allow indexables: destinations + hotels + marketing pages
-  send(
-    200,
-    [
-      'User-agent: *',
-      'Disallow: /search/',
-      'Disallow: /og/',
-      'Disallow: /api/',
-      '',
-      `Sitemap: ${new URL('/sitemap.xml', baseUrl).href}`,
-      '',
-    ].join('\n')
-  )
+  send(200, body)
 }

@@ -14,6 +14,7 @@ export const useDestinationPage = routeLoader$(({ params, error }) => {
   const topStays: HotelCard[] = [
     {
       id: `${slug}-harborline`,
+      slug: 'harborline-suites-miami',
       name: 'Harborline Suites',
       area: destination.neighborhoods[0]?.name || 'Central',
       rating: 4.6,
@@ -25,6 +26,7 @@ export const useDestinationPage = routeLoader$(({ params, error }) => {
     },
     {
       id: `${slug}-grand`,
+      slug: 'grand-city-hotel',
       name: 'Grand City Hotel',
       area: destination.neighborhoods[1]?.name || 'Downtown',
       rating: 4.5,
@@ -36,6 +38,7 @@ export const useDestinationPage = routeLoader$(({ params, error }) => {
     },
     {
       id: `${slug}-boutique`,
+      slug: 'the-boutique-spot',
       name: 'The Boutique Spot',
       area: destination.neighborhoods[2]?.name || 'Old Town',
       rating: 4.7,
@@ -47,6 +50,7 @@ export const useDestinationPage = routeLoader$(({ params, error }) => {
     },
     {
       id: `${slug}-value`,
+      slug: 'value-stay-plus',
       name: 'Value Stay Plus',
       area: destination.neighborhoods[0]?.name || 'Central',
       rating: 4.3,
@@ -80,7 +84,7 @@ export default component$(() => {
           <div>
             <div class="flex flex-wrap items-center gap-2 text-sm text-[color:var(--color-text-muted)]">
               <a class="hover:text-[color:var(--color-text)]" href="/">
-                Home
+                Andacity Travel
               </a>
               <span class="text-[color:var(--color-text-subtle)]">/</span>
               <a class="hover:text-[color:var(--color-text)]" href="/destinations">
@@ -359,7 +363,7 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
 }
 
 const HotelMiniCard = component$(({ hotel }: HotelMiniCardProps) => (
-  <a class="t-panel block overflow-hidden hover:bg-white" href={`/hotel/${encodeURIComponent(hotel.id)}`}>
+  <a class="t-panel block overflow-hidden hover:bg-white" href={`/hotels/${encodeURIComponent(hotel.slug)}`}>
     <div class="bg-[color:var(--color-neutral-50)]">
       <img class="h-36 w-full object-cover" src={hotel.image} alt={hotel.name} loading="lazy" />
     </div>
@@ -399,6 +403,7 @@ const formatMoney = (amount: number, currency: string) => {
 
 type HotelCard = {
   id: string
+  slug: string
   name: string
   area: string
   rating: number

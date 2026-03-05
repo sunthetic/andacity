@@ -260,6 +260,31 @@
     "@eslint/core" "^0.15.2"
     levn "^0.4.1"
 
+"@fontsource-variable/google-sans@^5.2.1":
+  version "5.2.1"
+  resolved "https://registry.yarnpkg.com/@fontsource-variable/google-sans/-/google-sans-5.2.1.tgz#361e42db1e7d08fdba845c2ba41706d0a9a79e16"
+  integrity sha512-dMyMlJVRJgQvvYlJLcrg2oiVzlKAuIMrbDxIMchEiMBGmpOA6VnVblj3cPfJyA0/fNPQS6krZaiJyJjHJZmkzw==
+
+"@fontsource-variable/noto-sans@^5.2.10":
+  version "5.2.10"
+  resolved "https://registry.yarnpkg.com/@fontsource-variable/noto-sans/-/noto-sans-5.2.10.tgz#1ec8a418314435237256c786e32109e5bc21b13f"
+  integrity sha512-wyFgKkFu7jki5kEL8qv7avjQ8rxHX0J/nhLWvbR9T0hOH1HRKZEvb9EW9lMjZfWHHfEzKkYf5J+NadwgCS7TXA==
+
+"@fontsource-variable/nunito-sans@^5.2.7":
+  version "5.2.7"
+  resolved "https://registry.yarnpkg.com/@fontsource-variable/nunito-sans/-/nunito-sans-5.2.7.tgz#2a6fcc2b8c5fc1da5d1c9d27b593dbf4097306fa"
+  integrity sha512-rflH5HeAoNjIkwftStzQvxqCJhIS+usMr/lfslWg/RCa499B5qxyjo+74R/QMM0geQt4AY1URlG7wAR1iq6KPQ==
+
+"@fontsource-variable/open-sans@^5.2.7":
+  version "5.2.7"
+  resolved "https://registry.yarnpkg.com/@fontsource-variable/open-sans/-/open-sans-5.2.7.tgz#fd9ca570ba539ec190fa8f4bdeb7d3633b1efa91"
+  integrity sha512-wzCLm2STuekK9Fz58DiuBnk4GgJpvvVtAU85a4b06ACNG/UsVjQcCvkUd6R/ETlHfsaykCUZamLRvSXg4KtWuA==
+
+"@fontsource/barlow@^5.2.8":
+  version "5.2.8"
+  resolved "https://registry.yarnpkg.com/@fontsource/barlow/-/barlow-5.2.8.tgz#ccb4740544a23b695046e0617390e7fc287bb9c0"
+  integrity sha512-iuFOnY4OI2cd1STrJ3NdJNzWjhcwv6JarmqfdoZzAmz9g0jTVjES86MNbuBxqVR3ydbTEjo4opEl24GXScRM7w==
+
 "@humanfs/core@^0.19.1":
   version "0.19.1"
   resolved "https://registry.yarnpkg.com/@humanfs/core/-/core-0.19.1.tgz#17c55ca7d426733fe3c561906b8173c336b40a77"

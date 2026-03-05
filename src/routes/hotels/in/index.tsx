@@ -17,8 +17,8 @@ export default component$(() => {
           </p>
         </div>
 
-        <a class="t-btn-primary px-5 text-center" href="/search/hotels/anywhere/1">
-          Search hotels
+        <a class="t-btn-primary px-5 text-center" href="/hotels">
+          Browse hotels
         </a>
       </div>
 
@@ -27,12 +27,14 @@ export default component$(() => {
           <a
             key={c.slug}
             class="t-card block overflow-hidden hover:bg-white"
-            href={`/hotels/cities/${encodeURIComponent(c.slug)}`}
+            href={buildHotelsInCityHref(c.slug)}
           >
             <div class="p-5">
               <div class="flex items-start justify-between gap-3">
                 <div>
-                  <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">{c.city}</div>
+                  <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                    {c.city}
+                  </div>
                   <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
                     {c.region}, {c.country} · {c.hotelSlugs.length} hotels
                   </div>
@@ -65,7 +67,10 @@ export const head: DocumentHead = ({ url }) => {
   const description =
     'Browse indexable hotel city guides. Each city page links into noindex hotel search results while earning rankings.'
 
-  const canonicalHref = new URL('/hotels/cities', url.origin).href
+  // New canonical for the city index
+  const canonicalHref = new URL('/hotels/in', url.origin).href
+
+  const listCap = 48
 
   const jsonLd = JSON.stringify({
     '@context': 'https://schema.org',
@@ -80,11 +85,12 @@ export const head: DocumentHead = ({ url }) => {
       {
         '@type': 'ItemList',
         name: 'Andacity hotel cities',
-        itemListElement: HOTEL_CITIES.map((c, i) => ({
+        itemListElement: HOTEL_CITIES.slice(0, listCap).map((c, i) => ({
           '@type': 'ListItem',
           position: i + 1,
           name: c.city,
-          url: new URL(`/hotels/cities/${encodeURIComponent(c.slug)}`, url.origin).href,
+          url: new URL(buildHotelsInCityHref(c.slug), url.origin).href,
+          numberOfItems: HOTEL_CITIES.length,
         })),
       },
     ],
@@ -104,10 +110,22 @@ export const head: DocumentHead = ({ url }) => {
       { name: 'twitter:title', content: title },
       { name: 'twitter:description', content: description },
 
+      // Note: Meta JSON-LD is not ideal; we’ll convert to <script type="application/ld+json"> later if desired.
       { name: 'json-ld', content: jsonLd },
     ],
     links: [{ rel: 'canonical', href: canonicalHref }],
+    scripts: [
+      {
+        key: 'ld-hotel-cities',
+        props: { type: 'application/ld+json' },
+        script: jsonLd,
+      },
+    ],
   }
+}
+
+const buildHotelsInCityHref = (citySlug: string) => {
+  return `/hotels/in/${encodeURIComponent(citySlug)}`
 }
 
 const formatMoney = (amount: number, currency: string) => {

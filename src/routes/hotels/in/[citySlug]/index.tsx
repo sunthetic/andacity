@@ -46,11 +46,17 @@ export default component$(() => {
       <div class="mx-auto max-w-6xl px-4 pt-8">
         {/* Breadcrumbs */}
         <div class="flex flex-wrap items-center gap-2 text-sm text-[color:var(--color-text-muted)]">
-          <a class="hover:text-[color:var(--color-text)]" href="/">Home</a>
+          <a class="hover:text-[color:var(--color-text)]" href="/">
+            Andacity Travel
+          </a>
           <span class="text-[color:var(--color-text-subtle)]">/</span>
-          <a class="hover:text-[color:var(--color-text)]" href="/hotels">Hotels</a>
+          <a class="hover:text-[color:var(--color-text)]" href="/hotels">
+            Hotels
+          </a>
           <span class="text-[color:var(--color-text-subtle)]">/</span>
-          <a class="hover:text-[color:var(--color-text)]" href="/hotels/cities">Cities</a>
+          <a class="hover:text-[color:var(--color-text)]" href="/hotels/in">
+            Cities
+          </a>
           <span class="text-[color:var(--color-text-subtle)]">/</span>
           <span class="text-[color:var(--color-text)]">{c.city}</span>
         </div>
@@ -59,9 +65,13 @@ export default component$(() => {
         <div class="mt-4 grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
           <div>
             <div class="flex flex-wrap gap-2">
-              <span class="t-badge">{c.region}, {c.country}</span>
+              <span class="t-badge">
+                {c.region}, {c.country}
+              </span>
               <span class="t-badge">{c.hotelSlugs.length} hotels</span>
-              <span class="t-badge">From {formatMoney(c.priceFrom, 'USD')}/night</span>
+              <span class="t-badge">
+                From {formatMoney(c.priceFrom, 'USD')}/night
+              </span>
             </div>
 
             <h1 class="mt-3 text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
@@ -69,7 +79,8 @@ export default component$(() => {
             </h1>
 
             <p class="mt-2 max-w-[80ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-              Clean city guide for {c.city}. Transparent totals, clear policies, and fast filtering — without indexing SERPs.
+              Clean city guide for {c.city}. Transparent totals, clear policies, and fast filtering — without
+              indexing SERPs.
             </p>
 
             <div class="mt-5 grid gap-3 sm:grid-cols-2">
@@ -77,16 +88,22 @@ export default component$(() => {
                 <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">Top areas</div>
                 <div class="mt-3 flex flex-wrap gap-2">
                   {c.topNeighborhoods.slice(0, 6).map((x) => (
-                    <span key={x.name} class="t-badge">{x.name}</span>
+                    <span key={x.name} class="t-badge">
+                      {x.name}
+                    </span>
                   ))}
                 </div>
               </div>
 
               <div class="t-card p-5">
-                <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">Popular amenities</div>
+                <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                  Popular amenities
+                </div>
                 <div class="mt-3 flex flex-wrap gap-2">
                   {c.topAmenities.slice(0, 6).map((x) => (
-                    <span key={x.name} class="t-badge">{x.name}</span>
+                    <span key={x.name} class="t-badge">
+                      {x.name}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -99,10 +116,12 @@ export default component$(() => {
                 Search hotels in {c.city}
               </div>
 
-              <form method="get" action={`/hotels/cities/${encodeURIComponent(data.slug)}`} class="mt-4 grid gap-3">
+              <form method="get" action={buildHotelsInCityHref(data.slug)} class="mt-4 grid gap-3">
                 <div class="grid grid-cols-2 gap-2">
                   <div>
-                    <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">Check-in</label>
+                    <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                      Check-in
+                    </label>
                     <input
                       name="checkIn"
                       class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
@@ -111,7 +130,9 @@ export default component$(() => {
                     />
                   </div>
                   <div>
-                    <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">Check-out</label>
+                    <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                      Check-out
+                    </label>
                     <input
                       name="checkOut"
                       class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
@@ -123,7 +144,9 @@ export default component$(() => {
 
                 <div class="grid grid-cols-2 gap-2">
                   <div>
-                    <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">Adults</label>
+                    <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                      Adults
+                    </label>
                     <input
                       name="adults"
                       class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
@@ -132,7 +155,9 @@ export default component$(() => {
                     />
                   </div>
                   <div>
-                    <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">Rooms</label>
+                    <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                      Rooms
+                    </label>
                     <input
                       name="rooms"
                       class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
@@ -142,7 +167,9 @@ export default component$(() => {
                   </div>
                 </div>
 
-                <button class="t-btn-primary" type="submit">Update</button>
+                <button class="t-btn-primary" type="submit">
+                  Update
+                </button>
 
                 <a class="t-btn-primary block text-center" href={data.searchHref}>
                   See hotel results
@@ -174,10 +201,13 @@ export default component$(() => {
 
         {/* Guide content (SEO) */}
         <section class="mt-8 t-card p-5">
-          <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">Guide to staying in {c.city}</h2>
+          <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
+            Guide to staying in {c.city}
+          </h2>
           <div class="prose prose-sm mt-3 max-w-none text-[color:var(--color-text)]">
             <p class="text-[color:var(--color-text-muted)]">
-              This section is your long-tail SEO payload: best areas, pricing seasonality, airport access, transit, and what matters to different traveler types.
+              This section is your long-tail SEO payload: best areas, pricing seasonality, airport access,
+              transit, and what matters to different traveler types.
             </p>
             <ul class="text-[color:var(--color-text-muted)]">
               <li>Top areas: {c.topNeighborhoods.slice(0, 5).map((x) => x.name).join(', ')}</li>
@@ -192,9 +222,7 @@ export default component$(() => {
       <div class="fixed inset-x-0 bottom-0 z-50 border-t border-[color:var(--color-divider)] bg-white/95 backdrop-blur lg:hidden">
         <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <div>
-            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-              Hotels in {c.city}
-            </div>
+            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">Hotels in {c.city}</div>
             <div class="text-xs text-[color:var(--color-text-muted)]">
               From {formatMoney(c.priceFrom, 'USD')}/night
             </div>
@@ -215,7 +243,7 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
   const title = `Hotels in ${c.city} | Andacity Travel`
   const description = `Find hotels in ${c.city}. Explore top areas and amenities, and compare options with transparent totals and policies.`
 
-  const canonicalHref = new URL(`/hotels/cities/${encodeURIComponent(data.slug)}`, url.origin).href
+  const canonicalHref = new URL(buildHotelsInCityHref(data.slug), url.origin).href
 
   const jsonLd = JSON.stringify({
     '@context': 'https://schema.org',
@@ -224,7 +252,7 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
         '@type': 'BreadcrumbList',
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'Hotels', item: new URL('/hotels', url.origin).href },
-          { '@type': 'ListItem', position: 2, name: 'Cities', item: new URL('/hotels/cities', url.origin).href },
+          { '@type': 'ListItem', position: 2, name: 'Cities', item: new URL('/hotels/in', url.origin).href },
           { '@type': 'ListItem', position: 3, name: c.city, item: canonicalHref },
         ],
       },
@@ -235,13 +263,17 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
       },
       {
         '@type': 'ItemList',
-        name: `Hotels in ${c.city}`,
+        name: `Featured hotels in ${c.city}`,
         itemListElement: data.hotels.map((h, i) => ({
           '@type': 'ListItem',
           position: i + 1,
           name: h.name,
-          url: new URL(`/hotel/${encodeURIComponent(h.slug)}`, url.origin).href,
+          url: new URL(buildHotelDetailHref(h.slug), url.origin).href,
         })),
+      },
+      {
+        name: 'robots',
+        content: 'index,follow,max-image-preview:large',
       },
     ],
   })
@@ -263,13 +295,25 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
       { name: 'json-ld', content: jsonLd },
     ],
     links: [{ rel: 'canonical', href: canonicalHref }],
+    scripts: [
+      {
+        key: `ld-city-${data.slug}`,
+        props: { type: 'application/ld+json' },
+        script: jsonLd,
+      },
+    ],
   }
 }
 
 const HotelMiniCard = component$(({ hotel }: HotelMiniCardProps) => (
-  <a class="t-card block overflow-hidden hover:bg-white" href={`/hotel/${encodeURIComponent(hotel.slug)}`}>
+  <a class="t-card block overflow-hidden hover:bg-white" href={buildHotelDetailHref(hotel.slug)}>
     <div class="bg-[color:var(--color-neutral-50)]">
-      <img class="h-36 w-full object-cover" src={hotel.images[0] || '/img/demo/hotel-1.jpg'} alt={hotel.name} loading="lazy" />
+      <img
+        class="h-36 w-full object-cover"
+        src={hotel.images[0] || '/img/demo/hotel-1.jpg'}
+        alt={hotel.name}
+        loading="lazy"
+      />
     </div>
     <div class="p-4">
       <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">{hotel.name}</div>
@@ -278,8 +322,16 @@ const HotelMiniCard = component$(({ hotel }: HotelMiniCardProps) => (
       </div>
 
       <div class="mt-3 flex flex-wrap gap-2">
-        {hotel.policies.freeCancellation ? <span class="t-badge t-badge--deal">Free cancellation</span> : <span class="t-badge">Cancellation varies</span>}
-        {hotel.policies.payLater ? <span class="t-badge t-badge--deal">Pay later</span> : <span class="t-badge">Prepay</span>}
+        {hotel.policies.freeCancellation ? (
+          <span class="t-badge t-badge--deal">Free cancellation</span>
+        ) : (
+          <span class="t-badge">Cancellation varies</span>
+        )}
+        {hotel.policies.payLater ? (
+          <span class="t-badge t-badge--deal">Pay later</span>
+        ) : (
+          <span class="t-badge">Prepay</span>
+        )}
       </div>
 
       <div class="mt-3 text-sm font-semibold text-[color:var(--color-text-strong)]">
@@ -289,6 +341,14 @@ const HotelMiniCard = component$(({ hotel }: HotelMiniCardProps) => (
     </div>
   </a>
 ))
+
+const buildHotelsInCityHref = (citySlug: string) => {
+  return `/hotels/in/${encodeURIComponent(citySlug)}`
+}
+
+const buildHotelDetailHref = (hotelSlug: string) => {
+  return `/hotels/${encodeURIComponent(hotelSlug)}`
+}
 
 const parseStayParams = (sp: URLSearchParams): StayParams => {
   const checkIn = normalizeIsoDate(sp.get('checkIn'))

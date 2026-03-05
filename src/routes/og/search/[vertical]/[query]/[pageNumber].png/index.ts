@@ -3,7 +3,7 @@ import { Resvg } from '@resvg/resvg-js'
 import { getPublicBaseUrl, shouldIndex } from '~/lib/seo/env'
 import { decodeOgPayload, getOgSecret, verifyOgSignature } from '~/lib/seo/og-sign'
 
-export const onGet: RequestHandler = ({ params, url, headers, send, cacheControl }) => {
+export const onGet: RequestHandler = async ({ params, url, headers, send, cacheControl }) => {
   const vertical = normalizeVertical(params.vertical)
   if (!vertical) {
     send(404, 'Not found')
@@ -40,7 +40,7 @@ export const onGet: RequestHandler = ({ params, url, headers, send, cacheControl
   const sig = url.searchParams.get('sig')
   const secret = getOgSecret()
 
-  if (p && sig && secret && verifyOgSignature(p, sig, secret)) {
+  if (p && sig && secret && (await verifyOgSignature(p, sig, secret))) {
     const decoded = decodeOgPayload<OgSearchPayload>(p)
     if (decoded && decoded.v === vertical && decoded.q === query && decoded.page === page) {
       if (decoded.title) title = decoded.title

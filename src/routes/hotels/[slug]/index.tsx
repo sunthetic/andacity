@@ -5,7 +5,7 @@ import { getOgSecret, encodeOgPayload, signOgPayload } from '~/lib/seo/og-sign'
 import { getHotelBySlug } from '~/data/hotels'
 import type { Hotel } from '~/data/hotels'
 
-export const useHotelPage = routeLoader$(({ params, url, error }) => {
+export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
   const slug = String(params.slug || '').toLowerCase().trim()
   if (!slug) throw error(404, 'Not found')
 
@@ -28,6 +28,21 @@ export const useHotelPage = routeLoader$(({ params, url, error }) => {
     rooms: active.rooms,
   })
 
+  let ogImage = new URL(`/og/hotel/${encodeURIComponent(slug)}.png`, url.origin).href
+
+  const secret = getOgSecret()
+  if (secret) {
+    const p = encodeOgPayload({
+      v: 'hotel',
+      slug,
+      title: hotel.name,
+      subtitle: `${hotel.city} · ${hotel.stars}★`,
+    })
+
+    const sig = await signOgPayload(p, secret)
+    ogImage = `${ogImage}?p=${encodeURIComponent(p)}&sig=${encodeURIComponent(sig)}`
+  }
+
   return {
     slug,
     hotel,
@@ -36,6 +51,7 @@ export const useHotelPage = routeLoader$(({ params, url, error }) => {
     partyLabel,
     pricing,
     searchHref,
+    ogImage,
   }
 })
 
@@ -49,10 +65,10 @@ export default component$(() => {
         {/* Breadcrumbs */}
         <div class="flex flex-wrap items-center gap-2 text-sm text-[color:var(--color-text-muted)]">
           <a class="hover:text-[color:var(--color-text)]" href="/">
-            Home
+            Andacity Travel
           </a>
           <span class="text-[color:var(--color-text-subtle)]">/</span>
-          <a class="hover:text-[color:var(--color-text)]" href={data.searchHref}>
+          <a class="hover:text-[color:var(--color-text)]" href="/hotels">
             Hotels
           </a>
           <span class="text-[color:var(--color-text-subtle)]">/</span>
@@ -102,7 +118,7 @@ export default component$(() => {
             {/* Gallery */}
             <div class="mt-6 grid gap-3 lg:grid-cols-[2fr_1fr]">
               <div class="t-card overflow-hidden">
-                <img class="h-64 w-full object-cover lg:h-96" src={h.images[0]} alt={h.name} loading="eager" />
+                <img class="h-64 w-full object-cover lg:h-96" src={h.images[0] || '/img/demo/hotel-1.jpg'} alt={h.name} loading="eager" />
               </div>
               <div class="grid gap-3">
                 {h.images.slice(1, 3).map((src) => (
@@ -347,7 +363,7 @@ export default component$(() => {
               <span class="text-xs font-normal text-[color:var(--color-text-muted)]">/night</span>
             </div>
             <div class="text-xs text-[color:var(--color-text-muted)]">
-              {data.nights ? `${data.nights} nights · ` : ''}
+              {data.nights ? `${ data.nights } nights · ` : ''}
               {data.partyLabel}
             </div>
           </div>
@@ -363,94 +379,23 @@ export default component$(() => {
 
 export const head: DocumentHead = ({ resolveValue, url }) => {
   const data = resolveValue(useHotelPage)
-  const h = data.hotel
 
-  const title = `${h.name} | Andacity Travel`
-  const description = `${h.name} in ${h.city}. Compare rooms with transparent totals, clear cancellation terms, and amenities. From ${formatMoney(h.fromNightly, h.currency)}/night.`
+  const title = `${data.hotel.name} | Andacity Travel`
+  const description = `Browse ${data.hotel.name}. Compare totals and policies with clarity.`
 
-  // IMPORTANT: this page route is /hotel/[slug]
-  const canonicalHref = new URL(`/hotel/${encodeURIComponent(data.slug)}`, url.origin).href
+  // Canonical
+  const canonicalHref = new URL(`/hotels/${encodeURIComponent(data.hotel.slug)}`, url.origin).href
 
-  // Optional: once you build OG hotel PNGs
-  let ogImage = new URL(`/og/hotel/${encodeURIComponent(data.slug)}.png`, url.origin).href
-
-  const secret = getOgSecret()
-  if (secret) {
-    const payload: OgHotelPayload = {
-      slug: data.slug,
-      name: h.name,
-      city: h.city,
-      neighborhood: h.neighborhood,
-      fromNightly: h.fromNightly,
-      currency: h.currency,
-      rating: h.rating,
-      reviewCount: h.reviewCount,
-      refundable: h.policies.freeCancellation,
-      payLater: h.policies.payLater,
-    }
-
-    const p = encodeOgPayload(payload)
-    const sig = signOgPayload(p, secret)
-    ogImage = ogImage + `?p=${encodeURIComponent(p)}&sig=${encodeURIComponent(sig)}`
-  }
-
-  const jsonLd = JSON.stringify({
-    '@context': 'https://schema.org',
-    '@graph': [
-      {
-        '@type': 'BreadcrumbList',
-        itemListElement: [
-          {
-            '@type': 'ListItem',
-            position: 1,
-            name: 'Hotels',
-            item: new URL(`/search/hotels/${encodeURIComponent(h.cityQuery)}/1`, url.origin).href,
-          },
-          {
-            '@type': 'ListItem',
-            position: 2,
-            name: h.name,
-            item: canonicalHref,
-          },
-        ],
-      },
-      {
-        '@type': 'Hotel',
-        name: h.name,
-        description,
-        address: {
-          '@type': 'PostalAddress',
-          streetAddress: h.addressLine,
-          addressLocality: h.city,
-          addressRegion: h.region,
-          addressCountry: h.country,
-        },
-        aggregateRating: {
-          '@type': 'AggregateRating',
-          ratingValue: h.rating,
-          reviewCount: h.reviewCount,
-        },
-        amenityFeature: h.amenities.slice(0, 12).map((a) => ({
-          '@type': 'LocationFeatureSpecification',
-          name: a,
-          value: true,
-        })),
-      },
-      {
-        '@type': 'FAQPage',
-        mainEntity: h.faq.map((qa) => ({
-          '@type': 'Question',
-          name: qa.q,
-          acceptedAnswer: { '@type': 'Answer', text: qa.a },
-        })),
-      },
-    ],
-  })
+  // IMPORTANT: head must be sync -> no signing here
+  // Use your path-based OG route (no query params)
+  const ogImage = new URL(`/og/hotel/${encodeURIComponent(data.hotel.slug)}.png`, url.origin).href
 
   return {
     title,
     meta: [
       { name: 'description', content: description },
+
+      { name: 'robots', content: 'index,follow,max-image-preview:large' },
 
       { property: 'og:type', content: 'website' },
       { property: 'og:title', content: title },
@@ -462,9 +407,6 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
       { name: 'twitter:title', content: title },
       { name: 'twitter:description', content: description },
       { name: 'twitter:image', content: ogImage },
-
-      // RouterHead renders this meta as JSON-LD script
-      { name: 'json-ld', content: jsonLd },
     ],
     links: [{ rel: 'canonical', href: canonicalHref }],
   }
@@ -652,26 +594,13 @@ type HotelPolicy = {
   feesBlurb: string
 }
 
-type Room = {
-  id: string
-  name: string
-  sleeps: number
-  beds: string
-  sizeSqft: number
-  priceFrom: number
-  refundable: boolean
-  payLater: boolean
-  badges: string[]
-  features: string[]
-}
-
 type FAQ = {
   q: string
   a: string
 }
 
 type RoomCardProps = {
-  room: Room
+  room: Hotel['rooms'][number]
   nights: number | null
   currency: string
   roomsCount: number | null

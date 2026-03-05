@@ -25,6 +25,7 @@
     "@builder.io/qwik": "^1.19.0",
     "@builder.io/qwik-city": "^1.19.0",
     "@eslint/js": "latest",
+    "@fontsource-variable/open-sans": "^5.2.7",
     "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/node": "20.19.0",
@@ -40,5 +41,12 @@
     "undici": "*",
     "vite": "7.3.1",
     "vite-tsconfig-paths": "^4.2.1"
+  },
+  "dependencies": {
+    "@fontsource-variable/google-sans": "^5.2.1",
+    "@fontsource-variable/noto-sans": "^5.2.10",
+    "@fontsource-variable/nunito-sans": "^5.2.7",
+    "@fontsource/barlow": "^5.2.8",
+    "zod": "^3.25.48"
   }
 }
