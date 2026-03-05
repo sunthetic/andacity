@@ -1,82 +1,140 @@
-import { component$ } from '@builder.io/qwik'
+import { component$, useSignal } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
-import { CAR_RENTALS } from '~/data/car-rentals'
-import { ListingCardGrid } from '~/components/vertical/ListingCardGrid'
 import { Breadcrumbs } from '~/components/site/Breadcrumbs'
+import { CarRentalResultCard } from '~/components/car-rentals/search/CarRentalResultCard'
+import { MobileDrawer } from '~/components/car-rentals/search/MobileDrawer'
+import {
+  DatesPanel,
+  PricePanel,
+  CategoryPanel,
+  TransmissionPanel,
+  SeatsPanel,
+  PolicyPanel,
+  InclusionsPanel,
+} from '~/components/car-rentals/search/FilterPanels'
+import { getOgSecret, encodeOgPayload, signOgPayload } from '~/lib/seo/og-sign'
+import { CAR_RENTALS } from '~/data/car-rentals'
 
-export const useCarRentalSearch = routeLoader$(({ params, error, url }) => {
-  const rawQuery = String(params.query || '').trim().toLowerCase()
-  const rawPage = String(params.pageNumber || '1').trim()
+import { buildFacets } from '~/lib/search/car-rentals/facets'
+import {
+  buildSearchParams,
+  hasAnyFilters,
+  parseActiveFilters,
+  renderActiveChips,
+  serializeHiddenInputs,
+} from '~/lib/search/car-rentals/filters'
+import { computeDays } from '~/lib/search/car-rentals/dates'
+import { mapCarRentalsToResults } from '~/lib/search/car-rentals/mapCarRentalsToResults'
+import { clampInt, normalizeQuery, normalizeSort, safeTitleQuery } from '~/lib/search/car-rentals/normalize'
+import { paginationWindow } from '~/lib/search/car-rentals/pagination'
 
-  const pageNumber = Math.max(1, Number.parseInt(rawPage, 10) || 1)
+import type { ActiveFilters, CarRentalResult, Facets, SortKey } from '~/types/car-rentals/search'
+import { formatMoney } from '~/lib/formatMoney'
 
-  if (!rawQuery) throw error(404, 'Not found')
+export const useSearchCarRentalsPage = routeLoader$(async ({ params, url }) => {
+  const query = normalizeQuery(params.query)
+  const page = clampInt(params.pageNumber, 1, 9999)
 
-  // Treat "anywhere" and "all" as browse-all queries
-  const query = rawQuery === 'anywhere' || rawQuery === 'all' ? '' : rawQuery
+  const inventory = mapCarRentalsToResults(CAR_RENTALS, query)
 
-  const pageSize = 12
+  const active = parseActiveFilters(url.searchParams)
+  const sort = normalizeSort(url.searchParams.get('sort'))
 
-  const all = query
-    ? CAR_RENTALS.filter((c) => {
-      const hay = [
-        c.name,
-        c.city,
-        c.region,
-        c.country,
-        c.cityQuery,
-        c.pickupArea,
-        c.pickupAddressLine,
-        c.inclusions.join(' '),
-        c.offers.map((o) => [o.name, o.category, o.transmission, o.features.join(' ')].join(' ')).join(' '),
-      ]
-        .join(' ')
-        .toLowerCase()
+  const filtered = inventory.filter((r) => {
+    if (active.categories.length && (!r.category || !active.categories.includes(r.category))) return false
+    if (active.transmissions.length && (!r.transmission || !active.transmissions.includes(r.transmission))) return false
+    if (active.seats.length && (r.seats == null || !active.seats.includes(r.seats))) return false
+    if (active.inclusions.length && !active.inclusions.every((x) => r.inclusions.includes(x))) return false
 
-      return hay.includes(query)
-    })
-    : CAR_RENTALS.slice()
+    if (active.freeCancellationOnly && !r.freeCancellation) return false
+    if (active.payAtCounterOnly && !r.payAtCounter) return false
 
-  if (!all.length) {
-    // Keep the page indexable? No: search pages are intended to stay noindex anyway.
-    // Still return a valid page state with empty results so UI can show "no results".
-    return {
-      query: rawQuery,
-      normalizedQuery: query,
-      pageNumber,
-      pageSize,
-      total: 0,
-      totalPages: 1,
-      items: [],
-      canonicalHref: new URL(`/search/car-rentals/${encodeURIComponent(rawQuery)}/1`, url.origin).href,
-    }
-  }
+    if (active.ratingMin != null && r.rating < active.ratingMin) return false
+    if (active.priceMin != null && r.priceFrom < active.priceMin) return false
+    if (active.priceMax != null && r.priceFrom > active.priceMax) return false
 
-  const total = all.length
+    return true
+  })
+
+  const sorted = filtered.slice().sort((a, b) => {
+    if (sort === 'price-asc') return a.priceFrom - b.priceFrom
+    if (sort === 'price-desc') return b.priceFrom - a.priceFrom
+    if (sort === 'rating-desc') return b.rating - a.rating
+    if (sort === 'reviewcount-desc') return b.reviewCount - a.reviewCount
+    return b.score - a.score
+  })
+
+  const pageSize = 20
+  const total = sorted.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const safePage = Math.min(pageNumber, totalPages)
+  const safePage = clampInt(String(page), 1, totalPages)
 
   const start = (safePage - 1) * pageSize
-  const items = all.slice(start, start + pageSize)
+  const results = sorted.slice(start, start + pageSize)
+
+  const facets = buildFacets(inventory)
+
+  const price = {
+    min: inventory.length ? Math.min(...inventory.map((x) => x.priceFrom)) : null,
+    max: inventory.length ? Math.max(...inventory.map((x) => x.priceFrom)) : null,
+    currency: 'USD',
+  }
+
+  const qHuman = safeTitleQuery(query)
+
+  // ✅ OG image computed after safePage exists
+  let ogImage = new URL(`/og/search/car-rentals/${encodeURIComponent(query)}/${safePage}.png`, url.origin).href
+
+  const secret = getOgSecret()
+  if (secret) {
+    const payload: OgSearchPayload = {
+      v: 'car-rentals',
+      q: query,
+      page: safePage,
+      title: 'Car rentals search',
+      subtitle: qHuman,
+      stats: {
+        priceMin: price.min ?? undefined,
+        priceMax: price.max ?? undefined,
+        currency: price.currency,
+        note: 'Compare totals + policies',
+      },
+    }
+
+    const p = encodeOgPayload(payload)
+    const sig = await signOgPayload(p, secret)
+    ogImage = `${ogImage}?p=${encodeURIComponent(p)}&sig=${encodeURIComponent(sig)}`
+  }
 
   return {
-    query: rawQuery,
-    normalizedQuery: query,
-    pageNumber: safePage,
-    pageSize,
+    query,
+    qHuman,
+    page: safePage,
+    results,
     total,
+    pageSize,
     totalPages,
-    items,
-    canonicalHref: new URL(`/search/car-rentals/${encodeURIComponent(rawQuery)}/${safePage}`, url.origin).href,
+    facets,
+    active,
+    sort,
+    price,
+    ogImage,
   }
 })
 
 export default component$(() => {
-  const data = useCarRentalSearch().value
+  const data = useSearchCarRentalsPage().value
 
-  const hasResults = data.items.length > 0
+  const pathBase = `/search/car-rentals/${encodeURIComponent(data.query)}`
+  const page1Action = `${pathBase}/1`
+  const pageHref = (p: number) => `${pathBase}/${p}${buildSearchParams(data.active, data.sort)}`
+
+  const days = computeDays(data.active.pickupDate, data.active.dropoffDate)
+
+  const mobileFiltersOpen = useSignal(false)
+  const mobileSortOpen = useSignal(false)
 
   return (
     <Page>
@@ -84,224 +142,343 @@ export default component$(() => {
         items={[
           { label: 'Andacity Travel', href: '/' },
           { label: 'Car Rentals', href: '/car-rentals' },
-          { label: 'Search', href: '/search/car-rentals/anywhere/1' },
-          {
-            label: data.query === 'anywhere' || data.query === 'all' ? 'Anywhere' : data.query,
-            href: buildSearchHref(data.query, data.pageNumber),
-          },
+          { label: 'Search', href: '/search/car-rentals' },
+          { label: data.qHuman, href: pageHref(data.page) },
         ]}
       />
-      
-      <div class="flex flex-wrap items-end justify-between gap-3">
+
+      {/* Header + sort row */}
+      <div class="mt-4 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-            Search car rentals
+          <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
+            Car rentals in {data.qHuman}
           </h1>
-          <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-            Results for{' '}
-            <span class="font-semibold text-[color:var(--color-text-strong)]">
-              {data.query === 'anywhere' || data.query === 'all' ? 'Anywhere' : data.query}
-            </span>
-            . Search pages stay noindex.
+
+          <p class="mt-2 max-w-[80ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
+            Transparent totals, clear policies, and fast filtering. Search result pages are noindex.
           </p>
 
-          <div class="mt-4 flex flex-wrap gap-2">
-            <a class="t-btn-primary px-4 text-center" href="/car-rentals">
-              Back to car rentals
-            </a>
-
-            {data.query && data.query !== 'anywhere' && data.query !== 'all' ? (
-              <a class="t-btn-primary px-4 text-center" href={buildCityHref(data.query)}>
-                Try city guide
-              </a>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <span class="t-badge">{data.total.toLocaleString('en-US')} results</span>
+            {data.price.min != null && data.price.max != null ? (
+              <span class="t-badge">
+                From {formatMoney(data.price.min, data.price.currency)}–{formatMoney(data.price.max, data.price.currency)}
+              </span>
             ) : null}
-          </div>
-
-          <div class="mt-4 text-sm text-[color:var(--color-text-muted)]">
-            {hasResults ? (
-              <>
-                Showing{' '}
-                <span class="text-[color:var(--color-text-strong)]">
-                  {rangeLabel(data.pageNumber, data.pageSize, data.total)}
-                </span>{' '}
-                of <span class="text-[color:var(--color-text-strong)]">{data.total.toLocaleString('en-US')}</span>
-              </>
-            ) : (
-              <>No results found.</>
-            )}
+            <span class="t-badge">Car rentals search</span>
           </div>
         </div>
 
-        {/* Pagination (top) */}
-        {data.totalPages > 1 ? (
-          <div class="flex flex-wrap items-center gap-2">
-            <a
-              class="t-btn-primary px-4 text-center"
-              href={buildSearchHref(data.query, Math.max(1, data.pageNumber - 1))}
-              aria-disabled={data.pageNumber <= 1}
-            >
-              Prev
-            </a>
+        {/* Sort */}
+        <form method="get" action={page1Action} class="t-panel hidden items-center gap-2 p-3 lg:flex">
+          <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">Sort</label>
+          <select
+            name="sort"
+            class="rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+            value={data.sort}
+          >
+            <option value="relevance">Relevance</option>
+            <option value="price-asc">Price: low → high</option>
+            <option value="price-desc">Price: high → low</option>
+            <option value="rating-desc">Rating</option>
+            <option value="reviewcount-desc">Review count</option>
+          </select>
 
-            <span class="text-sm text-[color:var(--color-text-muted)]">
-              Page <span class="text-[color:var(--color-text-strong)]">{data.pageNumber}</span> of{' '}
-              <span class="text-[color:var(--color-text-strong)]">{data.totalPages}</span>
-            </span>
+          {serializeHiddenInputs(data.active).map((x) => (
+            <input key={`${x.name}:${x.value}`} type="hidden" name={x.name} value={x.value} />
+          ))}
 
-            <a
-              class="t-btn-primary px-4 text-center"
-              href={buildSearchHref(data.query, Math.min(data.totalPages, data.pageNumber + 1))}
-              aria-disabled={data.pageNumber >= data.totalPages}
-            >
-              Next
-            </a>
-          </div>
-        ) : null}
+          <button class="t-btn-primary" type="submit">
+            Apply
+          </button>
+        </form>
       </div>
 
-      {/* Results */}
-      {hasResults ? (
-        <ListingCardGrid variant="car-rentals" items={data.items} />
-      ) : (
-        <div class="mt-6 t-card p-5">
-          <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">No matches</div>
-          <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-            Try a different query (e.g. <span class="font-semibold">orlando</span> or{' '}
-            <span class="font-semibold">miami</span>), or browse the city guides.
-          </p>
+      {/* Active filter chips */}
+      <div class="mt-4 flex flex-wrap gap-2">
+        {renderActiveChips(data.active, pathBase, data.sort)}
+        {hasAnyFilters(data.active) ? (
+          <a
+            class="t-badge hover:bg-white"
+            href={`${pathBase}/1${buildSearchParams(
+              {
+                categories: [],
+                transmissions: [],
+                seats: [],
+                inclusions: [],
+                freeCancellationOnly: false,
+                payAtCounterOnly: false,
+                ratingMin: null,
+                priceMin: null,
+                priceMax: null,
+                pickupDate: null,
+                dropoffDate: null,
+                drivers: null,
+              },
+              data.sort,
+            )}`}
+          >
+            Clear all
+          </a>
+        ) : (
+          <span class="t-badge">Tip: filter by category + free cancellation</span>
+        )}
+      </div>
 
-          <div class="mt-4 flex flex-wrap gap-2">
-            <a class="t-btn-primary px-4 text-center" href="/car-rentals/in/orlando">
-              Orlando
-            </a>
-            <a class="t-btn-primary px-4 text-center" href="/car-rentals/in/las-vegas">
-              Las Vegas
-            </a>
-            <a class="t-btn-primary px-4 text-center" href="/car-rentals/in/new-york-city">
-              New York
-            </a>
+      {/* Main grid */}
+      <div class="mt-6 grid gap-6 lg:grid-cols-[300px_1fr] lg:items-start">
+        {/* Filters sidebar */}
+        <aside class="hidden lg:block lg:sticky lg:top-24 lg:self-start">
+          <div class="t-card p-5">
+            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">Filters</div>
+            <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+              Filters apply via GET (fast SSR, shareable URLs).
+            </div>
+
+            <form method="get" action={page1Action} class="mt-4 grid gap-4">
+              <input type="hidden" name="sort" value={data.sort} />
+
+              <DatesPanel a={data.active} />
+              <PricePanel a={data.active} />
+              <CategoryPanel a={data.active} facets={data.facets} />
+              <TransmissionPanel a={data.active} facets={data.facets} />
+              <SeatsPanel a={data.active} facets={data.facets} />
+              <PolicyPanel a={data.active} />
+              <InclusionsPanel a={data.active} facets={data.facets} />
+
+              <button class="t-btn-primary" type="submit">
+                Apply filters
+              </button>
+
+              <div class="text-xs text-[color:var(--color-text-muted)]">
+                Search pages stay noindex. City + detail pages are indexable.
+              </div>
+            </form>
+          </div>
+        </aside>
+
+        {/* Results column */}
+        <main>
+          {/* Map preview */}
+          <div class="t-card p-5">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">Map</div>
+                <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                  Map supports decision-making; keep it compact.
+                </div>
+              </div>
+              <span class="t-badge">Preview</span>
+            </div>
+            <div class="mt-4 h-56 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-neutral-50)]" />
+          </div>
+
+          {/* Results list */}
+          <section class="mt-6">
+            <div class="flex items-center justify-between">
+              <div class="text-sm text-[color:var(--color-text-muted)]">
+                Showing <span class="font-medium text-[color:var(--color-text)]">{data.results.length}</span> of{' '}
+                <span class="font-medium text-[color:var(--color-text)]">{data.total.toLocaleString('en-US')}</span>
+              </div>
+
+              <div class="text-sm text-[color:var(--color-text-muted)]">
+                Page <span class="font-medium text-[color:var(--color-text)]">{data.page}</span> / {data.totalPages}
+              </div>
+            </div>
+
+            <div class="mt-4 grid gap-3">
+              {data.results.length ? (
+                data.results.map((r: CarRentalResult) => <CarRentalResultCard key={r.id} r={r} days={days} />)
+              ) : (
+                <div class="t-card p-6">
+                  <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">No results</div>
+                  <div class="mt-2 text-sm text-[color:var(--color-text-muted)]">
+                    Try removing filters or searching a broader area.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Pagination */}
+            {data.totalPages > 1 ? (
+              <nav class="mt-6 flex flex-wrap items-center gap-2">
+                <a class="t-badge hover:bg-white" href={pageHref(Math.max(1, data.page - 1))} aria-disabled={data.page <= 1}>
+                  ← Prev
+                </a>
+
+                {paginationWindow(data.page, data.totalPages).map((p) => (
+                  <a
+                    key={p}
+                    class={p === data.page ? 't-badge t-badge--deal' : 't-badge hover:bg-white'}
+                    href={pageHref(p)}
+                  >
+                    {p}
+                  </a>
+                ))}
+
+                <a
+                  class="t-badge hover:bg-white"
+                  href={pageHref(Math.min(data.totalPages, data.page + 1))}
+                  aria-disabled={data.page >= data.totalPages}
+                >
+                  Next →
+                </a>
+              </nav>
+            ) : null}
+          </section>
+        </main>
+      </div>
+
+      {/* Mobile sticky bar */}
+      <div class="fixed inset-x-0 bottom-0 z-50 border-t border-[color:var(--color-divider)] bg-white/95 backdrop-blur lg:hidden">
+        <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
+          <div class="min-w-0">
+            <div class="truncate text-sm font-semibold text-[color:var(--color-text-strong)]">{data.qHuman}</div>
+            <div class="text-xs text-[color:var(--color-text-muted)]">
+              {data.total.toLocaleString('en-US')} results
+              {days ? <span> · {days} days</span> : null}
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="t-badge hover:bg-white"
+              onClick$={() => {
+                mobileSortOpen.value = true
+                mobileFiltersOpen.value = false
+              }}
+            >
+              Sort
+            </button>
+
+            <button
+              type="button"
+              class="t-btn-primary px-5"
+              onClick$={() => {
+                mobileFiltersOpen.value = true
+                mobileSortOpen.value = false
+              }}
+            >
+              Filters
+              {hasAnyFilters(data.active) ? <span class="ml-2 t-badge">•</span> : null}
+            </button>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Pagination (bottom) */}
-      {data.totalPages > 1 ? (
-        <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
-          <a
-            class="t-btn-primary px-4 text-center"
-            href={buildSearchHref(data.query, Math.max(1, data.pageNumber - 1))}
-            aria-disabled={data.pageNumber <= 1}
-          >
-            Prev
-          </a>
+      {/* Mobile drawers */}
+      {mobileFiltersOpen.value ? (
+        <MobileDrawer title="Filters" onClose$={() => { mobileFiltersOpen.value = false }}>
+          <form method="get" action={page1Action} class="grid gap-4">
+            <input type="hidden" name="sort" value={data.sort} />
 
-          <div class="text-sm text-[color:var(--color-text-muted)]">
-            Page <span class="text-[color:var(--color-text-strong)]">{data.pageNumber}</span> of{' '}
-            <span class="text-[color:var(--color-text-strong)]">{data.totalPages}</span>
-          </div>
+            <DatesPanel a={data.active} />
+            <PricePanel a={data.active} />
+            <CategoryPanel a={data.active} facets={data.facets} />
+            <TransmissionPanel a={data.active} facets={data.facets} />
+            <SeatsPanel a={data.active} facets={data.facets} />
+            <PolicyPanel a={data.active} />
+            <InclusionsPanel a={data.active} facets={data.facets} />
 
-          <a
-            class="t-btn-primary px-4 text-center"
-            href={buildSearchHref(data.query, Math.min(data.totalPages, data.pageNumber + 1))}
-            aria-disabled={data.pageNumber >= data.totalPages}
-          >
-            Next
-          </a>
-        </div>
+            <div class="grid grid-cols-2 gap-2">
+              <a class="t-badge flex items-center justify-center hover:bg-white" href={`${pathBase}/1?sort=${encodeURIComponent(data.sort)}`}>
+                Reset
+              </a>
+              <button class="t-btn-primary" type="submit">
+                Apply
+              </button>
+            </div>
+
+            <div class="text-xs text-[color:var(--color-text-muted)]">Applies to page 1 to avoid empty pages.</div>
+          </form>
+        </MobileDrawer>
+      ) : null}
+
+      {mobileSortOpen.value ? (
+        <MobileDrawer title="Sort" onClose$={() => { mobileSortOpen.value = false }}>
+          <form method="get" action={page1Action} class="grid gap-3">
+            {serializeHiddenInputs(data.active).map((x) => (
+              <input key={`${x.name}:${x.value}`} type="hidden" name={x.name} value={x.value} />
+            ))}
+
+            <div class="t-panel p-4">
+              <div class="text-xs font-semibold text-[color:var(--color-text-strong)]">Sort by</div>
+
+              <div class="mt-3 grid gap-2">
+                {([
+                  { v: 'relevance', label: 'Relevance' },
+                  { v: 'price-asc', label: 'Price: low → high' },
+                  { v: 'price-desc', label: 'Price: high → low' },
+                  { v: 'rating-desc', label: 'Rating' },
+                  { v: 'reviewcount-desc', label: 'Review count' },
+                ] as const).map((o) => (
+                  <label key={o.v} class="flex items-center justify-between gap-3 text-sm text-[color:var(--color-text)]">
+                    <span class="flex items-center gap-2">
+                      <input type="radio" name="sort" value={o.v} checked={data.sort === o.v} />
+                      <span>{o.label}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <button class="t-btn-primary" type="submit">
+              Apply
+            </button>
+          </form>
+        </MobileDrawer>
       ) : null}
     </Page>
   )
 })
 
 export const head: DocumentHead = ({ resolveValue, url }) => {
-  const data = resolveValue(useCarRentalSearch)
+  const data = resolveValue(useSearchCarRentalsPage)
 
-  const qLabel = data.query === 'anywhere' || data.query === 'all' ? 'Anywhere' : data.query
+  const title = `Car rentals in ${data.qHuman} – Page ${data.page} | Andacity Travel`
+  const description = `Browse car rental results for ${data.qHuman}. Compare policies and totals with clarity.`
+  const robots = 'noindex,follow,max-image-preview:large'
 
-  const title = `Search car rentals: ${qLabel} (Page ${data.pageNumber}) | Andacity Travel`
-  const description =
-    'Search car rentals by city or query. Search pages stay noindex; city guides and detail pages are indexable.'
-
-  // Canonicalize to the current page (and normalize empty queries back to "anywhere")
-  const canonicalHref = data.canonicalHref
-
-  const robots = 'noindex,follow'
-
-  const jsonLd = JSON.stringify({
-    '@context': 'https://schema.org',
-    '@graph': [
-      {
-        '@type': 'BreadcrumbList',
-        itemListElement: [
-          {
-            '@type': 'ListItem',
-            position: 1,
-            name: 'Car Rentals',
-            item: new URL('/car-rentals', url.origin).href,
-          },
-          {
-            '@type': 'ListItem',
-            position: 2,
-            name: `Search: ${qLabel}`,
-            item: canonicalHref,
-          },
-        ],
-      },
-    ],
-  })
+  const canonicalPath = `/search/car-rentals/${encodeURIComponent(data.query)}/${data.page}`
+  const canonicalHref = new URL(canonicalPath, url.origin).href
 
   return {
     title,
     meta: [
       { name: 'description', content: description },
       { name: 'robots', content: robots },
+
       { property: 'og:type', content: 'website' },
       { property: 'og:title', content: title },
       { property: 'og:description', content: description },
       { property: 'og:url', content: canonicalHref },
+      { property: 'og:image', content: data.ogImage },
+
       { name: 'twitter:card', content: 'summary_large_image' },
       { name: 'twitter:title', content: title },
       { name: 'twitter:description', content: description },
+      { name: 'twitter:image', content: data.ogImage },
     ],
     links: [{ rel: 'canonical', href: canonicalHref }],
-    scripts: [
-      {
-        key: 'ld-car-rentals-search',
-        props: { type: 'application/ld+json' },
-        script: jsonLd,
-      },
-    ],
   }
 }
 
-const buildCityHref = (citySlug: string) => {
-  return `/car-rentals/in/${encodeURIComponent(citySlug)}`
-}
+/* -----------------------------
+   Types (route-local)
+----------------------------- */
 
-const buildSearchHref = (query: string, pageNumber: number) => {
-  const q = String(query || '').trim()
-  const safeQ = q ? q : 'anywhere'
-  return `/search/car-rentals/${encodeURIComponent(safeQ)}/${encodeURIComponent(String(pageNumber))}`
-}
-
-const buildCarRentalDetailHref = (rentalSlug: string) => {
-  return `/car-rentals/${encodeURIComponent(rentalSlug)}`
-}
-
-const rangeLabel = (pageNumber: number, pageSize: number, total: number) => {
-  const start = (pageNumber - 1) * pageSize + 1
-  const end = Math.min(total, pageNumber * pageSize)
-  return `${start.toLocaleString('en-US')}–${end.toLocaleString('en-US')}`
-}
-
-const formatMoney = (amount: number, currency: string) => {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  } catch {
-    return `${Math.round(amount)} ${currency}`
+type OgSearchPayload = {
+  v: 'car-rentals'
+  q: string
+  page: number
+  title?: string
+  subtitle?: string
+  stats?: {
+    priceMin?: number
+    priceMax?: number
+    currency?: string
+    topArea?: string
+    note?: string
   }
 }

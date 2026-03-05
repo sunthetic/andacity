@@ -29,6 +29,7 @@ import { computeNights } from '~/lib/search/hotels/dates'
 import { mapHotelsToResults } from '~/lib/search/hotels/mapHotelsToResults'
 import { clampInt, normalizeQuery, normalizeSort, safeTitleQuery } from '~/lib/search/hotels/normalize'
 import { paginationWindow } from '~/lib/search/hotels/pagination'
+import { formatMoney } from '~/lib/formatMoney'
 
 export const useSearchHotelsPage = routeLoader$(async ({ params, url }) => {
   const query = normalizeQuery(params.query)
@@ -185,7 +186,7 @@ export default component$(() => {
 
       {/* Active filter chips */}
       <div class="mt-4 flex flex-wrap gap-2">
-        {renderActiveChips(data.active, pathBase, 1, data.sort)}
+        {renderActiveChips(data.active, pathBase, data.sort)}
         {hasAnyFilters(data.active) ? (
           <a
             class="t-badge hover:bg-white"
