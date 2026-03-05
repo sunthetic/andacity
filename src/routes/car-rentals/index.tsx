@@ -1,28 +1,126 @@
 import { component$ } from '@builder.io/qwik'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
+import { CAR_RENTALS } from '~/data/car-rentals'
+import { ListingCardGrid } from '~/components/vertical/ListingCardGrid'
+import { Breadcrumbs } from '~/components/site/Breadcrumbs'
 
 export default component$(() => {
+  const items = CAR_RENTALS
+
   return (
     <Page>
-      <div class="t-card p-7">
-        <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
-          Car rentals (coming soon)
-        </h1>
-        <p class="mt-2 max-w-[70ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-          We’re building the car rentals vertical next.
-        </p>
+      <Breadcrumbs
+        items={[
+          { label: 'Andacity Travel', href: '/' },
+          { label: 'Car Rentals', href: '/car-rentals' },
+        ]}
+      />
+      
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+            Car Rentals
+          </h1>
+          <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
+            Indexable car rental guides with clear inclusions and policy summaries. Search results stay noindex.
+          </p>
+
+          <div class="mt-4 flex flex-wrap gap-2">
+            <a class="t-btn-primary px-4 text-center" href="/car-rentals/in">
+              Browse cities
+            </a>
+            <a class="t-btn-primary px-4 text-center" href="/search/car-rentals">
+              Search car rentals
+            </a>
+          </div>
+
+          <div class="mt-4 flex flex-wrap gap-2 text-sm">
+            <span class="text-[color:var(--color-text-muted)]">Popular:</span>
+            <a class="t-badge hover:bg-white" href="/car-rentals/in/las-vegas">Las Vegas</a>
+            <a class="t-badge hover:bg-white" href="/car-rentals/in/orlando">Orlando</a>
+            <a class="t-badge hover:bg-white" href="/car-rentals/in/new-york-city">New York</a>
+          </div>
+        </div>
       </div>
+
+      <ListingCardGrid variant="car-rentals" items={items} />
     </Page>
   )
 })
 
 export const head: DocumentHead = ({ url }) => {
-  const title = 'Car rentals | Andacity Travel'
-  const description = 'Car rentals vertical coming soon.'
+  const title = 'Car Rentals | Andacity Travel'
+  const description =
+    'Browse indexable car rental guides with clear inclusions and policy summaries. Search pages stay noindex; detail pages earn rankings.'
+
+  const canonicalHref = new URL('/car-rentals', url.origin).href
+
+  const listCap = 24
+
+  const jsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Car Rentals',
+            item: canonicalHref,
+          },
+        ],
+      },
+      {
+        '@type': 'ItemList',
+        name: 'Andacity car rentals',
+        itemListElement: CAR_RENTALS.slice(0, listCap).map((c, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          name: c.name,
+          url: new URL(buildCarRentalDetailHref(c.slug), url.origin).href,
+          numberOfItems: CAR_RENTALS.length,
+        })),
+      },
+    ],
+  })
+
   return {
     title,
-    meta: [{ name: 'description', content: description }],
-    links: [{ rel: 'canonical', href: new URL('/car-rentals', url.origin).href }],
+    meta: [
+      { name: 'description', content: description },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:title', content: title },
+      { property: 'og:description', content: description },
+      { property: 'og:url', content: canonicalHref },
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: title },
+      { name: 'twitter:description', content: description },
+    ],
+    links: [{ rel: 'canonical', href: canonicalHref }],
+    scripts: [
+      {
+        key: 'ld-car-rentals',
+        props: { type: 'application/ld+json' },
+        script: jsonLd,
+      },
+    ],
+  }
+}
+
+const buildCarRentalDetailHref = (rentalSlug: string) => {
+  return `/car-rentals/${encodeURIComponent(rentalSlug)}`
+}
+
+const formatMoney = (amount: number, currency: string) => {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 0,
+    }).format(amount)
+  } catch {
+    return `${Math.round(amount)} ${currency}`
   }
 }

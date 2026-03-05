@@ -113,6 +113,7 @@
    /* Background stack */
    --color-bg: var(--color-neutral-25);
    --color-surface: #FFFFFF;
+   --color-primary-surface: var(--color-primary-25);
    --color-panel: var(--color-neutral-50);
    --color-elevated: #FFFFFF;
 

@@ -11,10 +11,10 @@ export default component$(() => {
       <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-            Hotel cities
+            Hotel destinations by city
           </h1>
           <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-            Indexable city guides that link into noindex search results. This is your scalable SEO layer.
+            Browse city guides. Indexable city guides that link into noindex search results. This is your scalable SEO layer.
           </p>
         </div>
 
@@ -64,7 +64,7 @@ export default component$(() => {
 })
 
 export const head: DocumentHead = ({ url }) => {
-  const title = 'Hotel Cities | Andacity Travel'
+  const title = 'Hotel Destinations | Andacity Travel'
   const description =
     'Browse indexable hotel city guides. Each city page links into noindex hotel search results while earning rankings.'
 

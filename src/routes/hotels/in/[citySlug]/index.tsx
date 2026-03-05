@@ -4,7 +4,8 @@ import type { DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
 import { getHotelCityBySlug } from '~/data/hotel-cities'
 import { HOTELS_BY_SLUG } from '~/data/hotels'
-import type { Hotel } from '~/data/hotels'
+import { ListingCardGrid } from "~/components/vertical/ListingCardGrid"
+import { Breadcrumbs } from '~/components/site/Breadcrumbs'
 
 export const useHotelCityPage = routeLoader$(({ params, url, error }) => {
   const slug = String(params.citySlug || '').toLowerCase().trim()
@@ -44,178 +45,167 @@ export default component$(() => {
 
   return (
     <Page>
-        {/* Breadcrumbs */}
-        <div class="flex flex-wrap items-center gap-2 text-sm text-[color:var(--color-text-muted)]">
-          <a class="hover:text-[color:var(--color-text)]" href="/">
-            Andacity Travel
-          </a>
-          <span class="text-[color:var(--color-text-subtle)]">/</span>
-          <a class="hover:text-[color:var(--color-text)]" href="/hotels">
-            Hotels
-          </a>
-          <span class="text-[color:var(--color-text-subtle)]">/</span>
-          <a class="hover:text-[color:var(--color-text)]" href="/hotels/in">
-            Cities
-          </a>
-          <span class="text-[color:var(--color-text-subtle)]">/</span>
-          <span class="text-[color:var(--color-text)]">{c.city}</span>
-        </div>
+      {/* Breadcrumbs */}
+      <Breadcrumbs
+        items={[
+          { label: 'Andacity Travel', href: '/' },
+          { label: 'Hotels', href: '/hotels' },
+          { label: 'Cities', href: '/hotels/in' },
+          { label: c.city, href: buildHotelsInCityHref(data.slug) },
+        ]}
+      />
 
-        {/* Header + sticky CTA card */}
-        <div class="mt-4 grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
-          <div>
-            <div class="flex flex-wrap gap-2">
-              <span class="t-badge">
-                {c.region}, {c.country}
-              </span>
-              <span class="t-badge">{c.hotelSlugs.length} hotels</span>
-              <span class="t-badge">
-                From {formatMoney(c.priceFrom, 'USD')}/night
-              </span>
-            </div>
-
-            <h1 class="mt-3 text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
-              Hotels in {c.city}
-            </h1>
-
-            <p class="mt-2 max-w-[80ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-              Clean city guide for {c.city}. Transparent totals, clear policies, and fast filtering — without
-              indexing SERPs.
-            </p>
-
-            <div class="mt-5 grid gap-3 sm:grid-cols-2">
-              <div class="t-card p-5">
-                <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">Top areas</div>
-                <div class="mt-3 flex flex-wrap gap-2">
-                  {c.topNeighborhoods.slice(0, 6).map((x) => (
-                    <span key={x.name} class="t-badge">
-                      {x.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div class="t-card p-5">
-                <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                  Popular amenities
-                </div>
-                <div class="mt-3 flex flex-wrap gap-2">
-                  {c.topAmenities.slice(0, 6).map((x) => (
-                    <span key={x.name} class="t-badge">
-                      {x.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
+      {/* Header + sticky CTA card */}
+      <div class="mt-4 grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
+        <div>
+          <div class="flex flex-wrap gap-2">
+            <span class="t-badge">
+              {c.region}, {c.country}
+            </span>
+            <span class="t-badge">{c.hotelSlugs.length} hotels</span>
+            <span class="t-badge">
+              From {formatMoney(c.priceFrom, 'USD')}/night
+            </span>
           </div>
 
-          <aside class="lg:sticky lg:top-24 lg:self-start">
+          <h1 class="mt-3 text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
+            Hotels in {c.city}
+          </h1>
+
+          <p class="mt-2 max-w-[80ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
+            Clean city guide for {c.city}. Transparent totals, clear policies, and fast filtering — without
+            indexing SERPs.
+          </p>
+
+          <div class="mt-5 grid gap-3 sm:grid-cols-2">
+            <div class="t-card p-5">
+              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">Top areas</div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                {c.topNeighborhoods.slice(0, 6).map((x) => (
+                  <span key={x.name} class="t-badge">
+                    {x.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+
             <div class="t-card p-5">
               <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                Search hotels in {c.city}
+                Popular amenities
               </div>
-
-              <form method="get" action={buildHotelsInCityHref(data.slug)} class="mt-4 grid gap-3">
-                <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
-                      Check-in
-                    </label>
-                    <input
-                      name="checkIn"
-                      class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-                      placeholder="YYYY-MM-DD"
-                      value={data.active.checkIn || ''}
-                    />
-                  </div>
-                  <div>
-                    <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
-                      Check-out
-                    </label>
-                    <input
-                      name="checkOut"
-                      class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-                      placeholder="YYYY-MM-DD"
-                      value={data.active.checkOut || ''}
-                    />
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
-                      Adults
-                    </label>
-                    <input
-                      name="adults"
-                      class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-                      placeholder="2"
-                      value={data.active.adults != null ? String(data.active.adults) : ''}
-                    />
-                  </div>
-                  <div>
-                    <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
-                      Rooms
-                    </label>
-                    <input
-                      name="rooms"
-                      class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-                      placeholder="1"
-                      value={data.active.rooms != null ? String(data.active.rooms) : ''}
-                    />
-                  </div>
-                </div>
-
-                <button class="t-btn-primary" type="submit">
-                  Update
-                </button>
-
-                <a class="t-btn-primary block text-center" href={data.searchHref}>
-                  See hotel results
-                </a>
-
-                <div class="text-xs text-[color:var(--color-text-muted)]">
-                  This city page is indexable. Search pages remain noindex.
-                </div>
-              </form>
+              <div class="mt-3 flex flex-wrap gap-2">
+                {c.topAmenities.slice(0, 6).map((x) => (
+                  <span key={x.name} class="t-badge">
+                    {x.name}
+                  </span>
+                ))}
+              </div>
             </div>
-          </aside>
+          </div>
         </div>
 
-        {/* Featured hotels grid */}
-        <section class="mt-8">
-          <div class="flex items-end justify-between gap-3">
-            <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">Featured hotels</h2>
-            <a class="text-sm text-[color:var(--color-action)] hover:underline" href={data.searchHref}>
-              View all →
-            </a>
-          </div>
+        <aside class="lg:sticky lg:top-24 lg:self-start">
+          <div class="t-card p-5">
+            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+              Search hotels in {c.city}
+            </div>
 
-          <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {data.hotels.map((h) => (
-              <HotelMiniCard key={h.slug} hotel={h} />
-            ))}
-          </div>
-        </section>
+            <form method="get" action={buildHotelsInCityHref(data.slug)} class="mt-4 grid gap-3">
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                    Check-in
+                  </label>
+                  <input
+                    name="checkIn"
+                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    placeholder="YYYY-MM-DD"
+                    value={data.active.checkIn || ''}
+                  />
+                </div>
+                <div>
+                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                    Check-out
+                  </label>
+                  <input
+                    name="checkOut"
+                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    placeholder="YYYY-MM-DD"
+                    value={data.active.checkOut || ''}
+                  />
+                </div>
+              </div>
 
-        {/* Guide content (SEO) */}
-        <section class="mt-8 t-card p-5">
-          <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
-            Guide to staying in {c.city}
-          </h2>
-          <div class="prose prose-sm mt-3 max-w-none text-[color:var(--color-text)]">
-            <p class="text-[color:var(--color-text-muted)]">
-              This section is your long-tail SEO payload: best areas, pricing seasonality, airport access,
-              transit, and what matters to different traveler types.
-            </p>
-            <ul class="text-[color:var(--color-text-muted)]">
-              <li>Top areas: {c.topNeighborhoods.slice(0, 5).map((x) => x.name).join(', ')}</li>
-              <li>Popular amenities: {c.topAmenities.slice(0, 5).map((x) => x.name).join(', ')}</li>
-              <li>Typical from: {formatMoney(c.priceFrom, 'USD')}+/night</li>
-            </ul>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                    Adults
+                  </label>
+                  <input
+                    name="adults"
+                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    placeholder="2"
+                    value={data.active.adults != null ? String(data.active.adults) : ''}
+                  />
+                </div>
+                <div>
+                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                    Rooms
+                  </label>
+                  <input
+                    name="rooms"
+                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    placeholder="1"
+                    value={data.active.rooms != null ? String(data.active.rooms) : ''}
+                  />
+                </div>
+              </div>
+
+              <button class="t-btn-primary" type="submit">
+                Update
+              </button>
+
+              <a class="t-btn-primary block text-center" href={data.searchHref}>
+                See hotel results
+              </a>
+
+              <div class="text-xs text-[color:var(--color-text-muted)]">
+                This city page is indexable. Search pages remain noindex.
+              </div>
+            </form>
           </div>
-        </section>
+        </aside>
+      </div>
+
+      {/* Featured hotels grid */}
+      <section class="mt-8">
+        <div class="flex items-end justify-between gap-3">
+          <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">Featured hotels</h2>
+          <a class="text-sm text-[color:var(--color-action)] hover:underline" href={data.searchHref}>
+            View all →
+          </a>
+        </div>
+
+        <ListingCardGrid variant="hotels" items={data.hotels} density="compact" />
+      </section>
+
+      {/* Guide content (SEO) */}
+      <section class="mt-8 t-card p-5">
+        <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
+          Guide to staying in {c.city}
+        </h2>
+        <div class="prose prose-sm mt-3 max-w-none text-[color:var(--color-text)]">
+          <p class="text-[color:var(--color-text-muted)]">
+            This section is your long-tail SEO payload: best areas, pricing seasonality, airport access,
+            transit, and what matters to different traveler types.
+          </p>
+          <ul class="text-[color:var(--color-text-muted)]">
+            <li>Top areas: {c.topNeighborhoods.slice(0, 5).map((x) => x.name).join(', ')}</li>
+            <li>Popular amenities: {c.topAmenities.slice(0, 5).map((x) => x.name).join(', ')}</li>
+            <li>Typical from: {formatMoney(c.priceFrom, 'USD')}+/night</li>
+          </ul>
+        </div>
+      </section>
 
       {/* Mobile sticky CTA */}
       <div class="fixed inset-x-0 bottom-0 z-50 border-t border-[color:var(--color-divider)] bg-white/95 backdrop-blur lg:hidden">
@@ -304,43 +294,6 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
   }
 }
 
-const HotelMiniCard = component$(({ hotel }: HotelMiniCardProps) => (
-  <a class="t-card block overflow-hidden hover:bg-white" href={buildHotelDetailHref(hotel.slug)}>
-    <div class="bg-[color:var(--color-neutral-50)]">
-      <img
-        class="h-36 w-full object-cover"
-        src={hotel.images[0] || '/img/demo/hotel-1.jpg'}
-        alt={hotel.name}
-        loading="lazy"
-      />
-    </div>
-    <div class="p-4">
-      <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">{hotel.name}</div>
-      <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-        {hotel.neighborhood} · {hotel.stars}★ · {hotel.rating.toFixed(1)} ★ ({hotel.reviewCount.toLocaleString('en-US')})
-      </div>
-
-      <div class="mt-3 flex flex-wrap gap-2">
-        {hotel.policies.freeCancellation ? (
-          <span class="t-badge t-badge--deal">Free cancellation</span>
-        ) : (
-          <span class="t-badge">Cancellation varies</span>
-        )}
-        {hotel.policies.payLater ? (
-          <span class="t-badge t-badge--deal">Pay later</span>
-        ) : (
-          <span class="t-badge">Prepay</span>
-        )}
-      </div>
-
-      <div class="mt-3 text-sm font-semibold text-[color:var(--color-text-strong)]">
-        From {formatMoney(hotel.fromNightly, hotel.currency)}
-        <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">/night</span>
-      </div>
-    </div>
-  </a>
-))
-
 const buildHotelsInCityHref = (citySlug: string) => {
   return `/hotels/in/${encodeURIComponent(citySlug)}`
 }
@@ -410,8 +363,4 @@ type StayParams = {
   checkOut: string | null
   adults: number | null
   rooms: number | null
-}
-
-type HotelMiniCardProps = {
-  hotel: Hotel
 }

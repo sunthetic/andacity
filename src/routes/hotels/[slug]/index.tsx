@@ -233,7 +233,7 @@ export default component$(() => {
 
           {/* Sticky booking card (primary conversion zone) */}
           <aside class="lg:sticky lg:top-24 lg:self-start">
-            <div class="t-card p-5" id="stay">
+          <div class="t-card p-5 bg-primary-surface" id="stay">
               <div class="flex items-start justify-between gap-3">
                 <div>
                   <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">Your stay</div>

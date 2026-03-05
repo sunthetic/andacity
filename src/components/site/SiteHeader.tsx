@@ -3,7 +3,7 @@ import { component$ } from '@builder.io/qwik'
 const NAV = {
   primary: [
     { label: 'Flights', href: '/flights' },
-    { label: 'Cars', href: '/cars' },
+    { label: 'Cars', href: '/car-rentals' },
     { label: 'Deals', href: '/deals' },
   ],
   hotels: {
