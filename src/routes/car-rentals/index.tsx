@@ -1,9 +1,10 @@
 import { component$ } from '@builder.io/qwik'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { Page } from '~/components/site/Page'
 
 export default component$(() => {
   return (
-    <div class="mx-auto max-w-6xl px-4 py-10">
+    <Page>
       <div class="t-card p-7">
         <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
           Car rentals (coming soon)
@@ -12,7 +13,7 @@ export default component$(() => {
           We’re building the car rentals vertical next.
         </p>
       </div>
-    </div>
+    </Page>
   )
 })
 

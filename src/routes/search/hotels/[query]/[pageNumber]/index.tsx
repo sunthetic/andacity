@@ -4,6 +4,7 @@ import type { DocumentHead } from '@builder.io/qwik-city'
 import { getOgSecret, encodeOgPayload, signOgPayload } from '~/lib/seo/og-sign'
 import { HOTELS } from '~/data/hotels'
 import type { Hotel } from '~/data/hotels'
+import { Page } from '~/components/site/Page'
 
 export const useSearchHotelsPage = routeLoader$(async ({ params, url }) => {
   const query = normalizeQuery(params.query)
@@ -102,7 +103,7 @@ export default component$(() => {
   const mobileSortOpen = useSignal(false)
 
   return (
-    <div class="mx-auto max-w-6xl px-4 pb-24 pt-8 lg:pb-10">
+    <Page>
       {/* Breadcrumbs (no Home yet) */}
       <div class="flex flex-wrap items-center gap-2 text-sm text-[color:var(--color-text-muted)]">
         <a class="hover:text-[color:var(--color-text)]" href="/">
@@ -383,7 +384,7 @@ export default component$(() => {
           </form>
         </MobileDrawer>
       ) : null}
-    </div>
+    </Page>
   )
 })
 

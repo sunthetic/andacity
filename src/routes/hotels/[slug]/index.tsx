@@ -4,6 +4,7 @@ import type { DocumentHead } from '@builder.io/qwik-city'
 import { getOgSecret, encodeOgPayload, signOgPayload } from '~/lib/seo/og-sign'
 import { getHotelBySlug } from '~/data/hotels'
 import type { Hotel } from '~/data/hotels'
+import { Page } from '~/components/site/Page'
 
 export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
   const slug = String(params.slug || '').toLowerCase().trim()
@@ -60,8 +61,7 @@ export default component$(() => {
   const h = data.hotel
 
   return (
-    <div class="pb-24 lg:pb-10">
-      <div class="mx-auto max-w-6xl px-4 pt-8">
+    <Page>
         {/* Breadcrumbs */}
         <div class="flex flex-wrap items-center gap-2 text-sm text-[color:var(--color-text-muted)]">
           <a class="hover:text-[color:var(--color-text)]" href="/">
@@ -352,7 +352,6 @@ export default component$(() => {
             </div>
           </aside>
         </div>
-      </div>
 
       {/* Mobile sticky CTA */}
       <div class="fixed inset-x-0 bottom-0 z-50 border-t border-[color:var(--color-divider)] bg-white/95 backdrop-blur lg:hidden">
@@ -373,7 +372,7 @@ export default component$(() => {
           </a>
         </div>
       </div>
-    </div>
+    </Page>
   )
 })
 

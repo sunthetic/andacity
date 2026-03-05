@@ -1,12 +1,13 @@
 import { component$ } from '@builder.io/qwik'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { Page } from '~/components/site/Page'
 import { HOTELS } from '~/data/hotels'
 
 export default component$(() => {
   const items = HOTELS
 
   return (
-    <div class="mx-auto max-w-6xl px-4 py-10">
+    <Page>
       <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
@@ -101,7 +102,7 @@ export default component$(() => {
           </a>
         ))}
       </div>
-    </div>
+    </Page>
   )
 })
 

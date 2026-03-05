@@ -1,9 +1,10 @@
 import { component$ } from '@builder.io/qwik'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { Page } from '~/components/site/Page'
 
 export default component$(() => {
   return (
-    <div class="mx-auto max-w-6xl px-4 py-10">
+    <Page>
       <div class="t-card p-7">
         <div class="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -54,7 +55,7 @@ export default component$(() => {
           </a>
         </div>
       </div>
-    </div>
+    </Page>
   )
 })
 

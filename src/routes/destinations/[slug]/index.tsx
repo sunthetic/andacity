@@ -1,6 +1,7 @@
 import { component$ } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { Page } from '~/components/site/Page'
 import { DESTINATIONS_BY_SLUG } from '~/data/destinations'
 
 export const useDestinationPage = routeLoader$(({ params, error }) => {
@@ -75,11 +76,11 @@ export default component$(() => {
   const d = data.destination
 
   const searchPath = (q: string, page: number) =>
-    `/search/hotels/${encodeURIComponent(q)}/${page}`
+    `/search/destinations/${encodeURIComponent(q)}/${page}`
 
   return (
-    <div class="pb-24 lg:pb-10">
-      <div class="mx-auto max-w-6xl px-4 pt-8">
+    <Page>
+      <>
         <div class="grid gap-5 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
           <div>
             <div class="flex flex-wrap items-center gap-2 text-sm text-[color:var(--color-text-muted)]">
@@ -272,7 +273,6 @@ export default component$(() => {
             </ul>
           </div>
         </section>
-      </div>
 
       <div class="fixed inset-x-0 bottom-0 z-50 border-t border-[color:var(--color-divider)] bg-white/95 backdrop-blur lg:hidden">
         <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
@@ -289,8 +289,9 @@ export default component$(() => {
             See hotels
           </a>
         </div>
-      </div>
-    </div>
+        </div>
+        </>
+    </Page>
   )
 })
 

@@ -1,6 +1,7 @@
 import { component$ } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { Page } from '~/components/site/Page'
 import { getHotelCityBySlug } from '~/data/hotel-cities'
 import { HOTELS_BY_SLUG } from '~/data/hotels'
 import type { Hotel } from '~/data/hotels'
@@ -42,8 +43,7 @@ export default component$(() => {
   const c = data.city
 
   return (
-    <div class="pb-24 lg:pb-10">
-      <div class="mx-auto max-w-6xl px-4 pt-8">
+    <Page>
         {/* Breadcrumbs */}
         <div class="flex flex-wrap items-center gap-2 text-sm text-[color:var(--color-text-muted)]">
           <a class="hover:text-[color:var(--color-text)]" href="/">
@@ -216,7 +216,6 @@ export default component$(() => {
             </ul>
           </div>
         </section>
-      </div>
 
       {/* Mobile sticky CTA */}
       <div class="fixed inset-x-0 bottom-0 z-50 border-t border-[color:var(--color-divider)] bg-white/95 backdrop-blur lg:hidden">
@@ -232,7 +231,7 @@ export default component$(() => {
           </a>
         </div>
       </div>
-    </div>
+    </Page>
   )
 })
 

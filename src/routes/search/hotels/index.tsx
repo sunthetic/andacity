@@ -1,5 +1,6 @@
 import { component$ } from '@builder.io/qwik'
 import type { DocumentHead, RequestHandler } from '@builder.io/qwik-city'
+import { Page } from '~/components/site/Page'
 
 export const onGet: RequestHandler = async ({ url, redirect }) => {
   const q = String(url.searchParams.get('q') || '').trim()
@@ -10,7 +11,7 @@ export const onGet: RequestHandler = async ({ url, redirect }) => {
 
 export default component$(() => {
   return (
-    <div class="mx-auto max-w-3xl px-4 py-10">
+    <Page>
       <div class="t-card p-7">
         <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
           Hotel search
@@ -37,7 +38,7 @@ export default component$(() => {
             Tip: use the city pages for SEO; use search for filtering and sorting.
         </div>
       </div>
-    </div>
+    </Page>
   )
 })
 
