@@ -14,7 +14,8 @@ import { ResultsToolbar } from '~/components/search/results/ResultsToolbar'
 import {
   buildFlightsSearchPath,
   humanizeLocationSlug,
-  isFlightItineraryTypeSlug,
+  normalizeFlightItineraryType,
+  slugifyLocation,
 } from '~/lib/search/flights/routing'
 
 const FLIGHTS_FILTER_DEFAULTS: FilterValues = {
@@ -82,20 +83,17 @@ const FLIGHT_FILTER_SECTIONS: FilterSectionConfig[] = [
   },
 ]
 
-export const useSearchFlightsPage = routeLoader$(({ params, url, error }) => {
-  const fromLocationSlug = String(params.fromLocationSlug || '').trim().toLowerCase()
-  const toLocationSlug = String(params.toLocationSlug || '').trim().toLowerCase()
-  const itineraryTypeSlug = String(params.itineraryTypeSlug || '').trim().toLowerCase()
-  if (!fromLocationSlug || !toLocationSlug || !isFlightItineraryTypeSlug(itineraryTypeSlug)) {
-    throw error(404, 'Not found')
-  }
-  const itineraryType = itineraryTypeSlug
+export const useSearchFlightsPage = routeLoader$(({ params, url }) => {
+  const fromLocationSlug = slugifyLocation(String(params.fromLocationSlug || '').trim()) || 'anywhere'
+  const toLocationSlug = slugifyLocation(String(params.toLocationSlug || '').trim()) || 'anywhere'
+  const itineraryType = normalizeFlightItineraryType(String(params.itineraryTypeSlug || '').trim().toLowerCase())
   const page = clampInt(params.pageNumber, 1, 9999)
 
   const from = humanizeLocationSlug(fromLocationSlug)
   const to = humanizeLocationSlug(toLocationSlug)
   const depart = String(url.searchParams.get('depart') || '').trim()
   const ret = itineraryType === 'round-trip' ? String(url.searchParams.get('return') || '').trim() : ''
+  const results = FLIGHT_RESULTS.filter((flight) => flightMatchesRoute(flight, fromLocationSlug, toLocationSlug))
 
   return {
     fromLocationSlug,
@@ -106,7 +104,7 @@ export const useSearchFlightsPage = routeLoader$(({ params, url, error }) => {
     to,
     depart,
     ret,
-    results: FLIGHT_RESULTS,
+    results,
   }
 })
 
@@ -342,6 +340,15 @@ const sortFlights = (items: FlightResult[], sort: FlightSort) => {
 const flightDurationMinutes = (flight: FlightResult) => {
   const diff = flight.arrivalMinutes - flight.departureMinutes
   return diff >= 0 ? diff : diff + 24 * 60
+}
+
+const flightMatchesRoute = (flight: FlightResult, fromSlug: string, toSlug: string) => {
+  return getFlightLocationSlug(flight.origin) === fromSlug && getFlightLocationSlug(flight.destination) === toSlug
+}
+
+const getFlightLocationSlug = (location: string) => {
+  const city = String(location || '').split('(')[0]?.trim() || ''
+  return slugifyLocation(city)
 }
 
 const FLIGHT_RESULTS: FlightResult[] = [

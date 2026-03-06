@@ -28,13 +28,12 @@ export default component$(() => {
         description="Search by destination, pickup dates, and drivers, or browse city hubs built for faster rental discovery."
         searchCard={(
           <CarRentalSearchCard
-            title="Search car rentals"
+            variant="hero"
             destinationValue={q}
             pickupDate={pickupDate}
             dropoffDate={dropoffDate}
             drivers={drivers}
-            submitLabel="Search"
-            helperText="City and detail pages are indexable. Search pages remain noindex."
+            submitLabel="Search car rentals"
           />
         )}
         helperLinks={[
