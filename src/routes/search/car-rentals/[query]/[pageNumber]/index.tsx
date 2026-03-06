@@ -2,7 +2,7 @@ import { component$, useSignal } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
-import { Breadcrumbs } from '~/components/site/Breadcrumbs'
+import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 import { CarRentalResultCard } from '~/components/car-rentals/search/CarRentalResultCard'
 import { MobileDrawer } from '~/components/car-rentals/search/MobileDrawer'
 import {

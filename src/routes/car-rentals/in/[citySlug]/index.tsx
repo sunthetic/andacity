@@ -3,7 +3,7 @@ import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { useLocation } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
-import { Breadcrumbs } from '~/components/site/Breadcrumbs'
+import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 import { ListingCardGrid } from '~/components/vertical/ListingCardGrid'
 import { CAR_RENTALS } from '~/data/car-rentals'
 import { getCarRentalCityBySlug } from '~/data/car-rental-cities'
@@ -37,10 +37,9 @@ export default component$(() => {
     <Page>
       <Breadcrumbs
         items={[
-          { label: 'Andacity Travel', href: '/' },
+          { label: 'Home', href: '/' },
           { label: 'Car Rentals', href: '/car-rentals' },
-          { label: 'Cities', href: '/car-rentals/in' },
-          { label: data.city.name, href: buildCityHref(data.citySlug) },
+          { label: data.city.name },
         ]}
       />
 

@@ -1,5 +1,6 @@
 import { component$ } from '@builder.io/qwik'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 import { Page } from '~/components/site/Page'
 import { HOTEL_CITIES } from '~/data/hotel-cities'
 
@@ -8,6 +9,14 @@ export default component$(() => {
 
   return (
     <Page>
+      <Breadcrumbs
+        items={[
+          { label: 'Home', href: '/' },
+          { label: 'Hotels', href: '/hotels' },
+          { label: 'Cities' },
+        ]}
+      />
+
       <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">

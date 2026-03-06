@@ -5,7 +5,7 @@ import { Page } from '~/components/site/Page'
 import { getHotelCityBySlug } from '~/data/hotel-cities'
 import { HOTELS_BY_SLUG } from '~/data/hotels'
 import { ListingCardGrid } from "~/components/vertical/ListingCardGrid"
-import { Breadcrumbs } from '~/components/site/Breadcrumbs'
+import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 import { HotelCitySearchCard } from '~/components/hotels/HotelCitySearchCard'
 
 export const useHotelCityPage = routeLoader$(({ params, url, error }) => {
@@ -49,10 +49,9 @@ export default component$(() => {
       {/* Breadcrumbs */}
       <Breadcrumbs
         items={[
-          { label: 'Andacity Travel', href: '/' },
+          { label: 'Home', href: '/' },
           { label: 'Hotels', href: '/hotels' },
-          { label: 'Cities', href: '/hotels/in' },
-          { label: c.city, href: buildHotelsInCityHref(data.slug) },
+          { label: c.city },
         ]}
       />
 

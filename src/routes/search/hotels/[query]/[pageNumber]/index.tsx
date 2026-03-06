@@ -16,7 +16,7 @@ import {
   AmenitiesPanel,
 } from '~/components/hotels/search/FilterPanels'
 import type { HotelResult, OgSearchPayload } from '~/types/hotels/search'
-import { Breadcrumbs } from '~/components/site/Breadcrumbs'
+import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 import { buildFacets } from '~/lib/search/hotels/facets'
 import {
   buildSearchParams,

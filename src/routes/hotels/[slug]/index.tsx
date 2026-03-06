@@ -4,6 +4,7 @@ import type { DocumentHead } from '@builder.io/qwik-city'
 import { getOgSecret, encodeOgPayload, signOgPayload } from '~/lib/seo/og-sign'
 import { getHotelBySlug } from '~/data/hotels'
 import type { Hotel } from '~/data/hotels'
+import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 import { Page } from '~/components/site/Page'
 
 export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
@@ -62,18 +63,14 @@ export default component$(() => {
 
   return (
     <Page>
-        {/* Breadcrumbs */}
-        <div class="flex flex-wrap items-center gap-2 text-sm text-[color:var(--color-text-muted)]">
-          <a class="hover:text-[color:var(--color-text)]" href="/">
-            Andacity Travel
-          </a>
-          <span class="text-[color:var(--color-text-subtle)]">/</span>
-          <a class="hover:text-[color:var(--color-text)]" href="/hotels">
-            Hotels
-          </a>
-          <span class="text-[color:var(--color-text-subtle)]">/</span>
-          <span class="text-[color:var(--color-text)]">{h.name}</span>
-        </div>
+        <Breadcrumbs
+          items={[
+            { label: 'Home', href: '/' },
+            { label: 'Hotels', href: '/hotels' },
+            { label: h.city, href: `/hotels/in/${encodeURIComponent(h.cityQuery)}` },
+            { label: h.name },
+          ]}
+        />
 
         {/* Hero: hotel name + trust row */}
         <div class="mt-4 grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">

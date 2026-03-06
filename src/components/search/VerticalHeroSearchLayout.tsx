@@ -1,4 +1,5 @@
 import { JSXOutput, Slot, component$ } from '@builder.io/qwik'
+import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 
 export const VerticalHeroSearchLayout = component$((props: VerticalHeroSearchLayoutProps) => {
   const breadcrumbs = props.breadcrumbs ?? []
@@ -6,34 +7,7 @@ export const VerticalHeroSearchLayout = component$((props: VerticalHeroSearchLay
   return (
     <section class="relative overflow-hidden">
       <div class="mx-auto max-w-6xl px-4 py-10 md:py-14 lg:py-18">
-        {breadcrumbs.length ? (
-          <nav aria-label="Breadcrumb" class="mb-4">
-            <ol class="flex flex-wrap items-center gap-2 text-sm text-[color:var(--color-text-muted)]">
-              {breadcrumbs.map((item, index) => {
-                const isLast = index === breadcrumbs.length - 1
-
-                return (
-                  <li key={`${item.label}-${index}`} class="flex items-center gap-2">
-                    {item.href && !isLast ? (
-                      <a
-                        href={item.href}
-                        class="transition-colors hover:text-[color:var(--color-text-strong)]"
-                      >
-                        {item.label}
-                      </a>
-                    ) : (
-                      <span aria-current={isLast ? 'page' : undefined}>
-                        {item.label}
-                      </span>
-                    )}
-
-                    {!isLast ? <span aria-hidden="true">/</span> : null}
-                  </li>
-                )
-              })}
-            </ol>
-          </nav>
-        ) : null}
+        {breadcrumbs.length ? <Breadcrumbs items={breadcrumbs} /> : null}
 
         <div class="mx-auto max-w-4xl text-center">
           <p class="text-sm font-medium text-[color:var(--color-text-muted)]">
