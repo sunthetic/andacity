@@ -4,7 +4,7 @@ _NOTE: This document is written in Markdown for convenience of formatting, and *
 
 An open-source software license by [Sunthetic Media Ventures](https://sunthetic.media).\
 
-Obtain an original copy at https://sunthetic.media/licenses/sunthetic-scel-1.2.
+Obtain an original copy at https://sunthetic.media/licenses/scel-1.2.
 
 ## I. Preamble
 
