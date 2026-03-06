@@ -6,6 +6,7 @@ import { getHotelCityBySlug } from '~/data/hotel-cities'
 import { HOTELS_BY_SLUG } from '~/data/hotels'
 import { ListingCardGrid } from "~/components/vertical/ListingCardGrid"
 import { Breadcrumbs } from '~/components/site/Breadcrumbs'
+import { HotelCitySearchCard } from '~/components/hotels/HotelCitySearchCard'
 
 export const useHotelCityPage = routeLoader$(({ params, url, error }) => {
   const slug = String(params.citySlug || '').toLowerCase().trim()
@@ -105,75 +106,18 @@ export default component$(() => {
         </div>
 
         <aside class="lg:sticky lg:top-24 lg:self-start">
-          <div class="t-card p-5">
-            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-              Search hotels in {c.city}
-            </div>
-
-            <form method="get" action={buildHotelsInCityHref(data.slug)} class="mt-4 grid gap-3">
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
-                    Check-in
-                  </label>
-                  <input
-                    name="checkIn"
-                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-                    placeholder="YYYY-MM-DD"
-                    value={data.active.checkIn || ''}
-                  />
-                </div>
-                <div>
-                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
-                    Check-out
-                  </label>
-                  <input
-                    name="checkOut"
-                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-                    placeholder="YYYY-MM-DD"
-                    value={data.active.checkOut || ''}
-                  />
-                </div>
-              </div>
-
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
-                    Adults
-                  </label>
-                  <input
-                    name="adults"
-                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-                    placeholder="2"
-                    value={data.active.adults != null ? String(data.active.adults) : ''}
-                  />
-                </div>
-                <div>
-                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
-                    Rooms
-                  </label>
-                  <input
-                    name="rooms"
-                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-                    placeholder="1"
-                    value={data.active.rooms != null ? String(data.active.rooms) : ''}
-                  />
-                </div>
-              </div>
-
-              <button class="t-btn-primary" type="submit">
-                Update
-              </button>
-
-              <a class="t-btn-primary block text-center" href={data.searchHref}>
-                See hotel results
-              </a>
-
-              <div class="text-xs text-[color:var(--color-text-muted)]">
-                This city page is indexable. Search pages remain noindex.
-              </div>
-            </form>
-          </div>
+          <HotelCitySearchCard
+            title={`Search hotels in ${c.city}`}
+            action={buildHotelsInCityHref(data.slug)}
+            resultsHref={data.searchHref}
+            checkIn={data.active.checkIn || ''}
+            checkOut={data.active.checkOut || ''}
+            adults={data.active.adults != null ? String(data.active.adults) : ''}
+            rooms={data.active.rooms != null ? String(data.active.rooms) : ''}
+            updateLabel="Update"
+            resultsLabel="See hotel results"
+            helperText="This city page is indexable. Search pages remain noindex."
+          />
         </aside>
       </div>
 

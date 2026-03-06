@@ -5,6 +5,7 @@ import { Page } from '~/components/site/Page'
 import { Breadcrumbs } from '~/components/site/Breadcrumbs'
 import { ListingCardGrid } from '~/components/vertical/ListingCardGrid'
 import { CAR_RENTALS } from '~/data/car-rentals'
+import { CarRentalSearchCard } from '~/components/car-rentals/CarRentalSearchCard'
 
 export default component$(() => {
   const items = CAR_RENTALS
@@ -60,71 +61,15 @@ export default component$(() => {
         </div>
 
         <aside class="lg:sticky lg:top-24 lg:self-start">
-          <div class="t-card p-5">
-            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-              Search car rentals
-            </div>
-
-            <form method="get" action="/search/car-rentals" class="mt-4 grid gap-3">
-              <div>
-                <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
-                  Destination
-                </label>
-                <input
-                  name="q"
-                  class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-                  placeholder="e.g., Las Vegas"
-                  value={q}
-                />
-              </div>
-
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
-                    Pickup
-                  </label>
-                  <input
-                    name="pickupDate"
-                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-                    placeholder="YYYY-MM-DD"
-                    value={pickupDate}
-                  />
-                </div>
-
-                <div>
-                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
-                    Dropoff
-                  </label>
-                  <input
-                    name="dropoffDate"
-                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-                    placeholder="YYYY-MM-DD"
-                    value={dropoffDate}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
-                  Drivers
-                </label>
-                <input
-                  name="drivers"
-                  class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-                  placeholder="1"
-                  value={drivers}
-                />
-              </div>
-
-              <button class="t-btn-primary" type="submit">
-                Search
-              </button>
-
-              <div class="text-xs text-[color:var(--color-text-muted)]">
-                City and detail pages are indexable. Search pages remain noindex.
-              </div>
-            </form>
-          </div>
+          <CarRentalSearchCard
+            title="Search car rentals"
+            destinationValue={q}
+            pickupDate={pickupDate}
+            dropoffDate={dropoffDate}
+            drivers={drivers}
+            submitLabel="Search"
+            helperText="City and detail pages are indexable. Search pages remain noindex."
+          />
         </aside>
       </div>
 
