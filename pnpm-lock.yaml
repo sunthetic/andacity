@@ -8,15 +8,9 @@ importers:
 
   .:
     dependencies:
-      '@fontsource-variable/figtree':
-        specifier: ^5.2.10
-        version: 5.2.10
-      '@fontsource-variable/outfit':
-        specifier: ^5.2.8
-        version: 5.2.8
-      '@fontsource-variable/rubik':
-        specifier: ^5.2.8
-        version: 5.2.8
+      '@fontsource-variable/lexend':
+        specifier: ^5.2.11
+        version: 5.2.11
       '@fontsource/poppins':
         specifier: ^5.2.7
         version: 5.2.7
@@ -33,9 +27,6 @@ importers:
       '@eslint/js':
         specifier: latest
         version: 10.0.1(eslint@9.32.0(jiti@2.6.1))
-      '@fontsource-variable/open-sans':
-        specifier: ^5.2.7
-        version: 5.2.7
       '@resvg/resvg-js':
         specifier: ^2.6.2
         version: 2.6.2
@@ -308,17 +299,8 @@ packages:
     resolution: {integrity: sha512-Z5kJ+wU3oA7MMIqVR9tyZRtjYPr4OC004Q4Rw7pgOKUOKkJfZ3O24nz3WYfGRpMDNmcOi3TwQOmgm7B7Tpii0w==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@fontsource-variable/figtree@5.2.10':
-    resolution: {integrity: sha512-a5Gumbpy3mdd+Yg31g6Qb7CmjYbrfyutJa3bWfP5q8A4GclIOwX7mI+ZuSHsJnw/mHvW6r9oh1AHJcJTIxK4JA==}
-
-  '@fontsource-variable/open-sans@5.2.7':
-    resolution: {integrity: sha512-wzCLm2STuekK9Fz58DiuBnk4GgJpvvVtAU85a4b06ACNG/UsVjQcCvkUd6R/ETlHfsaykCUZamLRvSXg4KtWuA==}
-
-  '@fontsource-variable/outfit@5.2.8':
-    resolution: {integrity: sha512-4oUDCZx/Tcz6HZP423w/niqEH31Gks5IsqHV2ZZz1qKHaVIZdj2f0/S1IK2n8jl6Xo0o3N+3RjNHlV9R73ozQA==}
-
-  '@fontsource-variable/rubik@5.2.8':
-    resolution: {integrity: sha512-vGDExLzB4a2Fj9mca5LqNoA2ZKcU9o+x5FEBLte/nxYkCB9hOQwZS6ZlItUv+Ssn7YMzKauGuI/Po+YueFuZbg==}
+  '@fontsource-variable/lexend@5.2.11':
+    resolution: {integrity: sha512-0hgEQ4O7Nh8fxL/WWmspJf0BErbocRkZwtLRGey/V4mUUqxfF7QUwqhcdzwpjom3NYCniY4uzQ5wYD7r9/92tQ==}
 
   '@fontsource/poppins@5.2.7':
     resolution: {integrity: sha512-6uQyPmseo4FgI97WIhA4yWRlNaoLk4vSDK/PyRwdqqZb5zAEuc+Kunt8JTMcsHYUEGYBtN15SNkMajMdqUSUmg==}
@@ -2816,13 +2798,7 @@ snapshots:
       '@eslint/core': 0.15.2
       levn: 0.4.1
 
-  '@fontsource-variable/figtree@5.2.10': {}
-
-  '@fontsource-variable/open-sans@5.2.7': {}
-
-  '@fontsource-variable/outfit@5.2.8': {}
-
-  '@fontsource-variable/rubik@5.2.8': {}
+  '@fontsource-variable/lexend@5.2.11': {}
 
   '@fontsource/poppins@5.2.7': {}
 
