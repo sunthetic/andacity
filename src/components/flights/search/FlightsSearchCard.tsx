@@ -1,17 +1,28 @@
 import { component$, useSignal } from '@builder.io/qwik'
+import { useNavigate } from '@builder.io/qwik-city'
+import {
+  buildFlightsSearchPath,
+  normalizeFlightItineraryType,
+  slugifyLocation,
+  type FlightItineraryTypeSlug,
+} from '~/lib/search/flights/routing'
 
 export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
+  const nav = useNavigate()
   const from = useSignal(props.initialFrom ?? '')
   const to = useSignal(props.initialTo ?? '')
   const depart = useSignal(props.initialDepart ?? '')
   const ret = useSignal(props.initialReturn ?? '')
-  const travelers = useSignal(props.initialTravelers ?? '1 traveler · Economy')
+  const itineraryType = useSignal<FlightItineraryTypeSlug>(normalizeFlightItineraryType(props.initialItineraryType))
+  const travelers = useSignal(props.initialTravelers ?? '1')
+  const cabin = useSignal(props.initialCabin ?? 'economy')
   const hasSubmitted = useSignal(false)
 
   const fromValue = from.value.trim()
   const toValue = to.value.trim()
   const normalizedFrom = fromValue.toLowerCase()
   const normalizedTo = toValue.toLowerCase()
+  const isRoundTrip = itineraryType.value === 'round-trip'
 
   const errors: string[] = []
 
@@ -31,7 +42,11 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
     errors.push('Select a departure date.')
   }
 
-  if (depart.value && ret.value && ret.value < depart.value) {
+  if (isRoundTrip && !ret.value) {
+    errors.push('Select a return date.')
+  }
+
+  if (isRoundTrip && depart.value && ret.value && ret.value < depart.value) {
     errors.push('Return must be on or after departure.')
   }
 
@@ -40,20 +55,65 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
   return (
     <div class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-3 shadow-[var(--shadow-lg)] md:p-4">
       <form
-        action={props.action ?? '/search/flights/anywhere/1'}
+        action={props.action}
         method="get"
         preventdefault:submit
         noValidate
-        onSubmit$={(_, form) => {
+        onSubmit$={async () => {
           hasSubmitted.value = true
-          if (isValid) {
-            form.submit()
+          if (!isValid) {
+            return
           }
+
+          const fromLocationSlug = slugifyLocation(fromValue)
+          const toLocationSlug = slugifyLocation(toValue)
+
+          if (!fromLocationSlug || !toLocationSlug) {
+            return
+          }
+
+          const routePath = buildFlightsSearchPath(fromLocationSlug, toLocationSlug, itineraryType.value, 1)
+          const searchParams = new URLSearchParams()
+          searchParams.set('depart', depart.value)
+
+          if (isRoundTrip && ret.value) {
+            searchParams.set('return', ret.value)
+          }
+
+          if (travelers.value) {
+            searchParams.set('travelers', travelers.value)
+          }
+
+          if (cabin.value) {
+            searchParams.set('cabin', cabin.value)
+          }
+
+          const query = searchParams.toString()
+          const href = query ? `${routePath}?${query}` : routePath
+          await nav(href)
         }}
         class="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_1fr_1fr_minmax(200px,1fr)_auto]"
       >
+        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3 md:col-span-2">
+          <label
+            for="flight-itinerary-type"
+            class="text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]"
+          >
+            Trip type
+          </label>
+          <select
+            id="flight-itinerary-type"
+            name="itineraryType"
+            bind:value={itineraryType}
+            class="w-full bg-transparent text-sm text-[color:var(--color-text-strong)] outline-none"
+          >
+            <option value="round-trip">Round-trip</option>
+            <option value="one-way">One-way</option>
+          </select>
+        </div>
+
         {/* From */}
-        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3">
+        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3 md:col-span-2">
           <label for="flight-from" class="text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
             From
           </label>
@@ -68,7 +128,7 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
         </div>
 
         {/* To */}
-        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3">
+        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3 md:col-span-2">
           <label for="flight-to" class="text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
             To
           </label>
@@ -83,7 +143,7 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
         </div>
 
         {/* Depart */}
-        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3">
+        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3 md:col-span-1">
           <label for="flight-depart" class="text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
             Depart
           </label>
@@ -97,7 +157,7 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
         </div>
 
         {/* Return */}
-        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3">
+        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3 md:col-span-1">
           <label for="flight-return" class="text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
             Return
           </label>
@@ -106,12 +166,13 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
             name="return"
             type="date"
             bind:value={ret}
+            disabled={!isRoundTrip}
             class="w-full bg-transparent text-sm text-[color:var(--color-text-strong)] outline-none"
           />
         </div>
 
         {/* Travelers */}
-        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3">
+        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3 md:col-span-1">
           <label for="flight-travelers" class="text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
             Travelers
           </label>
@@ -121,10 +182,28 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
             bind:value={travelers}
             class="w-full bg-transparent text-sm text-[color:var(--color-text-strong)] outline-none"
           >
-            <option>1 traveler · Economy</option>
-            <option>2 travelers · Economy</option>
-            <option>1 traveler · Business</option>
-            <option>1 traveler · First</option>
+            <option value="1">1 traveler</option>
+            <option value="2">2 travelers</option>
+            <option value="3">3 travelers</option>
+            <option value="4">4 travelers</option>
+          </select>
+        </div>
+
+        {/* Cabin */}
+        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3 md:col-span-1">
+          <label for="flight-cabin" class="text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+            Cabin
+          </label>
+          <select
+            id="flight-cabin"
+            name="cabin"
+            bind:value={cabin}
+            class="w-full bg-transparent text-sm text-[color:var(--color-text-strong)] outline-none"
+          >
+            <option value="economy">Economy</option>
+            <option value="premium-economy">Premium economy</option>
+            <option value="business">Business</option>
+            <option value="first">First</option>
           </select>
         </div>
 
@@ -156,5 +235,7 @@ type FlightsSearchCardProps = {
   initialTo?: string
   initialDepart?: string
   initialReturn?: string
+  initialItineraryType?: FlightItineraryTypeSlug
   initialTravelers?: string
+  initialCabin?: string
 }

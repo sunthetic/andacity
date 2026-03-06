@@ -2,14 +2,14 @@ import { component$ } from '@builder.io/qwik'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { useLocation } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
-import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
-import { ListingCardGrid } from '~/components/vertical/ListingCardGrid'
+import { VerticalHeroSearchLayout } from '~/components/search/VerticalHeroSearchLayout'
 import { CAR_RENTALS } from '~/data/car-rentals'
+import { CAR_RENTAL_CITIES } from '~/data/car-rental-cities'
 import { CarRentalSearchCard } from '~/components/car-rentals/CarRentalSearchCard'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 
 export default component$(() => {
-  const items = CAR_RENTALS
+  const cityItems = CAR_RENTAL_CITIES
   const loc = useLocation()
 
   const q = String(loc.url.searchParams.get('q') || '').trim()
@@ -20,45 +20,13 @@ export default component$(() => {
   return (
     <Page breadcrumbs={[
       { label: 'Home', href: '/' },
-      { label: 'Car Rentals', href: '/car-rentals' },
-    ]}
-    >
-
-      <div class="mt-4 grid gap-5 lg:grid-cols-[1fr_380px] lg:items-start">
-        {pickupDate}
-        <div>
-          <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
-            Car Rentals
-          </h1>
-
-          <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-            Indexable car rental guides with clear inclusions and policy summaries. Search results stay noindex.
-          </p>
-
-          <div class="mt-4 flex flex-wrap gap-2">
-            <a class="t-btn-primary px-4 text-center" href="/car-rentals/in">
-              Browse cities
-            </a>
-            <a class="t-btn-primary px-4 text-center" href="/search/car-rentals">
-              Search car rentals
-            </a>
-          </div>
-
-          <div class="mt-4 flex flex-wrap gap-2 text-sm">
-            <span class="text-[color:var(--color-text-muted)]">Popular:</span>
-            <a class="t-badge hover:bg-white" href="/car-rentals/in/las-vegas">
-              Las Vegas
-            </a>
-            <a class="t-badge hover:bg-white" href="/car-rentals/in/orlando">
-              Orlando
-            </a>
-            <a class="t-badge hover:bg-white" href="/car-rentals/in/new-york-city">
-              New York
-            </a>
-          </div>
-        </div>
-
-        <aside class="lg:sticky lg:top-24 lg:self-start">
+      { label: 'Car Rentals' },
+    ]}>
+      <VerticalHeroSearchLayout
+        eyebrow="Car Rentals"
+        title="Find rental cars with clearer city-by-city planning"
+        description="Search by destination, pickup dates, and drivers, or browse city hubs built for faster rental discovery."
+        searchCard={(
           <CarRentalSearchCard
             title="Search car rentals"
             destinationValue={q}
@@ -68,38 +36,70 @@ export default component$(() => {
             submitLabel="Search"
             helperText="City and detail pages are indexable. Search pages remain noindex."
           />
-        </aside>
-      </div>
-
-      <section class="mt-8">
-        <div class="flex items-end justify-between gap-3">
-          <div>
-            <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
-              Featured car rentals
-            </h2>
-            <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-              Guide-style inventory pages with clear inclusions and policy highlights.
-            </p>
-          </div>
-
-          <a class="text-sm text-[color:var(--color-action)] hover:underline" href="/search/car-rentals/anywhere/1">
-            View all →
-          </a>
-        </div>
-
-        {items.length ? (
-          <ListingCardGrid variant="car-rentals" items={items} />
-        ) : (
-          <div class="mt-4">
-            <SearchEmptyState
-              title="No car rentals are available right now"
-              description="Try starting a new search or browse rental cities to explore available inventory."
-              primaryAction={{ label: 'Search car rentals again', href: '/car-rentals' }}
-              secondaryAction={{ label: 'Browse rental cities', href: '/car-rentals/in' }}
-            />
-          </div>
         )}
-      </section>
+        helperLinks={[
+          { label: 'Las Vegas', href: '/car-rentals/in/las-vegas' },
+          { label: 'Orlando', href: '/car-rentals/in/orlando' },
+          { label: 'New York', href: '/car-rentals/in/new-york-city' },
+        ]}
+      >
+        <section class="mx-auto max-w-4xl">
+          <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+            Plan pickup and dropoff with less friction
+          </h2>
+
+          <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)] md:text-base">
+            Andacity combines destination-first rental search with city pages designed for cleaner comparison, policy visibility, and faster booking decisions.
+          </p>
+        </section>
+
+        <section class="mt-10">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+                Browse car rental cities
+              </h2>
+
+              <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
+                City pages support rental discovery, itinerary planning, and stronger internal linking across the Car Rentals vertical.
+              </p>
+            </div>
+
+            <a class="t-btn-primary px-5 text-center" href="/search/car-rentals/anywhere/1">
+              Search car rentals
+            </a>
+          </div>
+
+          {cityItems.length ? (
+            <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {cityItems.map((city) => (
+                <a
+                  key={city.slug}
+                  href={`/car-rentals/in/${city.slug}`}
+                  class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-4 shadow-[var(--shadow-sm)] transition hover:-translate-y-px hover:shadow-[var(--shadow-md)]"
+                >
+                  <div class="text-base font-medium text-[color:var(--color-text-strong)]">
+                    {city.name}
+                  </div>
+
+                  <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                    Browse car rentals in {city.name}
+                  </div>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <div class="mt-6">
+              <SearchEmptyState
+                title="No rental cities are available right now"
+                description="Try searching car rentals directly while city pages are refreshed."
+                primaryAction={{ label: 'Search car rentals again', href: '/car-rentals' }}
+                secondaryAction={{ label: 'Browse rental cities', href: '/car-rentals/in' }}
+              />
+            </div>
+          )}
+        </section>
+      </VerticalHeroSearchLayout>
     </Page>
   )
 })

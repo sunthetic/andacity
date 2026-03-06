@@ -11,6 +11,11 @@ import type { FilterSectionConfig, FilterValues } from '~/components/search/filt
 import { FlightResultCard } from '~/components/flights/search/FlightResultCard'
 import type { FlightResult } from '~/types/flights/search'
 import { ResultsToolbar } from '~/components/search/results/ResultsToolbar'
+import {
+  buildFlightsSearchPath,
+  humanizeLocationSlug,
+  isFlightItineraryTypeSlug,
+} from '~/lib/search/flights/routing'
 
 const FLIGHTS_FILTER_DEFAULTS: FilterValues = {
   stops: [],
@@ -77,18 +82,25 @@ const FLIGHT_FILTER_SECTIONS: FilterSectionConfig[] = [
   },
 ]
 
-export const useSearchFlightsPage = routeLoader$(({ params, url }) => {
-  const query = String(params.query || 'anywhere').trim() || 'anywhere'
+export const useSearchFlightsPage = routeLoader$(({ params, url, error }) => {
+  const fromLocationSlug = String(params.fromLocationSlug || '').trim().toLowerCase()
+  const toLocationSlug = String(params.toLocationSlug || '').trim().toLowerCase()
+  const itineraryTypeSlug = String(params.itineraryTypeSlug || '').trim().toLowerCase()
+  if (!fromLocationSlug || !toLocationSlug || !isFlightItineraryTypeSlug(itineraryTypeSlug)) {
+    throw error(404, 'Not found')
+  }
+  const itineraryType = itineraryTypeSlug
   const page = clampInt(params.pageNumber, 1, 9999)
 
-  const from = String(url.searchParams.get('from') || '').trim() || 'Denver'
-  const to = String(url.searchParams.get('to') || '').trim() || 'New York'
+  const from = humanizeLocationSlug(fromLocationSlug)
+  const to = humanizeLocationSlug(toLocationSlug)
   const depart = String(url.searchParams.get('depart') || '').trim()
-  const ret = String(url.searchParams.get('return') || '').trim()
+  const ret = itineraryType === 'round-trip' ? String(url.searchParams.get('return') || '').trim() : ''
 
   return {
-    query,
-    qHuman: safeTitleQuery(query),
+    fromLocationSlug,
+    toLocationSlug,
+    itineraryType,
     page,
     from,
     to,
@@ -142,6 +154,7 @@ export default component$(() => {
   const filteredResults = data.results.filter((flight) => matchesFlightFilters(flight, values.value))
   const sortedResults = sortFlights(filteredResults, sort.value)
   const contextParts = [`${data.from} to ${data.to}`]
+  contextParts.push(data.itineraryType === 'one-way' ? 'One-way' : 'Round-trip')
   if (data.depart) {
     contextParts.push(`Depart ${data.depart}`)
   }
@@ -154,7 +167,7 @@ export default component$(() => {
       { label: 'Andacity Travel', href: '/' },
       { label: 'Flights', href: '/flights' },
       { label: 'Search', href: '/search/flights' },
-      { label: data.qHuman, href: location.url.pathname },
+      { label: `${data.from} to ${data.to}`, href: location.url.pathname },
     ]}>
       <div class="mt-4">
         <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
@@ -231,7 +244,7 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
   const data = resolveValue(useSearchFlightsPage)
   const title = `Flights from ${data.from} to ${data.to} – Page ${data.page} | Andacity Travel`
   const description = `Browse flight results from ${data.from} to ${data.to} with simple, fast filters.`
-  const canonicalPath = `/search/flights/${encodeURIComponent(data.query)}/${data.page}`
+  const canonicalPath = buildFlightsSearchPath(data.fromLocationSlug, data.toLocationSlug, data.itineraryType, data.page)
   const canonicalHref = new URL(canonicalPath, url.origin).href
 
   return {
@@ -304,15 +317,6 @@ const clampInt = (value: string | undefined, min: number, max: number) => {
   const n = Number.parseInt(String(value || ''), 10)
   if (!Number.isFinite(n)) return min
   return Math.max(min, Math.min(max, n))
-}
-
-const safeTitleQuery = (query: string) => {
-  return query
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ')
 }
 
 const FLIGHT_SORT_OPTIONS = [

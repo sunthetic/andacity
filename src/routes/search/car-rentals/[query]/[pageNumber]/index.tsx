@@ -7,15 +7,14 @@ import { CarRentalResultCard } from '~/components/car-rentals/search/CarRentalRe
 import { CAR_RENTALS } from '~/data/car-rentals'
 import { computeDays } from '~/lib/search/car-rentals/dates'
 import { mapCarRentalsToResults } from '~/lib/search/car-rentals/mapCarRentalsToResults'
-import { clampInt, normalizeQuery, normalizeSort, safeTitleQuery } from '~/lib/search/car-rentals/normalize'
+import { clampInt, normalizeQuery, safeTitleQuery } from '~/lib/search/car-rentals/normalize'
 import type { CarRentalResult } from '~/types/car-rentals/search'
-import { formatMoney } from '~/lib/formatMoney'
 import { SearchMapCard } from '~/components/search/SearchMapCard'
 import { SearchResultsSummary } from '~/components/search/SearchResultsSummary'
-import { SearchHeaderBar } from '~/components/search/SearchHeaderBar'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 import { FiltersPanel } from '~/components/search/filters/FiltersPanel'
 import type { FilterSectionConfig, FilterValues } from '~/components/search/filters/types'
+import { ResultsToolbar } from '~/components/search/results/ResultsToolbar'
 
 const CAR_FILTER_DEFAULTS: FilterValues = {
   priceRange: [],
@@ -25,32 +24,16 @@ const CAR_FILTER_DEFAULTS: FilterValues = {
   rentalCompany: [],
 }
 
-export const useSearchCarRentalsPage = routeLoader$(({ params, url }) => {
+export const useSearchCarRentalsPage = routeLoader$(({ params }) => {
   const query = normalizeQuery(params.query)
   const page = clampInt(params.pageNumber, 1, 9999)
-  const sort = normalizeSort(url.searchParams.get('sort'))
-
-  const results = mapCarRentalsToResults(CAR_RENTALS, query).slice().sort((a, b) => {
-    if (sort === 'price-asc') return a.priceFrom - b.priceFrom
-    if (sort === 'price-desc') return b.priceFrom - a.priceFrom
-    if (sort === 'rating-desc') return b.rating - a.rating
-    if (sort === 'reviewcount-desc') return b.reviewCount - a.reviewCount
-    return b.score - a.score
-  })
-
-  const price = {
-    min: results.length ? Math.min(...results.map((x) => x.priceFrom)) : null,
-    max: results.length ? Math.max(...results.map((x) => x.priceFrom)) : null,
-    currency: 'USD',
-  }
+  const results = mapCarRentalsToResults(CAR_RENTALS, query)
 
   return {
     query,
     qHuman: safeTitleQuery(query),
     page,
     results,
-    sort,
-    price,
   }
 })
 
@@ -59,11 +42,11 @@ export default component$(() => {
   const location = useLocation()
 
   const pathBase = `/search/car-rentals/${encodeURIComponent(data.query)}`
-  const page1Action = `${pathBase}/1`
 
   const days = computeDays(location.url.searchParams.get('pickupDate'), location.url.searchParams.get('dropoffDate'))
 
   const values = useSignal<FilterValues>({ ...CAR_FILTER_DEFAULTS })
+  const sort = useSignal<CarSort>('recommended')
   const mobileFiltersOpen = useSignal(false)
 
   const rentalCompanyOptions = Array.from(new Set(data.results.map((result) => result.name))).map((company) => ({
@@ -142,8 +125,21 @@ export default component$(() => {
   const onReset$ = $(() => {
     values.value = { ...CAR_FILTER_DEFAULTS }
   })
+  const onSortChange$ = $((value: string) => {
+    if (value === 'recommended' || value === 'price' || value === 'vehicle-class') {
+      sort.value = value
+    }
+  })
+  const onToggleFilters$ = $(() => {
+    mobileFiltersOpen.value = !mobileFiltersOpen.value
+  })
 
   const filteredResults = data.results.filter((rental) => matchesCarFilters(rental, values.value))
+  const sortedResults = sortCarRentals(filteredResults, sort.value)
+  const contextParts = [`Pickup: ${data.qHuman}`]
+  if (days != null) {
+    contextParts.push(`${days} ${days === 1 ? 'day' : 'days'}`)
+  }
 
   return (
     <Page breadcrumbs={[
@@ -152,43 +148,35 @@ export default component$(() => {
       { label: 'Search', href: '/search/car-rentals' },
       { label: data.qHuman, href: `${pathBase}/1` },
     ]}>
-      <SearchHeaderBar
-        title={`Car rentals in ${data.qHuman}`}
-        description="Transparent totals, clear policies, and fast filtering. Search result pages are noindex."
-      >
-        <span q:slot="badges" class="t-badge">
-          {filteredResults.length.toLocaleString('en-US')} results
-        </span>
+      <div class="mt-4">
+        <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
+          Car rental search results
+        </h1>
+        <p class="mt-2 max-w-[80ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">{contextParts.join(' · ')}</p>
+      </div>
 
-        {data.price.min != null && data.price.max != null ? (
-          <span q:slot="badges" class="t-badge">
-            From {formatMoney(data.price.min, data.price.currency)}–{formatMoney(data.price.max, data.price.currency)}
-          </span>
+      <ResultsToolbar
+        sortId="car-rental-results-sort"
+        resultCountLabel={`${sortedResults.length.toLocaleString('en-US')} car rentals found`}
+        sortValue={sort.value}
+        sortOptions={CAR_SORT_OPTIONS}
+        mobileFiltersOpen={mobileFiltersOpen.value}
+        onSortChange$={onSortChange$}
+        onToggleFilters$={onToggleFilters$}
+      />
+
+      <div class="mt-4 lg:hidden">
+        {mobileFiltersOpen.value ? (
+          <FiltersPanel
+            title="Filters"
+            sections={carFilterSections}
+            values={values.value}
+            onCheckboxToggle$={onCheckboxToggle$}
+            onSelectChange$={onSelectChange$}
+            onReset$={onReset$}
+          />
         ) : null}
-
-        <span q:slot="badges" class="t-badge">
-          Car rentals search
-        </span>
-
-        <form method="get" action={page1Action} class="t-panel flex items-center gap-2 p-3" q:slot="sort">
-          <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">Sort</label>
-          <select
-            name="sort"
-            class="rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-            value={data.sort}
-          >
-            <option value="relevance">Relevance</option>
-            <option value="price-asc">Price: low → high</option>
-            <option value="price-desc">Price: high → low</option>
-            <option value="rating-desc">Rating</option>
-            <option value="reviewcount-desc">Review count</option>
-          </select>
-
-          <button class="t-btn-primary" type="submit">
-            Apply
-          </button>
-        </form>
-      </SearchHeaderBar>
+      </div>
 
       <div class="mt-6 grid gap-6 lg:grid-cols-[300px_1fr] lg:items-start">
         <FiltersPanel
@@ -202,38 +190,19 @@ export default component$(() => {
         />
 
         <main>
-          <div class="mb-4 lg:hidden">
-            <button class="t-btn-primary w-full" type="button" onClick$={() => { mobileFiltersOpen.value = !mobileFiltersOpen.value }}>
-              {mobileFiltersOpen.value ? 'Hide filters' : 'Show filters'}
-            </button>
-
-            {mobileFiltersOpen.value ? (
-              <div class="mt-3">
-                <FiltersPanel
-                  title="Filters"
-                  sections={carFilterSections}
-                  values={values.value}
-                  onCheckboxToggle$={onCheckboxToggle$}
-                  onSelectChange$={onSelectChange$}
-                  onReset$={onReset$}
-                />
-              </div>
-            ) : null}
-          </div>
-
           <SearchMapCard />
 
           <section class="mt-6">
             <SearchResultsSummary
-              shown={filteredResults.length}
+              shown={sortedResults.length}
               total={data.results.length}
               page={1}
               totalPages={1}
             />
 
             <div class="mt-4 grid gap-3">
-              {filteredResults.length ? (
-                filteredResults.map((rental: CarRentalResult) => (
+              {sortedResults.length ? (
+                sortedResults.map((rental: CarRentalResult) => (
                   <CarRentalResultCard key={rental.id} r={rental} days={days} />
                 ))
               ) : (
@@ -327,4 +296,24 @@ const inCarPriceRange = (price: number, range: string) => {
 
 const toSelected = (value: string[] | string | undefined) => {
   return Array.isArray(value) ? value : []
+}
+
+const CAR_SORT_OPTIONS = [
+  { label: 'Recommended', value: 'recommended' },
+  { label: 'Price', value: 'price' },
+  { label: 'Vehicle class', value: 'vehicle-class' },
+]
+
+type CarSort = 'recommended' | 'price' | 'vehicle-class'
+
+const sortCarRentals = (items: CarRentalResult[], sort: CarSort) => {
+  return [...items].sort((a, b) => {
+    if (sort === 'price') return a.priceFrom - b.priceFrom
+    if (sort === 'vehicle-class') {
+      const categoryCompare = (a.category || '').localeCompare(b.category || '')
+      if (categoryCompare !== 0) return categoryCompare
+      return a.priceFrom - b.priceFrom
+    }
+    return b.score - a.score
+  })
 }
