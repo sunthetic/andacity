@@ -5,7 +5,20 @@ import { Page } from '~/components/site/Page'
 export const onGet: RequestHandler = async ({ url, redirect }) => {
   const q = String(url.searchParams.get('q') || '').trim()
   if (q) {
-    throw redirect(302, `/search/car-rentals/${encodeURIComponent(q)}/1`)
+    const sp = new URLSearchParams()
+
+    const pickupDate = String(url.searchParams.get('pickupDate') || '').trim()
+    const dropoffDate = String(url.searchParams.get('dropoffDate') || '').trim()
+    const drivers = String(url.searchParams.get('drivers') || '').trim()
+
+    if (pickupDate) sp.set('pickupDate', pickupDate)
+    if (dropoffDate) sp.set('dropoffDate', dropoffDate)
+    if (drivers) sp.set('drivers', drivers)
+
+    const qs = sp.toString()
+    const href = `/search/car-rentals/${encodeURIComponent(q)}/1${qs ? `?${qs}` : ''}`
+
+    throw redirect(302, href)
   }
 }
 
@@ -21,12 +34,43 @@ export default component$(() => {
         </p>
 
         <form method="get" action="/search/car-rentals" class="mt-6 grid gap-3">
-          <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">Destination</label>
-          <input
-            name="q"
-            class="w-full rounded-2xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-base outline-none focus-visible:shadow-[var(--ring-focus)]"
-            placeholder="e.g., Las Vegas"
-          />
+          <div>
+            <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">Destination</label>
+            <input
+              name="q"
+              class="mt-1 w-full rounded-2xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-base outline-none focus-visible:shadow-[var(--ring-focus)]"
+              placeholder="e.g., Las Vegas"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">Pickup</label>
+              <input
+                name="pickupDate"
+                class="mt-1 w-full rounded-2xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-base outline-none focus-visible:shadow-[var(--ring-focus)]"
+                placeholder="YYYY-MM-DD"
+              />
+            </div>
+
+            <div>
+              <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">Dropoff</label>
+              <input
+                name="dropoffDate"
+                class="mt-1 w-full rounded-2xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-base outline-none focus-visible:shadow-[var(--ring-focus)]"
+                placeholder="YYYY-MM-DD"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">Drivers</label>
+            <input
+              name="drivers"
+              class="mt-1 w-full rounded-2xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-base outline-none focus-visible:shadow-[var(--ring-focus)]"
+              placeholder="1"
+            />
+          </div>
 
           <div class="flex flex-wrap gap-2">
             <button class="t-btn-primary px-5" type="submit">

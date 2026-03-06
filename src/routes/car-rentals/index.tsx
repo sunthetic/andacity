@@ -1,27 +1,37 @@
 import { component$ } from '@builder.io/qwik'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { useLocation } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
-import { CAR_RENTALS } from '~/data/car-rentals'
-import { ListingCardGrid } from '~/components/vertical/ListingCardGrid'
 import { Breadcrumbs } from '~/components/site/Breadcrumbs'
+import { ListingCardGrid } from '~/components/vertical/ListingCardGrid'
+import { CAR_RENTALS } from '~/data/car-rentals'
 
 export default component$(() => {
   const items = CAR_RENTALS
+  const loc = useLocation()
+
+  const q = String(loc.url.searchParams.get('q') || '').trim()
+  const pickupDate = String(loc.url.searchParams.get('pickupDate') || '').trim()
+  const dropoffDate = String(loc.url.searchParams.get('dropoffDate') || '').trim()
+  const drivers = String(loc.url.searchParams.get('drivers') || '').trim()
 
   return (
     <Page>
+
       <Breadcrumbs
         items={[
           { label: 'Andacity Travel', href: '/' },
           { label: 'Car Rentals', href: '/car-rentals' },
         ]}
       />
-      
-      <div class="flex flex-wrap items-end justify-between gap-3">
+
+      <div class="mt-4 grid gap-5 lg:grid-cols-[1fr_380px] lg:items-start">
+        {pickupDate}
         <div>
-          <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+          <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
             Car Rentals
           </h1>
+
           <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
             Indexable car rental guides with clear inclusions and policy summaries. Search results stay noindex.
           </p>
@@ -37,14 +47,105 @@ export default component$(() => {
 
           <div class="mt-4 flex flex-wrap gap-2 text-sm">
             <span class="text-[color:var(--color-text-muted)]">Popular:</span>
-            <a class="t-badge hover:bg-white" href="/car-rentals/in/las-vegas">Las Vegas</a>
-            <a class="t-badge hover:bg-white" href="/car-rentals/in/orlando">Orlando</a>
-            <a class="t-badge hover:bg-white" href="/car-rentals/in/new-york-city">New York</a>
+            <a class="t-badge hover:bg-white" href="/car-rentals/in/las-vegas">
+              Las Vegas
+            </a>
+            <a class="t-badge hover:bg-white" href="/car-rentals/in/orlando">
+              Orlando
+            </a>
+            <a class="t-badge hover:bg-white" href="/car-rentals/in/new-york-city">
+              New York
+            </a>
           </div>
         </div>
+
+        <aside class="lg:sticky lg:top-24 lg:self-start">
+          <div class="t-card p-5">
+            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+              Search car rentals
+            </div>
+
+            <form method="get" action="/search/car-rentals" class="mt-4 grid gap-3">
+              <div>
+                <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                  Destination
+                </label>
+                <input
+                  name="q"
+                  class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                  placeholder="e.g., Las Vegas"
+                  value={q}
+                />
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                    Pickup
+                  </label>
+                  <input
+                    name="pickupDate"
+                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    placeholder="YYYY-MM-DD"
+                    value={pickupDate}
+                  />
+                </div>
+
+                <div>
+                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                    Dropoff
+                  </label>
+                  <input
+                    name="dropoffDate"
+                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    placeholder="YYYY-MM-DD"
+                    value={dropoffDate}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                  Drivers
+                </label>
+                <input
+                  name="drivers"
+                  class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                  placeholder="1"
+                  value={drivers}
+                />
+              </div>
+
+              <button class="t-btn-primary" type="submit">
+                Search
+              </button>
+
+              <div class="text-xs text-[color:var(--color-text-muted)]">
+                City and detail pages are indexable. Search pages remain noindex.
+              </div>
+            </form>
+          </div>
+        </aside>
       </div>
 
-      <ListingCardGrid variant="car-rentals" items={items} />
+      <section class="mt-8">
+        <div class="flex items-end justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
+              Featured car rentals
+            </h2>
+            <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+              Guide-style inventory pages with clear inclusions and policy highlights.
+            </p>
+          </div>
+
+          <a class="text-sm text-[color:var(--color-action)] hover:underline" href="/search/car-rentals/anywhere/1">
+            View all →
+          </a>
+        </div>
+
+        <ListingCardGrid variant="car-rentals" items={items} />
+      </section>
     </Page>
   )
 })
@@ -111,16 +212,4 @@ export const head: DocumentHead = ({ url }) => {
 
 const buildCarRentalDetailHref = (rentalSlug: string) => {
   return `/car-rentals/${encodeURIComponent(rentalSlug)}`
-}
-
-const formatMoney = (amount: number, currency: string) => {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  } catch {
-    return `${Math.round(amount)} ${currency}`
-  }
 }

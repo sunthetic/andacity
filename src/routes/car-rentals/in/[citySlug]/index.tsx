@@ -1,11 +1,12 @@
 import { component$ } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { useLocation } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
+import { Breadcrumbs } from '~/components/site/Breadcrumbs'
+import { ListingCardGrid } from '~/components/vertical/ListingCardGrid'
 import { CAR_RENTALS } from '~/data/car-rentals'
 import { getCarRentalCityBySlug } from '~/data/car-rental-cities'
-import { ListingCardGrid } from '~/components/vertical/ListingCardGrid'
-import { Breadcrumbs } from '~/components/site/Breadcrumbs'
 
 export const useCityCarRentals = routeLoader$(({ params, error }) => {
   const citySlug = String(params.citySlug || '').trim().toLowerCase()
@@ -25,6 +26,11 @@ export const useCityCarRentals = routeLoader$(({ params, error }) => {
 export default component$(() => {
   const data = useCityCarRentals().value
   const items = data.items
+  const loc = useLocation()
+
+  const pickupDate = String(loc.url.searchParams.get('pickupDate') || '').trim()
+  const dropoffDate = String(loc.url.searchParams.get('dropoffDate') || '').trim()
+  const drivers = String(loc.url.searchParams.get('drivers') || '').trim()
 
   return (
     <Page>
@@ -36,47 +42,143 @@ export default component$(() => {
           { label: data.city.name, href: buildCityHref(data.citySlug) },
         ]}
       />
-      
-      <div class="flex flex-wrap items-end justify-between gap-3">
+
+      <div class="mt-4 grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
         <div>
-          <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+          <div class="flex flex-wrap gap-2">
+            <span class="t-badge">
+              {data.city.region}, {data.city.country}
+            </span>
+            <span class="t-badge">{items.length} rentals</span>
+          </div>
+
+          <h1 class="mt-3 text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
             Car rentals in {data.city.name}
           </h1>
-          <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-            Browse indexable car rental guides for {data.city.name}. Clear inclusions and policy summaries. Search pages stay
-            noindex.
+
+          <p class="mt-2 max-w-[80ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
+            Browse indexable car rental guides for {data.city.name}. Clear inclusions and policy summaries.
+            Search pages stay noindex.
           </p>
 
-          <div class="mt-4 flex flex-wrap gap-2">
-            <a class="t-btn-primary px-4 text-center" href={buildSearchHref(data.citySlug, 1)}>
-              Search {data.city.name}
-            </a>
-            <a class="t-btn-primary px-4 text-center" href="/car-rentals/in">
-              Browse cities
-            </a>
-            <a class="t-btn-primary px-4 text-center" href="/car-rentals">
-              All car rentals
-            </a>
+          <div class="mt-5 grid gap-3 sm:grid-cols-2">
+            <div class="t-card p-5">
+              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">Why book here</div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <span class="t-badge">City guide</span>
+                <span class="t-badge">Policy clarity</span>
+                <span class="t-badge">Transparent totals</span>
+              </div>
+            </div>
+
+            <div class="t-card p-5">
+              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">Popular searches</div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <span class="t-badge">Airport pickup</span>
+                <span class="t-badge">SUV</span>
+                <span class="t-badge">Free cancellation</span>
+              </div>
+            </div>
           </div>
         </div>
+
+        <aside class="lg:sticky lg:top-24 lg:self-start">
+          <div class="t-card p-5">
+            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+              Search car rentals in {data.city.name}
+            </div>
+
+            <form method="get" action="/search/car-rentals" class="mt-4 grid gap-3">
+              <div>
+                <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                  Destination
+                </label>
+                <input
+                  name="q"
+                  class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                  value={data.city.name}
+                />
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                    Pickup
+                  </label>
+                  <input
+                    name="pickupDate"
+                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    placeholder="YYYY-MM-DD"
+                    value={pickupDate}
+                  />
+                </div>
+
+                <div>
+                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                    Dropoff
+                  </label>
+                  <input
+                    name="dropoffDate"
+                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    placeholder="YYYY-MM-DD"
+                    value={dropoffDate}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                  Drivers
+                </label>
+                <input
+                  name="drivers"
+                  class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                  placeholder="1"
+                  value={drivers}
+                />
+              </div>
+
+              <button class="t-btn-primary" type="submit">
+                See results
+              </button>
+
+              <div class="text-xs text-[color:var(--color-text-muted)]">
+                This city page is indexable. Search pages remain noindex.
+              </div>
+            </form>
+          </div>
+        </aside>
       </div>
 
-      {items.length ? (
-        <ListingCardGrid variant="car-rentals" items={items} />
-      ) : (
-        <div class="mt-6 t-card p-5">
-          <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">No listings yet</div>
-          <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-            We’re building out inventory for {data.city.name}. Try searching nearby or browse other city guides.
-          </p>
-
-          <div class="mt-4 flex flex-wrap gap-2">
-            <a class="t-btn-primary px-4 text-center" href="/car-rentals/in/orlando">Orlando</a>
-            <a class="t-btn-primary px-4 text-center" href="/car-rentals/in/las-vegas">Las Vegas</a>
-            <a class="t-btn-primary px-4 text-center" href="/car-rentals/in/new-york-city">New York</a>
-          </div>
+      <section class="mt-8">
+        <div class="flex items-end justify-between gap-3">
+          <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">Featured rentals</h2>
+          <a class="text-sm text-[color:var(--color-action)] hover:underline" href={buildSearchHref(data.city.name, 1)}>
+            View all →
+          </a>
         </div>
-      )}
+
+        {items.length ? (
+          <ListingCardGrid variant="car-rentals" items={items} />
+        ) : (
+          <div class="mt-4 t-card p-5">
+            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">No listings yet</div>
+            <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
+              We’re building out inventory for {data.city.name}. Try a nearby city or search broadly.
+            </p>
+          </div>
+        )}
+      </section>
+
+      <section class="mt-8 t-card p-5">
+        <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
+          Guide to renting a car in {data.city.name}
+        </h2>
+        <div class="mt-3 text-sm text-[color:var(--color-text-muted)]">
+          This section is your SEO payload: airport pickup norms, common car classes, typical pricing ranges,
+          and booking considerations for {data.city.name}.
+        </div>
+      </section>
     </Page>
   )
 })
@@ -109,6 +211,12 @@ export const head: DocumentHead = ({ resolveValue, params, url }) => {
           {
             '@type': 'ListItem',
             position: 2,
+            name: 'Cities',
+            item: new URL('/car-rentals/in', url.origin).href,
+          },
+          {
+            '@type': 'ListItem',
+            position: 3,
             name: `Car rentals in ${cityName}`,
             item: canonicalHref,
           },
@@ -161,16 +269,4 @@ const buildSearchHref = (query: string, pageNumber: number) => {
 
 const buildCarRentalDetailHref = (rentalSlug: string) => {
   return `/car-rentals/${encodeURIComponent(rentalSlug)}`
-}
-
-const formatMoney = (amount: number, currency: string) => {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  } catch {
-    return `${Math.round(amount)} ${currency}`
-  }
 }
