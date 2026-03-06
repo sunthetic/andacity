@@ -1,106 +1,83 @@
 import { component$ } from '@builder.io/qwik'
 import type { DocumentHead } from '@builder.io/qwik-city'
-import { Page } from '~/components/site/Page'
-import { HOTELS } from '~/data/hotels'
-import { ListingCardGrid } from '~/components/vertical/ListingCardGrid'
+import { HotelSearchCard } from '~/components/hotels/search/HotelSearchCard'
+import { VerticalHeroSearchLayout } from '~/components/search/VerticalHeroSearchLayout'
+import { HOTEL_CITIES } from '~/data/hotel-cities'
 
 export default component$(() => {
-  const items = HOTELS
+  const items = HOTEL_CITIES
 
   return (
-    <Page>
-      <div class="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-            Hotels
-          </h1>
-          <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-            Indexable hotel guides with clear amenities and policy summaries. Search results stay noindex.
-          </p>
+    <VerticalHeroSearchLayout
+      breadcrumbs={[
+        { label: 'Home', href: '/' },
+        { label: 'Hotels' },
+      ]}
+      eyebrow="Hotels"
+      title="Find hotels that fit the trip, not just the city"
+      description="Search stays by destination, dates, and guests, or browse city pages built for planning and discovery."
+      searchCard={<HotelSearchCard />}
+      helperLinks={[
+        { label: 'Miami', href: '/hotels/in/miami' },
+        { label: 'New York', href: '/hotels/in/new-york' },
+        { label: 'Las Vegas', href: '/hotels/in/las-vegas' },
+      ]}
+    >
+      <section class="mx-auto max-w-4xl">
+        <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+          Plan stays with less friction
+        </h2>
 
-          <div class="mt-4 flex flex-wrap gap-2">
-            <a class="t-btn-primary px-4 text-center" href="/hotels/in">
-              Browse cities
-            </a>
-            <a class="t-btn-primary px-4 text-center" href="/search/hotels">
-              Search hotels
-            </a>
+        <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)] md:text-base">
+          Andacity combines destination-first hotel search with crawlable city hubs, giving travelers a cleaner way to browse accommodations while preserving strong internal linking across the vertical.
+        </p>
+      </section>
+
+      <section class="mt-10">
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+              Browse hotel cities
+            </h2>
+
+            <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
+              Indexable city pages that support discovery, planning, and internal linking across the Hotels vertical.
+            </p>
           </div>
-          <div class="mt-4 flex flex-wrap gap-2 text-sm">
-            <span class="text-[color:var(--color-text-muted)]">Popular:</span>
-            <a class="t-badge hover:bg-white" href="/hotels/in/las-vegas">Las Vegas</a>
-            <a class="t-badge hover:bg-white" href="/hotels/in/orlando">Orlando</a>
-            <a class="t-badge hover:bg-white" href="/hotels/in/new-york-city">New York</a>
-          </div>
+
+          <a class="t-btn-primary px-5 text-center" href="/search/hotels/anywhere/1">
+            Search hotels
+          </a>
         </div>
 
-      </div>
+        <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((city) => (
+            <a
+              key={city.slug}
+              href={`/hotels/in/${city.slug}`}
+              class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-4 shadow-[var(--shadow-sm)] transition hover:-translate-y-px hover:shadow-[var(--shadow-md)]"
+            >
+              <div class="text-base font-medium text-[color:var(--color-text-strong)]">
+                {city.city}
+              </div>
 
-      <ListingCardGrid variant="hotels" items={items} />
-    </Page>
+              <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                Browse hotels in {city.city}
+              </div>
+            </a>
+          ))}
+        </div>
+      </section>
+    </VerticalHeroSearchLayout>
   )
 })
 
-export const head: DocumentHead = ({ url }) => {
-  const title = 'Hotels | Andacity Travel'
-  const description =
-    'Browse indexable hotel guides with clear amenities and policy summaries. Search pages stay noindex; hotel pages earn rankings.'
-
-  const canonicalHref = new URL('/hotels', url.origin).href
-
-  const listCap = 24
-
-  const jsonLd = JSON.stringify({
-    '@context': 'https://schema.org',
-    '@graph': [
-      {
-        '@type': 'BreadcrumbList',
-        itemListElement: [
-          {
-            '@type': 'ListItem',
-            position: 1,
-            name: 'Hotels',
-            item: canonicalHref,
-          },
-        ],
-      },
-      {
-        '@type': 'ItemList',
-        name: 'Andacity hotels',
-        itemListElement: HOTELS.slice(0, listCap).map((h, i) => ({
-          '@type': 'ListItem',
-          position: i + 1,
-          name: h.name,
-          url: new URL(buildHotelDetailHref(h.slug), url.origin).href,
-          numberOfItems: HOTELS.length,
-        })),
-      },
-    ],
-  })
-
-  return {
-    title,
-    meta: [
-      { name: 'description', content: description },
-      { property: 'og:type', content: 'website' },
-      { property: 'og:title', content: title },
-      { property: 'og:description', content: description },
-      { property: 'og:url', content: canonicalHref },
-      { name: 'twitter:card', content: 'summary_large_image' },
-      { name: 'twitter:title', content: title },
-      { name: 'twitter:description', content: description },
-    ],
-    links: [{ rel: 'canonical', href: canonicalHref }],
-    scripts: [
-      {
-        key: 'ld-hotels',
-        props: { type: 'application/ld+json' },
-        script: jsonLd,
-      },
-    ],
-  }
-}
-
-const buildHotelDetailHref = (hotelSlug: string) => {
-  return `/hotels/${encodeURIComponent(hotelSlug)}`
+export const head: DocumentHead = {
+  title: 'Hotels | Andacity',
+  meta: [
+    {
+      name: 'description',
+      content: 'Search hotels by destination, dates, and guests, or browse Andacity city pages for hotel discovery.',
+    },
+  ],
 }
