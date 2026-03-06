@@ -21,8 +21,8 @@ export default component$(() => {
         { label: 'Hotels' },
       ]}
       eyebrow="Hotels"
-      title="Find hotels that fit the trip, not just the city"
-      description="Search stays by destination, dates, and guests, or browse city pages built for planning and discovery."
+      title="Find stays that fit the trip, not just the city"
+      description="Search hotels by destination, dates, and guests, or browse city hubs built for planning and discovery."
       heroImageUrl="/images/hero/hotels.svg"
       heroOverlay="base"
       searchCard={(
@@ -45,7 +45,7 @@ export default component$(() => {
         </h2>
 
         <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)] md:text-base">
-          Andacity combines destination-first hotel search with crawlable city hubs, giving travelers a cleaner way to browse accommodations while preserving strong internal linking across the vertical.
+          Combine destination-first search with city-based discovery for a cleaner way to book accommodations.
         </p>
       </section>
 

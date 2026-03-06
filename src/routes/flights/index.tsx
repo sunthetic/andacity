@@ -23,8 +23,8 @@ export default component$(() => {
         { label: 'Flights' },
       ]}
       eyebrow="Flights"
-      title="Search smarter flights with flexible planning"
-      description="Find flights by route, dates, and traveler preferences, or explore flexible destinations for your next trip."
+      title="Find smarter flights with flexible planning"
+      description="Search routes, compare schedules, and plan around your dates and preferences with less friction."
       heroImageUrl="/images/hero/flights.svg"
       heroOverlay="base"
       searchCard={(
@@ -45,7 +45,7 @@ export default component$(() => {
         </h2>
 
         <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)] md:text-base">
-          Andacity combines clean route search with flexible planning tools, making it easier to compare options and book confidently.
+          Compare routes, timing, and options faster so you can book with confidence.
         </p>
       </section>
     </VerticalHeroSearchLayout>

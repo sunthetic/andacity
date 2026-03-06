@@ -23,8 +23,8 @@ export default component$(() => {
         { label: 'Car Rentals' },
       ]}
       eyebrow="Car Rentals"
-      title="Find rental cars with clearer city-by-city planning"
-      description="Search by destination, pickup dates, and drivers, or browse city hubs built for faster rental discovery."
+      title="Get the right car for where the trip takes you"
+      description="Search pickup locations, dates, and vehicle types so your plans stay flexible on the ground."
       heroImageUrl="/images/hero/cars.svg"
       heroOverlay="base"
       searchCard={(
@@ -45,11 +45,11 @@ export default component$(() => {
     >
       <section class="mx-auto max-w-4xl">
         <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-          Plan pickup and dropoff with less friction
+          Stay flexible on the ground
         </h2>
 
         <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)] md:text-base">
-          Andacity combines destination-first rental search with city pages designed for cleaner comparison, policy visibility, and faster booking decisions.
+          Find vehicles by location and timing so your trip doesn't depend on rigid schedules.
         </p>
       </section>
 

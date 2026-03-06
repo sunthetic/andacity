@@ -16,7 +16,10 @@ export default component$(() => {
                 Plan the whole trip in one place
               </h1>
               <p class="mt-3 text-sm text-[color:var(--color-text-on-hero-muted)] md:text-base">
-                Search flights, hotels, and car rentals, then move into discovery without bouncing between tools.
+                Search flights, stays, and car rentals together, or explore new destinations when you don't know where to start.
+              </p>
+              <p class="mt-2 text-sm text-[color:var(--color-text-on-hero-muted)] md:text-base">
+                One platform. Less friction. Better trips.
               </p>
               <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
                 <a class="t-btn-primary px-5 text-center" href="/hotels">
@@ -85,7 +88,7 @@ export default component$(() => {
               <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
                 Search stays by destination, dates, and guests, or browse city hubs.
               </div>
-              <div class="mt-4 text-sm text-[color:var(--color-action)]">Browse hotels →</div>
+              <div class="mt-4 text-sm text-[color:var(--color-action)]">Search hotels →</div>
             </a>
 
             <a class="t-card block p-5 transition hover:-translate-y-px hover:bg-white" href="/car-rentals">
@@ -107,9 +110,9 @@ export default component$(() => {
                   <path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z" />
                 </svg>
               </div>
-              <div class="mt-3 text-base font-semibold text-[color:var(--color-text-strong)]">Explore</div>
+              <div class="mt-3 text-base font-semibold text-[color:var(--color-text-strong)]">Explore destinations</div>
               <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                Discover destination pages and neighborhood context before you book.
+                Discover places to go by season, mood, or budget when you're not starting with a fixed plan.
               </div>
               <div class="mt-4 text-sm text-[color:var(--color-action)]">Start exploring →</div>
             </a>

@@ -69,7 +69,7 @@ export default component$(() => {
           </div>
 
           <div class="lg:sticky lg:top-24">
-            <div class="t-card p-5 bg-primary-surface">
+            <div class="t-card p-5 bg-surface">
               <div class="text-xs text-[color:var(--color-text-muted)]">From</div>
               <div class="mt-1 text-2xl font-semibold text-[color:var(--color-text-strong)]">
                 {formatMoney(priceFrom, rental.currency)}
