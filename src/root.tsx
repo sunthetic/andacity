@@ -2,12 +2,14 @@ import { component$, useStyles$ } from '@builder.io/qwik'
 import { QwikCityProvider, RouterOutlet, ServiceWorkerRegister } from '@builder.io/qwik-city'
 import { RouterHead } from './routes/router-head'
 import { PageView } from '~/components/analytics/PageView'
+import globalCss from '~/styles/global.css?inline'
 import poppinsStyles from '@fontsource/poppins?inline'
 import lexendStyles from '@fontsource-variable/lexend?inline'
 
 export default component$(() => {
   useStyles$(poppinsStyles)
   useStyles$(lexendStyles)
+  useStyles$(globalCss)
 
   return (
     <QwikCityProvider>
