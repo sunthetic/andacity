@@ -22,7 +22,7 @@ export const mapHotelsToResults = (hotels: Hotel[], query: string): HotelResult[
       priceFrom: h.fromNightly,
       currency: h.currency,
       refundable: h.policies.freeCancellation,
-      amenities: h.amenities.slice(0, 6),
+      amenities: h.amenities,
       image: h.images[0] || '/img/demo/hotel-1.jpg',
       badges: [
         h.stars >= 4 ? 'Top rated' : 'Best value',
