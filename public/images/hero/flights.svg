@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="title desc">
+  <title id="title">Flights hero</title>
+  <desc id="desc">Aerial style gradient with route lines and wing-like shape.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0a1f3e"/>
+      <stop offset="55%" stop-color="#1f4f7a"/>
+      <stop offset="100%" stop-color="#5f8cab"/>
+    </linearGradient>
+    <radialGradient id="cloud" cx="70%" cy="25%" r="50%">
+      <stop offset="0%" stop-color="#d8efff" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#d8efff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#cloud)"/>
+  <g fill="none" stroke="#b8e0ff" stroke-opacity="0.46" stroke-width="3">
+    <path d="M120 650C420 390 780 300 1500 210"/>
+    <path d="M0 560C360 420 790 390 1360 480"/>
+    <path d="M210 740C450 540 780 520 1420 620"/>
+  </g>
+  <path d="M630 580L1130 440L1020 520L1290 520L1320 555H1020L890 640L840 640L910 555H650Z" fill="#edf7ff" fill-opacity="0.5"/>
+</svg>

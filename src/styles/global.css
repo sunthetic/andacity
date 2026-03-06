@@ -86,4 +86,31 @@
     border-color: var(--color-tertiary-150);
     color: var(--color-tertiary-700);
   }
+
+  .t-hero-overlay-soft {
+    background: linear-gradient(
+      180deg,
+      var(--hero-overlay-soft-top) 0%,
+      var(--hero-overlay-soft-mid) 52%,
+      var(--hero-overlay-soft-bottom) 100%
+    );
+  }
+
+  .t-hero-overlay-base {
+    background: linear-gradient(
+      180deg,
+      var(--hero-overlay-base-top) 0%,
+      var(--hero-overlay-base-mid) 52%,
+      var(--hero-overlay-base-bottom) 100%
+    );
+  }
+
+  .t-hero-overlay-strong {
+    background: linear-gradient(
+      180deg,
+      var(--hero-overlay-strong-top) 0%,
+      var(--hero-overlay-strong-mid) 52%,
+      var(--hero-overlay-strong-bottom) 100%
+    );
+  }
 }

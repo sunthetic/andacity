@@ -23,6 +23,8 @@ export default component$(() => {
       eyebrow="Hotels"
       title="Find hotels that fit the trip, not just the city"
       description="Search stays by destination, dates, and guests, or browse city pages built for planning and discovery."
+      heroImageUrl="/images/hero/hotels.svg"
+      heroOverlay="base"
       searchCard={(
         <HotelSearchCard
           initialDestination={destination}

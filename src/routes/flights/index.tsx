@@ -25,6 +25,8 @@ export default component$(() => {
       eyebrow="Flights"
       title="Search smarter flights with flexible planning"
       description="Find flights by route, dates, and traveler preferences, or explore flexible destinations for your next trip."
+      heroImageUrl="/images/hero/flights.svg"
+      heroOverlay="base"
       searchCard={(
         <FlightsSearchCard
           initialItineraryType={itineraryType}

@@ -123,6 +123,8 @@
    --color-text-muted: var(--color-neutral-600);
    --color-text-subtle: var(--color-neutral-500);
    --color-text-inverse: #FFFFFF;
+   --color-text-on-hero: #FFFFFF;
+   --color-text-on-hero-muted: rgba(255, 255, 255, 0.88);
 
    /* Lines */
    --color-border: color-mix(in oklab, var(--color-neutral-300) 75%, #0000);
@@ -256,4 +258,15 @@
    --grad-deal: linear-gradient(135deg,
          var(--color-tertiary-50),
          color-mix(in oklab, var(--color-tertiary-200) 55%, #fff 45%));
+
+   /* Hero background overlay scale */
+   --hero-overlay-soft-top: rgba(5, 15, 30, 0.50);
+   --hero-overlay-soft-mid: rgba(6, 19, 36, 0.32);
+   --hero-overlay-soft-bottom: rgba(4, 11, 24, 0.58);
+   --hero-overlay-base-top: rgba(5, 15, 30, 0.64);
+   --hero-overlay-base-mid: rgba(6, 19, 36, 0.44);
+   --hero-overlay-base-bottom: rgba(4, 11, 24, 0.70);
+   --hero-overlay-strong-top: rgba(5, 15, 30, 0.78);
+   --hero-overlay-strong-mid: rgba(6, 19, 36, 0.58);
+   --hero-overlay-strong-bottom: rgba(4, 11, 24, 0.82);
 }
