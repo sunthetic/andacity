@@ -30,7 +30,7 @@ import { mapCarRentalsToResults } from '~/lib/search/car-rentals/mapCarRentalsTo
 import { clampInt, normalizeQuery, normalizeSort, safeTitleQuery } from '~/lib/search/car-rentals/normalize'
 import { paginationWindow } from '~/lib/search/car-rentals/pagination'
 
-import type { ActiveFilters, CarRentalResult, Facets, SortKey } from '~/types/car-rentals/search'
+import type { CarRentalResult } from '~/types/car-rentals/search'
 import { formatMoney } from '~/lib/formatMoney'
 import { SearchMapCard } from '~/components/search/SearchMapCard'
 import { SearchPagination } from '~/components/search/SearchPagination'
@@ -145,10 +145,10 @@ export default component$(() => {
 
   return (
     <Page breadcrumbs={[
-          { label: 'Andacity Travel', href: '/' },
-          { label: 'Car Rentals', href: '/car-rentals' },
-          { label: 'Search', href: '/search/car-rentals' },
-          { label: data.qHuman, href: pageHref(data.page) },
+      { label: 'Andacity Travel', href: '/' },
+      { label: 'Car Rentals', href: '/car-rentals' },
+      { label: 'Search', href: '/search/car-rentals' },
+      { label: data.qHuman, href: pageHref(data.page) },
     ]}>
 
       {/* Header + sort row */}

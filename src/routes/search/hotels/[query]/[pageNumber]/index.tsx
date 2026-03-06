@@ -3,7 +3,6 @@ import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { getOgSecret, encodeOgPayload, signOgPayload } from '~/lib/seo/og-sign'
 import { HOTELS } from '~/data/hotels'
-import type { Hotel } from '~/data/hotels'
 import { Page } from '~/components/site/Page'
 import { HotelResultCard } from '~/components/hotels/search/HotelResultCard'
 import { MobileDrawer } from '~/components/hotels/search/MobileDrawer'
@@ -136,10 +135,10 @@ export default component$(() => {
 
   return (
     <Page breadcrumbs={[
-          { label: 'Andacity Travel', href: '/' },
-          { label: 'Hotels', href: '/hotels' },
-          { label: 'Search', href: '/search/hotels' },
-          { label: data.qHuman, href: pageHref(data.page) },
+      { label: 'Andacity Travel', href: '/' },
+      { label: 'Hotels', href: '/hotels' },
+      { label: 'Search', href: '/search/hotels' },
+      { label: data.qHuman, href: pageHref(data.page) },
     ]}>
 
       {/* Header + sort row */}
