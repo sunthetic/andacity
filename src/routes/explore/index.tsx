@@ -64,13 +64,11 @@ export default component$(() => {
         { label: 'Explore' },
       ]}
     >
-      <section class="relative overflow-hidden rounded-[var(--radius-xl)]">
+      <section class="relative left-1/2 right-1/2 w-screen -translate-x-1/2 overflow-hidden">
         <HeroBackground imageUrl="/images/hero/home.svg" overlay="strong">
-          <div class="px-5 py-10 md:px-8 md:py-14 lg:px-10 lg:py-16">
+          <div class="mx-auto max-w-6xl px-4 py-10 md:py-14 lg:py-16">
             <div class="max-w-3xl">
-              <p class="text-sm font-medium text-[color:var(--color-text-on-hero-muted)]">
-                Explore
-              </p>
+              <p class="text-sm font-medium text-[color:var(--color-text-on-hero-muted)]">Explore</p>
 
               <h1 class="mt-2 text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-on-hero)] md:text-5xl">
                 Discover trips by mood, season, or budget

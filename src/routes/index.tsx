@@ -42,7 +42,7 @@ export default component$(() => {
                 <a class="rounded-full border border-white/30 bg-white/8 px-3 py-1.5 text-white/90" href="/car-rentals">
                   Car Rentals
                 </a>
-                <a class="rounded-full border border-white/30 bg-white/8 px-3 py-1.5 text-white/90" href="/destinations">
+                <a class="rounded-full border border-white/30 bg-white/8 px-3 py-1.5 text-white/90" href="/explore">
                   Explore
                 </a>
               </div>
@@ -104,7 +104,7 @@ export default component$(() => {
               <div class="mt-4 text-sm text-[color:var(--color-action)]">Search car rentals →</div>
             </a>
 
-            <a class="t-card block p-5 transition hover:-translate-y-px hover:bg-white" href="/destinations">
+            <a class="t-card block p-5 transition hover:-translate-y-px hover:bg-white" href="/explore">
               <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-primary-50)] text-[color:var(--color-primary-700)]">
                 <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor" aria-hidden="true">
                   <path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z" />
