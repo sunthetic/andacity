@@ -132,6 +132,24 @@ export default component$(() => {
   if (nights != null) {
     contextParts.push(`${nights} ${nights === 1 ? 'night' : 'nights'}`)
   }
+  const destination = String(location.url.searchParams.get('destination') || '').trim() || data.qHuman
+  const checkIn = String(location.url.searchParams.get('checkIn') || '').trim()
+  const checkOut = String(location.url.searchParams.get('checkOut') || '').trim()
+  const guests = String(location.url.searchParams.get('guests') || '').trim()
+  const searchAgainParams = new URLSearchParams()
+  if (destination) {
+    searchAgainParams.set('destination', destination)
+  }
+  if (checkIn) {
+    searchAgainParams.set('checkIn', checkIn)
+  }
+  if (checkOut) {
+    searchAgainParams.set('checkOut', checkOut)
+  }
+  if (guests) {
+    searchAgainParams.set('guests', guests)
+  }
+  const searchAgainHref = searchAgainParams.toString() ? `/hotels?${searchAgainParams.toString()}` : '/hotels'
 
   return (
     <Page breadcrumbs={[
@@ -199,7 +217,7 @@ export default component$(() => {
                 <SearchEmptyState
                   title="No hotels matched this search"
                   description="Try different dates, a broader destination, or fewer constraints."
-                  primaryAction={{ label: 'Search hotels again', href: '/hotels' }}
+                  primaryAction={{ label: 'Search hotels again', href: searchAgainHref }}
                   secondaryAction={{ label: 'Browse hotel cities', href: '/hotels' }}
                 />
               )}

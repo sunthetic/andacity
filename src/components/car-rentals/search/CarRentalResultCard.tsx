@@ -48,7 +48,7 @@ export const CarRentalResultCard = component$(({ r, days }: CarRentalResultCardP
               </div>
             </div>
 
-            <div class="text-right">
+            <div class="text-right min-w-40.25">
               <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
                 From {formatMoney(r.priceFrom, r.currency)}
                 <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">/day</span>

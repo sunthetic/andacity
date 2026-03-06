@@ -1,9 +1,21 @@
 import { component$ } from '@builder.io/qwik'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { useLocation } from '@builder.io/qwik-city'
 import { VerticalHeroSearchLayout } from '~/components/search/VerticalHeroSearchLayout'
 import { FlightsSearchCard } from '~/components/flights/search/FlightsSearchCard'
+import { normalizeFlightItineraryType } from '~/lib/search/flights/routing'
 
 export default component$(() => {
+  const location = useLocation()
+
+  const itineraryType = normalizeFlightItineraryType(String(location.url.searchParams.get('itineraryType') || '').trim())
+  const from = String(location.url.searchParams.get('from') || '').trim()
+  const to = String(location.url.searchParams.get('to') || '').trim()
+  const depart = ''
+  const ret = ''
+  const travelers = String(location.url.searchParams.get('travelers') || '').trim()
+  const cabin = String(location.url.searchParams.get('cabin') || '').trim()
+
   return (
     <VerticalHeroSearchLayout
       breadcrumbs={[
@@ -13,7 +25,17 @@ export default component$(() => {
       eyebrow="Flights"
       title="Search smarter flights with flexible planning"
       description="Find flights by route, dates, and traveler preferences, or explore flexible destinations for your next trip."
-      searchCard={<FlightsSearchCard />}
+      searchCard={(
+        <FlightsSearchCard
+          initialItineraryType={itineraryType}
+          initialFrom={from}
+          initialTo={to}
+          initialDepart={depart}
+          initialReturn={ret}
+          initialTravelers={travelers}
+          initialCabin={cabin}
+        />
+      )}
     >
       <section class="mx-auto max-w-4xl">
         <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">

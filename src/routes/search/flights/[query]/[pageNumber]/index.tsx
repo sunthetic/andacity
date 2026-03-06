@@ -11,6 +11,7 @@ import type { FilterSectionConfig, FilterValues } from '~/components/search/filt
 import { FlightResultCard } from '~/components/flights/search/FlightResultCard'
 import type { FlightResult } from '~/types/flights/search'
 import { ResultsToolbar } from '~/components/search/results/ResultsToolbar'
+import { normalizeFlightItineraryType } from '~/lib/search/flights/routing'
 
 const FLIGHTS_FILTER_DEFAULTS: FilterValues = {
   stops: [],
@@ -84,7 +85,10 @@ export const useSearchFlightsPage = routeLoader$(({ params, url }) => {
   const from = String(url.searchParams.get('from') || '').trim() || 'Denver'
   const to = String(url.searchParams.get('to') || '').trim() || 'New York'
   const depart = String(url.searchParams.get('depart') || '').trim()
-  const ret = String(url.searchParams.get('return') || '').trim()
+  const itineraryType = normalizeFlightItineraryType(String(url.searchParams.get('itineraryType') || '').trim().toLowerCase())
+  const ret = itineraryType === 'round-trip' ? String(url.searchParams.get('return') || '').trim() : ''
+  const travelers = String(url.searchParams.get('travelers') || '').trim()
+  const cabin = String(url.searchParams.get('cabin') || '').trim()
 
   return {
     query,
@@ -94,6 +98,9 @@ export const useSearchFlightsPage = routeLoader$(({ params, url }) => {
     to,
     depart,
     ret,
+    itineraryType,
+    travelers,
+    cabin,
     results: FLIGHT_RESULTS,
   }
 })
@@ -148,6 +155,23 @@ export default component$(() => {
   if (data.ret) {
     contextParts.push(`Return ${data.ret}`)
   }
+  const searchAgainParams = new URLSearchParams()
+  searchAgainParams.set('itineraryType', data.itineraryType)
+  searchAgainParams.set('from', data.from)
+  searchAgainParams.set('to', data.to)
+  if (data.depart) {
+    searchAgainParams.set('depart', data.depart)
+  }
+  if (data.itineraryType === 'round-trip' && data.ret) {
+    searchAgainParams.set('return', data.ret)
+  }
+  if (data.travelers) {
+    searchAgainParams.set('travelers', data.travelers)
+  }
+  if (data.cabin) {
+    searchAgainParams.set('cabin', data.cabin)
+  }
+  const searchAgainHref = `/flights?${searchAgainParams.toString()}`
 
   return (
     <Page breadcrumbs={[
@@ -215,7 +239,7 @@ export default component$(() => {
                 <SearchEmptyState
                   title="No flights matched this search"
                   description="Try broader time windows, fewer stop restrictions, or different routes."
-                  primaryAction={{ label: 'Search flights again', href: '/flights' }}
+                  primaryAction={{ label: 'Search flights again', href: searchAgainHref }}
                   secondaryAction={{ label: 'Browse destinations', href: '/destinations' }}
                 />
               )}

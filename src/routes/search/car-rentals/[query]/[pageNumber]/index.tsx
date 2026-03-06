@@ -140,6 +140,24 @@ export default component$(() => {
   if (days != null) {
     contextParts.push(`${days} ${days === 1 ? 'day' : 'days'}`)
   }
+  const pickupLocation = String(location.url.searchParams.get('q') || '').trim() || data.qHuman
+  const pickupDate = String(location.url.searchParams.get('pickupDate') || '').trim()
+  const dropoffDate = String(location.url.searchParams.get('dropoffDate') || '').trim()
+  const drivers = String(location.url.searchParams.get('drivers') || '').trim()
+  const searchAgainParams = new URLSearchParams()
+  if (pickupLocation) {
+    searchAgainParams.set('q', pickupLocation)
+  }
+  if (pickupDate) {
+    searchAgainParams.set('pickupDate', pickupDate)
+  }
+  if (dropoffDate) {
+    searchAgainParams.set('dropoffDate', dropoffDate)
+  }
+  if (drivers) {
+    searchAgainParams.set('drivers', drivers)
+  }
+  const searchAgainHref = searchAgainParams.toString() ? `/car-rentals?${searchAgainParams.toString()}` : '/car-rentals'
 
   return (
     <Page breadcrumbs={[
@@ -209,7 +227,7 @@ export default component$(() => {
                 <SearchEmptyState
                   title="No car rentals matched this search"
                   description="Try a nearby pickup location, different dates, or fewer constraints."
-                  primaryAction={{ label: 'Search car rentals again', href: '/car-rentals' }}
+                  primaryAction={{ label: 'Search car rentals again', href: searchAgainHref }}
                   secondaryAction={{ label: 'Browse rental cities', href: '/car-rentals/in' }}
                 />
               )}

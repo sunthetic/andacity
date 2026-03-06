@@ -1,5 +1,6 @@
 import { component$ } from '@builder.io/qwik'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { useLocation } from '@builder.io/qwik-city'
 import { HotelSearchCard } from '~/components/hotels/search/HotelSearchCard'
 import { VerticalHeroSearchLayout } from '~/components/search/VerticalHeroSearchLayout'
 import { HOTEL_CITIES } from '~/data/hotel-cities'
@@ -7,6 +8,11 @@ import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 
 export default component$(() => {
   const items = HOTEL_CITIES
+  const location = useLocation()
+  const destination = String(location.url.searchParams.get('destination') || '').trim()
+  const checkIn = String(location.url.searchParams.get('checkIn') || '').trim()
+  const checkOut = String(location.url.searchParams.get('checkOut') || '').trim()
+  const guests = String(location.url.searchParams.get('guests') || '').trim()
 
   return (
     <VerticalHeroSearchLayout
@@ -17,7 +23,14 @@ export default component$(() => {
       eyebrow="Hotels"
       title="Find hotels that fit the trip, not just the city"
       description="Search stays by destination, dates, and guests, or browse city pages built for planning and discovery."
-      searchCard={<HotelSearchCard />}
+      searchCard={(
+        <HotelSearchCard
+          initialDestination={destination}
+          initialCheckIn={checkIn}
+          initialCheckOut={checkOut}
+          initialGuests={guests}
+        />
+      )}
       helperLinks={[
         { label: 'Miami', href: '/hotels/in/miami' },
         { label: 'New York', href: '/hotels/in/new-york' },

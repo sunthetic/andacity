@@ -93,6 +93,8 @@ export const useSearchFlightsPage = routeLoader$(({ params, url }) => {
   const to = humanizeLocationSlug(toLocationSlug)
   const depart = String(url.searchParams.get('depart') || '').trim()
   const ret = itineraryType === 'round-trip' ? String(url.searchParams.get('return') || '').trim() : ''
+  const travelers = String(url.searchParams.get('travelers') || '').trim()
+  const cabin = String(url.searchParams.get('cabin') || '').trim()
   const results = FLIGHT_RESULTS.filter((flight) => flightMatchesRoute(flight, fromLocationSlug, toLocationSlug))
 
   return {
@@ -104,6 +106,8 @@ export const useSearchFlightsPage = routeLoader$(({ params, url }) => {
     to,
     depart,
     ret,
+    travelers,
+    cabin,
     results,
   }
 })
@@ -159,6 +163,23 @@ export default component$(() => {
   if (data.ret) {
     contextParts.push(`Return ${data.ret}`)
   }
+  const searchAgainParams = new URLSearchParams()
+  searchAgainParams.set('itineraryType', data.itineraryType)
+  searchAgainParams.set('from', data.from)
+  searchAgainParams.set('to', data.to)
+  if (data.depart) {
+    searchAgainParams.set('depart', data.depart)
+  }
+  if (data.itineraryType === 'round-trip' && data.ret) {
+    searchAgainParams.set('return', data.ret)
+  }
+  if (data.travelers) {
+    searchAgainParams.set('travelers', data.travelers)
+  }
+  if (data.cabin) {
+    searchAgainParams.set('cabin', data.cabin)
+  }
+  const searchAgainHref = `/flights?${searchAgainParams.toString()}`
 
   return (
     <Page breadcrumbs={[
@@ -226,7 +247,7 @@ export default component$(() => {
                 <SearchEmptyState
                   title="No flights matched this search"
                   description="Try broader time windows, fewer stop restrictions, or different routes."
-                  primaryAction={{ label: 'Search flights again', href: '/flights' }}
+                  primaryAction={{ label: 'Search flights again', href: searchAgainHref }}
                   secondaryAction={{ label: 'Browse destinations', href: '/destinations' }}
                 />
               )}
