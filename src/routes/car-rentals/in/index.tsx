@@ -3,6 +3,7 @@ import type { DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
 import { CAR_RENTAL_CITIES } from '~/data/car-rental-cities'
 import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
+import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 
 export default component$(() => {
   const items = CAR_RENTAL_CITIES
@@ -34,27 +35,37 @@ export default component$(() => {
         </div>
       </div>
 
-      <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((c) => (
-          <a
-            key={c.slug}
-            class="t-card block p-5 hover:bg-white"
-            href={buildCityHref(c.slug)}
-          >
-            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">{c.name}</div>
-            <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-              {c.region} · {c.country}
-            </div>
+      {items.length ? (
+        <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((c) => (
+            <a
+              key={c.slug}
+              class="t-card block p-5 hover:bg-white"
+              href={buildCityHref(c.slug)}
+            >
+              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">{c.name}</div>
+              <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                {c.region} · {c.country}
+              </div>
 
-            <div class="mt-4 flex flex-wrap gap-2">
-              <span class="t-badge">City guide</span>
-              <span class="t-badge">Search</span>
-            </div>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <span class="t-badge">City guide</span>
+                <span class="t-badge">Search</span>
+              </div>
 
-            <div class="mt-4 text-sm text-[color:var(--color-action)]">Browse {c.name} →</div>
-          </a>
-        ))}
-      </div>
+              <div class="mt-4 text-sm text-[color:var(--color-action)]">Browse {c.name} →</div>
+            </a>
+          ))}
+        </div>
+      ) : (
+        <div class="mt-6">
+          <SearchEmptyState
+            title="No rental cities are available right now"
+            description="Try returning to the Car Rentals hub and starting a new search."
+            primaryAction={{ label: 'Go to Car Rentals', href: '/car-rentals' }}
+          />
+        </div>
+      )}
     </Page>
   )
 })

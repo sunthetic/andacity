@@ -7,6 +7,7 @@ import { HOTELS_BY_SLUG } from '~/data/hotels'
 import { ListingCardGrid } from "~/components/vertical/ListingCardGrid"
 import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 import { HotelCitySearchCard } from '~/components/hotels/HotelCitySearchCard'
+import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 
 export const useHotelCityPage = routeLoader$(({ params, url, error }) => {
   const slug = String(params.citySlug || '').toLowerCase().trim()
@@ -125,7 +126,17 @@ export default component$(() => {
           </a>
         </div>
 
-        <ListingCardGrid variant="hotels" items={data.hotels} density="compact" />
+        {data.hotels.length ? (
+          <ListingCardGrid variant="hotels" items={data.hotels} density="compact" />
+        ) : (
+          <div class="mt-4">
+            <SearchEmptyState
+              title="No hotels are available in this city right now"
+              description={`Try a broader search from the Hotels hub or check nearby destinations around ${c.city}.`}
+              primaryAction={{ label: 'Go to Hotels', href: '/hotels' }}
+            />
+          </div>
+        )}
       </section>
 
       {/* Guide content (SEO) */}

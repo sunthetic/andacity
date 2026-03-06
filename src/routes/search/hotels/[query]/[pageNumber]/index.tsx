@@ -36,6 +36,7 @@ import { SearchMobileActionBar } from '~/components/search/SearchMobileActionBar
 import { SearchHeaderBar } from '~/components/search/SearchHeaderBar'
 import { SearchFiltersCard } from '~/components/search/SearchFiltersCard'
 import { SearchMobileDrawerActions } from '~/components/search/SearchMobileDrawerActions'
+import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 
 export const useSearchHotelsPage = routeLoader$(async ({ params, url }) => {
   const query = normalizeQuery(params.query)
@@ -252,12 +253,12 @@ export default component$(() => {
               {data.results.length ? (
                 data.results.map((h: HotelResult) => <HotelResultCard key={h.id} h={h} nights={nights} />)
               ) : (
-                <div class="t-card p-6">
-                  <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">No results</div>
-                  <div class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-                    Try removing filters or searching a broader area.
-                  </div>
-                </div>
+                <SearchEmptyState
+                  title="No hotels matched this search"
+                  description="Try different dates, a broader destination, or fewer constraints."
+                  primaryAction={{ label: 'Search hotels again', href: '/hotels' }}
+                  secondaryAction={{ label: 'Browse hotel cities', href: '/hotels' }}
+                />
               )}
             </div>
 

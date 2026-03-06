@@ -6,12 +6,50 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
   const depart = useSignal(props.initialDepart ?? '')
   const ret = useSignal(props.initialReturn ?? '')
   const travelers = useSignal(props.initialTravelers ?? '1 traveler · Economy')
+  const hasSubmitted = useSignal(false)
+
+  const fromValue = from.value.trim()
+  const toValue = to.value.trim()
+  const normalizedFrom = fromValue.toLowerCase()
+  const normalizedTo = toValue.toLowerCase()
+
+  const errors: string[] = []
+
+  if (!fromValue.trim()) {
+    errors.push('Enter an origin city or airport.')
+  }
+
+  if (!toValue.trim()) {
+    errors.push('Enter a destination city or airport.')
+  }
+
+  if (normalizedFrom && normalizedTo && normalizedFrom === normalizedTo) {
+    errors.push('Origin and destination must be different.')
+  }
+
+  if (!depart.value) {
+    errors.push('Select a departure date.')
+  }
+
+  if (depart.value && ret.value && ret.value < depart.value) {
+    errors.push('Return must be on or after departure.')
+  }
+
+  const isValid = errors.length === 0
 
   return (
     <div class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-3 shadow-[var(--shadow-lg)] md:p-4">
       <form
         action={props.action ?? '/search/flights/anywhere/1'}
         method="get"
+        preventdefault:submit
+        noValidate
+        onSubmit$={(_, form) => {
+          hasSubmitted.value = true
+          if (isValid) {
+            form.submit()
+          }
+        }}
         class="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_1fr_1fr_minmax(200px,1fr)_auto]"
       >
         {/* From */}
@@ -92,11 +130,22 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
 
         <button
           type="submit"
-          class="inline-flex min-h-[3.25rem] items-center justify-center rounded-[var(--radius-lg)] px-5 text-sm font-semibold t-btn-primary"
+          disabled={hasSubmitted.value && !isValid}
+          class="inline-flex min-h-[3.25rem] items-center justify-center rounded-[var(--radius-lg)] px-5 text-sm font-semibold t-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
         >
           Search flights
         </button>
       </form>
+
+      {hasSubmitted.value && errors.length > 0 ? (
+        <div class="mt-3 text-left text-sm text-[color:var(--color-danger-600,var(--color-text-danger))]">
+          <ul class="grid gap-1">
+            {errors.map((error) => (
+              <li key={error}>{error}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   )
 })

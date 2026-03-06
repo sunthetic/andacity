@@ -8,6 +8,7 @@ import { ListingCardGrid } from '~/components/vertical/ListingCardGrid'
 import { CAR_RENTALS } from '~/data/car-rentals'
 import { getCarRentalCityBySlug } from '~/data/car-rental-cities'
 import { CarRentalSearchCard } from '~/components/car-rentals/CarRentalSearchCard'
+import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 
 export const useCityCarRentals = routeLoader$(({ params, error }) => {
   const citySlug = String(params.citySlug || '').trim().toLowerCase()
@@ -103,11 +104,13 @@ export default component$(() => {
         {items.length ? (
           <ListingCardGrid variant="car-rentals" items={items} />
         ) : (
-          <div class="mt-4 t-card p-5">
-            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">No listings yet</div>
-            <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-              We’re building out inventory for {data.city.name}. Try a nearby city or search broadly.
-            </p>
+          <div class="mt-4">
+            <SearchEmptyState
+              title="No car rentals matched this city right now"
+              description={`Try a nearby pickup location or run a broader search for ${data.city.name}.`}
+              primaryAction={{ label: 'Search car rentals again', href: '/car-rentals' }}
+              secondaryAction={{ label: 'Browse rental cities', href: '/car-rentals/in' }}
+            />
           </div>
         )}
       </section>

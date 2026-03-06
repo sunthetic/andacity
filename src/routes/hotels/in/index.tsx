@@ -3,6 +3,7 @@ import type { DocumentHead } from '@builder.io/qwik-city'
 import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 import { Page } from '~/components/site/Page'
 import { HOTEL_CITIES } from '~/data/hotel-cities'
+import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 
 export default component$(() => {
   const items = HOTEL_CITIES
@@ -29,42 +30,52 @@ export default component$(() => {
         </a>
       </div>
 
-      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((c) => (
-          <a
-            key={c.slug}
-            class="t-card block overflow-hidden hover:bg-white"
-            href={buildHotelsInCityHref(c.slug)}
-          >
-            <div class="p-5">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                    {c.city}
+      {items.length ? (
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((c) => (
+            <a
+              key={c.slug}
+              class="t-card block overflow-hidden hover:bg-white"
+              href={buildHotelsInCityHref(c.slug)}
+            >
+              <div class="p-5">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                      {c.city}
+                    </div>
+                    <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                      {c.region}, {c.country} · {c.hotelSlugs.length} hotels
+                    </div>
                   </div>
-                  <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                    {c.region}, {c.country} · {c.hotelSlugs.length} hotels
-                  </div>
+
+                  <span class="t-badge">
+                    From {formatMoney(c.priceFrom, 'USD')}
+                    <span class="ml-1 text-[color:var(--color-text-muted)]">/night</span>
+                  </span>
                 </div>
 
-                <span class="t-badge">
-                  From {formatMoney(c.priceFrom, 'USD')}
-                  <span class="ml-1 text-[color:var(--color-text-muted)]">/night</span>
-                </span>
-              </div>
+                <div class="mt-4 text-xs text-[color:var(--color-text-muted)]">
+                  Top areas:{' '}
+                  <span class="text-[color:var(--color-text)]">
+                    {c.topNeighborhoods.slice(0, 3).map((x) => x.name).join(' · ') || '—'}
+                  </span>
+                </div>
 
-              <div class="mt-4 text-xs text-[color:var(--color-text-muted)]">
-                Top areas:{' '}
-                <span class="text-[color:var(--color-text)]">
-                  {c.topNeighborhoods.slice(0, 3).map((x) => x.name).join(' · ') || '—'}
-                </span>
+                <div class="mt-4 text-sm text-[color:var(--color-action)]">View city →</div>
               </div>
-
-              <div class="mt-4 text-sm text-[color:var(--color-action)]">View city →</div>
-            </div>
-          </a>
-        ))}
-      </div>
+            </a>
+          ))}
+        </div>
+      ) : (
+        <div class="mt-6">
+          <SearchEmptyState
+            title="No hotel cities are available right now"
+            description="Try returning to the Hotels hub and starting a new search."
+            primaryAction={{ label: 'Go to Hotels', href: '/hotels' }}
+          />
+        </div>
+      )}
     </Page>
   )
 })

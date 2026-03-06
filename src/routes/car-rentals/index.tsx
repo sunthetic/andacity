@@ -6,6 +6,7 @@ import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 import { ListingCardGrid } from '~/components/vertical/ListingCardGrid'
 import { CAR_RENTALS } from '~/data/car-rentals'
 import { CarRentalSearchCard } from '~/components/car-rentals/CarRentalSearchCard'
+import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 
 export default component$(() => {
   const items = CAR_RENTALS
@@ -86,7 +87,18 @@ export default component$(() => {
           </a>
         </div>
 
-        <ListingCardGrid variant="car-rentals" items={items} />
+        {items.length ? (
+          <ListingCardGrid variant="car-rentals" items={items} />
+        ) : (
+          <div class="mt-4">
+            <SearchEmptyState
+              title="No car rentals are available right now"
+              description="Try starting a new search or browse rental cities to explore available inventory."
+              primaryAction={{ label: 'Search car rentals again', href: '/car-rentals' }}
+              secondaryAction={{ label: 'Browse rental cities', href: '/car-rentals/in' }}
+            />
+          </div>
+        )}
       </section>
     </Page>
   )

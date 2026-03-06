@@ -3,6 +3,7 @@ import type { DocumentHead } from '@builder.io/qwik-city'
 import { HotelSearchCard } from '~/components/hotels/search/HotelSearchCard'
 import { VerticalHeroSearchLayout } from '~/components/search/VerticalHeroSearchLayout'
 import { HOTEL_CITIES } from '~/data/hotel-cities'
+import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 
 export default component$(() => {
   const items = HOTEL_CITIES
@@ -50,23 +51,34 @@ export default component$(() => {
           </a>
         </div>
 
-        <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((city) => (
-            <a
-              key={city.slug}
-              href={`/hotels/in/${city.slug}`}
-              class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-4 shadow-[var(--shadow-sm)] transition hover:-translate-y-px hover:shadow-[var(--shadow-md)]"
-            >
-              <div class="text-base font-medium text-[color:var(--color-text-strong)]">
-                {city.city}
-              </div>
+        {items.length ? (
+          <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((city) => (
+              <a
+                key={city.slug}
+                href={`/hotels/in/${city.slug}`}
+                class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-4 shadow-[var(--shadow-sm)] transition hover:-translate-y-px hover:shadow-[var(--shadow-md)]"
+              >
+                <div class="text-base font-medium text-[color:var(--color-text-strong)]">
+                  {city.city}
+                </div>
 
-              <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                Browse hotels in {city.city}
-              </div>
-            </a>
-          ))}
-        </div>
+                <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                  Browse hotels in {city.city}
+                </div>
+              </a>
+            ))}
+          </div>
+        ) : (
+          <div class="mt-6">
+            <SearchEmptyState
+              title="No hotel cities are available right now"
+              description="Try searching hotels directly while city pages are refreshed."
+              primaryAction={{ label: 'Search hotels again', href: '/hotels' }}
+              secondaryAction={{ label: 'Browse hotel cities', href: '/hotels/in' }}
+            />
+          </div>
+        )}
       </section>
     </VerticalHeroSearchLayout>
   )

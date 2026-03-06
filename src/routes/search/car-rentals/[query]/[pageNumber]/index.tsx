@@ -39,6 +39,7 @@ import { SearchMobileActionBar } from '~/components/search/SearchMobileActionBar
 import { SearchHeaderBar } from '~/components/search/SearchHeaderBar'
 import { SearchFiltersCard } from '~/components/search/SearchFiltersCard'
 import { SearchMobileDrawerActions } from '~/components/search/SearchMobileDrawerActions'
+import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 
 export const useSearchCarRentalsPage = routeLoader$(async ({ params, url }) => {
   const query = normalizeQuery(params.query)
@@ -266,12 +267,12 @@ export default component$(() => {
               {data.results.length ? (
                 data.results.map((r: CarRentalResult) => <CarRentalResultCard key={r.id} r={r} days={days} />)
               ) : (
-                <div class="t-card p-6">
-                  <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">No results</div>
-                  <div class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-                    Try removing filters or searching a broader area.
-                  </div>
-                </div>
+                <SearchEmptyState
+                  title="No car rentals matched this search"
+                  description="Try a nearby pickup location, different dates, or fewer constraints."
+                  primaryAction={{ label: 'Search car rentals again', href: '/car-rentals' }}
+                  secondaryAction={{ label: 'Browse rental cities', href: '/car-rentals/in' }}
+                />
               )}
             </div>
 
