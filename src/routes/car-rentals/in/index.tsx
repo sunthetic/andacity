@@ -8,15 +8,12 @@ export default component$(() => {
   const items = CAR_RENTAL_CITIES
 
   return (
-    <Page>
-      <Breadcrumbs
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Car Rentals', href: '/car-rentals' },
-          { label: 'Cities' },
-        ]}
-      />
-      
+    <Page breadcrumbs={[
+      { label: 'Home', href: '/' },
+      { label: 'Car Rentals', href: '/car-rentals' },
+      { label: 'Cities' },
+    ]}>
+
       <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">

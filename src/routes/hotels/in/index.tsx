@@ -8,14 +8,11 @@ export default component$(() => {
   const items = HOTEL_CITIES
 
   return (
-    <Page>
-      <Breadcrumbs
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Hotels', href: '/hotels' },
-          { label: 'Cities' },
-        ]}
-      />
+    <Page breadcrumbs={[
+      { label: 'Home', href: '/' },
+      { label: 'Hotels', href: '/hotels' },
+      { label: 'Cities' },
+    ]}>
 
       <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -32,7 +29,7 @@ export default component$(() => {
         </a>
       </div>
 
-      <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((c) => (
           <a
             key={c.slug}

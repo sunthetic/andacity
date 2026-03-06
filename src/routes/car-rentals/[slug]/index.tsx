@@ -20,15 +20,12 @@ export default component$(() => {
   const priceFrom = Math.min(...rental.offers.map((o) => o.priceFrom))
 
   return (
-    <Page>
-      <Breadcrumbs
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Car Rentals', href: '/car-rentals' },
-          { label: rental.city, href: `/car-rentals/in/${encodeURIComponent(rental.cityQuery)}` },
-          { label: rental.name },
-        ]}
-      />
+    <Page breadcrumbs={[
+      { label: 'Home', href: '/' },
+      { label: 'Car Rentals', href: '/car-rentals' },
+      { label: rental.city, href: `/car-rentals/in/${encodeURIComponent(rental.cityQuery)}` },
+      { label: rental.name },
+    ]}>
 
       <div class="flex flex-col gap-6">
         {/* Header */}

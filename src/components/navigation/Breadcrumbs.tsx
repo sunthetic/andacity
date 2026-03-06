@@ -5,8 +5,8 @@ export const Breadcrumbs = component$((props: BreadcrumbsProps) => {
   if (!items.length) return null
 
   return (
-    <nav aria-label="Breadcrumb" class="mb-4">
-      <ol class="flex flex-wrap items-center gap-2 text-sm text-[color:var(--color-text-muted)]">
+    <nav aria-label="Breadcrumb">
+      <ol class="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-muted)]">
         {items.map((item, index) => {
           const isLast = index === items.length - 1
           return (

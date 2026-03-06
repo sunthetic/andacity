@@ -62,18 +62,15 @@ export default component$(() => {
   const h = data.hotel
 
   return (
-    <Page>
-        <Breadcrumbs
-          items={[
-            { label: 'Home', href: '/' },
-            { label: 'Hotels', href: '/hotels' },
-            { label: h.city, href: `/hotels/in/${encodeURIComponent(h.cityQuery)}` },
-            { label: h.name },
-          ]}
-        />
+    <Page breadcrumbs={[
+      { label: 'Home', href: '/' },
+      { label: 'Hotels', href: '/hotels' },
+      { label: h.city, href: `/hotels/in/${encodeURIComponent(h.cityQuery)}` },
+      { label: h.name },
+    ]}>
 
         {/* Hero: hotel name + trust row */}
-        <div class="mt-4 grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
+        <div class="grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <span class="t-badge">{h.stars}★</span>

@@ -34,16 +34,13 @@ export default component$(() => {
   const drivers = String(loc.url.searchParams.get('drivers') || '').trim()
 
   return (
-    <Page>
-      <Breadcrumbs
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Car Rentals', href: '/car-rentals' },
-          { label: data.city.name },
-        ]}
-      />
+    <Page breadcrumbs={[
+      { label: 'Home', href: '/' },
+      { label: 'Car Rentals', href: '/car-rentals' },
+      { label: data.city.name },
+    ]}>
 
-      <div class="mt-4 grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
+      <div class="grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
         <div>
           <div class="flex flex-wrap gap-2">
             <span class="t-badge">

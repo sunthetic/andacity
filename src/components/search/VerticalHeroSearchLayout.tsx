@@ -1,13 +1,10 @@
 import { JSXOutput, Slot, component$ } from '@builder.io/qwik'
-import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 
 export const VerticalHeroSearchLayout = component$((props: VerticalHeroSearchLayoutProps) => {
-  const breadcrumbs = props.breadcrumbs ?? []
   
   return (
     <section class="relative overflow-hidden">
       <div class="mx-auto max-w-6xl px-4 py-10 md:py-14 lg:py-18">
-        {breadcrumbs.length ? <Breadcrumbs items={breadcrumbs} /> : null}
 
         <div class="mx-auto max-w-4xl text-center">
           <p class="text-sm font-medium text-[color:var(--color-text-muted)]">

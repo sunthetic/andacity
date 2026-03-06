@@ -17,14 +17,11 @@ export default component$(() => {
   const drivers = String(loc.url.searchParams.get('drivers') || '').trim()
 
   return (
-    <Page>
-
-      <Breadcrumbs
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Car Rentals', href: '/car-rentals' },
-        ]}
-      />
+    <Page breadcrumbs={[
+      { label: 'Home', href: '/' },
+      { label: 'Car Rentals', href: '/car-rentals' },
+    ]}
+    >
 
       <div class="mt-4 grid gap-5 lg:grid-cols-[1fr_380px] lg:items-start">
         {pickupDate}

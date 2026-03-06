@@ -144,15 +144,12 @@ export default component$(() => {
   const mobileSortOpen = useSignal(false)
 
   return (
-    <Page>
-      <Breadcrumbs
-        items={[
+    <Page breadcrumbs={[
           { label: 'Andacity Travel', href: '/' },
           { label: 'Car Rentals', href: '/car-rentals' },
           { label: 'Search', href: '/search/car-rentals' },
           { label: data.qHuman, href: pageHref(data.page) },
-        ]}
-      />
+    ]}>
 
       {/* Header + sort row */}
       <SearchHeaderBar

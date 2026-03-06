@@ -45,18 +45,14 @@ export default component$(() => {
   const c = data.city
 
   return (
-    <Page>
-      {/* Breadcrumbs */}
-      <Breadcrumbs
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Hotels', href: '/hotels' },
-          { label: c.city },
-        ]}
-      />
+    <Page breadcrumbs={[
+      { label: 'Home', href: '/' },
+      { label: 'Hotels', href: '/hotels' },
+      { label: c.city },
+    ]}>
 
       {/* Header + sticky CTA card */}
-      <div class="mt-4 grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
+      <div class="grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
         <div>
           <div class="flex flex-wrap gap-2">
             <span class="t-badge">
