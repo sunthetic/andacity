@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="title desc">
+  <title id="title">Explore hero</title>
+  <desc id="desc">Composite travel scene with coastline, city skylines, desert dunes, and open water.</desc>
+
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1b2230"/>
+      <stop offset="48%" stop-color="#5f6775"/>
+      <stop offset="100%" stop-color="#8f978f"/>
+    </linearGradient>
+    <radialGradient id="sunGlow" cx="72%" cy="30%" r="44%">
+      <stop offset="0%" stop-color="#ffd9a8" stop-opacity="0.76"/>
+      <stop offset="100%" stop-color="#ffd9a8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="distantLand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6b6963"/>
+      <stop offset="100%" stop-color="#55524d"/>
+    </linearGradient>
+    <linearGradient id="frontRidge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4f545a"/>
+      <stop offset="100%" stop-color="#383d43"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#91a4aa" stop-opacity="0.72"/>
+      <stop offset="100%" stop-color="#384b55" stop-opacity="0.94"/>
+    </linearGradient>
+    <linearGradient id="coast" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e9d5ad"/>
+      <stop offset="100%" stop-color="#a98a64"/>
+    </linearGradient>
+    <linearGradient id="desert" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#debe88"/>
+      <stop offset="100%" stop-color="#a6794c"/>
+    </linearGradient>
+    <linearGradient id="city" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ddd4c3"/>
+      <stop offset="100%" stop-color="#a7957f"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#sky)"/>
+  <rect width="1600" height="900" fill="url(#sunGlow)"/>
+
+  <path d="M0 470C260 430 530 428 804 447C1066 465 1328 454 1600 426V900H0Z" fill="#a3a9a2" fill-opacity="0.22"/>
+  <path d="M0 535L176 482L338 529L538 468L736 534L946 470L1158 533L1350 470L1600 522V900H0Z" fill="url(#distantLand)" fill-opacity="0.74"/>
+
+  <g fill="url(#city)" fill-opacity="0.76">
+    <rect x="140" y="388" width="54" height="140" rx="5"/>
+    <rect x="208" y="354" width="66" height="174" rx="5"/>
+    <rect x="286" y="374" width="58" height="154" rx="5"/>
+    <rect x="360" y="338" width="70" height="190" rx="5"/>
+    <rect x="444" y="362" width="58" height="166" rx="5"/>
+  </g>
+
+  <g fill="url(#city)" fill-opacity="0.64">
+    <rect x="1056" y="372" width="58" height="152" rx="5"/>
+    <rect x="1126" y="336" width="72" height="188" rx="5"/>
+    <rect x="1210" y="360" width="62" height="164" rx="5"/>
+    <rect x="1284" y="326" width="76" height="198" rx="5"/>
+    <rect x="1372" y="352" width="62" height="172" rx="5"/>
+  </g>
+
+  <path d="M0 900V636C138 604 260 612 374 654C476 692 576 765 680 900Z" fill="url(#coast)" fill-opacity="0.74"/>
+
+  <path d="M912 900C992 778 1092 706 1206 680C1334 652 1450 666 1600 720V900Z" fill="url(#desert)" fill-opacity="0.8"/>
+  <path d="M1070 900C1142 808 1222 752 1312 736C1406 720 1496 732 1600 774V900Z" fill="#8d643c" fill-opacity="0.42"/>
+
+  <path d="M0 786L220 694L418 778L624 708L844 792L1040 726L1268 808L1600 736V900H0Z" fill="url(#frontRidge)"/>
+
+  <path d="M700 900L774 520H930L1010 900Z" fill="url(#water)"/>
+  <path d="M804 900L842 520H858L894 900Z" fill="#dde5e1" fill-opacity="0.56"/>
+
+  <g fill="none" stroke="#e4e8e6" stroke-opacity="0.44" stroke-width="3" stroke-linecap="round">
+    <path d="M174 236C202 220 230 220 258 236"/>
+    <path d="M258 268C288 250 316 251 346 268"/>
+    <path d="M1366 244C1392 228 1418 229 1444 244"/>
+  </g>
+</svg>

@@ -114,4 +114,74 @@
       var(--hero-overlay-strong-bottom) 100%
     );
   }
+
+  .t-hero-overlay-explore-default {
+    background:
+      linear-gradient(180deg, rgba(6, 18, 34, 0.78) 0%, rgba(11, 39, 63, 0.42) 50%, rgba(4, 13, 27, 0.84) 100%),
+      linear-gradient(118deg, rgba(23, 124, 186, 0.56) 0%, rgba(40, 90, 164, 0.28) 46%, rgba(9, 24, 48, 0.12) 100%),
+      radial-gradient(90% 72% at 84% 14%, rgba(161, 208, 255, 0.3) 0%, rgba(161, 208, 255, 0) 64%);
+  }
+
+  .t-hero-overlay-explore-guided {
+    background:
+      linear-gradient(180deg, rgba(7, 17, 29, 0.8) 0%, rgba(17, 35, 50, 0.5) 50%, rgba(5, 13, 23, 0.86) 100%),
+      linear-gradient(116deg, rgba(119, 144, 168, 0.3) 0%, rgba(82, 119, 158, 0.2) 46%, rgba(16, 31, 52, 0.1) 100%),
+      radial-gradient(88% 68% at 84% 14%, rgba(230, 201, 156, 0.24) 0%, rgba(230, 201, 156, 0) 64%);
+  }
+
+  .t-hero-overlay-explore-beach {
+    background:
+      linear-gradient(180deg, rgba(22, 8, 4, 0.76) 0%, rgba(122, 52, 15, 0.2) 50%, rgba(15, 6, 3, 0.84) 100%),
+      linear-gradient(118deg, rgba(245, 161, 67, 0.64) 0%, rgba(205, 105, 40, 0.36) 46%, rgba(34, 143, 168, 0.2) 100%),
+      radial-gradient(92% 72% at 84% 14%, rgba(255, 214, 137, 0.62) 0%, rgba(255, 214, 137, 0) 64%);
+  }
+
+  .t-hero-overlay-explore-mountains {
+    background:
+      linear-gradient(180deg, rgba(5, 12, 31, 0.82) 0%, rgba(9, 23, 45, 0.5) 52%, rgba(3, 9, 25, 0.88) 100%),
+      linear-gradient(116deg, rgba(48, 126, 210, 0.48) 0%, rgba(46, 88, 176, 0.28) 48%, rgba(11, 22, 48, 0.12) 100%),
+      radial-gradient(92% 72% at 84% 16%, rgba(176, 219, 255, 0.34) 0%, rgba(176, 219, 255, 0) 64%);
+  }
+
+  .t-hero-overlay-explore-weekend-cities {
+    background:
+      linear-gradient(180deg, rgba(8, 21, 35, 0.66) 0%, rgba(24, 57, 82, 0.24) 52%, rgba(6, 18, 32, 0.74) 100%),
+      linear-gradient(120deg, rgba(88, 150, 211, 0.4) 0%, rgba(71, 114, 183, 0.24) 47%, rgba(26, 49, 79, 0.12) 100%),
+      radial-gradient(88% 68% at 86% 14%, rgba(194, 228, 255, 0.4) 0%, rgba(194, 228, 255, 0) 64%);
+  }
+
+  .t-hero-overlay-explore-warm-weather {
+    background:
+      linear-gradient(180deg, rgba(42, 22, 12, 0.62) 0%, rgba(120, 74, 40, 0.34) 50%, rgba(48, 24, 12, 0.68) 100%),
+      linear-gradient(118deg, rgba(220, 162, 98, 0.38) 0%, rgba(176, 120, 70, 0.24) 46%, rgba(126, 111, 97, 0.12) 100%),
+      radial-gradient(92% 72% at 84% 14%, rgba(240, 206, 151, 0.32) 0%, rgba(240, 206, 151, 0) 64%);
+  }
+
+  .t-hero-overlay-explore-luxury {
+    background:
+      linear-gradient(180deg, rgba(14, 8, 31, 0.87) 0%, rgba(39, 18, 67, 0.62) 52%, rgba(9, 6, 25, 0.92) 100%),
+      linear-gradient(120deg, rgba(139, 99, 214, 0.42) 0%, rgba(108, 74, 184, 0.28) 44%, rgba(34, 22, 62, 0.14) 100%),
+      radial-gradient(88% 68% at 84% 14%, rgba(218, 174, 255, 0.36) 0%, rgba(218, 174, 255, 0) 64%);
+  }
+
+  .t-hero-overlay-explore-budget {
+    background:
+      linear-gradient(180deg, rgba(7, 18, 29, 0.78) 0%, rgba(15, 45, 61, 0.18) 48%, rgba(5, 13, 22, 0.88) 100%),
+      linear-gradient(118deg, rgba(132, 211, 234, 0.44) 0%, rgba(87, 156, 198, 0.24) 46%, rgba(15, 31, 52, 0.1) 100%),
+      radial-gradient(90% 72% at 86% 14%, rgba(255, 249, 224, 0.48) 0%, rgba(255, 249, 224, 0) 64%);
+  }
+
+  .t-hero-overlay-explore-family {
+    background:
+      linear-gradient(180deg, rgba(7, 18, 30, 0.62) 0%, rgba(19, 50, 59, 0.3) 50%, rgba(5, 14, 24, 0.72) 100%),
+      linear-gradient(118deg, rgba(103, 204, 184, 0.38) 0%, rgba(88, 156, 177, 0.2) 48%, rgba(14, 30, 47, 0.1) 100%),
+      radial-gradient(92% 72% at 84% 14%, rgba(255, 198, 151, 0.36) 0%, rgba(255, 198, 151, 0) 64%);
+  }
+
+  .t-hero-overlay-explore-solo {
+    background:
+      linear-gradient(180deg, rgba(4, 11, 28, 0.84) 0%, rgba(8, 20, 39, 0.56) 52%, rgba(3, 9, 23, 0.9) 100%),
+      linear-gradient(118deg, rgba(54, 112, 197, 0.42) 0%, rgba(53, 86, 172, 0.26) 46%, rgba(11, 21, 46, 0.12) 100%),
+      radial-gradient(90% 70% at 84% 14%, rgba(175, 201, 236, 0.3) 0%, rgba(175, 201, 236, 0) 64%);
+  }
 }

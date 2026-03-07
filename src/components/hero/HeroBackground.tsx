@@ -20,5 +20,20 @@ export const HeroBackground = component$((props: HeroBackgroundProps) => {
 
 type HeroBackgroundProps = {
   imageUrl: string
-  overlay?: 'soft' | 'base' | 'strong'
+  overlay?: HeroOverlayVariant
 }
+
+type HeroOverlayVariant =
+  | 'soft'
+  | 'base'
+  | 'strong'
+  | 'explore-default'
+  | 'explore-guided'
+  | 'explore-beach'
+  | 'explore-mountains'
+  | 'explore-weekend-cities'
+  | 'explore-warm-weather'
+  | 'explore-luxury'
+  | 'explore-budget'
+  | 'explore-family'
+  | 'explore-solo'
