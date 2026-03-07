@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="title desc">
+  <title id="title">Car rentals hero</title>
+  <desc id="desc">Scenic road perspective with mountains and evening sky.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#101f3b"/>
+      <stop offset="55%" stop-color="#2b4f79"/>
+      <stop offset="100%" stop-color="#4c7c6b"/>
+    </linearGradient>
+    <linearGradient id="road" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#0b1019"/>
+      <stop offset="100%" stop-color="#263247"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky)"/>
+  <path d="M0 650L290 470L520 650L760 460L1010 650L1260 500L1600 650V900H0Z" fill="#16344f" fill-opacity="0.8"/>
+  <path d="M650 900L760 540H920L1010 900Z" fill="url(#road)"/>
+  <path d="M780 900L830 540H850L890 900Z" fill="#f2efe6" fill-opacity="0.7"/>
+  <path d="M810 900L845 540H855L885 900Z" fill="#0b1019" fill-opacity="0.48"/>
+</svg>

@@ -1,0 +1,51 @@
+export type SortKey = 'relevance' | 'price-asc' | 'price-desc' | 'rating-desc' | 'reviewcount-desc'
+
+export type ActiveFilters = {
+  categories: string[]
+  transmissions: string[]
+  seats: number[]
+  inclusions: string[]
+  freeCancellationOnly: boolean
+  payAtCounterOnly: boolean
+
+  ratingMin: number | null
+  priceMin: number | null
+  priceMax: number | null
+
+  pickupDate: string | null
+  dropoffDate: string | null
+  drivers: number | null
+}
+
+export type CarRentalResult = {
+  id: string
+  slug: string
+  name: string
+  city: string
+  pickupArea: string
+
+  category: string | null
+  transmission: string | null
+  seats: number | null
+
+  rating: number
+  reviewCount: number
+  priceFrom: number
+  currency: string
+
+  freeCancellation: boolean
+  payAtCounter: boolean
+
+  inclusions: string[]
+  image: string
+
+  badges: string[]
+  score: number
+}
+
+export type Facets = {
+  categories: { name: string; count: number }[]
+  transmissions: { name: string; count: number }[]
+  seats: { name: string; count: number }[]
+  inclusions: { name: string; count: number }[]
+}
