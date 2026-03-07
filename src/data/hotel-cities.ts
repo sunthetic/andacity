@@ -31,7 +31,7 @@ const buildHotelCities = (hotels: Hotel[]): HotelCity[] => {
     byCity[key].push(h)
   }
 
-  const cities = Object.entries(byCity).map(([key, hs]) => {
+  const cities = Object.entries(byCity).map(([, hs]) => {
     const sample = hs[0]
 
     const slugs = hs.map((x) => x.slug).sort()

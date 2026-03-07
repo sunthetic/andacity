@@ -8,7 +8,14 @@ export const CarRentalResultCard = component$(({ r, days }: CarRentalResultCardP
     <a class="t-card block overflow-hidden hover:bg-white" href={`/car-rentals/${encodeURIComponent(r.slug)}`}>
       <div class="grid gap-0 lg:grid-cols-[220px_1fr]">
         <div class="bg-[color:var(--color-neutral-50)]">
-          <img class="h-44 w-full object-cover lg:h-full" src={r.image} alt={r.name} loading="lazy" />
+          <img
+            class="h-44 w-full object-cover lg:h-full"
+            src={r.image}
+            alt={r.name}
+            loading="lazy"
+            width={640}
+            height={352}
+          />
         </div>
 
         <div class="p-5">

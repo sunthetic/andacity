@@ -28,9 +28,6 @@ const NAV = {
 const LINK_CLASS =
   'rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-strong)] hover:bg-[color:var(--color-surface-1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)]'
 
-const MENU_ITEM_CLASS =
-  'flex flex-col gap-0.5 rounded-xl px-3 py-2 hover:bg-[color:var(--color-surface-1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)]'
-
 const MOBILE_BUTTON_CLASS =
   'list-none rounded-lg p-2 border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] text-[color:var(--color-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)] [&::-webkit-details-marker]:hidden'
 
@@ -39,6 +36,8 @@ const MOBILE_LINK_CLASS =
 
 const MOBILE_SUB_LINK_CLASS =
   'block rounded-xl px-3 py-2 text-sm text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-strong)] hover:bg-[color:var(--color-surface-1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)]'
+
+const BRAND_LOGO_SRC = '/assets/logo/andacity-primary-color_mark-darkword_transparent.svg'
 
 export const SiteHeader = component$(() => {
   return (
@@ -59,12 +58,13 @@ export const SiteHeader = component$(() => {
             class="inline-flex items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)]"
             aria-label="Andacity home"
           >
-            <img src="/assets/logo/andacity-primary-color_mark-darkword_transparent.svg" width="160" height="48" />
-
-            <span class="hidden sm:block leading-tight">
-              <img src="/assets/logo/andacity-primary-color_mark-darkword_transparent.svg" class="h-full w-auto" />
-              {/* <span class="block text-xs text-[color:var(--color-text-muted)]">Travel booking</span> */}
-            </span>
+            <img
+              src={BRAND_LOGO_SRC}
+              class="h-9 w-auto"
+              width={160}
+              height={48}
+              alt="Andacity"
+            />
           </a>
 
           {/* Desktop nav */}

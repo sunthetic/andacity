@@ -1,6 +1,5 @@
 import { component$ } from '@builder.io/qwik'
 import type { DocumentHead } from '@builder.io/qwik-city'
-import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 import { Page } from '~/components/site/Page'
 import { HOTEL_CITIES } from '~/data/hotel-cities'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'

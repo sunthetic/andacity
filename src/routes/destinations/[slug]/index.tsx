@@ -366,7 +366,14 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
 const HotelMiniCard = component$(({ hotel }: HotelMiniCardProps) => (
   <a class="t-panel block overflow-hidden hover:bg-white" href={`/hotels/${encodeURIComponent(hotel.slug)}`}>
     <div class="bg-[color:var(--color-neutral-50)]">
-      <img class="h-36 w-full object-cover" src={hotel.image} alt={hotel.name} loading="lazy" />
+      <img
+        class="h-36 w-full object-cover"
+        src={hotel.image}
+        alt={hotel.name}
+        loading="lazy"
+        width={640}
+        height={288}
+      />
     </div>
     <div class="p-4">
       <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">

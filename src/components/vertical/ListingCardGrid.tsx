@@ -82,7 +82,14 @@ const HotelCardDefault = component$(({ hotel }: { hotel: Hotel }) => (
 const HotelCardCompact = component$(({ hotel }: { hotel: Hotel }) => (
   <a class="t-card block overflow-hidden hover:bg-white" href={buildHotelDetailHref(hotel.slug)}>
     <div class="bg-[color:var(--color-neutral-50)]">
-      <img class="h-36 w-full object-cover" src={hotel.images[0] || "/img/demo/hotel-1.jpg"} alt={hotel.name} loading="lazy" />
+      <img
+        class="h-36 w-full object-cover"
+        src={hotel.images[0] || "/img/demo/hotel-1.jpg"}
+        alt={hotel.name}
+        loading="lazy"
+        width={640}
+        height={288}
+      />
     </div>
 
     <div class="p-4">

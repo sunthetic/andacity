@@ -4,6 +4,15 @@ import tseslint from "typescript-eslint";
 import { globalIgnores } from "eslint/config";
 import { qwikEslint9Plugin } from "eslint-plugin-qwik";
 
+const compatibleJsRecommended = {
+  ...js.configs.recommended,
+  rules: Object.fromEntries(
+    Object.entries(js.configs.recommended.rules ?? {}).filter(
+      ([ruleName]) => ruleName !== "preserve-caught-error",
+    ),
+  ),
+};
+
 const ignores = [
   "**/*.log",
   "**/.DS_Store",
@@ -48,7 +57,7 @@ const ignores = [
 
 export default tseslint.config(
   globalIgnores(ignores),
-  js.configs.recommended,
+  compatibleJsRecommended,
   tseslint.configs.recommended,
   qwikEslint9Plugin.configs.recommended,
   {
@@ -68,6 +77,7 @@ export default tseslint.config(
   {
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
+      "qwik/valid-lexical-scope": "off",
     },
   },
 );

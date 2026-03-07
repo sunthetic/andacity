@@ -1,11 +1,14 @@
-import { component$, useVisibleTask$ } from '@builder.io/qwik'
+import { component$, useTask$ } from '@builder.io/qwik'
 import { useLocation } from '@builder.io/qwik-city'
 
 export const PageView = component$(() => {
   const loc = useLocation()
 
-  useVisibleTask$(({ track }) => {
+  useTask$(({ track }) => {
     track(() => loc.url.pathname + loc.url.search)
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+      return
+    }
 
     const path = loc.url.pathname + loc.url.search
 

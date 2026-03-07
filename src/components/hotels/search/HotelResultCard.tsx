@@ -8,7 +8,14 @@ export const HotelResultCard = component$(({ h, nights }: HotelResultCardProps) 
     <a class="t-card block overflow-hidden hover:bg-white" href={`/hotels/${encodeURIComponent(h.slug)}`}>
       <div class="grid gap-0 lg:grid-cols-[220px_1fr]">
         <div class="bg-[color:var(--color-neutral-50)]">
-          <img class="h-44 w-full object-cover lg:h-full" src={h.image} alt={h.name} loading="lazy" />
+          <img
+            class="h-44 w-full object-cover lg:h-full"
+            src={h.image}
+            alt={h.name}
+            loading="lazy"
+            width={640}
+            height={352}
+          />
         </div>
 
         <div class="p-5">

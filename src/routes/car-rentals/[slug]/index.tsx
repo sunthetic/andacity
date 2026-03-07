@@ -3,7 +3,6 @@ import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
 import { getCarRentalBySlug } from '~/data/car-rentals'
-import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 
 export const useCarRental = routeLoader$(({ params, error }) => {
   const rental = getCarRentalBySlug(params.slug)

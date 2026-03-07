@@ -4,7 +4,6 @@ import type { DocumentHead } from '@builder.io/qwik-city'
 import { getOgSecret, encodeOgPayload, signOgPayload } from '~/lib/seo/og-sign'
 import { getHotelBySlug } from '~/data/hotels'
 import type { Hotel } from '~/data/hotels'
-import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 import { Page } from '~/components/site/Page'
 
 export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
@@ -112,12 +111,26 @@ export default component$(() => {
             {/* Gallery */}
             <div class="mt-6 grid gap-3 lg:grid-cols-[2fr_1fr]">
               <div class="t-card overflow-hidden">
-                <img class="h-64 w-full object-cover lg:h-96" src={h.images[0] || '/img/demo/hotel-1.jpg'} alt={h.name} loading="eager" />
+                <img
+                  class="h-64 w-full object-cover lg:h-96"
+                  src={h.images[0] || '/img/demo/hotel-1.jpg'}
+                  alt={h.name}
+                  loading="eager"
+                  width={1280}
+                  height={768}
+                />
               </div>
               <div class="grid gap-3">
                 {h.images.slice(1, 3).map((src) => (
                   <div key={src} class="t-card overflow-hidden">
-                    <img class="h-32 w-full object-cover lg:h-[186px]" src={src} alt={h.name} loading="lazy" />
+                    <img
+                      class="h-32 w-full object-cover lg:h-[186px]"
+                      src={src}
+                      alt={h.name}
+                      loading="lazy"
+                      width={640}
+                      height={372}
+                    />
                   </div>
                 ))}
               </div>
@@ -576,38 +589,9 @@ type Pricing = {
   total: number | null
 }
 
-type HotelPolicy = {
-  freeCancellation: boolean
-  payLater: boolean
-  noResortFees: boolean
-  checkInTime: string
-  checkOutTime: string
-  cancellationBlurb: string
-  paymentBlurb: string
-  feesBlurb: string
-}
-
-type FAQ = {
-  q: string
-  a: string
-}
-
 type RoomCardProps = {
   room: Hotel['rooms'][number]
   nights: number | null
   currency: string
   roomsCount: number | null
-}
-
-type OgHotelPayload = {
-  slug: string
-  name?: string
-  city?: string
-  neighborhood?: string
-  fromNightly?: number
-  currency?: string
-  rating?: number
-  reviewCount?: number
-  refundable?: boolean
-  payLater?: boolean
 }

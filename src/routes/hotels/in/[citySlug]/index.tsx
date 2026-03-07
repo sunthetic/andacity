@@ -5,7 +5,6 @@ import { Page } from '~/components/site/Page'
 import { getHotelCityBySlug } from '~/data/hotel-cities'
 import { HOTELS_BY_SLUG } from '~/data/hotels'
 import { ListingCardGrid } from "~/components/vertical/ListingCardGrid"
-import { Breadcrumbs } from '~/components/navigation/Breadcrumbs'
 import { HotelCitySearchCard } from '~/components/hotels/HotelCitySearchCard'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 
