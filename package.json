@@ -1,5 +1,44 @@
 {
-  "name": "my-e2e-library",
+  "name": "@sunthetic/andacity",
+  "version": "0.1.0",
+  "description": "A prototype of Andacity.com, an experience-driven travel booking and discovery-first travel planning site offering search modes for destinations, hotels, car rentals, and flights.",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sunthetic/andacity.git"
+  },
+  "keywords": [
+    "qwik",
+    "tailwind",
+    "typescript",
+    "travel",
+    "booking",
+    "discovery",
+    "experiennce",
+    "planning",
+    "prototype",
+    "sunthetic",
+    "sunthetic media",
+    "andacity",
+    "andacity.com"
+  ],
+  "authors": [
+    {
+      "name": "Sunthetic Media",
+      "email": "andacity@sunthetic.media",
+      "url": "https://sunthetic.com"
+    },
+    {
+      "name": "Alden Gillespy",
+      "email": "61519345+brazenest@users.noreply.github.com",
+      "url": "https://aldengillespy.com"
+    }
+  ],
+  "bugs": {
+    "url": "https://github.com/sunthetic/andacity/issues"
+  },
+  "homepage": "https://github.com/sunthetic/andacity#readme",
+  "sideEffects": false,
   "engines": {
     "node": "^18.17.0 || ^20.3.0 || >=21.0.0"
   },
