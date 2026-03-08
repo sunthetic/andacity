@@ -1,9 +1,11 @@
-import { component$ } from '@builder.io/qwik'
-import type { Hotel } from '~/data/hotels'
-import { formatMoney } from '~/lib/formatMoney'
+import { component$, type QRL } from "@builder.io/qwik";
+import { SaveButton } from "~/components/save-compare/SaveButton";
+import type { Hotel } from "~/data/hotels";
+import { formatMoney } from "~/lib/formatMoney";
+import type { SavedItem } from "~/types/save-compare/saved-item";
 
 export const HotelCard = component$((props: HotelCardProps) => {
-  const h = props.hotel
+  const h = props.hotel;
 
   return (
     <article class="t-card overflow-hidden">
@@ -11,7 +13,7 @@ export const HotelCard = component$((props: HotelCardProps) => {
         <div class="bg-[color:var(--color-neutral-50)]">
           <img
             class="h-40 w-full object-cover"
-            src={h.images[0] || '/img/demo/hotel-1.jpg'}
+            src={h.images[0] || "/img/demo/hotel-1.jpg"}
             alt={h.name}
             loading="lazy"
             width={640}
@@ -30,13 +32,28 @@ export const HotelCard = component$((props: HotelCardProps) => {
               {h.name}
             </a>
             <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-              {h.neighborhood} · {h.stars}★ · {h.rating.toFixed(1)} ({h.reviewCount.toLocaleString('en-US')})
+              {h.neighborhood} · {h.stars}★ · {h.rating.toFixed(1)} (
+              {h.reviewCount.toLocaleString("en-US")})
             </p>
           </div>
 
-          <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-            {formatMoney(h.fromNightly, h.currency)}
-            <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">/night</span>
+          <div class="flex flex-col items-end gap-2">
+            {props.savedItem && props.onToggleSave$ ? (
+              <SaveButton
+                saved={Boolean(props.isSaved)}
+                onToggle$={() => {
+                  if (!props.savedItem || !props.onToggleSave$) return;
+                  props.onToggleSave$(props.savedItem);
+                }}
+              />
+            ) : null}
+
+            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+              {formatMoney(h.fromNightly, h.currency)}
+              <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">
+                /night
+              </span>
+            </div>
           </div>
         </div>
 
@@ -54,11 +71,15 @@ export const HotelCard = component$((props: HotelCardProps) => {
         </div>
       </div>
     </article>
-  )
-})
+  );
+});
 
 type HotelCardProps = {
-  hotel: Hotel
-}
+  hotel: Hotel;
+  savedItem?: SavedItem;
+  isSaved?: boolean;
+  onToggleSave$?: QRL<(item: SavedItem) => void>;
+};
 
-const buildHotelDetailHref = (hotelSlug: string) => `/hotels/${encodeURIComponent(hotelSlug)}`
+const buildHotelDetailHref = (hotelSlug: string) =>
+  `/hotels/${encodeURIComponent(hotelSlug)}`;
