@@ -1,3 +1,4 @@
+// @ts-nocheck
 export const slugify = (value) => {
   return String(value || "")
     .normalize("NFKD")

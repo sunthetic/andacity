@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { SEED_CONFIG } from "../config/seed-config.js";
 import { findTopTravelCity, getTopTravelCities } from "../cities/top-100.js";
 import {

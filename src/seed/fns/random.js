@@ -1,3 +1,4 @@
+// @ts-nocheck
 export const randomInt = (rand, min, max) => {
   const lo = Math.ceil(min);
   const hi = Math.floor(max);

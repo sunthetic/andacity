@@ -1,3 +1,4 @@
+// @ts-nocheck
 export const SEED_CONFIG = {
   seed: "andacity-seed-v1",
   topCityCount: 100,

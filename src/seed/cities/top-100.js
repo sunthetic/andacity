@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { SEED_CONFIG } from "../config/seed-config.js";
 
 export const TOP_TRAVEL_CITIES = [

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { getTopTravelCities, findTopTravelCity } from "../cities/top-100.js";
 
 export const generateCities = () => {

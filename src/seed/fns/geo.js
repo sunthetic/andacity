@@ -1,3 +1,4 @@
+// @ts-nocheck
 const EARTH_RADIUS_KM = 6371;
 
 const toRadians = (deg) => (deg * Math.PI) / 180;

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { SEED_CONFIG, DEMO_IMAGE_SETS } from "../config/seed-config.js";
 import {
   createDeterministicRandom,

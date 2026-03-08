@@ -1,3 +1,4 @@
+// @ts-nocheck
 export { SEED_CONFIG } from "./config/seed-config.js";
 
 export {

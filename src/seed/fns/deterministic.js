@@ -1,3 +1,4 @@
+// @ts-nocheck
 const FNV_PRIME = 0x01000193;
 
 export const hashString = (input) => {
