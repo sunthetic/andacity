@@ -2,7 +2,7 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import * as schema from '~/lib/db/schema'
 
-const DEFAULT_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/andacity'
+const DEFAULT_DATABASE_URL = 'postgresql://andacity:andacity@localhost:5432/andacity'
 const DEFAULT_DB_SCHEMA = 'andacity_app'
 
 const resolveDbSchema = () => {
@@ -13,18 +13,23 @@ const resolveDbSchema = () => {
   return /^[a-z_][a-z0-9_]*$/.test(value) ? value : DEFAULT_DB_SCHEMA
 }
 
+const buildSearchPath = (schemaName: string) => {
+  return Array.from(new Set([schemaName, DEFAULT_DB_SCHEMA, 'public'])).join(',')
+}
+
 const withSearchPathOption = (connectionString: string, schemaName: string) => {
+  const addition = `-c search_path=${buildSearchPath(schemaName)}`
+
   try {
     const parsed = new URL(connectionString)
     const existing = String(parsed.searchParams.get('options') || '')
-    if (/search_path/i.test(existing)) return connectionString
-
-    const addition = `-c search_path=${schemaName},public`
     const nextOptions = existing ? `${existing} ${addition}` : addition
     parsed.searchParams.set('options', nextOptions)
     return parsed.toString()
   } catch {
-    return connectionString
+    // Fallback for permissive libpq strings that Node URL rejects.
+    const separator = connectionString.includes('?') ? '&' : '?'
+    return `${connectionString}${separator}options=${encodeURIComponent(addition)}`
   }
 }
 

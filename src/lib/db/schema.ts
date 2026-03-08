@@ -9,6 +9,7 @@ import {
   integer,
   numeric,
   pgEnum,
+  pgSchema,
   pgTable,
   primaryKey,
   smallint,
@@ -18,16 +19,39 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core'
 
+const DEFAULT_DB_SCHEMA = 'andacity_app'
+
+const resolveDbSchema = () => {
+  const value = String(process.env.DB_SCHEMA || DEFAULT_DB_SCHEMA)
+    .trim()
+    .toLowerCase()
+
+  return /^[a-z_][a-z0-9_]*$/.test(value) ? value : DEFAULT_DB_SCHEMA
+}
+
+const schemaName = resolveDbSchema()
+const explicitSchema = schemaName === 'public' ? null : pgSchema(schemaName)
+
+const dbTable = ((...args: unknown[]) => {
+  if (explicitSchema) return (explicitSchema.table as (...args: unknown[]) => unknown)(...args)
+  return (pgTable as (...args: unknown[]) => unknown)(...args)
+}) as typeof pgTable
+
+const dbEnum = ((...args: unknown[]) => {
+  if (explicitSchema) return (explicitSchema.enum as (...args: unknown[]) => unknown)(...args)
+  return (pgEnum as (...args: unknown[]) => unknown)(...args)
+}) as typeof pgEnum
+
 const createdAtColumn = () => timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 const updatedAtColumn = () => timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 
-export const carLocationTypeEnum = pgEnum('car_location_type', ['airport', 'city'])
-export const carTransmissionEnum = pgEnum('car_transmission', ['automatic', 'manual'])
-export const flightItineraryTypeEnum = pgEnum('flight_itinerary_type', ['one-way', 'round-trip'])
-export const flightCabinClassEnum = pgEnum('flight_cabin_class', ['economy', 'premium-economy', 'business', 'first'])
-export const flightTimeWindowEnum = pgEnum('flight_time_window', ['morning', 'afternoon', 'evening', 'overnight'])
+export const carLocationTypeEnum = dbEnum('car_location_type', ['airport', 'city'])
+export const carTransmissionEnum = dbEnum('car_transmission', ['automatic', 'manual'])
+export const flightItineraryTypeEnum = dbEnum('flight_itinerary_type', ['one-way', 'round-trip'])
+export const flightCabinClassEnum = dbEnum('flight_cabin_class', ['economy', 'premium-economy', 'business', 'first'])
+export const flightTimeWindowEnum = dbEnum('flight_time_window', ['morning', 'afternoon', 'evening', 'overnight'])
 
-export const countries = pgTable(
+export const countries = dbTable(
   'countries',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -45,7 +69,7 @@ export const countries = pgTable(
   }),
 )
 
-export const regions = pgTable(
+export const regions = dbTable(
   'regions',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -65,7 +89,7 @@ export const regions = pgTable(
   }),
 )
 
-export const cities = pgTable(
+export const cities = dbTable(
   'cities',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -95,7 +119,7 @@ export const cities = pgTable(
   }),
 )
 
-export const airports = pgTable(
+export const airports = dbTable(
   'airports',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -119,7 +143,7 @@ export const airports = pgTable(
   }),
 )
 
-export const hotelBrands = pgTable(
+export const hotelBrands = dbTable(
   'hotel_brands',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -134,7 +158,7 @@ export const hotelBrands = pgTable(
   }),
 )
 
-export const hotels = pgTable(
+export const hotels = dbTable(
   'hotels',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -182,7 +206,7 @@ export const hotels = pgTable(
   }),
 )
 
-export const hotelImages = pgTable(
+export const hotelImages = dbTable(
   'hotel_images',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -199,7 +223,7 @@ export const hotelImages = pgTable(
   }),
 )
 
-export const hotelAmenities = pgTable(
+export const hotelAmenities = dbTable(
   'hotel_amenities',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -212,7 +236,7 @@ export const hotelAmenities = pgTable(
   }),
 )
 
-export const hotelAmenityLinks = pgTable(
+export const hotelAmenityLinks = dbTable(
   'hotel_amenity_links',
   {
     hotelId: bigint('hotel_id', { mode: 'number' })
@@ -228,7 +252,7 @@ export const hotelAmenityLinks = pgTable(
   }),
 )
 
-export const hotelOffers = pgTable(
+export const hotelOffers = dbTable(
   'hotel_offers',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -256,7 +280,7 @@ export const hotelOffers = pgTable(
   }),
 )
 
-export const hotelAvailabilitySnapshots = pgTable(
+export const hotelAvailabilitySnapshots = dbTable(
   'hotel_availability_snapshots',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -279,7 +303,7 @@ export const hotelAvailabilitySnapshots = pgTable(
   }),
 )
 
-export const carProviders = pgTable(
+export const carProviders = dbTable(
   'car_providers',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -294,7 +318,7 @@ export const carProviders = pgTable(
   }),
 )
 
-export const carVehicleClasses = pgTable(
+export const carVehicleClasses = dbTable(
   'car_vehicle_classes',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -313,7 +337,7 @@ export const carVehicleClasses = pgTable(
   }),
 )
 
-export const carLocations = pgTable(
+export const carLocations = dbTable(
   'car_locations',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -341,7 +365,7 @@ export const carLocations = pgTable(
   }),
 )
 
-export const carInventory = pgTable(
+export const carInventory = dbTable(
   'car_inventory',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -392,7 +416,7 @@ export const carInventory = pgTable(
   }),
 )
 
-export const carInventoryImages = pgTable(
+export const carInventoryImages = dbTable(
   'car_inventory_images',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -408,7 +432,7 @@ export const carInventoryImages = pgTable(
   }),
 )
 
-export const carOffers = pgTable(
+export const carOffers = dbTable(
   'car_offers',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -442,7 +466,7 @@ export const carOffers = pgTable(
   }),
 )
 
-export const airlines = pgTable(
+export const airlines = dbTable(
   'airlines',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -459,7 +483,7 @@ export const airlines = pgTable(
   }),
 )
 
-export const flightRoutes = pgTable(
+export const flightRoutes = dbTable(
   'flight_routes',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -490,7 +514,7 @@ export const flightRoutes = pgTable(
   }),
 )
 
-export const flightItineraries = pgTable(
+export const flightItineraries = dbTable(
   'flight_itineraries',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -532,7 +556,7 @@ export const flightItineraries = pgTable(
   }),
 )
 
-export const flightSegments = pgTable(
+export const flightSegments = dbTable(
   'flight_segments',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -561,7 +585,7 @@ export const flightSegments = pgTable(
   }),
 )
 
-export const flightFares = pgTable(
+export const flightFares = dbTable(
   'flight_fares',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
