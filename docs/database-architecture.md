@@ -165,15 +165,20 @@ Implemented now:
   - `/car-rentals/[slug]`
   - `/search/car-rentals/[query]/[pageNumber]`
   - search filters/sort/pagination are DB-backed via repository/query layer
+- DB-backed Flights path end-to-end (seed -> DB -> repos -> routes):
+  - `/flights`
+  - `/search/flights/from/[fromLocationSlug]/to/[toLocationSlug]/[itineraryTypeSlug]/[pageNumber]`
+  - search filters/sort/pagination are DB-backed via repository/query layer (no generator fallback)
+  - seed coverage now defaults to broader route distribution (`--max-flight-routes` default: `1200`)
 
 Scaffolded for next phase:
 
-- query-level performance tuning after real data volume profiling
 - richer multi-segment flight generation for stop-level realism
+- query-level performance tuning after real data volume profiling
 
 ## Recommended Next Steps
 
-1. Complete Flights end-to-end DB integration so all major search verticals share the same repository/query boundary.
-2. Add integration tests for seeded DB parity against key route loaders.
-3. Add follow-up migration(s) for specialized indexes once query plans are observed (`EXPLAIN ANALYZE`).
+1. Add integration tests for seeded DB parity against key route loaders (especially flight filters and paging).
+2. Add follow-up query-plan tuning (`EXPLAIN ANALYZE`) for high-volume flight route/date searches.
+3. Expand multi-segment flight realism (segment-level stop chains, layover windows, fare families).
 4. If `public` schema permissions are restricted, keep `DATABASE_URL` search path set to your app schema (for example `andacity_app,public`).

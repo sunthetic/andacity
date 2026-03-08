@@ -508,6 +508,8 @@ export const flightRoutes = dbTable(
   (table) => ({
     seedKeyUq: uniqueIndex('flight_routes_seed_key_uq').on(table.seedKey),
     routeUq: uniqueIndex('flight_routes_route_uq').on(table.originAirportId, table.destinationAirportId),
+    originAirportIdx: index('flight_routes_origin_airport_idx').on(table.originAirportId),
+    destinationAirportIdx: index('flight_routes_destination_airport_idx').on(table.destinationAirportId),
     cityPairIdx: index('flight_routes_city_pair_idx').on(table.originCityId, table.destinationCityId),
     originCityIdx: index('flight_routes_origin_city_idx').on(table.originCityId),
     destinationCityIdx: index('flight_routes_destination_city_idx').on(table.destinationCityId),
@@ -547,9 +549,16 @@ export const flightItineraries = dbTable(
   (table) => ({
     seedServiceDateUq: uniqueIndex('flight_itineraries_seed_service_date_uq').on(table.seedKey, table.serviceDate),
     routeDateIdx: index('flight_itineraries_route_date_idx').on(table.routeId, table.serviceDate),
+    routeDateDepartureIdx: index('flight_itineraries_route_date_departure_idx').on(
+      table.routeId,
+      table.serviceDate,
+      table.departureMinutes,
+    ),
+    routeDepartureIdx: index('flight_itineraries_route_departure_idx').on(table.routeId, table.departureMinutes),
     routePriceIdx: index('flight_itineraries_route_price_idx').on(table.routeId, table.basePriceCents),
     routeStopsIdx: index('flight_itineraries_route_stops_idx').on(table.routeId, table.stops),
     routeWindowIdx: index('flight_itineraries_route_window_idx').on(table.routeId, table.departureWindow),
+    airlineIdx: index('flight_itineraries_airline_idx').on(table.airlineId),
     cabinIdx: index('flight_itineraries_cabin_idx').on(table.cabinClass),
     stopsCheck: check('flight_itineraries_stops_ck', sql`${table.stops} >= 0 and ${table.stops} <= 2`),
     durationCheck: check('flight_itineraries_duration_ck', sql`${table.durationMinutes} > 0`),

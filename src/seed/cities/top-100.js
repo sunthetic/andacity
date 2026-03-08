@@ -1030,7 +1030,7 @@ export const findTopTravelCity = (value) => {
   const bySlug = TOP_TRAVEL_CITIES_BY_SLUG[token];
   if (bySlug) return bySlug;
 
-  return (
+  const byExactToken =
     TOP_TRAVEL_CITIES.find((city) => {
       if (normalizeToken(city.name) === token) return true;
       if (
@@ -1038,9 +1038,35 @@ export const findTopTravelCity = (value) => {
         city.aliases.some((alias) => normalizeToken(alias) === token)
       )
         return true;
+      if (
+        Array.isArray(city.airportCodes) &&
+        city.airportCodes.some((code) => normalizeToken(code) === token)
+      )
+        return true;
       return false;
-    }) || null
-  );
+    }) || null;
+
+  if (byExactToken) return byExactToken;
+
+  const byPrefix =
+    TOP_TRAVEL_CITIES.find((city) => {
+      const baseTokens = [normalizeToken(city.slug), normalizeToken(city.name)];
+      if (Array.isArray(city.aliases)) {
+        baseTokens.push(...city.aliases.map((alias) => normalizeToken(alias)));
+      }
+      if (Array.isArray(city.airportCodes)) {
+        baseTokens.push(
+          ...city.airportCodes.map((code) => normalizeToken(code)),
+        );
+      }
+
+      return baseTokens.some((base) => {
+        if (!base) return false;
+        return token.startsWith(`${base}-`) || base.startsWith(`${token}-`);
+      });
+    }) || null;
+
+  return byPrefix;
 };
 
 export const getTopTravelCities = () => {

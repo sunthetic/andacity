@@ -35,6 +35,7 @@ const TABLE_KEYS = [
 ];
 
 export const TABLE_INSERT_ORDER = TABLE_KEYS.slice();
+const DEFAULT_MAX_FLIGHT_ROUTES = 1200;
 
 const toCentAmount = (amount) => Math.round(Number(amount || 0) * 100);
 
@@ -509,35 +510,49 @@ const buildFlightRequests = ({
   const topCities = getTopTravelCities();
   const originCities = citySlug
     ? [findTopTravelCity(citySlug)].filter(Boolean)
-    : topCities.slice(0, 3);
+    : topCities;
 
-  const maxRoutes = Math.max(1, Number(maxFlightRoutes) || 30);
+  const maxRoutes = Math.max(1, Number(maxFlightRoutes) || DEFAULT_MAX_FLIGHT_ROUTES);
   const requests = [];
   const seen = new Set();
-
-  for (const origin of originCities) {
-    const pairings = getFlightPairingsForCity(origin.slug)
+  const buckets = originCities.map((origin) =>
+    getFlightPairingsForCity(origin.slug)
       .filter((pairing) => pairing.seasonBucket === 0)
       .filter((pairing) =>
         itineraryType ? pairing.itineraryType === itineraryType : true,
-      );
+      ),
+  );
+  const bucketIndexes = buckets.map(() => 0);
 
-    for (const pairing of pairings) {
-      const key = `${pairing.from}:${pairing.to}:${pairing.itineraryType}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
+  while (requests.length < maxRoutes) {
+    let progressed = false;
 
-      requests.push({
-        fromSlug: pairing.from,
-        toSlug: pairing.to,
-        itineraryType: pairing.itineraryType,
-        departDate: departDate || SEED_CONFIG.availabilityAnchorDate,
-      });
+    for (let originIndex = 0; originIndex < buckets.length; originIndex += 1) {
+      const pairings = buckets[originIndex] || [];
+      let pairingIndex = bucketIndexes[originIndex] || 0;
 
-      if (requests.length >= maxRoutes) {
-        return requests;
+      while (pairingIndex < pairings.length) {
+        const pairing = pairings[pairingIndex];
+        pairingIndex += 1;
+        const key = `${pairing.from}:${pairing.to}:${pairing.itineraryType}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        requests.push({
+          fromSlug: pairing.from,
+          toSlug: pairing.to,
+          itineraryType: pairing.itineraryType,
+          departDate: departDate || SEED_CONFIG.availabilityAnchorDate,
+        });
+        progressed = true;
+        break;
       }
+
+      bucketIndexes[originIndex] = pairingIndex;
+      if (requests.length >= maxRoutes) break;
     }
+
+    if (!progressed) break;
   }
 
   return requests;
@@ -617,7 +632,7 @@ export const buildPostgresSeedPayload = (options = {}) => {
       assumptions: {
         maxFlightRoutes:
           vertical === "all" || vertical === "flights"
-            ? Number(options.maxFlightRoutes) || 30
+            ? Number(options.maxFlightRoutes) || DEFAULT_MAX_FLIGHT_ROUTES
             : 0,
       },
     },

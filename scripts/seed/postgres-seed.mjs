@@ -10,6 +10,7 @@ import {
 
 const DEFAULT_OUT_DIR = path.resolve(process.cwd(), "seed/output/postgres");
 const DEFAULT_DB_SCHEMA = "andacity_app";
+const DEFAULT_MAX_FLIGHT_ROUTES = 1200;
 const IDENTIFIER_RE = /^[a-z_][a-z0-9_]*$/;
 
 const normalizeSchemaName = (value) => {
@@ -36,7 +37,7 @@ const parseArgs = (argv) => {
     to: "",
     itineraryType: "",
     departDate: "",
-    maxFlightRoutes: 30,
+    maxFlightRoutes: DEFAULT_MAX_FLIGHT_ROUTES,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -110,7 +111,9 @@ const parseArgs = (argv) => {
 
     if (token === "--max-flight-routes" && value) {
       const n = Number.parseInt(String(value), 10);
-      args.maxFlightRoutes = Number.isFinite(n) ? Math.max(1, n) : 30;
+      args.maxFlightRoutes = Number.isFinite(n)
+        ? Math.max(1, n)
+        : DEFAULT_MAX_FLIGHT_ROUTES;
       i += 1;
       continue;
     }
@@ -919,8 +922,9 @@ const upsertFlightRoutes = async (client, rows, refs) => {
         is_popular
       )
       values ($1, $2, $3, $4, $5, $6, $7)
-      on conflict (seed_key)
+      on conflict (origin_airport_id, destination_airport_id)
       do update set
+        seed_key = excluded.seed_key,
         origin_city_id = excluded.origin_city_id,
         destination_city_id = excluded.destination_city_id,
         origin_airport_id = excluded.origin_airport_id,

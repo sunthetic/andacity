@@ -1,86 +1,77 @@
-import { component$ } from "@builder.io/qwik";
-import { routeLoader$ } from "@builder.io/qwik-city";
-import type { DocumentHead } from "@builder.io/qwik-city";
-import { useLocation } from "@builder.io/qwik-city";
-import { FlightsResultsAdapter } from "~/components/flights/FlightsResultsAdapter";
-import { Page } from "~/components/site/Page";
-import { tryDbRead } from "~/lib/db/read-switch.server";
-import { loadFlightResultsFromDb } from "~/lib/queries/flights-search.server";
+import { component$ } from '@builder.io/qwik'
+import { routeLoader$, useLocation } from '@builder.io/qwik-city'
+import type { DocumentHead } from '@builder.io/qwik-city'
+import { FlightsResultsAdapter } from '~/components/flights/FlightsResultsAdapter'
+import { Page } from '~/components/site/Page'
+import {
+  loadFlightResultsPageFromDb,
+  toFlightsSearchStateFilters,
+} from '~/lib/queries/flights-search.server'
 import {
   buildFlightsSearchPath,
   humanizeLocationSlug,
   normalizeFlightItineraryType,
   slugifyLocation,
-} from "~/lib/search/flights/routing";
-import { searchStateFromUrl } from "~/lib/search/url-to-state";
-import { findTopTravelCity } from "~/seed/cities/top-100.js";
-import { generateFlightsForRoute } from "~/seed/generators/generate-flights.js";
-import type { FlightResult } from "~/types/flights/search";
+} from '~/lib/search/flights/routing'
+import { searchStateFromUrl } from '~/lib/search/url-to-state'
+import { findTopTravelCity } from '~/seed/cities/top-100.js'
 
 export const useSearchFlightsPage = routeLoader$(async ({ params, url }) => {
   const fromLocationSlug =
-    slugifyLocation(String(params.fromLocationSlug || "").trim()) || "anywhere";
+    slugifyLocation(String(params.fromLocationSlug || '').trim()) || 'anywhere'
   const toLocationSlug =
-    slugifyLocation(String(params.toLocationSlug || "").trim()) || "anywhere";
+    slugifyLocation(String(params.toLocationSlug || '').trim()) || 'anywhere'
   const itineraryType = normalizeFlightItineraryType(
-    String(params.itineraryTypeSlug || "")
+    String(params.itineraryTypeSlug || '')
       .trim()
       .toLowerCase(),
-  );
-  const page = clampInt(params.pageNumber, 1, 9999);
+  )
+  const routePage = clampInt(params.pageNumber, 1, 9999)
 
-  const fromCity = findTopTravelCity(fromLocationSlug);
-  const toCity = findTopTravelCity(toLocationSlug);
+  const fromCity = findTopTravelCity(fromLocationSlug)
+  const toCity = findTopTravelCity(toLocationSlug)
 
   const from =
-    fromCity?.name || humanizeLocationSlug(fromLocationSlug) || "Anywhere";
-  const to = toCity?.name || humanizeLocationSlug(toLocationSlug) || "Anywhere";
+    fromCity?.name || humanizeLocationSlug(fromLocationSlug) || 'Anywhere'
+  const to = toCity?.name || humanizeLocationSlug(toLocationSlug) || 'Anywhere'
 
   const searchState = searchStateFromUrl(url, {
     query: `${from} to ${to}`,
     location: { city: to },
-    sort: "recommended",
-    page,
-  });
+    sort: 'recommended',
+    page: routePage,
+  })
 
-  searchState.query = `${from} to ${to}`;
+  searchState.query = `${from} to ${to}`
   searchState.location = {
     ...(searchState.location || {}),
     city: to,
-  };
+  }
 
-  if (itineraryType === "one-way" && searchState.dates?.checkOut) {
+  if (itineraryType === 'one-way' && searchState.dates?.checkOut) {
     searchState.dates = {
       ...(searchState.dates || {}),
       checkOut: undefined,
-    };
+    }
   }
 
-  const fallbackResults = () =>
-    generateFlightsForRoute({
-      fromSlug: fromLocationSlug,
-      toSlug: toLocationSlug,
-      itineraryType,
-      departDate: searchState.dates?.checkIn,
-      returnDate:
-        itineraryType === "round-trip"
-          ? searchState.dates?.checkOut
-          : undefined,
-    }) as FlightResult[];
+  const source = await loadFlightResultsPageFromDb({
+    fromLocationSlug,
+    toLocationSlug,
+    itineraryType,
+    departDate: searchState.dates?.checkIn,
+    sort: String(searchState.sort || 'recommended'),
+    page: searchState.page || routePage,
+    pageSize: 6,
+    filters: (searchState.filters || {}) as Record<string, unknown>,
+  })
 
-  const results =
-    fromCity && toCity
-      ? await tryDbRead(
-          () =>
-            loadFlightResultsFromDb({
-              fromLocationSlug,
-              toLocationSlug,
-              itineraryType,
-              departDate: searchState.dates?.checkIn,
-            }),
-          fallbackResults,
-        )
-      : fallbackResults();
+  searchState.page = source.page
+  searchState.sort = source.activeSort
+  searchState.filters = toFlightsSearchStateFilters(
+    source.selectedFilters,
+    (searchState.filters || {}) as Record<string, unknown>,
+  )
 
   const searchAgainHref = buildSearchFlightsHref({
     from,
@@ -88,40 +79,45 @@ export const useSearchFlightsPage = routeLoader$(async ({ params, url }) => {
     itineraryType,
     depart: searchState.dates?.checkIn,
     ret:
-      itineraryType === "round-trip" ? searchState.dates?.checkOut : undefined,
-    travelers: String(searchState.filters?.travelers || "").trim(),
-    cabin: String(searchState.filters?.cabin || "").trim(),
-  });
+      itineraryType === 'round-trip' ? searchState.dates?.checkOut : undefined,
+    travelers: String(searchState.filters?.travelers || '').trim(),
+    cabin: String(searchState.filters?.cabin || '').trim(),
+  })
 
   return {
     fromLocationSlug,
     toLocationSlug,
     itineraryType,
-    page,
+    page: source.page,
     from,
     to,
-    results,
+    totalCount: source.totalCount,
+    totalPages: source.totalPages,
+    activeSort: source.activeSort,
+    selectedFilters: source.selectedFilters,
+    facets: source.facets,
+    results: source.results,
     searchState,
     searchAgainHref,
-  };
-});
+  }
+})
 
 export default component$(() => {
-  const data = useSearchFlightsPage().value;
-  const location = useLocation();
+  const data = useSearchFlightsPage().value
+  const location = useLocation()
   const basePath = buildFlightsSearchPath(
     data.fromLocationSlug,
     data.toLocationSlug,
     data.itineraryType,
     1,
-  );
+  )
 
   return (
     <Page
       breadcrumbs={[
-        { label: "Andacity Travel", href: "/" },
-        { label: "Flights", href: "/flights" },
-        { label: "Search", href: "/search/flights" },
+        { label: 'Andacity Travel', href: '/' },
+        { label: 'Flights', href: '/flights' },
+        { label: 'Search', href: '/search/flights' },
         { label: `${data.from} to ${data.to}`, href: location.url.pathname },
       ]}
     >
@@ -138,6 +134,12 @@ export default component$(() => {
       <section class="mt-8">
         <FlightsResultsAdapter
           results={data.results}
+          totalCount={data.totalCount}
+          page={data.page}
+          totalPages={data.totalPages}
+          activeSort={data.activeSort}
+          selectedFilters={data.selectedFilters}
+          filterFacets={data.facets}
           searchState={data.searchState}
           fromLabel={data.from}
           toLabel={data.to}
@@ -146,73 +148,72 @@ export default component$(() => {
           editSearchHref={data.searchAgainHref}
           flightCtaHref={data.searchAgainHref}
           emptyPrimaryAction={{
-            label: "Search flights again",
+            label: 'Search flights again',
             href: data.searchAgainHref,
           }}
           emptySecondaryAction={{
-            label: "Explore destinations",
-            href: "/explore",
+            label: 'Explore destinations',
+            href: '/explore',
           }}
         />
       </section>
     </Page>
-  );
-});
+  )
+})
 
 export const head: DocumentHead = ({ resolveValue, url }) => {
-  const data = resolveValue(useSearchFlightsPage);
-  const title = `Flights from ${data.from} to ${data.to} – Page ${data.page} | Andacity Travel`;
-  const description = `Browse flight results from ${data.from} to ${data.to} with shared filtering and sorting.`;
+  const data = resolveValue(useSearchFlightsPage)
+  const title = `Flights from ${data.from} to ${data.to} – Page ${data.page} | Andacity Travel`
+  const description = `Browse flight results from ${data.from} to ${data.to} with shared filtering and sorting.`
   const canonicalPath = buildFlightsSearchPath(
     data.fromLocationSlug,
     data.toLocationSlug,
     data.itineraryType,
     data.page,
-  );
-  const canonicalHref = new URL(canonicalPath, url.origin).href;
+  )
+  const canonicalHref = new URL(canonicalPath, url.origin).href
 
   return {
     title,
     meta: [
-      { name: "description", content: description },
-      { name: "robots", content: "noindex,follow,max-image-preview:large" },
-      { property: "og:type", content: "website" },
-      { property: "og:title", content: title },
-      { property: "og:description", content: description },
-      { property: "og:url", content: canonicalHref },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: title },
-      { name: "twitter:description", content: description },
+      { name: 'description', content: description },
+      { name: 'robots', content: 'noindex,follow,max-image-preview:large' },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:title', content: title },
+      { property: 'og:description', content: description },
+      { property: 'og:url', content: canonicalHref },
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: title },
+      { name: 'twitter:description', content: description },
     ],
-    links: [{ rel: "canonical", href: canonicalHref }],
-  };
-};
+    links: [{ rel: 'canonical', href: canonicalHref }],
+  }
+}
 
 const clampInt = (value: string | undefined, min: number, max: number) => {
-  const n = Number.parseInt(String(value || ""), 10);
-  if (!Number.isFinite(n)) return min;
-  return Math.max(min, Math.min(max, n));
-};
+  const n = Number.parseInt(String(value || ''), 10)
+  if (!Number.isFinite(n)) return min
+  return Math.max(min, Math.min(max, n))
+}
 
 const buildSearchFlightsHref = (input: {
-  from: string;
-  to: string;
-  itineraryType: "round-trip" | "one-way";
-  depart?: string;
-  ret?: string;
-  travelers?: string;
-  cabin?: string;
+  from: string
+  to: string
+  itineraryType: 'round-trip' | 'one-way'
+  depart?: string
+  ret?: string
+  travelers?: string
+  cabin?: string
 }) => {
-  const sp = new URLSearchParams();
-  sp.set("itineraryType", input.itineraryType);
-  sp.set("from", input.from);
-  sp.set("to", input.to);
+  const sp = new URLSearchParams()
+  sp.set('itineraryType', input.itineraryType)
+  sp.set('from', input.from)
+  sp.set('to', input.to)
 
-  if (input.depart) sp.set("depart", input.depart);
-  if (input.itineraryType === "round-trip" && input.ret)
-    sp.set("return", input.ret);
-  if (input.travelers) sp.set("travelers", input.travelers);
-  if (input.cabin) sp.set("cabin", input.cabin);
+  if (input.depart) sp.set('depart', input.depart)
+  if (input.itineraryType === 'round-trip' && input.ret) sp.set('return', input.ret)
+  if (input.travelers) sp.set('travelers', input.travelers)
+  if (input.cabin) sp.set('cabin', input.cabin)
 
-  return `/flights?${sp.toString()}`;
-};
+  return `/flights?${sp.toString()}`
+}

@@ -1,34 +1,18 @@
 import { component$, useSignal } from '@builder.io/qwik'
-import { useNavigate } from '@builder.io/qwik-city'
 
 export const CarRentalSearchCard = component$((props: CarRentalSearchCardProps) => {
-  const nav = useNavigate()
   const variant = props.variant || 'stacked'
   const destination = useSignal(props.destinationValue ?? '')
   const pickupDate = useSignal(props.pickupDate ?? '')
   const dropoffDate = useSignal(props.dropoffDate ?? '')
   const drivers = useSignal(props.drivers ?? '1')
   const hasSubmitted = useSignal(false)
-
-  const normalizedDestination = destination.value.trim()
-  const errors: string[] = []
-
-  if (!normalizedDestination) {
-    errors.push('Enter a pickup location.')
-  }
-
-  if (!pickupDate.value) {
-    errors.push('Select a pickup date.')
-  }
-
-  if (!dropoffDate.value) {
-    errors.push('Select a dropoff date.')
-  }
-
-  if (pickupDate.value && dropoffDate.value && dropoffDate.value <= pickupDate.value) {
-    errors.push('Dropoff must be after pickup.')
-  }
-
+  const errors = validateSnapshot({
+    destination: destination.value,
+    pickupDate: pickupDate.value,
+    dropoffDate: dropoffDate.value,
+    drivers: drivers.value,
+  })
   const isValid = errors.length === 0
 
   const fieldClass =
@@ -46,35 +30,25 @@ export const CarRentalSearchCard = component$((props: CarRentalSearchCardProps) 
 
       <form
         method="get"
-        action={props.action || '/search/car-rentals'}
+        action={props.action || '/search/car-rentals/anywhere/1'}
         preventdefault:submit
         noValidate
-        onSubmit$={async () => {
+        onSubmit$={async (_, formEl) => {
           hasSubmitted.value = true
-          if (!isValid) {
+          const snapshot = readSnapshot(formEl)
+          const submitErrors = validateSnapshot(snapshot)
+          if (submitErrors.length) {
             return
           }
 
-          const path = `/search/car-rentals/${encodeURIComponent(normalizedDestination)}/1`
-          const searchParams = new URLSearchParams()
+          destination.value = snapshot.destination
+          pickupDate.value = snapshot.pickupDate
+          dropoffDate.value = snapshot.dropoffDate
+          drivers.value = snapshot.drivers
 
-          searchParams.set('q', normalizedDestination)
-
-          if (pickupDate.value) {
-            searchParams.set('pickupDate', pickupDate.value)
-          }
-
-          if (dropoffDate.value) {
-            searchParams.set('dropoffDate', dropoffDate.value)
-          }
-
-          if (drivers.value) {
-            searchParams.set('drivers', drivers.value)
-          }
-
-          const query = searchParams.toString()
-          const href = query ? `${path}?${query}` : path
-          await nav(href)
+          const normalizedDestination = snapshot.destination.trim()
+          formEl.action = `/search/car-rentals/${encodeURIComponent(normalizedDestination)}/1`
+          formEl.submit()
         }}
         class={variant === 'hero'
           ? 'grid gap-3 md:grid-cols-[minmax(0,2fr)_1fr_1fr_minmax(180px,0.95fr)_auto]'
@@ -223,4 +197,47 @@ type CarRentalSearchCardProps = {
   drivers?: string
   submitLabel?: string
   helperText?: string
+}
+
+type CarRentalSubmitSnapshot = {
+  destination: string
+  pickupDate: string
+  dropoffDate: string
+  drivers: string
+}
+
+const readSnapshot = (form: HTMLFormElement): CarRentalSubmitSnapshot => {
+  const fd = new FormData(form)
+  return {
+    destination: String(fd.get('q') || '').trim(),
+    pickupDate: String(fd.get('pickupDate') || '').trim(),
+    dropoffDate: String(fd.get('dropoffDate') || '').trim(),
+    drivers: String(fd.get('drivers') || '').trim(),
+  }
+}
+
+const validateSnapshot = (snapshot: CarRentalSubmitSnapshot) => {
+  const validationErrors: string[] = []
+
+  if (!snapshot.destination) {
+    validationErrors.push('Enter a pickup location.')
+  }
+
+  if (!snapshot.pickupDate) {
+    validationErrors.push('Select a pickup date.')
+  }
+
+  if (!snapshot.dropoffDate) {
+    validationErrors.push('Select a dropoff date.')
+  }
+
+  if (
+    snapshot.pickupDate &&
+    snapshot.dropoffDate &&
+    snapshot.dropoffDate <= snapshot.pickupDate
+  ) {
+    validationErrors.push('Dropoff must be after pickup.')
+  }
+
+  return validationErrors
 }
