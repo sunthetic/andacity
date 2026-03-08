@@ -1,6 +1,7 @@
 import { component$, type QRL } from "@builder.io/qwik";
 import { formatMoney } from "~/lib/formatMoney";
 import { SaveButton } from "~/components/save-compare/SaveButton";
+import { AddToTripButton } from "~/components/trips/AddToTripButton";
 import type { FlightResult } from "~/types/flights/search";
 import type { SavedItem } from "~/types/save-compare/saved-item";
 
@@ -39,6 +40,12 @@ export const FlightCard = component$((props: FlightCardProps) => {
                   props.onToggleSave$(props.savedItem);
                 }}
               />
+            </div>
+          ) : null}
+
+          {props.savedItem ? (
+            <div class="mb-2">
+              <AddToTripButton item={props.savedItem} />
             </div>
           ) : null}
 

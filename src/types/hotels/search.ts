@@ -17,6 +17,7 @@ export type ActiveFilters = {
 
 export type HotelResult = {
   id: string
+  inventoryId?: number
   slug: string
   name: string
   neighborhood: string

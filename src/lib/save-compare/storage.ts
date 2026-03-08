@@ -3,6 +3,7 @@ import type {
   SavedItem,
   SavedVertical,
 } from '~/types/save-compare/saved-item'
+import { TRIP_ITEM_TYPES, type TripItemCandidate, type TripItemType } from '~/types/trips/trip'
 
 export const SAVE_COMPARE_STORAGE_KEY = 'andacity-save-compare-v1'
 
@@ -31,6 +32,61 @@ const sanitizeMeta = (value: unknown) => {
   return list.length ? list : undefined
 }
 
+const toSafeDate = (value: unknown) => {
+  const text = toNonEmptyString(value)
+  if (!text) return undefined
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : undefined
+}
+
+const toSafeInt = (value: unknown) => {
+  const n = Number.parseInt(String(value || ''), 10)
+  return Number.isFinite(n) ? n : undefined
+}
+
+const toTripItemType = (value: unknown): TripItemType | null => {
+  const token = String(value || '').trim().toLowerCase()
+  return TRIP_ITEM_TYPES.includes(token as TripItemType) ? (token as TripItemType) : null
+}
+
+const sanitizeCandidateMetadata = (value: unknown): Record<string, unknown> | undefined => {
+  const obj = asObject(value)
+  if (!obj) return undefined
+  return obj
+}
+
+const sanitizeTripItemCandidate = (value: unknown): TripItemCandidate | undefined => {
+  const obj = asObject(value)
+  if (!obj) return undefined
+
+  const itemType = toTripItemType(obj.itemType)
+  const inventoryId = toSafeInt(obj.inventoryId)
+  if (!itemType || inventoryId == null || inventoryId < 1) return undefined
+
+  const startDate = toSafeDate(obj.startDate)
+  const endDate = toSafeDate(obj.endDate)
+  const priceCents = toSafeInt(obj.priceCents)
+  const currencyCode = toNonEmptyString(obj.currencyCode) || undefined
+  const title = toNonEmptyString(obj.title) || undefined
+  const subtitle = toNonEmptyString(obj.subtitle) || undefined
+  const imageUrl = toNonEmptyString(obj.imageUrl) || undefined
+  const meta = sanitizeMeta(obj.meta)
+  const metadata = sanitizeCandidateMetadata(obj.metadata)
+
+  return {
+    itemType,
+    inventoryId,
+    startDate,
+    endDate,
+    priceCents: priceCents == null ? undefined : Math.max(0, priceCents),
+    currencyCode,
+    title,
+    subtitle,
+    imageUrl,
+    meta,
+    metadata,
+  }
+}
+
 const normalizeSavedItem = (value: unknown, vertical: SavedVertical): SavedItem | null => {
   const obj = asObject(value)
   if (!obj) return null
@@ -44,6 +100,7 @@ const normalizeSavedItem = (value: unknown, vertical: SavedVertical): SavedItem 
   const price = toNonEmptyString(obj.price) || undefined
   const image = toNonEmptyString(obj.image) || undefined
   const meta = sanitizeMeta(obj.meta)
+  const tripCandidate = sanitizeTripItemCandidate(obj.tripCandidate)
 
   return {
     id,
@@ -54,6 +111,7 @@ const normalizeSavedItem = (value: unknown, vertical: SavedVertical): SavedItem 
     meta,
     href,
     image,
+    tripCandidate,
   }
 }
 

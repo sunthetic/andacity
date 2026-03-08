@@ -1,4 +1,5 @@
 import { component$, type QRL } from "@builder.io/qwik";
+import { AddToTripButton } from "~/components/trips/AddToTripButton";
 import type { SavedItem } from "~/types/save-compare/saved-item";
 
 export const CarCompareCard = component$((props: CarCompareCardProps) => {
@@ -49,6 +50,10 @@ export const CarCompareCard = component$((props: CarCompareCardProps) => {
               {props.item.meta.join(" · ")}
             </p>
           ) : null}
+
+          <div class="mt-2">
+            <AddToTripButton item={props.item} />
+          </div>
 
           <a
             href={props.item.href}

@@ -75,6 +75,7 @@ const defaultHotelFaq = (hotelName: string, city: string) => [
 
 const mapCityHotelRowToHotel = (row: HotelListRow): Hotel => {
   return {
+    inventoryId: row.id,
     slug: row.slug,
     name: row.name,
     city: row.cityName,

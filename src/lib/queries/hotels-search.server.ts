@@ -153,6 +153,7 @@ export async function loadHotelResultsFromDb(
 
       return {
         id: `hotel-${row.slug}-${effectiveOffset + index}`,
+        inventoryId: row.id,
         slug: row.slug,
         name: row.name,
         neighborhood: row.neighborhood,

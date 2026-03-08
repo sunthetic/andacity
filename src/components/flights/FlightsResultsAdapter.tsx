@@ -223,6 +223,29 @@ export const FlightsResultsAdapter = component$(
         result.cabinClass ? titleCase(result.cabinClass) : '',
       ].filter(Boolean),
       href: props.flightCtaHref || props.editSearchHref || '/flights',
+      tripCandidate:
+        result.itineraryId != null
+          ? {
+              itemType: 'flight',
+              inventoryId: result.itineraryId,
+              startDate: props.searchState.dates?.checkIn || result.serviceDate,
+              endDate:
+                props.searchState.dates?.checkOut ||
+                props.searchState.dates?.checkIn ||
+                result.serviceDate,
+              priceCents: Math.round(result.price * 100),
+              currencyCode: result.currency,
+              title: result.airline,
+              subtitle: `${result.origin} → ${result.destination}`,
+              meta: [
+                `Depart ${result.departureTime}`,
+                `Arrive ${result.arrivalTime}`,
+                result.duration,
+                result.stopsLabel,
+                result.cabinClass ? titleCase(result.cabinClass) : '',
+              ].filter(Boolean),
+            }
+          : undefined,
     })
 
     // eslint-disable-next-line qwik/no-use-visible-task

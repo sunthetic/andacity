@@ -1,5 +1,6 @@
 import { component$, type QRL } from "@builder.io/qwik";
 import { SaveButton } from "~/components/save-compare/SaveButton";
+import { AddToTripButton } from "~/components/trips/AddToTripButton";
 import type { Hotel } from "~/data/hotels";
 import { formatMoney } from "~/lib/formatMoney";
 import type { SavedItem } from "~/types/save-compare/saved-item";
@@ -46,6 +47,10 @@ export const HotelCard = component$((props: HotelCardProps) => {
                   props.onToggleSave$(props.savedItem);
                 }}
               />
+            ) : null}
+
+            {props.savedItem ? (
+              <AddToTripButton item={props.savedItem} />
             ) : null}
 
             <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">

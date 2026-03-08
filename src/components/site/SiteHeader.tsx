@@ -4,6 +4,7 @@ const NAV = {
   primary: [
     { label: 'Flights', href: '/flights' },
     { label: 'Cars', href: '/car-rentals' },
+    { label: 'Trips', href: '/trips' },
     { label: 'Deals', href: '/deals' },
   ],
   hotels: {
