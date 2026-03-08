@@ -7,16 +7,20 @@ import {
   getTripDetailsApi,
   listTripsApi,
   removeTripItemApi,
+  revalidateTripApi,
   reorderTripItemsApi,
   TripApiError,
   updateTripMetadataApi,
 } from '~/lib/trips/trips-api'
 import type {
   TripDetails,
+  TripIntelligenceSummary,
   TripItem,
+  TripItemValidityStatus,
   TripListItem,
   TripPriceDriftStatus,
   TripStatus,
+  TripValidationIssue,
   TripVerticalPricing,
 } from '~/types/trips/trip'
 
@@ -146,6 +150,26 @@ export default component$(() => {
         cause instanceof TripApiError
           ? cause.message
           : 'Failed to update trip metadata.'
+      error.value = message
+    } finally {
+      loading.value = false
+    }
+  })
+
+  const onRevalidateTrip$ = $(async () => {
+    if (!activeTrip.value) return
+    loading.value = true
+    error.value = null
+
+    try {
+      const trip = await revalidateTripApi(activeTrip.value.id)
+      activeTrip.value = trip
+      await refreshTrips$(trip.id, true)
+      editingName.value = trip.name || ''
+      editingStatus.value = trip.status || 'draft'
+    } catch (cause) {
+      const message =
+        cause instanceof TripApiError ? cause.message : 'Failed to revalidate trip.'
       error.value = message
     } finally {
       loading.value = false
@@ -325,6 +349,69 @@ export default component$(() => {
                   </p>
                 </div>
 
+                <div class="mt-4 rounded-xl border border-[color:var(--color-border)] px-3 py-3">
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                        Trip intelligence
+                      </p>
+                      <p
+                        class={[
+                          'mt-1 text-sm font-semibold',
+                          intelligenceToneClass(activeTrip.value.intelligence),
+                        ]}
+                      >
+                        {formatTripIntelligenceStatus(activeTrip.value.intelligence)}
+                      </p>
+                      <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                        {formatTripIntelligenceMeta(activeTrip.value.intelligence)}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick$={onRevalidateTrip$}
+                      disabled={loading.value}
+                      class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm"
+                    >
+                      {loading.value ? 'Revalidating...' : 'Revalidate trip'}
+                    </button>
+                  </div>
+
+                  <div class="mt-4 grid gap-3 md:grid-cols-3">
+                    <IntelligenceStatCard
+                      label="Availability"
+                      value={formatTripAvailabilitySummary(activeTrip.value.intelligence)}
+                    />
+                    <IntelligenceStatCard
+                      label="Issues"
+                      value={formatTripIssueSummary(activeTrip.value.intelligence)}
+                    />
+                    <IntelligenceStatCard
+                      label="Freshness"
+                      value={formatTripFreshnessSummary(activeTrip.value.intelligence)}
+                    />
+                  </div>
+
+                  {activeTrip.value.intelligence.issues.length ? (
+                    <div class="mt-4 grid gap-2 border-t border-[color:var(--color-divider)] pt-4">
+                      {activeTrip.value.intelligence.issues.slice(0, 5).map((issue) => (
+                        <div
+                          key={`${issue.code}-${issue.itemId || 'trip'}-${(issue.relatedItemIds || []).join('-')}`}
+                          class={[
+                            'rounded-lg border px-3 py-2 text-sm',
+                            issue.severity === 'blocking'
+                              ? 'border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.06)] text-[color:var(--color-error,#b91c1c)]'
+                              : 'border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] text-[color:var(--color-warning,#92400e)]',
+                          ]}
+                        >
+                          {issue.message}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
                 <div class="mt-4 grid gap-3 border-t border-[color:var(--color-divider)] pt-4 sm:grid-cols-[1fr_160px_auto]">
                   <input
                     type="text"
@@ -441,6 +528,19 @@ const SummaryBlock = component$((props: { label: string; value: string }) => {
   )
 })
 
+const IntelligenceStatCard = component$((props: { label: string; value: string }) => {
+  return (
+    <div class="rounded-xl border border-[color:var(--color-border)] px-3 py-2">
+      <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+        {props.label}
+      </p>
+      <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
+        {props.value}
+      </p>
+    </div>
+  )
+})
+
 const VerticalSubtotalCard = component$((props: { vertical: TripVerticalPricing }) => {
   return (
     <div class="rounded-xl border border-[color:var(--color-border)] px-3 py-3">
@@ -475,6 +575,14 @@ const TripItemRow = component$(
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <span class="t-badge">{props.item.itemType.toUpperCase()}</span>
+              <span class={availabilityBadgeClass(props.item.availabilityStatus)}>
+                {formatItemAvailabilityLabel(props.item.availabilityStatus)}
+              </span>
+              {props.item.issues.length ? (
+                <span class={issueBadgeClass(props.item.issues)}>
+                  {formatItemIssueBadge(props.item.issues)}
+                </span>
+              ) : null}
               <span class="text-sm font-semibold text-[color:var(--color-text-strong)]">
                 {props.item.title}
               </span>
@@ -501,6 +609,28 @@ const TripItemRow = component$(
             <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
               Snapshotted {formatDateTime(props.item.snapshotTimestamp)}
             </p>
+            {props.item.availabilityCheckedAt ? (
+              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                Revalidated {formatDateTime(props.item.availabilityCheckedAt)}
+              </p>
+            ) : null}
+            {props.item.issues.length ? (
+              <div class="mt-2 grid gap-1">
+                {props.item.issues.slice(0, 2).map((issue) => (
+                  <p
+                    key={`${issue.code}-${issue.message}`}
+                    class={[
+                      'text-xs',
+                      issue.severity === 'blocking'
+                        ? 'text-[color:var(--color-error,#b91c1c)]'
+                        : 'text-[color:var(--color-warning,#92400e)]',
+                    ]}
+                  >
+                    {issue.message}
+                  </p>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div class="min-w-[200px] text-right">
@@ -509,6 +639,14 @@ const TripItemRow = component$(
             </p>
             <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
               {formatMoneyFromCents(props.item.snapshotPriceCents, props.item.snapshotCurrencyCode)}
+            </p>
+            <p
+              class={[
+                'mt-1 text-xs font-medium',
+                availabilityToneClass(props.item.availabilityStatus),
+              ]}
+            >
+              {formatItemAvailabilityStatus(props.item)}
             </p>
             <p class={['mt-1 text-xs font-medium', driftToneClass(props.item.priceDriftStatus)]}>
               {formatItemDrift(props.item)}
@@ -588,6 +726,119 @@ const formatDriftSummary = (trip: TripDetails) => {
   if (counts.unavailable) parts.push(`${counts.unavailable} unavailable`)
 
   return parts.length ? parts.join(' · ') : 'No priced items yet'
+}
+
+const formatTripIntelligenceStatus = (intelligence: TripIntelligenceSummary) => {
+  if (intelligence.status === 'blocking_issues_present') return 'Blocking issues present'
+  if (intelligence.status === 'warnings_present') return 'Warnings present'
+  return 'Valid itinerary'
+}
+
+const formatTripIntelligenceMeta = (intelligence: TripIntelligenceSummary) => {
+  if (!intelligence.checkedAt) {
+    return 'Availability checks run automatically when trip details are loaded.'
+  }
+
+  const checked = formatDateTime(intelligence.checkedAt)
+  const expires = intelligence.expiresAt ? formatDateTime(intelligence.expiresAt) : null
+  return expires ? `Checked ${checked} · refresh by ${expires}` : `Checked ${checked}`
+}
+
+const formatTripAvailabilitySummary = (intelligence: TripIntelligenceSummary) => {
+  const counts = intelligence.itemStatusCounts
+  const parts: string[] = []
+
+  if (counts.valid) parts.push(`${counts.valid} valid`)
+  if (counts.price_only_changed) parts.push(`${counts.price_only_changed} price-only changes`)
+  if (counts.stale) parts.push(`${counts.stale} stale`)
+  if (counts.unavailable) parts.push(`${counts.unavailable} unavailable`)
+
+  return parts.length ? parts.join(' · ') : 'No items yet'
+}
+
+const formatTripIssueSummary = (intelligence: TripIntelligenceSummary) => {
+  const parts: string[] = []
+  if (intelligence.issueCounts.blocking) {
+    parts.push(`${intelligence.issueCounts.blocking} blocking`)
+  }
+  if (intelligence.issueCounts.warning) {
+    parts.push(`${intelligence.issueCounts.warning} warnings`)
+  }
+
+  return parts.length ? parts.join(' · ') : 'No itinerary issues'
+}
+
+const formatTripFreshnessSummary = (intelligence: TripIntelligenceSummary) => {
+  if (!intelligence.expiresAt) return 'Revalidate to refresh live availability'
+  return `Next refresh by ${formatDateTime(intelligence.expiresAt)}`
+}
+
+const intelligenceToneClass = (intelligence: TripIntelligenceSummary) => {
+  if (intelligence.status === 'blocking_issues_present') {
+    return 'text-[color:var(--color-error,#b91c1c)]'
+  }
+  if (intelligence.status === 'warnings_present') {
+    return 'text-[color:var(--color-warning,#92400e)]'
+  }
+  return 'text-[color:var(--color-success,#0f766e)]'
+}
+
+const formatItemAvailabilityLabel = (status: TripItemValidityStatus) => {
+  if (status === 'price_only_changed') return 'PRICE CHANGED'
+  return status.replace(/_/g, ' ').toUpperCase()
+}
+
+const getHighestIssueSeverity = (issues: TripValidationIssue[]) => {
+  return issues.some((issue) => issue.severity === 'blocking') ? 'blocking' : 'warning'
+}
+
+const issueBadgeClass = (issues: TripValidationIssue[]) => {
+  return getHighestIssueSeverity(issues) === 'blocking'
+    ? 'rounded-full border border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-error,#b91c1c)]'
+    : 'rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning,#92400e)]'
+}
+
+const availabilityBadgeClass = (status: TripItemValidityStatus) => {
+  if (status === 'valid') {
+    return 'rounded-full border border-[color:var(--color-success,#0f766e)] bg-[color:rgba(15,118,110,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-success,#0f766e)]'
+  }
+  if (status === 'price_only_changed') {
+    return 'rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning,#92400e)]'
+  }
+  if (status === 'stale') {
+    return 'rounded-full border border-[color:var(--color-text-muted)] bg-[color:rgba(15,23,42,0.05)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-text-muted)]'
+  }
+  return 'rounded-full border border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-error,#b91c1c)]'
+}
+
+const availabilityToneClass = (status: TripItemValidityStatus) => {
+  if (status === 'valid') return 'text-[color:var(--color-success,#0f766e)]'
+  if (status === 'price_only_changed') return 'text-[color:var(--color-warning,#92400e)]'
+  if (status === 'stale') return 'text-[color:var(--color-text-muted)]'
+  return 'text-[color:var(--color-error,#b91c1c)]'
+}
+
+const getPrimaryAvailabilityIssue = (item: TripItem) =>
+  item.issues.find((issue) => issue.scope === 'availability') || item.issues[0] || null
+
+const formatItemAvailabilityStatus = (item: TripItem) => {
+  const primaryIssue = getPrimaryAvailabilityIssue(item)
+
+  if (item.availabilityStatus === 'valid') return 'Availability confirmed'
+  if (item.availabilityStatus === 'price_only_changed') return 'Still available, but price changed'
+  if (item.availabilityStatus === 'stale') {
+    return primaryIssue?.message || 'Availability check incomplete'
+  }
+
+  return primaryIssue?.message || 'Currently unavailable'
+}
+
+const formatItemIssueBadge = (issues: TripValidationIssue[]) => {
+  const blockingCount = issues.filter((issue) => issue.severity === 'blocking').length
+  if (blockingCount) {
+    return `${blockingCount} blocking`
+  }
+  return `${issues.length} warning${issues.length === 1 ? '' : 's'}`
 }
 
 const formatVerticalLabel = (value: TripVerticalPricing['itemType']) => {
