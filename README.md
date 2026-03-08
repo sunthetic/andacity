@@ -46,6 +46,21 @@ Development mode uses [Vite's development server](https://vitejs.dev/). The `dev
 npm start # or `pnpm start`
 ```
 
+## Database Layer
+
+Andacity now includes an initial PostgreSQL architecture using Drizzle:
+
+- Schema: `src/lib/db/schema.ts`
+- Migrations: `drizzle/*`
+- DB client/repositories: `src/lib/db/*`, `src/lib/repos/*`
+- Architecture note: `docs/database-architecture.md`
+
+Useful commands:
+
+- `pnpm db:generate`
+- `pnpm db:migrate`
+- `pnpm db:seed:plan`
+
 > Note: during dev mode, Vite may request a significant number of `.js` files. This does not represent a Qwik production build.
 
 ## Preview

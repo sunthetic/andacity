@@ -36,3 +36,21 @@ Flights are generated on demand per route pairing to avoid storing millions of s
   - `npm run seed:generate -- --vertical cars --city tokyo`
 - Generate one concrete flight route payload:
   - `npm run seed:generate -- --vertical flights --from denver --to new-york --itinerary round-trip --depart 2026-06-12`
+
+## PostgreSQL Seed Target
+
+This repo now includes a deterministic generator-to-Postgres mapping path.
+
+- Mapping module:
+  - `src/seed/db/postgres-seed-payload.js`
+- Entry script:
+  - `scripts/seed/postgres-seed.mjs`
+
+Useful commands:
+
+- Preview table row counts without writing:
+  - `npm run db:seed:plan`
+- Write normalized table JSON payloads:
+  - `node scripts/seed/postgres-seed.mjs --mode files --vertical all`
+- Apply/upsert into PostgreSQL (requires `DATABASE_URL`):
+  - `npm run db:seed`
