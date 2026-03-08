@@ -3,34 +3,20 @@ import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { useLocation } from '@builder.io/qwik-city'
 import { VerticalHeroSearchLayout } from '~/components/search/VerticalHeroSearchLayout'
-import { CAR_RENTALS } from '~/data/car-rentals'
-import { CAR_RENTAL_CITIES } from '~/data/car-rental-cities'
 import { CarRentalSearchCard } from '~/components/car-rentals/CarRentalSearchCard'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
-import { tryDbRead } from '~/lib/db/read-switch.server'
 import { loadCarRentalCitiesFromDb, loadFeaturedCarRentalsFromDb } from '~/lib/queries/car-rentals-pages.server'
 
 export const useCarRentalsIndexPage = routeLoader$(async () => {
-  return tryDbRead(
-    async () => {
-      const [cityItems, featuredRentals] = await Promise.all([
-        loadCarRentalCitiesFromDb(),
-        loadFeaturedCarRentalsFromDb(24),
-      ])
+  const [cityItems, featuredRentals] = await Promise.all([
+    loadCarRentalCitiesFromDb(),
+    loadFeaturedCarRentalsFromDb(24),
+  ])
 
-      return {
-        cityItems,
-        featuredRentals,
-      }
-    },
-    () => ({
-      cityItems: CAR_RENTAL_CITIES,
-      featuredRentals: CAR_RENTALS.slice(0, 24).map((rental) => ({
-        slug: rental.slug,
-        name: rental.name,
-      })),
-    }),
-  )
+  return {
+    cityItems,
+    featuredRentals,
+  }
 })
 
 export default component$(() => {

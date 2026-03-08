@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, lte, sql, type SQL } from 'drizzle-orm'
 import { getDb } from '~/lib/db/client.server'
 import {
   carInventory,
@@ -11,6 +11,13 @@ import {
   cities,
   regions,
 } from '~/lib/db/schema'
+import type {
+  CarRentalsPickupType,
+  CarRentalsPriceBand,
+  CarRentalsSearchFacets,
+  CarRentalsTransmission,
+} from '~/lib/search/car-rentals/filter-types'
+import type { CarRentalsSortKey } from '~/lib/search/car-rentals/car-sort-options'
 
 export type SearchCarRentalsInput = {
   citySlug: string
@@ -18,6 +25,27 @@ export type SearchCarRentalsInput = {
   dropoffDate?: string
   limit?: number
   offset?: number
+}
+
+export type SearchCarRentalsPageInput = {
+  citySlug: string
+  pickupDate?: string
+  dropoffDate?: string
+  sort?: CarRentalsSortKey
+  limit?: number
+  offset?: number
+  filters?: {
+    vehicleClassKeys?: string[]
+    pickupType?: CarRentalsPickupType | ''
+    transmission?: CarRentalsTransmission | ''
+    seatsMin?: number | null
+    priceBand?: CarRentalsPriceBand | ''
+  }
+}
+
+export type SearchCarRentalsPageResult = {
+  totalCount: number
+  rows: CarRentalSearchRow[]
 }
 
 export type CarRentalSearchRow = {
@@ -137,12 +165,18 @@ const toPickupWeekday = (pickupDate?: string) => {
   return start.getUTCDay()
 }
 
-export async function searchCarRentals(
-  input: SearchCarRentalsInput,
-): Promise<CarRentalSearchRow[]> {
-  const db = getDb()
-  const conditions = [eq(cities.slug, input.citySlug)]
+const PRICE_BAND_CENTS = {
+  under50: 5000,
+  oneHundred: 10000,
+  oneFifty: 15000,
+} as const
 
+const buildCarRentalBaseConditions = (input: {
+  citySlug: string
+  pickupDate?: string
+  dropoffDate?: string
+}): SQL[] => {
+  const conditions: SQL[] = [eq(cities.slug, input.citySlug)]
   const days = toDays(input.pickupDate, input.dropoffDate)
   const pickupWeekday = toPickupWeekday(input.pickupDate)
 
@@ -156,6 +190,77 @@ export async function searchCarRentals(
       conditions.push(sql`not (${pickupWeekday} = any(${carInventory.blockedWeekdays}))`)
     }
   }
+
+  return conditions
+}
+
+const normalizeClassKeys = (input: string[] | undefined) =>
+  Array.from(
+    new Set(
+      (input || [])
+        .map((value) =>
+          String(value || '')
+            .trim()
+            .toLowerCase(),
+        )
+        .filter(Boolean),
+    ),
+  )
+
+const buildOfferFiltersSql = (input: SearchCarRentalsPageInput['filters']) => {
+  const conditions: SQL[] = []
+  const classKeys = normalizeClassKeys(input?.vehicleClassKeys)
+  if (classKeys.length) {
+    conditions.push(inArray(carVehicleClasses.key, classKeys))
+  }
+
+  if (input?.transmission === 'automatic' || input?.transmission === 'manual') {
+    conditions.push(eq(carOffers.transmission, input.transmission))
+  }
+
+  if (input?.seatsMin != null && Number.isFinite(input.seatsMin) && input.seatsMin > 0) {
+    conditions.push(gte(carOffers.seats, input.seatsMin))
+  }
+
+  return conditions.length ? and(...conditions) : undefined
+}
+
+const getCarRentalSortOrder = (
+  sort: CarRentalsSortKey | undefined,
+  bestOfferPriceSql: SQL<number | null>,
+  bestOfferCategorySql: SQL<string | null>,
+) => {
+  const scoreSql = sql<number>`coalesce((${carInventory.score})::numeric, 0)`
+  const ratingSql = sql<number>`(${carInventory.rating})::numeric`
+  const pickupConvenienceSql =
+    sql<number>`case when ${carLocations.locationType} = 'city' then 2 else 1 end`
+  const bestPriceSql = sql<number>`coalesce(${bestOfferPriceSql}, ${carInventory.fromDailyCents})`
+  const bestCategorySafeSql = sql<string>`coalesce(${bestOfferCategorySql}, '')`
+
+  if (sort === 'price-asc') {
+    return [asc(bestPriceSql), desc(scoreSql), asc(carInventory.id)] as const
+  }
+
+  if (sort === 'price-desc') {
+    return [desc(bestPriceSql), desc(scoreSql), asc(carInventory.id)] as const
+  }
+
+  if (sort === 'vehicle-class') {
+    return [asc(bestCategorySafeSql), asc(bestPriceSql), desc(scoreSql), asc(carInventory.id)] as const
+  }
+
+  if (sort === 'pickup-convenience') {
+    return [desc(pickupConvenienceSql), asc(bestPriceSql), desc(scoreSql), asc(carInventory.id)] as const
+  }
+
+  return [desc(scoreSql), desc(ratingSql), asc(bestPriceSql), asc(carInventory.id)] as const
+}
+
+export async function searchCarRentals(
+  input: SearchCarRentalsInput,
+): Promise<CarRentalSearchRow[]> {
+  const db = getDb()
+  const conditions = buildCarRentalBaseConditions(input)
 
   const inventoryRows = await db
     .select({
@@ -245,6 +350,227 @@ export async function searchCarRentals(
       bagsLabel: offer?.bagsLabel || null,
     }
   })
+}
+
+export async function searchCarRentalsPage(
+  input: SearchCarRentalsPageInput,
+): Promise<SearchCarRentalsPageResult> {
+  const db = getDb()
+  const conditions = buildCarRentalBaseConditions(input)
+  const offerFiltersSql = buildOfferFiltersSql(input.filters)
+  const offerFilterClause = offerFiltersSql ? sql`and ${offerFiltersSql}` : sql``
+
+  const bestOfferNameSql = sql<string | null>`(
+    select ${carOffers.name}
+    from ${carOffers}
+    inner join ${carVehicleClasses} on ${carOffers.vehicleClassId} = ${carVehicleClasses.id}
+    where ${carOffers.inventoryId} = ${carInventory.id}
+    ${offerFilterClause}
+    order by ${carOffers.priceDailyCents} asc, ${carOffers.id} asc
+    limit 1
+  )`
+  const bestOfferCategorySql = sql<string | null>`(
+    select ${carVehicleClasses.category}
+    from ${carOffers}
+    inner join ${carVehicleClasses} on ${carOffers.vehicleClassId} = ${carVehicleClasses.id}
+    where ${carOffers.inventoryId} = ${carInventory.id}
+    ${offerFilterClause}
+    order by ${carOffers.priceDailyCents} asc, ${carOffers.id} asc
+    limit 1
+  )`
+  const bestOfferTransmissionSql = sql<'automatic' | 'manual' | null>`(
+    select ${carOffers.transmission}
+    from ${carOffers}
+    inner join ${carVehicleClasses} on ${carOffers.vehicleClassId} = ${carVehicleClasses.id}
+    where ${carOffers.inventoryId} = ${carInventory.id}
+    ${offerFilterClause}
+    order by ${carOffers.priceDailyCents} asc, ${carOffers.id} asc
+    limit 1
+  )`
+  const bestOfferSeatsSql = sql<number | null>`(
+    select ${carOffers.seats}
+    from ${carOffers}
+    inner join ${carVehicleClasses} on ${carOffers.vehicleClassId} = ${carVehicleClasses.id}
+    where ${carOffers.inventoryId} = ${carInventory.id}
+    ${offerFilterClause}
+    order by ${carOffers.priceDailyCents} asc, ${carOffers.id} asc
+    limit 1
+  )`
+  const bestOfferBagsLabelSql = sql<string | null>`(
+    select ${carOffers.bagsLabel}
+    from ${carOffers}
+    inner join ${carVehicleClasses} on ${carOffers.vehicleClassId} = ${carVehicleClasses.id}
+    where ${carOffers.inventoryId} = ${carInventory.id}
+    ${offerFilterClause}
+    order by ${carOffers.priceDailyCents} asc, ${carOffers.id} asc
+    limit 1
+  )`
+  const bestOfferPriceSql = sql<number | null>`(
+    select ${carOffers.priceDailyCents}
+    from ${carOffers}
+    inner join ${carVehicleClasses} on ${carOffers.vehicleClassId} = ${carVehicleClasses.id}
+    where ${carOffers.inventoryId} = ${carInventory.id}
+    ${offerFilterClause}
+    order by ${carOffers.priceDailyCents} asc, ${carOffers.id} asc
+    limit 1
+  )`
+  const bestPriceSafeSql = sql<number>`coalesce(${bestOfferPriceSql}, ${carInventory.fromDailyCents})`
+
+  conditions.push(sql`
+    exists (
+      select 1
+      from ${carOffers}
+      inner join ${carVehicleClasses} on ${carOffers.vehicleClassId} = ${carVehicleClasses.id}
+      where ${carOffers.inventoryId} = ${carInventory.id}
+      ${offerFilterClause}
+    )
+  `)
+
+  if (input.filters?.pickupType === 'airport' || input.filters?.pickupType === 'city') {
+    conditions.push(eq(carLocations.locationType, input.filters.pickupType))
+  }
+
+  if (input.filters?.priceBand === 'under-50') {
+    conditions.push(sql`${bestPriceSafeSql} < ${PRICE_BAND_CENTS.under50}`)
+  } else if (input.filters?.priceBand === '50-100') {
+    conditions.push(
+      and(
+        gte(bestPriceSafeSql, PRICE_BAND_CENTS.under50),
+        lte(bestPriceSafeSql, PRICE_BAND_CENTS.oneHundred),
+      )!,
+    )
+  } else if (input.filters?.priceBand === '100-150') {
+    conditions.push(
+      and(
+        sql`${bestPriceSafeSql} > ${PRICE_BAND_CENTS.oneHundred}`,
+        lte(bestPriceSafeSql, PRICE_BAND_CENTS.oneFifty),
+      )!,
+    )
+  } else if (input.filters?.priceBand === '150-plus') {
+    conditions.push(sql`${bestPriceSafeSql} > ${PRICE_BAND_CENTS.oneFifty}`)
+  }
+
+  const rows = await db
+    .select({
+      id: carInventory.id,
+      slug: carInventory.slug,
+      citySlug: cities.slug,
+      cityName: cities.name,
+      providerName: carProviders.name,
+      pickupArea: carLocations.name,
+      pickupType: carLocations.locationType,
+      rating: carInventory.rating,
+      reviewCount: carInventory.reviewCount,
+      fromDailyCents: bestPriceSafeSql,
+      currencyCode: carInventory.currencyCode,
+      freeCancellation: carInventory.freeCancellation,
+      payAtCounter: carInventory.payAtCounter,
+      inclusions: carInventory.inclusions,
+      imageUrl: carInventoryImages.url,
+      score: carInventory.score,
+      vehicleName: bestOfferNameSql,
+      category: bestOfferCategorySql,
+      transmission: bestOfferTransmissionSql,
+      seats: bestOfferSeatsSql,
+      bagsLabel: bestOfferBagsLabelSql,
+    })
+    .from(carInventory)
+    .innerJoin(cities, eq(carInventory.cityId, cities.id))
+    .innerJoin(carProviders, eq(carInventory.providerId, carProviders.id))
+    .innerJoin(carLocations, eq(carInventory.locationId, carLocations.id))
+    .leftJoin(
+      carInventoryImages,
+      and(
+        eq(carInventoryImages.inventoryId, carInventory.id),
+        eq(carInventoryImages.sortOrder, 0),
+      ),
+    )
+    .where(and(...conditions))
+    .orderBy(...getCarRentalSortOrder(input.sort, bestOfferPriceSql, bestOfferCategorySql))
+    .limit(input.limit ?? DEFAULT_LIMIT)
+    .offset(input.offset ?? 0)
+
+  const countRows = await db
+    .select({
+      count: sql<number>`count(*)::int`,
+    })
+    .from(carInventory)
+    .innerJoin(cities, eq(carInventory.cityId, cities.id))
+    .innerJoin(carLocations, eq(carInventory.locationId, carLocations.id))
+    .where(and(...conditions))
+
+  return {
+    totalCount: countRows[0]?.count ?? 0,
+    rows,
+  }
+}
+
+export async function listCarRentalSearchFacets(input: {
+  citySlug: string
+  pickupDate?: string
+  dropoffDate?: string
+}): Promise<CarRentalsSearchFacets> {
+  const db = getDb()
+  const conditions = buildCarRentalBaseConditions(input)
+
+  const [vehicleClassRows, pickupTypeRows, transmissionRows, seatsRows] = await Promise.all([
+    db
+      .select({
+        value: carVehicleClasses.key,
+        label: carVehicleClasses.category,
+      })
+      .from(carOffers)
+      .innerJoin(carVehicleClasses, eq(carOffers.vehicleClassId, carVehicleClasses.id))
+      .innerJoin(carInventory, eq(carOffers.inventoryId, carInventory.id))
+      .innerJoin(cities, eq(carInventory.cityId, cities.id))
+      .where(and(...conditions))
+      .groupBy(carVehicleClasses.key, carVehicleClasses.category)
+      .orderBy(asc(carVehicleClasses.category)),
+    db
+      .select({
+        pickupType: carLocations.locationType,
+      })
+      .from(carInventory)
+      .innerJoin(cities, eq(carInventory.cityId, cities.id))
+      .innerJoin(carLocations, eq(carInventory.locationId, carLocations.id))
+      .where(and(...conditions))
+      .groupBy(carLocations.locationType)
+      .orderBy(asc(carLocations.locationType)),
+    db
+      .select({
+        transmission: carOffers.transmission,
+      })
+      .from(carOffers)
+      .innerJoin(carInventory, eq(carOffers.inventoryId, carInventory.id))
+      .innerJoin(cities, eq(carInventory.cityId, cities.id))
+      .where(and(...conditions))
+      .groupBy(carOffers.transmission)
+      .orderBy(asc(carOffers.transmission)),
+    db
+      .select({
+        seats: carOffers.seats,
+      })
+      .from(carOffers)
+      .innerJoin(carInventory, eq(carOffers.inventoryId, carInventory.id))
+      .innerJoin(cities, eq(carInventory.cityId, cities.id))
+      .where(and(...conditions))
+      .groupBy(carOffers.seats)
+      .orderBy(asc(carOffers.seats)),
+  ])
+
+  const pickupTypes = pickupTypeRows
+    .map((row) => row.pickupType)
+    .filter((value): value is CarRentalsPickupType => value === 'airport' || value === 'city')
+  const transmissions = transmissionRows
+    .map((row) => row.transmission)
+    .filter((value): value is CarRentalsTransmission => value === 'automatic' || value === 'manual')
+
+  return {
+    vehicleClasses: vehicleClassRows,
+    pickupTypes,
+    transmissions,
+    seats: seatsRows.map((row) => row.seats),
+  }
 }
 
 export async function listCarRentalCities(): Promise<CarRentalCityRow[]> {

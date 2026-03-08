@@ -2,16 +2,11 @@ import { component$ } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
-import { CAR_RENTAL_CITIES } from '~/data/car-rental-cities'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
-import { tryDbRead } from '~/lib/db/read-switch.server'
 import { loadCarRentalCitiesFromDb } from '~/lib/queries/car-rentals-pages.server'
 
 export const useCarRentalCitiesPage = routeLoader$(async () => {
-  const items = await tryDbRead(
-    () => loadCarRentalCitiesFromDb(),
-    () => CAR_RENTAL_CITIES,
-  )
+  const items = await loadCarRentalCitiesFromDb()
 
   return { items }
 })

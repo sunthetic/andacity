@@ -158,16 +158,22 @@ Implemented now:
   - `/sitemaps/hotels/[page].xml`
   - `/og/hotel/[slug].png`
   - destination top stays now read from DB (`/destinations/[slug]`)
+- DB-backed Car Rentals path end-to-end (seed -> DB -> repos -> routes):
+  - `/car-rentals`
+  - `/car-rentals/in`
+  - `/car-rentals/in/[citySlug]`
+  - `/car-rentals/[slug]`
+  - `/search/car-rentals/[query]/[pageNumber]`
+  - search filters/sort/pagination are DB-backed via repository/query layer
 
 Scaffolded for next phase:
 
-- migrating detail/city pages and sitemap feeds off file-backed inventories
 - query-level performance tuning after real data volume profiling
 - richer multi-segment flight generation for stop-level realism
 
 ## Recommended Next Steps
 
-1. Migrate hotel/car detail pages to DB reads so detail cards and search pages share one inventory source.
+1. Complete Flights end-to-end DB integration so all major search verticals share the same repository/query boundary.
 2. Add integration tests for seeded DB parity against key route loaders.
 3. Add follow-up migration(s) for specialized indexes once query plans are observed (`EXPLAIN ANALYZE`).
 4. If `public` schema permissions are restricted, keep `DATABASE_URL` search path set to your app schema (for example `andacity_app,public`).

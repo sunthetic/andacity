@@ -3,10 +3,13 @@ import { routeLoader$ } from "@builder.io/qwik-city";
 import type { DocumentHead } from "@builder.io/qwik-city";
 import { CarRentalsResultsAdapter } from "~/components/car-rentals/CarRentalsResultsAdapter";
 import { Page } from "~/components/site/Page";
-import { CAR_RENTALS } from "~/data/car-rentals";
-import { tryDbRead } from "~/lib/db/read-switch.server";
-import { loadCarRentalResultsFromDb } from "~/lib/queries/car-rentals-search.server";
-import { mapCarRentalsToResults } from "~/lib/search/car-rentals/mapCarRentalsToResults";
+import {
+  EMPTY_CAR_RENTALS_FACETS,
+  loadCarRentalResultsPageFromDb,
+  normalizeCarRentalsSort,
+  parseCarRentalsSelectedFilters,
+  toCarRentalsSearchStateFilters,
+} from "~/lib/queries/car-rentals-search.server";
 import {
   clampInt,
   normalizeQuery,
@@ -17,7 +20,7 @@ import { findTopTravelCity } from "~/seed/cities/top-100.js";
 
 export const useSearchCarRentalsPage = routeLoader$(async ({ params, url }) => {
   const query = normalizeQuery(params.query);
-  const page = clampInt(params.pageNumber, 1, 9999);
+  const routePage = clampInt(params.pageNumber, 1, 9999);
   const matchedCity = findTopTravelCity(query);
   const qHuman =
     matchedCity?.name || safeTitleQuery(query).replaceAll("-", " ");
@@ -25,20 +28,11 @@ export const useSearchCarRentalsPage = routeLoader$(async ({ params, url }) => {
     String(url.searchParams.get("pickupDate") || "").trim() || null;
   const dropoffDate =
     String(url.searchParams.get("dropoffDate") || "").trim() || null;
-  const fallbackResults = () =>
-    mapCarRentalsToResults(CAR_RENTALS, query, { pickupDate, dropoffDate });
-  const results = matchedCity
-    ? await tryDbRead(
-        () => loadCarRentalResultsFromDb({ query, pickupDate, dropoffDate }),
-        fallbackResults,
-      )
-    : fallbackResults();
-
   const searchState = searchStateFromUrl(url, {
     query: qHuman,
     location: { city: qHuman },
     sort: "recommended",
-    page,
+    page: routePage,
   });
 
   if (!String(searchState.query || "").trim()) {
@@ -50,11 +44,47 @@ export const useSearchCarRentalsPage = routeLoader$(async ({ params, url }) => {
     city: qHuman,
   };
 
+  const source = matchedCity
+    ? await loadCarRentalResultsPageFromDb({
+        citySlug: matchedCity.slug,
+        query,
+        pickupDate,
+        dropoffDate,
+        sort: String(searchState.sort || "recommended"),
+        page: searchState.page || routePage,
+        pageSize: 6,
+        filters: (searchState.filters || {}) as Record<string, unknown>,
+      })
+    : {
+        totalCount: 0,
+        page: 1,
+        pageSize: 6,
+        totalPages: 1,
+        activeSort: normalizeCarRentalsSort(searchState.sort),
+        selectedFilters: parseCarRentalsSelectedFilters(
+          (searchState.filters || {}) as Record<string, unknown>,
+        ),
+        results: [],
+        facets: EMPTY_CAR_RENTALS_FACETS,
+      };
+
+  searchState.page = source.page;
+  searchState.sort = source.activeSort;
+  searchState.filters = toCarRentalsSearchStateFilters(
+    source.selectedFilters,
+    (searchState.filters || {}) as Record<string, unknown>,
+  );
+
   return {
     query,
     qHuman,
-    page,
-    results,
+    page: source.page,
+    totalCount: source.totalCount,
+    totalPages: source.totalPages,
+    activeSort: source.activeSort,
+    selectedFilters: source.selectedFilters,
+    facets: source.facets,
+    results: source.results,
     searchState,
   };
 });
@@ -85,6 +115,12 @@ export default component$(() => {
       <section class="mt-8">
         <CarRentalsResultsAdapter
           results={data.results}
+          totalCount={data.totalCount}
+          page={data.page}
+          totalPages={data.totalPages}
+          activeSort={data.activeSort}
+          selectedFilters={data.selectedFilters}
+          filterFacets={data.facets}
           searchState={data.searchState}
           queryLabel={data.qHuman}
           basePath={basePath}

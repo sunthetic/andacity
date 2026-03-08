@@ -3,47 +3,20 @@ import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { CarRentalsResultsAdapter } from '~/components/car-rentals/CarRentalsResultsAdapter'
 import { Page } from '~/components/site/Page'
-import { CAR_RENTALS } from '~/data/car-rentals'
-import { getCarRentalCityBySlug } from '~/data/car-rental-cities'
 import { CarRentalSearchCard } from '~/components/car-rentals/CarRentalSearchCard'
-import { mapCarRentalsToResults } from '~/lib/search/car-rentals/mapCarRentalsToResults'
 import { searchStateFromUrl } from '~/lib/search/url-to-state'
-import { tryDbRead } from '~/lib/db/read-switch.server'
-import { loadCarRentalCityPageFromDb } from '~/lib/queries/car-rentals-pages.server'
+import { loadCarRentalCityBySlugFromDb } from '~/lib/queries/car-rentals-pages.server'
+import {
+  loadCarRentalResultsPageFromDb,
+  toCarRentalsSearchStateFilters,
+} from '~/lib/queries/car-rentals-search.server'
 
 export const useCityCarRentals = routeLoader$(async ({ params, url, error }) => {
   const citySlug = String(params.citySlug || '').trim().toLowerCase()
   const active = parseRentalParams(url.searchParams)
-  const cityData = await tryDbRead(
-    () =>
-      loadCarRentalCityPageFromDb({
-        citySlug,
-        pickupDate: active.pickupDate,
-        dropoffDate: active.dropoffDate,
-      }),
-    () => {
-      const city = getCarRentalCityBySlug(citySlug)
-      if (!city) return null
+  const city = await loadCarRentalCityBySlugFromDb(citySlug)
+  if (!city) throw error(404, 'Not found')
 
-      const rentals = CAR_RENTALS.filter((value) => value.cityQuery === citySlug)
-      const results = mapCarRentalsToResults(rentals, city.name, {
-        pickupDate: active.pickupDate,
-        dropoffDate: active.dropoffDate,
-      })
-
-      return {
-        city,
-        results,
-        items: rentals.map((rental) => ({
-          slug: rental.slug,
-          name: rental.name,
-        })),
-      }
-    },
-  )
-  if (!cityData) throw error(404, 'Not found')
-
-  const { city, items, results } = cityData
   const searchState = searchStateFromUrl(url, {
     query: city.name,
     location: { city: city.name },
@@ -60,11 +33,38 @@ export const useCityCarRentals = routeLoader$(async ({ params, url, error }) => 
     city: city.name,
   }
 
+  const source = await loadCarRentalResultsPageFromDb({
+    citySlug,
+    query: city.name,
+    pickupDate: active.pickupDate,
+    dropoffDate: active.dropoffDate,
+    sort: String(searchState.sort || 'recommended'),
+    page: searchState.page || 1,
+    pageSize: 6,
+    filters: (searchState.filters || {}) as Record<string, unknown>,
+  })
+
+  searchState.page = source.page
+  searchState.sort = source.activeSort
+  searchState.filters = toCarRentalsSearchStateFilters(
+    source.selectedFilters,
+    (searchState.filters || {}) as Record<string, unknown>,
+  )
+
   return {
     citySlug,
     city,
-    items,
-    results,
+    page: source.page,
+    items: source.results.map((result) => ({
+      slug: result.slug,
+      name: result.name,
+    })),
+    results: source.results,
+    totalCount: source.totalCount,
+    totalPages: source.totalPages,
+    activeSort: source.activeSort,
+    selectedFilters: source.selectedFilters,
+    facets: source.facets,
     searchState,
     active,
   }
@@ -86,7 +86,7 @@ export default component$(() => {
             <span class="t-badge">
               {data.city.region}, {data.city.country}
             </span>
-            <span class="t-badge">{data.results.length} rentals</span>
+            <span class="t-badge">{data.totalCount} rentals</span>
           </div>
 
           <h1 class="mt-3 text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
@@ -135,6 +135,12 @@ export default component$(() => {
       <section class="mt-8">
         <CarRentalsResultsAdapter
           results={data.results}
+          totalCount={data.totalCount}
+          page={data.page}
+          totalPages={data.totalPages}
+          activeSort={data.activeSort}
+          selectedFilters={data.selectedFilters}
+          filterFacets={data.facets}
           searchState={data.searchState}
           queryLabel={data.city.name}
           basePath={buildCityHref(data.citySlug)}
@@ -208,7 +214,7 @@ export const head: DocumentHead = ({ resolveValue, params, url }) => {
           position: i + 1,
           name: c.name,
           url: new URL(buildCarRentalDetailHref(c.slug), url.origin).href,
-          numberOfItems: data.items.length,
+          numberOfItems: data.totalCount,
         })),
       },
     ],

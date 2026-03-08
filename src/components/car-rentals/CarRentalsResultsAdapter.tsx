@@ -17,14 +17,19 @@ import {
   toggleSavedItem,
 } from "~/lib/save-compare/saved-state";
 import { SAVE_COMPARE_STORAGE_KEY } from "~/lib/save-compare/storage";
-import { CAR_RENTALS_SORT_OPTIONS } from "~/lib/search/car-rentals/car-sort-options";
-import { mapSearchStateToCarRentals } from "~/lib/search/car-rentals/map-search-state-to-car-rentals";
+import {
+  CAR_RENTALS_SORT_OPTIONS,
+  type CarRentalsSortKey,
+} from "~/lib/search/car-rentals/car-sort-options";
+import type {
+  CarRentalsSearchFacets,
+  CarRentalsSelectedFilters,
+} from "~/lib/search/car-rentals/filter-types";
 import { searchStateToUrl } from "~/lib/search/state-to-url";
 import type { CarRentalResult } from "~/types/car-rentals/search";
 import type { SavedItem } from "~/types/save-compare/saved-item";
 import type { SearchState } from "~/types/search/state";
 
-const PAGE_SIZE = 6;
 const CARS_VERTICAL = "cars" as const;
 
 const normalizeToken = (value: string) =>
@@ -33,26 +38,6 @@ const normalizeToken = (value: string) =>
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, "-")
     .replaceAll(/(^-|-$)/g, "");
-
-const titleCase = (token: string) =>
-  normalizeToken(token)
-    .split("-")
-    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
-    .join(" ");
-
-const toPickupType = (result: CarRentalResult) => {
-  if (result.pickupType === "airport" || result.pickupType === "city")
-    return result.pickupType;
-  return result.pickupArea.toLowerCase().includes("airport")
-    ? "airport"
-    : "city";
-};
-
-const clampPage = (page: number, totalPages: number) => {
-  if (page < 1) return 1;
-  if (page > totalPages) return totalPages;
-  return page;
-};
 
 const formatDate = (isoDate: string | undefined) => {
   if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return "";
@@ -209,15 +194,7 @@ export const CarRentalsResultsAdapter = component$(
         dateParamKeys: props.urlOptions?.dateParamKeys,
       });
 
-    const mapped = mapSearchStateToCarRentals(props.results, props.searchState);
-    const requestedPage =
-      props.searchState.page && props.searchState.page > 0
-        ? props.searchState.page
-        : 1;
-    const totalPages = Math.max(1, Math.ceil(mapped.items.length / PAGE_SIZE));
-    const page = clampPage(requestedPage, totalPages);
-    const offset = (page - 1) * PAGE_SIZE;
-    const pageItems = mapped.items.slice(offset, offset + PAGE_SIZE);
+    const pageItems = props.results;
     const savedItems = useSignal<SavedItem[]>([]);
     const compareOpen = useSignal(false);
 
@@ -272,62 +249,38 @@ export const CarRentalsResultsAdapter = component$(
       (option) => ({
         label: option.label,
         value: option.value,
-        active: mapped.activeSort === option.value,
+        active: props.activeSort === option.value,
         href: toHref(withSort(props.searchState, option.value)),
       }),
     );
 
-    const classOptions = Array.from(
-      new Set(
-        props.results
-          .map((result) => normalizeToken(result.category || ""))
-          .filter(Boolean),
-      ),
-    )
-      .sort((a, b) => a.localeCompare(b))
-      .map((value) => ({
-        label: titleCase(value),
-        href: toHref(withArrayToggle(props.searchState, "class", value)),
-        active: mapped.selectedFilters.vehicleClasses.includes(value),
-      }));
+    const classOptions = props.filterFacets.vehicleClasses.map((item) => ({
+      label: item.label,
+      href: toHref(withArrayToggle(props.searchState, "class", item.value)),
+      active: props.selectedFilters.vehicleClasses.includes(item.value),
+    }));
 
-    const pickupTypeOptions = (["airport", "city"] as const)
-      .filter((pickupType) =>
-        props.results.some((result) => toPickupType(result) === pickupType),
-      )
+    const pickupTypeOptions = props.filterFacets.pickupTypes
       .map((pickupType) => ({
         label: pickupType === "airport" ? "Airport pickup" : "City pickup",
         href: toHref(withSingleToggle(props.searchState, "pickup", pickupType)),
-        active: mapped.selectedFilters.pickupType === pickupType,
+        active: props.selectedFilters.pickupType === pickupType,
       }));
 
-    const transmissionOptions = (["automatic", "manual"] as const)
-      .filter((kind) =>
-        props.results.some(
-          (result) =>
-            normalizeToken(String(result.transmission || "")) === kind,
-        ),
-      )
+    const transmissionOptions = props.filterFacets.transmissions
       .map((kind) => ({
         label: kind === "automatic" ? "Automatic" : "Manual",
         href: toHref(withSingleToggle(props.searchState, "transmission", kind)),
-        active: mapped.selectedFilters.transmission === kind,
+        active: props.selectedFilters.transmission === kind,
       }));
 
-    const seatOptions = Array.from(
-      new Set(
-        props.results
-          .map((result) => result.seats)
-          .filter((seats): seats is number => seats != null),
-      ),
-    )
-      .sort((a, b) => a - b)
+    const seatOptions = props.filterFacets.seats
       .map((seats) => ({
         label: `${seats}+ seats`,
         href: toHref(
           withSingleToggle(props.searchState, "seats", String(seats)),
         ),
-        active: mapped.selectedFilters.seatsMin === seats,
+        active: props.selectedFilters.seatsMin === seats,
       }));
 
     const priceBandOptions: {
@@ -345,7 +298,7 @@ export const CarRentalsResultsAdapter = component$(
       href: toHref(
         withSingleToggle(props.searchState, "priceBand", option.value),
       ),
-      active: mapped.selectedFilters.priceBand === option.value,
+      active: props.selectedFilters.priceBand === option.value,
     }));
 
     const filterGroups: CarRentalFilterGroup[] = [
@@ -368,25 +321,25 @@ export const CarRentalsResultsAdapter = component$(
           buildEditSearchHref(props.searchState, props.queryLabel)
         }
         filtersTitle="Car rental filters"
-        resultCountLabel={`${mapped.items.length.toLocaleString("en-US")} rentals`}
+        resultCountLabel={`${props.totalCount.toLocaleString("en-US")} rentals`}
         sortOptions={sortOptions}
         pagination={{
-          page,
-          totalPages,
+          page: props.page,
+          totalPages: props.totalPages,
           prevHref:
-            page > 1
-              ? toHref(withPage(props.searchState, page - 1))
+            props.page > 1
+              ? toHref(withPage(props.searchState, props.page - 1))
               : undefined,
           nextHref:
-            page < totalPages
-              ? toHref(withPage(props.searchState, page + 1))
+            props.page < props.totalPages
+              ? toHref(withPage(props.searchState, props.page + 1))
               : undefined,
-          pageLinks: buildPageLinks(page, totalPages, (pageNumber) =>
+          pageLinks: buildPageLinks(props.page, props.totalPages, (pageNumber) =>
             toHref(withPage(props.searchState, pageNumber)),
           ),
         }}
         empty={
-          mapped.items.length
+          props.totalCount
             ? undefined
             : {
                 title: `No car rentals match this selection in ${props.queryLabel}`,
@@ -448,6 +401,12 @@ export const CarRentalsResultsAdapter = component$(
 
 type CarRentalsResultsAdapterProps = {
   results: CarRentalResult[];
+  totalCount: number;
+  page: number;
+  totalPages: number;
+  activeSort: CarRentalsSortKey;
+  selectedFilters: CarRentalsSelectedFilters;
+  filterFacets: CarRentalsSearchFacets;
   searchState: SearchState;
   queryLabel: string;
   basePath: string;
