@@ -500,7 +500,7 @@ const VIBE_ITEMS: ThemeOption[] = [
       {
         title: 'Car rentals in New York',
         description: 'Add optional premium mobility for specific borough or regional plans.',
-        href: '/car-rentals/in/new-york-city',
+        href: '/car-rentals/in/new-york',
         cta: 'Explore rentals',
       },
     ],
@@ -752,7 +752,7 @@ const FLEX_IDEAS: IdeaOption[] = [
       {
         title: 'Car rentals in New York',
         description: 'Keep optional regional flexibility after city arrival.',
-        href: '/car-rentals/in/new-york-city',
+        href: '/car-rentals/in/new-york',
         cta: 'Explore rentals',
       },
     ],
@@ -866,10 +866,10 @@ const POPULAR_DESTINATIONS: DestinationOption[] = [
     key: 'new-york',
     name: 'New York',
     blurb: 'Dense lodging options and quick city breaks',
-    primaryLink: { label: 'Browse New York car rentals', href: '/car-rentals/in/new-york-city' },
+    primaryLink: { label: 'Browse New York car rentals', href: '/car-rentals/in/new-york' },
     flightLink: { label: 'Flights', href: buildFlightsToHref('New York') },
     hotelLink: { label: 'Hotels', href: buildHotelsDestinationHref('New York') },
-    carLink: { label: 'Car rentals', href: '/car-rentals/in/new-york-city' },
+    carLink: { label: 'Car rentals', href: '/car-rentals/in/new-york' },
     guideLink: { label: 'Destinations hub', href: '/destinations' },
   },
   {

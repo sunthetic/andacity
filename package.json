@@ -57,6 +57,11 @@
     "fmt.check": "prettier --check .",
     "lint": "eslint \"src/**/*.ts*\"",
     "preview": "qwik build preview && vite preview --open",
+    "seed:generate": "node scripts/seed/generate.mjs",
+    "seed:generate:cars": "node scripts/seed/generate.mjs --vertical cars",
+    "seed:generate:flights": "node scripts/seed/generate.mjs --vertical flights",
+    "seed:generate:hotels": "node scripts/seed/generate.mjs --vertical hotels",
+    "seed:regenerate": "node scripts/seed/generate.mjs --vertical all",
     "start": "vite --open --mode ssr",
     "qwik": "qwik"
   },

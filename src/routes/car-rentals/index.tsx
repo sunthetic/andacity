@@ -40,7 +40,7 @@ export default component$(() => {
       helperLinks={[
         { label: 'Las Vegas', href: '/car-rentals/in/las-vegas' },
         { label: 'Orlando', href: '/car-rentals/in/orlando' },
-        { label: 'New York', href: '/car-rentals/in/new-york-city' },
+        { label: 'New York', href: '/car-rentals/in/new-york' },
       ]}
     >
       <section class="mx-auto max-w-4xl">

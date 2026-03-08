@@ -3,6 +3,7 @@ import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
 import { DESTINATIONS_BY_SLUG } from '~/data/destinations'
+import { HOTELS } from '~/data/hotels'
 
 export const useDestinationPage = routeLoader$(({ params, error }) => {
   const slug = String(params.slug || '').toLowerCase().trim()
@@ -11,57 +12,25 @@ export const useDestinationPage = routeLoader$(({ params, error }) => {
   const destination = DESTINATIONS_BY_SLUG[slug]
   if (!destination) throw error(404, 'Not found')
 
-  // TODO replace with real top stays from your inventory/search index
-  const topStays: HotelCard[] = [
-    {
-      id: `${slug}-harborline`,
-      slug: 'harborline-suites-miami',
-      name: 'Harborline Suites',
-      area: destination.neighborhoods[0]?.name || 'Central',
-      rating: 4.6,
-      reviewCount: 2841,
-      from: 219,
-      currency: 'USD',
-      image: '/img/demo/hotel-1.jpg',
-      badges: ['Free cancellation', 'Great location'],
-    },
-    {
-      id: `${slug}-grand`,
-      slug: 'grand-city-hotel',
-      name: 'Grand City Hotel',
-      area: destination.neighborhoods[1]?.name || 'Downtown',
-      rating: 4.5,
-      reviewCount: 1932,
-      from: 189,
-      currency: 'USD',
-      image: '/img/demo/hotel-2.jpg',
-      badges: ['Pay later', 'Breakfast available'],
-    },
-    {
-      id: `${slug}-boutique`,
-      slug: 'the-boutique-spot',
-      name: 'The Boutique Spot',
-      area: destination.neighborhoods[2]?.name || 'Old Town',
-      rating: 4.7,
-      reviewCount: 1120,
-      from: 249,
-      currency: 'USD',
-      image: '/img/demo/hotel-3.jpg',
-      badges: ['Top rated', 'Walkable'],
-    },
-    {
-      id: `${slug}-value`,
-      slug: 'value-stay-plus',
-      name: 'Value Stay Plus',
-      area: destination.neighborhoods[0]?.name || 'Central',
-      rating: 4.3,
-      reviewCount: 980,
-      from: 139,
-      currency: 'USD',
-      image: '/img/demo/hotel-4.jpg',
-      badges: ['Best value'],
-    },
-  ]
+  const topStays: HotelCard[] = HOTELS
+    .filter((hotel) => hotel.cityQuery === destination.slug)
+    .sort((a, b) => b.rating - a.rating || a.fromNightly - b.fromNightly)
+    .slice(0, 4)
+    .map((hotel, index) => ({
+      id: `${slug}-top-${index + 1}`,
+      slug: hotel.slug,
+      name: hotel.name,
+      area: hotel.neighborhood,
+      rating: hotel.rating,
+      reviewCount: hotel.reviewCount,
+      from: hotel.fromNightly,
+      currency: hotel.currency,
+      image: hotel.images[0] || '/img/demo/hotel-1.jpg',
+      badges: [
+        hotel.policies.freeCancellation ? 'Free cancellation' : 'Flexible terms',
+        hotel.policies.payLater ? 'Pay later' : 'Book now',
+      ],
+    }))
 
   return {
     slug,

@@ -15,6 +15,7 @@ import { computeNights } from '~/lib/search/hotels/dates'
 import { FiltersPanel } from '~/components/search/filters/FiltersPanel'
 import type { FilterSectionConfig, FilterValues } from '~/components/search/filters/types'
 import { ResultsToolbar } from '~/components/search/results/ResultsToolbar'
+import { findTopTravelCity } from '~/seed/cities/top-100.js'
 
 const HOTEL_FILTER_SECTIONS: FilterSectionConfig[] = [
   {
@@ -68,15 +69,18 @@ const HOTEL_FILTER_DEFAULTS: FilterValues = {
   amenities: [],
 }
 
-export const useSearchHotelsPage = routeLoader$(({ params }) => {
+export const useSearchHotelsPage = routeLoader$(({ params, url }) => {
   const query = normalizeQuery(params.query)
   const page = clampInt(params.pageNumber, 1, 9999)
-  const results = mapHotelsToResults(HOTELS, query)
+  const checkIn = String(url.searchParams.get('checkIn') || '').trim() || null
+  const checkOut = String(url.searchParams.get('checkOut') || '').trim() || null
+  const results = mapHotelsToResults(HOTELS, query, { checkIn, checkOut })
+  const qHuman = findTopTravelCity(query)?.name || safeTitleQuery(query).replaceAll('-', ' ')
 
   return {
     query,
     page,
-    qHuman: safeTitleQuery(query),
+    qHuman,
     results,
   }
 })

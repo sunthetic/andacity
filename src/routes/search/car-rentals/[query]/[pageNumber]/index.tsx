@@ -7,12 +7,15 @@ import { CAR_RENTALS } from '~/data/car-rentals'
 import { mapCarRentalsToResults } from '~/lib/search/car-rentals/mapCarRentalsToResults'
 import { clampInt, normalizeQuery, safeTitleQuery } from '~/lib/search/car-rentals/normalize'
 import { searchStateFromUrl } from '~/lib/search/url-to-state'
+import { findTopTravelCity } from '~/seed/cities/top-100.js'
 
 export const useSearchCarRentalsPage = routeLoader$(({ params, url }) => {
   const query = normalizeQuery(params.query)
   const page = clampInt(params.pageNumber, 1, 9999)
-  const qHuman = safeTitleQuery(query)
-  const results = mapCarRentalsToResults(CAR_RENTALS, query)
+  const qHuman = findTopTravelCity(query)?.name || safeTitleQuery(query).replaceAll('-', ' ')
+  const pickupDate = String(url.searchParams.get('pickupDate') || '').trim() || null
+  const dropoffDate = String(url.searchParams.get('dropoffDate') || '').trim() || null
+  const results = mapCarRentalsToResults(CAR_RENTALS, query, { pickupDate, dropoffDate })
 
   const searchState = searchStateFromUrl(url, {
     query: qHuman,

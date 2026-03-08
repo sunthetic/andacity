@@ -5,6 +5,8 @@ import { getPublicBaseUrl, shouldIndex } from '~/lib/seo/env'
 export const onGet: RequestHandler = ({ params, url, headers, send, cacheControl }) => {
   const baseUrl = getPublicBaseUrl(url)
   const prod = shouldIndex(baseUrl)
+  const pageSize = 1000
+  const totalPages = Math.max(1, Math.ceil(HOTELS.length / pageSize))
 
   headers.set('content-type', 'application/xml; charset=utf-8')
 
@@ -19,16 +21,16 @@ export const onGet: RequestHandler = ({ params, url, headers, send, cacheControl
     headers.set('cache-control', 'no-store')
   }
 
-  // For now: single shard only
-  const page = clampInt(params.page, 1, 1)
-  if (page !== 1) {
+  const page = parsePage(params.page)
+  if (page == null || page > totalPages) {
     send(404, 'Not found')
     return
   }
 
   const origin = baseUrl.origin
 
-  const urls = HOTELS.map((h) => ({
+  const start = (page - 1) * pageSize
+  const urls = HOTELS.slice(start, start + pageSize).map((h) => ({
     loc: `${origin}/hotels/${encodeURIComponent(h.slug)}`,
     changefreq: 'daily' as const,
     priority: 0.8,
@@ -54,11 +56,9 @@ ${items
 `
 }
 
-const clampInt = (raw: string | undefined, min: number, max: number) => {
+const parsePage = (raw: string | undefined) => {
   const n = Number.parseInt(String(raw || ''), 10)
-  if (!Number.isFinite(n)) return min
-  if (n < min) return min
-  if (n > max) return max
+  if (!Number.isFinite(n) || n < 1) return null
   return n
 }
 

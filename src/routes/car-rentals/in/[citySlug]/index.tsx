@@ -17,7 +17,10 @@ export const useCityCarRentals = routeLoader$(({ params, url, error }) => {
 
   const items = CAR_RENTALS.filter((c) => c.cityQuery === citySlug)
   const active = parseRentalParams(url.searchParams)
-  const results = mapCarRentalsToResults(items, city.name)
+  const results = mapCarRentalsToResults(items, city.name, {
+    pickupDate: active.pickupDate,
+    dropoffDate: active.dropoffDate,
+  })
   const searchState = searchStateFromUrl(url, {
     query: city.name,
     location: { city: city.name },
