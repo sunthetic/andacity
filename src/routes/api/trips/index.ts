@@ -18,7 +18,10 @@ export const onGet: RequestHandler = async ({ headers, send }) => {
     sendJson(headers, send, 200, { trips })
   } catch (error) {
     if (error instanceof TripRepoError) {
-      const status = error.code === 'trip_schema_missing' ? 503 : 400
+      const status =
+        error.code === 'trip_schema_missing' || error.code === 'trip_runtime_stale'
+          ? 503
+          : 400
       sendJson(headers, send, status, { error: error.message, code: error.code })
       return
     }
@@ -36,7 +39,10 @@ export const onPost: RequestHandler = async ({ request, headers, send }) => {
     sendJson(headers, send, 201, { trip })
   } catch (error) {
     if (error instanceof TripRepoError) {
-      const status = error.code === 'trip_schema_missing' ? 503 : 400
+      const status =
+        error.code === 'trip_schema_missing' || error.code === 'trip_runtime_stale'
+          ? 503
+          : 400
       sendJson(headers, send, status, { error: error.message, code: error.code })
       return
     }

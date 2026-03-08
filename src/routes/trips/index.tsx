@@ -11,7 +11,14 @@ import {
   TripApiError,
   updateTripMetadataApi,
 } from '~/lib/trips/trips-api'
-import type { TripDetails, TripItem, TripListItem, TripStatus } from '~/types/trips/trip'
+import type {
+  TripDetails,
+  TripItem,
+  TripListItem,
+  TripPriceDriftStatus,
+  TripStatus,
+  TripVerticalPricing,
+} from '~/types/trips/trip'
 
 export const useTripsPage = routeLoader$(async ({ url }) => {
   try {
@@ -258,6 +265,9 @@ export default component$(() => {
                   <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
                     {trip.itemCount} items
                   </div>
+                  <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                    Snapshot estimate: {formatTripListEstimate(trip)}
+                  </div>
                 </button>
               ))
             ) : (
@@ -272,7 +282,7 @@ export default component$(() => {
           {activeTrip.value ? (
             <>
               <section class="t-card p-4">
-                <div class="grid gap-3 sm:grid-cols-3">
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <SummaryBlock
                     label="Trip dates"
                     value={formatTripDateRange(activeTrip.value.startDate, activeTrip.value.endDate)}
@@ -286,12 +296,33 @@ export default component$(() => {
                     }
                   />
                   <SummaryBlock
-                    label="Estimated total"
-                    value={formatMoneyFromCents(
-                      activeTrip.value.estimatedTotalCents,
-                      activeTrip.value.currencyCode,
-                    )}
+                    label="Snapshot estimate"
+                    value={formatSnapshotEstimate(activeTrip.value)}
                   />
+                  <SummaryBlock
+                    label="Live total"
+                    value={formatLiveEstimate(activeTrip.value)}
+                  />
+                </div>
+
+                {activeTrip.value.pricing.verticals.length ? (
+                  <div class="mt-4 grid gap-3 border-t border-[color:var(--color-divider)] pt-4 md:grid-cols-2 xl:grid-cols-3">
+                    {activeTrip.value.pricing.verticals.map((vertical) => (
+                      <VerticalSubtotalCard key={vertical.itemType} vertical={vertical} />
+                    ))}
+                  </div>
+                ) : null}
+
+                <div class="mt-4 rounded-xl border border-[color:var(--color-border)] px-3 py-3">
+                  <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                    Price drift summary
+                  </p>
+                  <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
+                    {formatDriftSummary(activeTrip.value)}
+                  </p>
+                  <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                    Prices are snapshotted when items are added. Indicators compare that snapshot against current pricing in the database.
+                  </p>
                 </div>
 
                 <div class="mt-4 grid gap-3 border-t border-[color:var(--color-divider)] pt-4 sm:grid-cols-[1fr_160px_auto]">
@@ -410,6 +441,25 @@ const SummaryBlock = component$((props: { label: string; value: string }) => {
   )
 })
 
+const VerticalSubtotalCard = component$((props: { vertical: TripVerticalPricing }) => {
+  return (
+    <div class="rounded-xl border border-[color:var(--color-border)] px-3 py-3">
+      <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+        {formatVerticalLabel(props.vertical.itemType)} subtotal
+      </p>
+      <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
+        Snapshot {formatVerticalSnapshot(props.vertical)}
+      </p>
+      <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+        Live {formatVerticalCurrent(props.vertical)}
+      </p>
+      <p class={['mt-2 text-xs font-medium', driftToneClass(verticalDriftStatus(props.vertical))]}>
+        {formatVerticalDrift(props.vertical)}
+      </p>
+    </div>
+  )
+})
+
 const TripItemRow = component$(
   (props: {
     item: TripItem
@@ -448,13 +498,22 @@ const TripItemRow = component$(
                 {props.item.meta.join(' · ')}
               </p>
             ) : null}
+            <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+              Snapshotted {formatDateTime(props.item.snapshotTimestamp)}
+            </p>
           </div>
 
-          <div class="text-right">
-            <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-              {formatMoneyFromCents(props.item.priceCents, props.item.currencyCode)}
+          <div class="min-w-[200px] text-right">
+            <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+              Snapshot price
             </p>
-            <div class="mt-2 flex flex-wrap justify-end gap-2">
+            <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
+              {formatMoneyFromCents(props.item.snapshotPriceCents, props.item.snapshotCurrencyCode)}
+            </p>
+            <p class={['mt-1 text-xs font-medium', driftToneClass(props.item.priceDriftStatus)]}>
+              {formatItemDrift(props.item)}
+            </p>
+            <div class="mt-3 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 class="rounded-lg border border-[color:var(--color-border)] px-2 py-1 text-xs"
@@ -496,6 +555,104 @@ const formatTripDateRange = (startDate: string | null, endDate: string | null) =
   return 'Not set'
 }
 
+const formatTripListEstimate = (trip: TripListItem) => {
+  if (!trip.itemCount) return 'No priced items'
+  if (trip.hasMixedCurrencies) return 'Mixed currencies'
+  return formatMoneyFromCents(trip.estimatedTotalCents, trip.currencyCode)
+}
+
+const formatSnapshotEstimate = (trip: TripDetails) => {
+  if (trip.pricing.hasMixedCurrencies) return 'Mixed currencies'
+  return formatMoneyFromCents(
+    trip.pricing.snapshotTotalCents ?? trip.estimatedTotalCents,
+    trip.pricing.currencyCode || trip.currencyCode,
+  )
+}
+
+const formatLiveEstimate = (trip: TripDetails) => {
+  if (trip.pricing.hasMixedCurrencies) return 'Mixed currencies'
+  if (trip.pricing.currentTotalCents == null) return 'Current price unavailable'
+  return formatMoneyFromCents(
+    trip.pricing.currentTotalCents,
+    trip.pricing.currencyCode || trip.currencyCode,
+  )
+}
+
+const formatDriftSummary = (trip: TripDetails) => {
+  const counts = trip.pricing.driftCounts
+  const parts: string[] = []
+
+  if (counts.increased) parts.push(`${counts.increased} increased`)
+  if (counts.decreased) parts.push(`${counts.decreased} decreased`)
+  if (counts.unchanged) parts.push(`${counts.unchanged} unchanged`)
+  if (counts.unavailable) parts.push(`${counts.unavailable} unavailable`)
+
+  return parts.length ? parts.join(' · ') : 'No priced items yet'
+}
+
+const formatVerticalLabel = (value: TripVerticalPricing['itemType']) => {
+  if (value === 'hotel') return 'Hotels'
+  if (value === 'flight') return 'Flights'
+  return 'Cars'
+}
+
+const formatVerticalSnapshot = (vertical: TripVerticalPricing) => {
+  if (vertical.hasMixedCurrencies) return 'Mixed currencies'
+  if (vertical.snapshotSubtotalCents == null || !vertical.currencyCode) return 'Unavailable'
+  return formatMoneyFromCents(vertical.snapshotSubtotalCents, vertical.currencyCode)
+}
+
+const formatVerticalCurrent = (vertical: TripVerticalPricing) => {
+  if (vertical.hasMixedCurrencies) return 'Mixed currencies'
+  if (vertical.currentSubtotalCents == null || !vertical.currencyCode) {
+    return 'Current price unavailable'
+  }
+  return formatMoneyFromCents(vertical.currentSubtotalCents, vertical.currencyCode)
+}
+
+const verticalDriftStatus = (vertical: TripVerticalPricing): TripPriceDriftStatus => {
+  if (vertical.hasMixedCurrencies || vertical.currentSubtotalCents == null || vertical.priceDeltaCents == null) {
+    return 'unavailable'
+  }
+  if (vertical.priceDeltaCents > 0) return 'increased'
+  if (vertical.priceDeltaCents < 0) return 'decreased'
+  return 'unchanged'
+}
+
+const formatVerticalDrift = (vertical: TripVerticalPricing) => {
+  const status = verticalDriftStatus(vertical)
+  if (status === 'unavailable') return 'Live comparison unavailable'
+  if (!vertical.currencyCode) return 'Live comparison unavailable'
+  if (status === 'unchanged') return 'No change'
+
+  return `${status === 'increased' ? '↑' : '↓'} ${formatSignedMoneyFromCents(
+    vertical.priceDeltaCents || 0,
+    vertical.currencyCode,
+  )}`
+}
+
+const formatItemDrift = (item: TripItem) => {
+  if (item.priceDriftStatus === 'unavailable' || item.currentPriceCents == null || !item.currentCurrencyCode) {
+    return 'Current price unavailable'
+  }
+
+  const currentPrice = formatMoneyFromCents(item.currentPriceCents, item.currentCurrencyCode)
+  if (item.priceDriftStatus === 'unchanged') {
+    return `No change · ${currentPrice}`
+  }
+
+  return `${item.priceDriftStatus === 'increased' ? '↑' : '↓'} Now ${currentPrice} (${formatSignedMoneyFromCents(
+    item.priceDriftCents || 0,
+    item.currentCurrencyCode,
+  )})`
+}
+
+const driftToneClass = (status: TripPriceDriftStatus) => {
+  if (status === 'increased') return 'text-[color:var(--color-error,#b91c1c)]'
+  if (status === 'decreased') return 'text-[color:var(--color-success,#0f766e)]'
+  return 'text-[color:var(--color-text-muted)]'
+}
+
 const formatDate = (value: string) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
   const [year, month, day] = value.split('-').map((part) => Number.parseInt(part, 10))
@@ -508,17 +665,37 @@ const formatDate = (value: string) => {
   }).format(date)
 }
 
-const formatMoneyFromCents = (cents: number, currency: string) => {
+const formatDateTime = (value: string) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date)
+}
+
+const formatMoneyFromCents = (cents: number | null | undefined, currency: string | null | undefined) => {
   const amount = Math.max(0, Number(cents || 0)) / 100
   try {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: currency || 'USD',
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
     }).format(amount)
   } catch {
-    return `${Math.round(amount)} ${currency || 'USD'}`
+    return `${amount.toFixed(2)} ${currency || 'USD'}`
   }
+}
+
+const formatSignedMoneyFromCents = (cents: number, currency: string) => {
+  const absolute = formatMoneyFromCents(Math.abs(cents), currency)
+  if (cents > 0) return `+${absolute}`
+  if (cents < 0) return `-${absolute}`
+  return absolute
 }
 
 const parsePositiveInt = (value: string | null) => {

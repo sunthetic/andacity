@@ -34,9 +34,9 @@ export const onPost: RequestHandler = async ({ params, request, headers, send })
       const status =
         error.code === 'trip_not_found' || error.code === 'inventory_not_found'
           ? 404
-          : error.code === 'trip_schema_missing'
+          : error.code === 'trip_schema_missing' || error.code === 'trip_runtime_stale'
             ? 503
-          : 400
+            : 400
       sendJson(headers, send, status, { error: error.message, code: error.code })
       return
     }

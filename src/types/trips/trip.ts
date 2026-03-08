@@ -4,6 +4,9 @@ export type TripStatus = (typeof TRIP_STATUSES)[number]
 export const TRIP_ITEM_TYPES = ['hotel', 'flight', 'car'] as const
 export type TripItemType = (typeof TRIP_ITEM_TYPES)[number]
 
+export const TRIP_PRICE_DRIFT_STATUSES = ['increased', 'decreased', 'unchanged', 'unavailable'] as const
+export type TripPriceDriftStatus = (typeof TRIP_PRICE_DRIFT_STATUSES)[number]
+
 export type TripItemCandidate = {
   itemType: TripItemType
   inventoryId: number
@@ -27,7 +30,28 @@ export type TripListItem = {
   endDate: string | null
   estimatedTotalCents: number
   currencyCode: string
+  hasMixedCurrencies: boolean
   updatedAt: string
+}
+
+export type TripVerticalPricing = {
+  itemType: TripItemType
+  itemCount: number
+  currencyCode: string | null
+  snapshotSubtotalCents: number | null
+  currentSubtotalCents: number | null
+  priceDeltaCents: number | null
+  hasMixedCurrencies: boolean
+}
+
+export type TripPricingSummary = {
+  currencyCode: string | null
+  snapshotTotalCents: number | null
+  currentTotalCents: number | null
+  priceDeltaCents: number | null
+  hasMixedCurrencies: boolean
+  driftCounts: Record<TripPriceDriftStatus, number>
+  verticals: TripVerticalPricing[]
 }
 
 export type TripItem = {
@@ -39,8 +63,13 @@ export type TripItem = {
   subtitle: string | null
   startDate: string | null
   endDate: string | null
-  priceCents: number
-  currencyCode: string
+  snapshotPriceCents: number
+  snapshotCurrencyCode: string
+  snapshotTimestamp: string
+  currentPriceCents: number | null
+  currentCurrencyCode: string | null
+  priceDriftStatus: TripPriceDriftStatus
+  priceDriftCents: number | null
   imageUrl: string | null
   meta: string[]
   startCityName: string | null
@@ -57,5 +86,6 @@ export type TripDetails = TripListItem & {
   notes: string | null
   metadata: Record<string, unknown>
   citiesInvolved: string[]
+  pricing: TripPricingSummary
   items: TripItem[]
 }
