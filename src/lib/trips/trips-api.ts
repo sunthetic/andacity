@@ -110,3 +110,11 @@ export const updateTripMetadataApi = async (
   })
   return payload.trip
 }
+
+export const revalidateTripApi = async (tripId: number): Promise<TripDetails> => {
+  const payload = await requestJson<{ trip: TripDetails }>(`/api/trips/${tripId}/revalidate`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+  return payload.trip
+}
