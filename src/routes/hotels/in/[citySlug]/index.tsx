@@ -1,26 +1,38 @@
 import { component$ } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { HotelsResultsAdapter } from '~/components/hotels/HotelsResultsAdapter'
 import { Page } from '~/components/site/Page'
-import { getHotelCityBySlug } from '~/data/hotel-cities'
-import { HOTELS_BY_SLUG } from '~/data/hotels'
-import { ListingCardGrid } from "~/components/vertical/ListingCardGrid"
 import { HotelCitySearchCard } from '~/components/hotels/HotelCitySearchCard'
-import { SearchEmptyState } from '~/components/search/SearchEmptyState'
+import { searchStateFromUrl } from '~/lib/search/url-to-state'
+import { loadHotelCityBySlugFromDb, loadHotelsForCityFromDb } from '~/lib/queries/hotels-pages.server'
 
-export const useHotelCityPage = routeLoader$(({ params, url, error }) => {
+export const useHotelCityPage = routeLoader$(async ({ params, url, error }) => {
   const slug = String(params.citySlug || '').toLowerCase().trim()
   if (!slug) throw error(404, 'Not found')
 
-  const city = getHotelCityBySlug(slug)
+  const city = await loadHotelCityBySlugFromDb(slug)
   if (!city) throw error(404, 'Not found')
+
+  const hotels = await loadHotelsForCityFromDb(slug)
 
   const active = parseStayParams(url.searchParams)
 
-  const hotels = city.hotelSlugs
-    .map((s) => HOTELS_BY_SLUG[s])
-    .filter(Boolean)
-    .slice(0, 18)
+  const searchState = searchStateFromUrl(url, {
+    query: city.city,
+    location: { city: city.city },
+    dates: {
+      checkIn: active.checkIn || undefined,
+      checkOut: active.checkOut || undefined,
+    },
+    sort: 'relevance',
+    page: 1,
+  })
+  searchState.query = city.city
+  searchState.location = {
+    ...(searchState.location || {}),
+    city: city.city,
+  }
 
   const searchHref = buildSearchHotelsHref({
     query: city.query,
@@ -35,6 +47,7 @@ export const useHotelCityPage = routeLoader$(({ params, url, error }) => {
     slug,
     city,
     hotels,
+    searchState,
     active,
     searchHref,
   }
@@ -118,24 +131,7 @@ export default component$(() => {
 
       {/* Featured hotels grid */}
       <section class="mt-8">
-        <div class="flex items-end justify-between gap-3">
-          <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">Featured hotels</h2>
-          <a class="text-sm text-[color:var(--color-action)] hover:underline" href={data.searchHref}>
-            View all →
-          </a>
-        </div>
-
-        {data.hotels.length ? (
-          <ListingCardGrid variant="hotels" items={data.hotels} density="compact" />
-        ) : (
-          <div class="mt-4">
-            <SearchEmptyState
-              title="No hotels are available in this city right now"
-              description={`Try a broader search from the Hotels hub or check nearby destinations around ${c.city}.`}
-              primaryAction={{ label: 'Go to Hotels', href: '/hotels' }}
-            />
-          </div>
-        )}
+        <HotelsResultsAdapter citySlug={data.slug} city={c} hotels={data.hotels} searchState={data.searchState} />
       </section>
 
       {/* Guide content (SEO) */}

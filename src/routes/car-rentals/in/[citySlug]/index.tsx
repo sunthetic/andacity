@@ -1,37 +1,77 @@
 import { component$ } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
-import { useLocation } from '@builder.io/qwik-city'
+import { CarRentalsResultsAdapter } from '~/components/car-rentals/CarRentalsResultsAdapter'
 import { Page } from '~/components/site/Page'
-import { ListingCardGrid } from '~/components/vertical/ListingCardGrid'
-import { CAR_RENTALS } from '~/data/car-rentals'
-import { getCarRentalCityBySlug } from '~/data/car-rental-cities'
 import { CarRentalSearchCard } from '~/components/car-rentals/CarRentalSearchCard'
-import { SearchEmptyState } from '~/components/search/SearchEmptyState'
+import { searchStateFromUrl } from '~/lib/search/url-to-state'
+import { loadCarRentalCityBySlugFromDb } from '~/lib/queries/car-rentals-pages.server'
+import {
+  loadCarRentalResultsPageFromDb,
+  toCarRentalsSearchStateFilters,
+} from '~/lib/queries/car-rentals-search.server'
 
-export const useCityCarRentals = routeLoader$(({ params, error }) => {
+export const useCityCarRentals = routeLoader$(async ({ params, url, error }) => {
   const citySlug = String(params.citySlug || '').trim().toLowerCase()
-  const city = getCarRentalCityBySlug(citySlug)
-
+  const active = parseRentalParams(url.searchParams)
+  const city = await loadCarRentalCityBySlugFromDb(citySlug)
   if (!city) throw error(404, 'Not found')
 
-  const items = CAR_RENTALS.filter((c) => c.cityQuery === citySlug)
+  const searchState = searchStateFromUrl(url, {
+    query: city.name,
+    location: { city: city.name },
+    dates: {
+      checkIn: active.pickupDate || undefined,
+      checkOut: active.dropoffDate || undefined,
+    },
+    sort: 'recommended',
+    page: 1,
+  })
+  searchState.query = city.name
+  searchState.location = {
+    ...(searchState.location || {}),
+    city: city.name,
+  }
+
+  const source = await loadCarRentalResultsPageFromDb({
+    citySlug,
+    query: city.name,
+    pickupDate: active.pickupDate,
+    dropoffDate: active.dropoffDate,
+    sort: String(searchState.sort || 'recommended'),
+    page: searchState.page || 1,
+    pageSize: 6,
+    filters: (searchState.filters || {}) as Record<string, unknown>,
+  })
+
+  searchState.page = source.page
+  searchState.sort = source.activeSort
+  searchState.filters = toCarRentalsSearchStateFilters(
+    source.selectedFilters,
+    (searchState.filters || {}) as Record<string, unknown>,
+  )
 
   return {
     citySlug,
     city,
-    items,
+    page: source.page,
+    items: source.results.map((result) => ({
+      slug: result.slug,
+      name: result.name,
+    })),
+    results: source.results,
+    totalCount: source.totalCount,
+    totalPages: source.totalPages,
+    activeSort: source.activeSort,
+    selectedFilters: source.selectedFilters,
+    facets: source.facets,
+    searchState,
+    active,
   }
 })
 
 export default component$(() => {
   const data = useCityCarRentals().value
-  const items = data.items
-  const loc = useLocation()
-
-  const pickupDate = String(loc.url.searchParams.get('pickupDate') || '').trim()
-  const dropoffDate = String(loc.url.searchParams.get('dropoffDate') || '').trim()
-  const drivers = String(loc.url.searchParams.get('drivers') || '').trim()
 
   return (
     <Page breadcrumbs={[
@@ -46,7 +86,7 @@ export default component$(() => {
             <span class="t-badge">
               {data.city.region}, {data.city.country}
             </span>
-            <span class="t-badge">{items.length} rentals</span>
+            <span class="t-badge">{data.totalCount} rentals</span>
           </div>
 
           <h1 class="mt-3 text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
@@ -83,9 +123,9 @@ export default component$(() => {
           <CarRentalSearchCard
             title={`Search car rentals in ${data.city.name}`}
             destinationValue={data.city.name}
-            pickupDate={pickupDate}
-            dropoffDate={dropoffDate}
-            drivers={drivers}
+            pickupDate={data.active.pickupDate || ''}
+            dropoffDate={data.active.dropoffDate || ''}
+            drivers={data.active.drivers != null ? String(data.active.drivers) : ''}
             submitLabel="See results"
             helperText="This city page is indexable. Search pages remain noindex."
           />
@@ -93,25 +133,25 @@ export default component$(() => {
       </div>
 
       <section class="mt-8">
-        <div class="flex items-end justify-between gap-3">
-          <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">Featured rentals</h2>
-          <a class="text-sm text-[color:var(--color-action)] hover:underline" href={buildSearchHref(data.city.name, 1)}>
-            View all →
-          </a>
-        </div>
-
-        {items.length ? (
-          <ListingCardGrid variant="car-rentals" items={items} />
-        ) : (
-          <div class="mt-4">
-            <SearchEmptyState
-              title="No car rentals matched this city right now"
-              description={`Try a nearby pickup location or run a broader search for ${data.city.name}.`}
-              primaryAction={{ label: 'Search car rentals again', href: '/car-rentals' }}
-              secondaryAction={{ label: 'Browse rental cities', href: '/car-rentals/in' }}
-            />
-          </div>
-        )}
+        <CarRentalsResultsAdapter
+          results={data.results}
+          totalCount={data.totalCount}
+          page={data.page}
+          totalPages={data.totalPages}
+          activeSort={data.activeSort}
+          selectedFilters={data.selectedFilters}
+          filterFacets={data.facets}
+          searchState={data.searchState}
+          queryLabel={data.city.name}
+          basePath={buildCityHref(data.citySlug)}
+          urlOptions={{
+            includeQueryParam: false,
+            includeLocationParams: false,
+            dateParamKeys: { checkIn: 'pickupDate', checkOut: 'dropoffDate' },
+          }}
+          emptyPrimaryAction={{ label: 'Search car rentals again', href: '/car-rentals' }}
+          emptySecondaryAction={{ label: 'Browse rental cities', href: '/car-rentals/in' }}
+        />
       </section>
 
       <section class="mt-8 t-card p-5">
@@ -174,7 +214,7 @@ export const head: DocumentHead = ({ resolveValue, params, url }) => {
           position: i + 1,
           name: c.name,
           url: new URL(buildCarRentalDetailHref(c.slug), url.origin).href,
-          numberOfItems: data.items.length,
+          numberOfItems: data.totalCount,
         })),
       },
     ],
@@ -207,10 +247,35 @@ const buildCityHref = (citySlug: string) => {
   return `/car-rentals/in/${encodeURIComponent(citySlug)}`
 }
 
-const buildSearchHref = (query: string, pageNumber: number) => {
-  return `/search/car-rentals/${encodeURIComponent(query)}/${encodeURIComponent(String(pageNumber))}`
-}
-
 const buildCarRentalDetailHref = (rentalSlug: string) => {
   return `/car-rentals/${encodeURIComponent(rentalSlug)}`
+}
+
+const parseRentalParams = (sp: URLSearchParams): RentalParams => {
+  const pickupDate = normalizeIsoDate(sp.get('pickupDate'))
+  const dropoffDate = normalizeIsoDate(sp.get('dropoffDate'))
+  const drivers = clampMaybeInt(sp.get('drivers'), 1, 6)
+  return { pickupDate, dropoffDate, drivers }
+}
+
+const normalizeIsoDate = (raw: string | null) => {
+  if (!raw) return null
+  const s = String(raw).trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+  return s
+}
+
+const clampMaybeInt = (raw: string | null, min: number, max: number) => {
+  if (!raw) return null
+  const n = Number.parseInt(raw, 10)
+  if (!Number.isFinite(n)) return null
+  if (n < min) return min
+  if (n > max) return max
+  return n
+}
+
+type RentalParams = {
+  pickupDate: string | null
+  dropoffDate: string | null
+  drivers: number | null
 }

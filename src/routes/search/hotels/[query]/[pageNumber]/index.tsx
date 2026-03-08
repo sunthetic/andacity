@@ -1,20 +1,26 @@
 import { $, component$, useSignal } from '@builder.io/qwik'
-import { routeLoader$ } from '@builder.io/qwik-city'
+import { routeLoader$, useLocation, useNavigate } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
-import { useLocation } from '@builder.io/qwik-city'
-import { HOTELS } from '~/data/hotels'
 import { Page } from '~/components/site/Page'
 import { HotelResultCard } from '~/components/hotels/search/HotelResultCard'
 import type { HotelResult } from '~/types/hotels/search'
-import { mapHotelsToResults } from '~/lib/search/hotels/mapHotelsToResults'
-import { clampInt, normalizeQuery, safeTitleQuery } from '~/lib/search/hotels/normalize'
+import { loadHotelResultsFromDb } from '~/lib/queries/hotels-search.server'
+import {
+  clampInt,
+  normalizeQuery,
+  safeTitleQuery,
+} from '~/lib/search/hotels/normalize'
 import { SearchMapCard } from '~/components/search/SearchMapCard'
 import { SearchResultsSummary } from '~/components/search/SearchResultsSummary'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 import { computeNights } from '~/lib/search/hotels/dates'
 import { FiltersPanel } from '~/components/search/filters/FiltersPanel'
-import type { FilterSectionConfig, FilterValues } from '~/components/search/filters/types'
+import type {
+  FilterSectionConfig,
+  FilterValues,
+} from '~/components/search/filters/types'
 import { ResultsToolbar } from '~/components/search/results/ResultsToolbar'
+import { ResultsPagination } from '~/components/results/ResultsPagination'
 
 const HOTEL_FILTER_SECTIONS: FilterSectionConfig[] = [
   {
@@ -61,80 +67,180 @@ const HOTEL_FILTER_SECTIONS: FilterSectionConfig[] = [
   },
 ]
 
-const HOTEL_FILTER_DEFAULTS: FilterValues = {
-  priceRange: [],
-  starRating: [],
-  guestRating: [],
-  amenities: [],
+const HOTEL_SORT_OPTIONS = [
+  { label: 'Recommended', value: 'recommended' },
+  { label: 'Price', value: 'price' },
+  { label: 'Rating', value: 'rating' },
+]
+
+const parseMultiValue = (url: URL, key: string) => {
+  const values = url.searchParams
+    .getAll(key)
+    .flatMap((entry) => String(entry || '').split(','))
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean)
+
+  return Array.from(new Set(values))
 }
 
-export const useSearchHotelsPage = routeLoader$(({ params }) => {
+const parseSort = (url: URL) => {
+  const value = String(url.searchParams.get('sort') || '').trim().toLowerCase()
+  if (value === 'price' || value === 'rating' || value === 'price-desc') return value
+  return 'recommended'
+}
+
+const toPageHref = (basePath: string, page: number, searchParams: URLSearchParams) => {
+  const qs = searchParams.toString()
+  return qs ? `${basePath}/${page}?${qs}` : `${basePath}/${page}`
+}
+
+const buildPageLinks = (
+  page: number,
+  totalPages: number,
+  makeHref: (pageNumber: number) => string,
+) => {
+  const links: { label: string; href: string; active?: boolean }[] = []
+  const start = Math.max(1, page - 2)
+  const end = Math.min(totalPages, start + 4)
+
+  for (let value = start; value <= end; value += 1) {
+    links.push({
+      label: String(value),
+      href: makeHref(value),
+      active: value === page,
+    })
+  }
+
+  return links
+}
+
+export const useSearchHotelsPage = routeLoader$(async ({ params, url }) => {
   const query = normalizeQuery(params.query)
   const page = clampInt(params.pageNumber, 1, 9999)
-  const results = mapHotelsToResults(HOTELS, query)
+  const checkIn = String(url.searchParams.get('checkIn') || '').trim() || null
+  const checkOut = String(url.searchParams.get('checkOut') || '').trim() || null
+
+  const filters = {
+    priceRange: parseMultiValue(url, 'priceRange'),
+    starRating: parseMultiValue(url, 'starRating'),
+    guestRating: parseMultiValue(url, 'guestRating'),
+    amenities: parseMultiValue(url, 'amenities'),
+  }
+
+  const sort = parseSort(url)
+
+  const source = await loadHotelResultsFromDb({
+    query,
+    checkIn,
+    checkOut,
+    sort,
+    page,
+    pageSize: 24,
+    filters,
+  })
+
+  const qHuman = source.matchedCity?.name || safeTitleQuery(query).replaceAll('-', ' ')
 
   return {
     query,
-    page,
-    qHuman: safeTitleQuery(query),
-    results,
+    page: source.page,
+    qHuman,
+    results: source.results,
+    totalCount: source.totalCount,
+    totalPages: source.totalPages,
+    sort,
+    filters,
   }
 })
 
 export default component$(() => {
   const data = useSearchHotelsPage().value
   const location = useLocation()
+  const navigate = useNavigate()
 
   const pathBase = `/search/hotels/${encodeURIComponent(data.query)}`
-
-  const nights = computeNights(location.url.searchParams.get('checkIn'), location.url.searchParams.get('checkOut'))
-
-  const values = useSignal<FilterValues>({ ...HOTEL_FILTER_DEFAULTS })
-  const sort = useSignal<HotelSort>('recommended')
   const mobileFiltersOpen = useSignal(false)
 
-  const onCheckboxToggle$ = $((sectionId: string, optionValue: string) => {
-    const current = values.value[sectionId]
-    if (!Array.isArray(current)) return
+  const nights = computeNights(
+    location.url.searchParams.get('checkIn'),
+    location.url.searchParams.get('checkOut'),
+  )
 
-    const nextValues = current.includes(optionValue)
-      ? current.filter((value) => value !== optionValue)
-      : [...current, optionValue]
+  const activeFilters: FilterValues = {
+    priceRange: data.filters.priceRange,
+    starRating: data.filters.starRating,
+    guestRating: data.filters.guestRating,
+    amenities: data.filters.amenities,
+  }
 
-    values.value = {
-      ...values.value,
-      [sectionId]: nextValues,
+  const onCheckboxToggle$ = $(async (sectionId: string, optionValue: string) => {
+    const params = new URLSearchParams(location.url.searchParams)
+    const key = sectionId
+    const current = new Set(
+      String(params.get(key) || '')
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean),
+    )
+
+    if (current.has(optionValue)) {
+      current.delete(optionValue)
+    } else {
+      current.add(optionValue)
     }
+
+    if (!current.size) {
+      params.delete(key)
+    } else {
+      params.set(key, Array.from(current).join(','))
+    }
+
+    await navigate(toPageHref(pathBase, 1, params))
   })
 
-  const onSelectChange$ = $((sectionId: string, value: string) => {
-    values.value = {
-      ...values.value,
-      [sectionId]: value,
-    }
+  const onSelectChange$ = $(async (sectionId: string, value: string) => {
+    void sectionId
+    void value
+    // Hotels filters are checkbox-based in this view.
   })
 
-  const onReset$ = $(() => {
-    values.value = { ...HOTEL_FILTER_DEFAULTS }
+  const onReset$ = $(async () => {
+    const params = new URLSearchParams(location.url.searchParams)
+    params.delete('priceRange')
+    params.delete('starRating')
+    params.delete('guestRating')
+    params.delete('amenities')
+    params.delete('sort')
+    await navigate(toPageHref(pathBase, 1, params))
   })
-  const onSortChange$ = $((value: string) => {
-    if (value === 'recommended' || value === 'price' || value === 'rating') {
-      sort.value = value
+
+  const onSortChange$ = $(async (value: string) => {
+    const params = new URLSearchParams(location.url.searchParams)
+    if (value === 'recommended') {
+      params.delete('sort')
+    } else if (value === 'price' || value === 'rating' || value === 'price-desc') {
+      params.set('sort', value)
     }
+
+    await navigate(toPageHref(pathBase, 1, params))
   })
+
   const onToggleFilters$ = $(() => {
     mobileFiltersOpen.value = !mobileFiltersOpen.value
   })
 
-  const filteredResults = data.results.filter((hotel) => matchesHotelFilters(hotel, values.value))
-  const sortedResults = sortHotels(filteredResults, sort.value)
   const contextParts = [`Destination: ${data.qHuman}`]
   if (nights != null) {
     contextParts.push(`${nights} ${nights === 1 ? 'night' : 'nights'}`)
   }
-  const destination = String(location.url.searchParams.get('destination') || '').trim() || data.qHuman
+
+  const destination =
+    String(location.url.searchParams.get('destination') || '').trim() ||
+    data.qHuman
   const checkIn = String(location.url.searchParams.get('checkIn') || '').trim()
-  const checkOut = String(location.url.searchParams.get('checkOut') || '').trim()
+  const checkOut = String(
+    location.url.searchParams.get('checkOut') || '',
+  ).trim()
   const guests = String(location.url.searchParams.get('guests') || '').trim()
   const searchAgainParams = new URLSearchParams()
   if (destination) {
@@ -149,26 +255,35 @@ export default component$(() => {
   if (guests) {
     searchAgainParams.set('guests', guests)
   }
-  const searchAgainHref = searchAgainParams.toString() ? `/hotels?${searchAgainParams.toString()}` : '/hotels'
+  const searchAgainHref = searchAgainParams.toString()
+    ? `/hotels?${searchAgainParams.toString()}`
+    : '/hotels'
+
+  const makePageHref = (pageNumber: number) =>
+    toPageHref(pathBase, pageNumber, location.url.searchParams)
 
   return (
-    <Page breadcrumbs={[
-      { label: 'Andacity Travel', href: '/' },
-      { label: 'Hotels', href: '/hotels' },
-      { label: 'Search', href: '/search/hotels' },
-      { label: data.qHuman, href: `${pathBase}/1` },
-    ]}>
+    <Page
+      breadcrumbs={[
+        { label: 'Andacity Travel', href: '/' },
+        { label: 'Hotels', href: '/hotels' },
+        { label: 'Search', href: '/search/hotels' },
+        { label: data.qHuman, href: `${pathBase}/1` },
+      ]}
+    >
       <div class="mt-4">
         <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
           Hotel search results
         </h1>
-        <p class="mt-2 max-w-[80ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">{contextParts.join(' · ')}</p>
+        <p class="mt-2 max-w-[80ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
+          {contextParts.join(' · ')}
+        </p>
       </div>
 
       <ResultsToolbar
         sortId="hotel-results-sort"
-        resultCountLabel={`${sortedResults.length.toLocaleString('en-US')} hotels found`}
-        sortValue={sort.value}
+        resultCountLabel={`${data.totalCount.toLocaleString('en-US')} hotels found`}
+        sortValue={data.sort}
         sortOptions={HOTEL_SORT_OPTIONS}
         mobileFiltersOpen={mobileFiltersOpen.value}
         onSortChange$={onSortChange$}
@@ -180,7 +295,7 @@ export default component$(() => {
           <FiltersPanel
             title="Filters"
             sections={HOTEL_FILTER_SECTIONS}
-            values={values.value}
+            values={activeFilters}
             onCheckboxToggle$={onCheckboxToggle$}
             onSelectChange$={onSelectChange$}
             onReset$={onReset$}
@@ -193,7 +308,7 @@ export default component$(() => {
           title="Filters"
           class="hidden lg:block"
           sections={HOTEL_FILTER_SECTIONS}
-          values={values.value}
+          values={activeFilters}
           onCheckboxToggle$={onCheckboxToggle$}
           onSelectChange$={onSelectChange$}
           onReset$={onReset$}
@@ -204,24 +319,44 @@ export default component$(() => {
 
           <section class="mt-6">
             <SearchResultsSummary
-              shown={sortedResults.length}
-              total={data.results.length}
-              page={1}
-              totalPages={1}
+              shown={data.results.length}
+              total={data.totalCount}
+              page={data.page}
+              totalPages={data.totalPages}
             />
 
             <div class="mt-4 grid gap-3">
-              {sortedResults.length ? (
-                sortedResults.map((hotel: HotelResult) => <HotelResultCard key={hotel.id} h={hotel} nights={nights} />)
+              {data.results.length ? (
+                data.results.map((hotel: HotelResult) => (
+                  <HotelResultCard key={hotel.id} h={hotel} nights={nights} />
+                ))
               ) : (
                 <SearchEmptyState
                   title="No hotels matched this search"
                   description="Try different dates, a broader destination, or fewer constraints."
-                  primaryAction={{ label: 'Search hotels again', href: searchAgainHref }}
-                  secondaryAction={{ label: 'Browse hotel cities', href: '/hotels' }}
+                  primaryAction={{
+                    label: 'Search hotels again',
+                    href: searchAgainHref,
+                  }}
+                  secondaryAction={{
+                    label: 'Browse hotel cities',
+                    href: '/hotels',
+                  }}
                 />
               )}
             </div>
+
+            <ResultsPagination
+              page={data.page}
+              totalPages={data.totalPages}
+              prevHref={data.page > 1 ? makePageHref(data.page - 1) : undefined}
+              nextHref={
+                data.page < data.totalPages
+                  ? makePageHref(data.page + 1)
+                  : undefined
+              }
+              pageLinks={buildPageLinks(data.page, data.totalPages, makePageHref)}
+            />
           </section>
         </main>
       </div>
@@ -252,75 +387,4 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
     ],
     links: [{ rel: 'canonical', href: canonicalHref }],
   }
-}
-
-const matchesHotelFilters = (hotel: HotelResult, values: FilterValues) => {
-  const selectedPriceRanges = toSelected(values.priceRange)
-  const selectedStarRatings = toSelected(values.starRating)
-  const selectedGuestRatings = toSelected(values.guestRating)
-  const selectedAmenities = toSelected(values.amenities)
-
-  if (selectedPriceRanges.length && !selectedPriceRanges.some((range) => inHotelPriceRange(hotel.priceFrom, range))) {
-    return false
-  }
-
-  if (selectedStarRatings.length && !selectedStarRatings.includes(String(hotel.stars))) {
-    return false
-  }
-
-  if (selectedGuestRatings.length) {
-    const guestScore = hotel.rating <= 5 ? hotel.rating * 2 : hotel.rating
-    if (!selectedGuestRatings.some((rating) => guestScore >= Number(rating))) {
-      return false
-    }
-  }
-
-  if (selectedAmenities.length) {
-    const normalizedAmenities = hotel.amenities.map((amenity) => amenity.toLowerCase())
-    const amenityMap: Record<string, string> = {
-      pool: 'pool',
-      wifi: 'wifi',
-      parking: 'parking',
-      'pet-friendly': 'pet',
-    }
-
-    const hasAmenity = (amenity: string) => {
-      const needle = amenityMap[amenity] ?? amenity
-      return normalizedAmenities.some((item) => item.includes(needle))
-    }
-
-    if (!selectedAmenities.every(hasAmenity)) {
-      return false
-    }
-  }
-
-  return true
-}
-
-const inHotelPriceRange = (price: number, range: string) => {
-  if (range === 'under-150') return price < 150
-  if (range === '150-300') return price >= 150 && price <= 300
-  if (range === '300-500') return price > 300 && price <= 500
-  if (range === '500-plus') return price > 500
-  return true
-}
-
-const toSelected = (value: string[] | string | undefined) => {
-  return Array.isArray(value) ? value : []
-}
-
-const HOTEL_SORT_OPTIONS = [
-  { label: 'Recommended', value: 'recommended' },
-  { label: 'Price', value: 'price' },
-  { label: 'Rating', value: 'rating' },
-]
-
-type HotelSort = 'recommended' | 'price' | 'rating'
-
-const sortHotels = (items: HotelResult[], sort: HotelSort) => {
-  return [...items].sort((a, b) => {
-    if (sort === 'price') return a.priceFrom - b.priceFrom
-    if (sort === 'rating') return b.rating - a.rating
-    return b.score - a.score
-  })
 }

@@ -2,10 +2,11 @@ import { component$ } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
-import { getCarRentalBySlug } from '~/data/car-rentals'
+import { loadCarRentalBySlugFromDb } from '~/lib/queries/car-rentals-pages.server'
 
-export const useCarRental = routeLoader$(({ params, error }) => {
-  const rental = getCarRentalBySlug(params.slug)
+export const useCarRental = routeLoader$(async ({ params, error }) => {
+  const slug = String(params.slug || '').trim().toLowerCase()
+  const rental = await loadCarRentalBySlugFromDb(slug)
 
   if (!rental) throw error(404, 'Not found')
 

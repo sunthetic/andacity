@@ -1,14 +1,11 @@
 import { component$, useSignal } from '@builder.io/qwik'
-import { useNavigate } from '@builder.io/qwik-city'
 import {
-  buildFlightsSearchPath,
   normalizeFlightItineraryType,
   slugifyLocation,
   type FlightItineraryTypeSlug,
 } from '~/lib/search/flights/routing'
 
 export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
-  const nav = useNavigate()
   const from = useSignal(props.initialFrom ?? '')
   const to = useSignal(props.initialTo ?? '')
   const depart = useSignal(props.initialDepart ?? '')
@@ -18,82 +15,57 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
   const cabin = useSignal(props.initialCabin ?? 'economy')
   const hasSubmitted = useSignal(false)
 
-  const fromValue = from.value.trim()
-  const toValue = to.value.trim()
-  const normalizedFrom = fromValue.toLowerCase()
-  const normalizedTo = toValue.toLowerCase()
-  const isRoundTrip = itineraryType.value === 'round-trip'
-
-  const errors: string[] = []
-
-  if (!fromValue.trim()) {
-    errors.push('Enter an origin city or airport.')
+  const renderSnapshot: FlightSubmitSnapshot = {
+    from: from.value,
+    to: to.value,
+    depart: depart.value,
+    ret: ret.value,
+    itineraryType: itineraryType.value,
+    travelers: travelers.value,
+    cabin: cabin.value,
   }
 
-  if (!toValue.trim()) {
-    errors.push('Enter a destination city or airport.')
-  }
-
-  if (normalizedFrom && normalizedTo && normalizedFrom === normalizedTo) {
-    errors.push('Origin and destination must be different.')
-  }
-
-  if (!depart.value) {
-    errors.push('Select a departure date.')
-  }
-
-  if (isRoundTrip && !ret.value) {
-    errors.push('Select a return date.')
-  }
-
-  if (isRoundTrip && depart.value && ret.value && ret.value < depart.value) {
-    errors.push('Return must be on or after departure.')
-  }
+  const isRoundTrip = renderSnapshot.itineraryType === 'round-trip'
+  const errors = validateFlightSubmit(renderSnapshot)
 
   const isValid = errors.length === 0
 
   return (
     <div class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-3 shadow-[var(--shadow-lg)] md:p-4">
       <form
-        action={props.action}
+        action={props.action || '/flights'}
         method="get"
         preventdefault:submit
         noValidate
-        onSubmit$={async () => {
+        onSubmit$={(_, formEl) => {
           hasSubmitted.value = true
-          if (!isValid) {
+
+          const snapshot = readFlightSubmitSnapshot(formEl)
+          const submitErrors = validateFlightSubmit(snapshot)
+          if (submitErrors.length) {
             return
           }
 
-          const fromLocationSlug = slugifyLocation(fromValue)
-          const toLocationSlug = slugifyLocation(toValue)
+          from.value = snapshot.from
+          to.value = snapshot.to
+          depart.value = snapshot.depart
+          ret.value = snapshot.ret
+          itineraryType.value = snapshot.itineraryType
+          travelers.value = snapshot.travelers
+          cabin.value = snapshot.cabin
+
+          const fromLocationSlug = slugifyLocation(snapshot.from)
+          const toLocationSlug = slugifyLocation(snapshot.to)
 
           if (!fromLocationSlug || !toLocationSlug) {
             return
           }
 
-          const routePath = buildFlightsSearchPath(fromLocationSlug, toLocationSlug, itineraryType.value, 1)
-          const searchParams = new URLSearchParams()
-          searchParams.set('depart', depart.value)
-
-          if (isRoundTrip && ret.value) {
-            searchParams.set('return', ret.value)
-          }
-
-          if (travelers.value) {
-            searchParams.set('travelers', travelers.value)
-          }
-
-          if (cabin.value) {
-            searchParams.set('cabin', cabin.value)
-          }
-
-          const query = searchParams.toString()
-          const href = query ? `${routePath}?${query}` : routePath
-          await nav(href)
+          formEl.submit()
         }}
         class="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_1fr_1fr_minmax(200px,1fr)_auto]"
       >
+        <input type="hidden" name="search" value="1" />
         <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3 md:col-span-2">
           <label
             for="flight-itinerary-type"
@@ -238,4 +210,62 @@ type FlightsSearchCardProps = {
   initialItineraryType?: FlightItineraryTypeSlug
   initialTravelers?: string
   initialCabin?: string
+}
+
+type FlightSubmitSnapshot = {
+  from: string
+  to: string
+  depart: string
+  ret: string
+  itineraryType: FlightItineraryTypeSlug
+  travelers: string
+  cabin: string
+}
+
+const readFlightSubmitSnapshot = (form: HTMLFormElement): FlightSubmitSnapshot => {
+  const fd = new FormData(form)
+
+  return {
+    from: String(fd.get('from') || '').trim(),
+    to: String(fd.get('to') || '').trim(),
+    depart: String(fd.get('depart') || '').trim(),
+    ret: String(fd.get('return') || '').trim(),
+    itineraryType: normalizeFlightItineraryType(String(fd.get('itineraryType') || '').trim()),
+    travelers: String(fd.get('travelers') || '').trim(),
+    cabin: String(fd.get('cabin') || '').trim(),
+  }
+}
+
+const validateFlightSubmit = (snapshot: FlightSubmitSnapshot) => {
+  const validationErrors: string[] = []
+
+  const normalizedFrom = snapshot.from.toLowerCase()
+  const normalizedTo = snapshot.to.toLowerCase()
+  const isRoundTrip = snapshot.itineraryType === 'round-trip'
+
+  if (!snapshot.from) {
+    validationErrors.push('Enter an origin city or airport.')
+  }
+
+  if (!snapshot.to) {
+    validationErrors.push('Enter a destination city or airport.')
+  }
+
+  if (normalizedFrom && normalizedTo && normalizedFrom === normalizedTo) {
+    validationErrors.push('Origin and destination must be different.')
+  }
+
+  if (!snapshot.depart) {
+    validationErrors.push('Select a departure date.')
+  }
+
+  if (isRoundTrip && !snapshot.ret) {
+    validationErrors.push('Select a return date.')
+  }
+
+  if (isRoundTrip && snapshot.depart && snapshot.ret && snapshot.ret < snapshot.depart) {
+    validationErrors.push('Return must be on or after departure.')
+  }
+
+  return validationErrors
 }

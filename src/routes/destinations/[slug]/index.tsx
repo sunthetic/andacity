@@ -3,65 +3,16 @@ import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
 import { DESTINATIONS_BY_SLUG } from '~/data/destinations'
+import { loadTopDestinationStaysFromDb } from '~/lib/queries/hotels-pages.server'
 
-export const useDestinationPage = routeLoader$(({ params, error }) => {
+export const useDestinationPage = routeLoader$(async ({ params, error }) => {
   const slug = String(params.slug || '').toLowerCase().trim()
   if (!slug) throw error(404, 'Not found')
 
   const destination = DESTINATIONS_BY_SLUG[slug]
   if (!destination) throw error(404, 'Not found')
 
-  // TODO replace with real top stays from your inventory/search index
-  const topStays: HotelCard[] = [
-    {
-      id: `${slug}-harborline`,
-      slug: 'harborline-suites-miami',
-      name: 'Harborline Suites',
-      area: destination.neighborhoods[0]?.name || 'Central',
-      rating: 4.6,
-      reviewCount: 2841,
-      from: 219,
-      currency: 'USD',
-      image: '/img/demo/hotel-1.jpg',
-      badges: ['Free cancellation', 'Great location'],
-    },
-    {
-      id: `${slug}-grand`,
-      slug: 'grand-city-hotel',
-      name: 'Grand City Hotel',
-      area: destination.neighborhoods[1]?.name || 'Downtown',
-      rating: 4.5,
-      reviewCount: 1932,
-      from: 189,
-      currency: 'USD',
-      image: '/img/demo/hotel-2.jpg',
-      badges: ['Pay later', 'Breakfast available'],
-    },
-    {
-      id: `${slug}-boutique`,
-      slug: 'the-boutique-spot',
-      name: 'The Boutique Spot',
-      area: destination.neighborhoods[2]?.name || 'Old Town',
-      rating: 4.7,
-      reviewCount: 1120,
-      from: 249,
-      currency: 'USD',
-      image: '/img/demo/hotel-3.jpg',
-      badges: ['Top rated', 'Walkable'],
-    },
-    {
-      id: `${slug}-value`,
-      slug: 'value-stay-plus',
-      name: 'Value Stay Plus',
-      area: destination.neighborhoods[0]?.name || 'Central',
-      rating: 4.3,
-      reviewCount: 980,
-      from: 139,
-      currency: 'USD',
-      image: '/img/demo/hotel-4.jpg',
-      badges: ['Best value'],
-    },
-  ]
+  const topStays: HotelCard[] = await loadTopDestinationStaysFromDb(destination.slug, 4)
 
   return {
     slug,

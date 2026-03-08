@@ -24,10 +24,12 @@ export type CarRentalResult = {
   city: string
   pickupArea: string
 
+  vehicleName?: string | null
   category: string | null
   transmission: string | null
   seats: number | null
-
+  bags?: string | null
+  pickupType?: 'airport' | 'city' | null
   rating: number
   reviewCount: number
   priceFrom: number

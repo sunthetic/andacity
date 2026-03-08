@@ -1,9 +1,49 @@
 import { component$ } from '@builder.io/qwik'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import type { RequestHandler } from '@builder.io/qwik-city'
 import { useLocation } from '@builder.io/qwik-city'
 import { VerticalHeroSearchLayout } from '~/components/search/VerticalHeroSearchLayout'
 import { FlightsSearchCard } from '~/components/flights/search/FlightsSearchCard'
-import { normalizeFlightItineraryType } from '~/lib/search/flights/routing'
+import { buildFlightsSearchPath, normalizeFlightItineraryType, slugifyLocation } from '~/lib/search/flights/routing'
+
+export const onGet: RequestHandler = async ({ url, redirect }) => {
+  const isSearchSubmit = String(url.searchParams.get('search') || '').trim() === '1'
+  if (!isSearchSubmit) return
+
+  const itineraryType = normalizeFlightItineraryType(String(url.searchParams.get('itineraryType') || '').trim())
+  const from = String(url.searchParams.get('from') || '').trim()
+  const to = String(url.searchParams.get('to') || '').trim()
+  const fromSlug = slugifyLocation(from)
+  const toSlug = slugifyLocation(to)
+
+  if (!fromSlug || !toSlug) return
+
+  const path = buildFlightsSearchPath(fromSlug, toSlug, itineraryType, 1)
+  const params = new URLSearchParams()
+  const depart = String(url.searchParams.get('depart') || '').trim()
+  const ret = String(url.searchParams.get('return') || '').trim()
+  const travelers = String(url.searchParams.get('travelers') || '').trim()
+  const cabin = String(url.searchParams.get('cabin') || '').trim()
+
+  if (depart) {
+    params.set('depart', depart)
+  }
+
+  if (itineraryType === 'round-trip' && ret) {
+    params.set('return', ret)
+  }
+
+  if (travelers) {
+    params.set('travelers', travelers)
+  }
+
+  if (cabin) {
+    params.set('cabin', cabin)
+  }
+
+  const query = params.toString()
+  throw redirect(302, query ? `${path}?${query}` : path)
+}
 
 export default component$(() => {
   const location = useLocation()
@@ -11,8 +51,8 @@ export default component$(() => {
   const itineraryType = normalizeFlightItineraryType(String(location.url.searchParams.get('itineraryType') || '').trim())
   const from = String(location.url.searchParams.get('from') || '').trim()
   const to = String(location.url.searchParams.get('to') || '').trim()
-  const depart = ''
-  const ret = ''
+  const depart = String(location.url.searchParams.get('depart') || '').trim()
+  const ret = String(location.url.searchParams.get('return') || '').trim()
   const travelers = String(location.url.searchParams.get('travelers') || '').trim()
   const cabin = String(location.url.searchParams.get('cabin') || '').trim()
 

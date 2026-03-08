@@ -1,13 +1,19 @@
 import { component$ } from '@builder.io/qwik'
+import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { useLocation } from '@builder.io/qwik-city'
 import { HotelSearchCard } from '~/components/hotels/search/HotelSearchCard'
 import { VerticalHeroSearchLayout } from '~/components/search/VerticalHeroSearchLayout'
-import { HOTEL_CITIES } from '~/data/hotel-cities'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
+import { loadHotelCitiesFromDb } from '~/lib/queries/hotels-pages.server'
+
+export const useHotelsIndexPage = routeLoader$(async () => {
+  const items = await loadHotelCitiesFromDb()
+  return { items }
+})
 
 export default component$(() => {
-  const items = HOTEL_CITIES
+  const { items } = useHotelsIndexPage().value
   const location = useLocation()
   const destination = String(location.url.searchParams.get('destination') || '').trim()
   const checkIn = String(location.url.searchParams.get('checkIn') || '').trim()
