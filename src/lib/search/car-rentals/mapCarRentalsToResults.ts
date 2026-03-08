@@ -6,6 +6,7 @@ export const mapCarRentalsToResults = (rentals: CarRental[], query: string): Car
 
   return rentals.map((r, i) => {
     const offer = r.offers[0] || null
+    const pickupType = r.pickupArea.toLowerCase().includes('airport') ? 'airport' : 'city'
 
     const score =
       r.rating * 0.6 +
@@ -20,9 +21,12 @@ export const mapCarRentalsToResults = (rentals: CarRental[], query: string): Car
       city: r.city,
       pickupArea: r.pickupArea,
 
+      vehicleName: offer?.name || null,
       category: offer?.category || null,
       transmission: offer?.transmission || null,
       seats: offer?.seats ?? null,
+      bags: offer?.bags || null,
+      pickupType,
 
       rating: r.rating,
       reviewCount: r.reviewCount,
