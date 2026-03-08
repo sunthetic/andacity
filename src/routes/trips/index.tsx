@@ -2528,6 +2528,9 @@ const TripEditPreviewPanel = component$(
                 rest of the itinerary.
               </p>
             ) : null}
+            <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+              Snapshotted {formatDateTime(props.item.snapshotTimestamp)}
+            </p>
           </div>
 
           <div class="flex flex-wrap gap-2">

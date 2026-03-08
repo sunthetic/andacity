@@ -770,7 +770,7 @@ const resolveCarTripItem = async (
   const fallbackSubtitle = `${row.locationName} · ${row.cityName}`
 
   return {
-    itemType: 'car' as const,
+    itemType: 'car',
     hotelId: null,
     flightItineraryId: null,
     carInventoryId: row.id,
@@ -2972,40 +2972,44 @@ export async function listTrips(): Promise<TripListItem[]> {
     const snapshotColumns = requireTripSnapshotColumns()
 
 export async function createTrip(input: CreateTripInput = {}): Promise<TripDetails> {
-  const db = getDb()
-  const name = normalizeTripName(input.name)
-  const status = normalizeTripStatus(input.status)
-  const startDate = toIsoDate(input.startDate)
-  const endDate = toIsoDate(input.endDate)
+  return withTripSchemaGuard(async () => {
+    const db = getDb()
+    const name = normalizeTripName(input.name)
+    const status = normalizeTripStatus(input.status)
+    const startDate = toIsoDate(input.startDate)
+    const endDate = toIsoDate(input.endDate)
 
-  const [inserted] = await db
-    .insert(trips)
-    .values({
-      name,
-      status,
-      notes: input.notes || null,
-      metadata: normalizeMetadata(input.metadata),
+    const [inserted] = await db
+      .insert(trips)
+      .values({
+        name,
+        status,
+        notes: input.notes || null,
+        metadata: normalizeMetadata(input.metadata),
+      })
+      .returning({ id: trips.id })
+
+    await db.insert(tripDates).values({
+      tripId: inserted.id,
+      source: startDate || endDate ? 'manual' : 'auto',
+      startDate,
+      endDate,
     })
-    .returning({ id: trips.id })
 
-  await db.insert(tripDates).values({
-    tripId: inserted.id,
-    source: startDate || endDate ? 'manual' : 'auto',
-    startDate,
-    endDate,
+    const details = await getTripDetails(inserted.id)
+    if (!details) {
+      throw new TripRepoError('trip_not_found', `Trip ${inserted.id} was not found after creation.`)
+    }
+
+    return details
   })
-
-  const details = await getTripDetails(inserted.id)
-  if (!details) {
-    throw new TripRepoError('trip_not_found', `Trip ${inserted.id} was not found after creation.`)
-  }
-
-  return details
 }
 
 export async function listTrips(): Promise<TripListItem[]> {
-  const db = getDb()
-  try {
+  return withTripSchemaGuard(async () => {
+    const db = getDb()
+    const snapshotColumns = requireTripSnapshotColumns()
+
     const itemAgg = db
       .select({
         tripId: tripItems.tripId,
