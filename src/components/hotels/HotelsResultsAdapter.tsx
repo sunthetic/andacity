@@ -197,7 +197,10 @@ const buildEditSearchHref = (cityName: string, dates: SearchState["dates"]) => {
 const buildHotelDetailHref = (hotelSlug: string) =>
   `/hotels/${encodeURIComponent(hotelSlug)}`;
 
-const toSavedHotelItem = (hotel: Hotel): SavedItem => ({
+const toSavedHotelItem = (
+  hotel: Hotel,
+  dates: SearchState["dates"],
+): SavedItem => ({
   id: hotel.slug,
   vertical: HOTELS_VERTICAL,
   title: hotel.name,
@@ -210,6 +213,25 @@ const toSavedHotelItem = (hotel: Hotel): SavedItem => ({
   ],
   href: buildHotelDetailHref(hotel.slug),
   image: hotel.images[0] || undefined,
+  tripCandidate:
+    hotel.inventoryId != null
+      ? {
+          itemType: "hotel",
+          inventoryId: hotel.inventoryId,
+          startDate: dates?.checkIn,
+          endDate: dates?.checkOut,
+          priceCents: Math.round(hotel.fromNightly * 100),
+          currencyCode: hotel.currency,
+          title: hotel.name,
+          subtitle: `${hotel.neighborhood} · ${hotel.stars}★`,
+          imageUrl: hotel.images[0] || undefined,
+          meta: [
+            `${hotel.reviewCount.toLocaleString("en-US")} reviews`,
+            ...(hotel.policies.freeCancellation ? ["Free cancellation"] : []),
+            ...(hotel.policies.payLater ? ["Pay later"] : []),
+          ],
+        }
+      : undefined,
 });
 
 const buildPageLinks = (
@@ -472,7 +494,7 @@ export const HotelsResultsAdapter = component$(
 
         <div class="grid gap-3 sm:grid-cols-2">
           {pageItems.map((hotel) => {
-            const savedItem = toSavedHotelItem(hotel);
+            const savedItem = toSavedHotelItem(hotel, props.searchState.dates);
 
             return (
               <HotelCard

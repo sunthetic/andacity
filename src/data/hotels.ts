@@ -63,6 +63,7 @@ export type HotelAvailability = {
 };
 
 export type Hotel = {
+  inventoryId?: number;
   slug: string;
   name: string;
   city: string;

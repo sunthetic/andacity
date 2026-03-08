@@ -2,6 +2,7 @@ import { component$, type QRL } from "@builder.io/qwik";
 import type { CarRentalResult } from "~/types/car-rentals/search";
 import { formatMoney } from "~/lib/formatMoney";
 import { SaveButton } from "~/components/save-compare/SaveButton";
+import { AddToTripButton } from "~/components/trips/AddToTripButton";
 import type { SavedItem } from "~/types/save-compare/saved-item";
 
 export const CarRentalCard = component$((props: CarRentalCardProps) => {
@@ -51,6 +52,12 @@ export const CarRentalCard = component$((props: CarRentalCardProps) => {
                       props.onToggleSave$(props.savedItem);
                     }}
                   />
+                </div>
+              ) : null}
+
+              {props.savedItem ? (
+                <div class="mb-2">
+                  <AddToTripButton item={props.savedItem} />
                 </div>
               ) : null}
 

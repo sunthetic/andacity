@@ -3,6 +3,8 @@ export type FlightTimeWindow = 'morning' | 'afternoon' | 'evening' | 'overnight'
 
 export type FlightResult = {
   id: string
+  itineraryId?: number
+  serviceDate?: string
   airline: string
   origin: string
   destination: string

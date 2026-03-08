@@ -1,0 +1,41 @@
+import type { RequestHandler } from '@builder.io/qwik-city'
+import { parseItemIdParam, parseTripIdParam } from '~/lib/queries/trips.server'
+import { removeItemFromTrip, TripRepoError } from '~/lib/repos/trips-repo.server'
+
+const sendJson = (
+  headers: Headers,
+  send: (status: number, body: string) => void,
+  status: number,
+  body: unknown,
+) => {
+  headers.set('content-type', 'application/json; charset=utf-8')
+  send(status, JSON.stringify(body))
+}
+
+export const onDelete: RequestHandler = async ({ params, headers, send }) => {
+  const tripId = parseTripIdParam(params.tripId)
+  const itemId = parseItemIdParam(params.itemId)
+  if (!tripId || !itemId) {
+    sendJson(headers, send, 400, { error: 'Invalid trip id or item id.' })
+    return
+  }
+
+  try {
+    const trip = await removeItemFromTrip(tripId, itemId)
+    sendJson(headers, send, 200, { trip })
+  } catch (error) {
+    if (error instanceof TripRepoError) {
+      const status =
+        error.code === 'trip_not_found' || error.code === 'trip_item_not_found'
+          ? 404
+          : error.code === 'trip_schema_missing'
+            ? 503
+          : 400
+      sendJson(headers, send, status, { error: error.message, code: error.code })
+      return
+    }
+
+    const message = error instanceof Error ? error.message : 'Failed to remove trip item.'
+    sendJson(headers, send, 500, { error: message })
+  }
+}

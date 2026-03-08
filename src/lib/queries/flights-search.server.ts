@@ -219,6 +219,8 @@ export async function loadFlightResultsPageFromDb(
       const stops = clampStops(Number(row.stops))
       return {
         id: row.seedKey || `flight-${row.id}-${effectiveOffset + index}`,
+        itineraryId: row.id,
+        serviceDate: row.serviceDate,
         airline: row.airline,
         origin: `${fromCity.name} (${row.originIata})`,
         destination: `${toCity.name} (${row.destinationIata})`,

@@ -7,6 +7,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgSchema,
@@ -50,6 +51,9 @@ export const carTransmissionEnum = dbEnum('car_transmission', ['automatic', 'man
 export const flightItineraryTypeEnum = dbEnum('flight_itinerary_type', ['one-way', 'round-trip'])
 export const flightCabinClassEnum = dbEnum('flight_cabin_class', ['economy', 'premium-economy', 'business', 'first'])
 export const flightTimeWindowEnum = dbEnum('flight_time_window', ['morning', 'afternoon', 'evening', 'overnight'])
+export const tripStatusEnum = dbEnum('trip_status', ['draft', 'planning', 'ready', 'archived'])
+export const tripDateSourceEnum = dbEnum('trip_date_source', ['auto', 'manual'])
+export const tripItemTypeEnum = dbEnum('trip_item_type', ['hotel', 'flight', 'car'])
 
 export const countries = dbTable(
   'countries',
@@ -619,6 +623,118 @@ export const flightFares = dbTable(
   }),
 )
 
+export const trips = dbTable(
+  'trips',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    name: varchar('name', { length: 180 }).notNull().default('Untitled trip'),
+    status: tripStatusEnum('status').notNull().default('draft'),
+    notes: text('notes'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    statusIdx: index('trips_status_idx').on(table.status),
+    updatedIdx: index('trips_updated_idx').on(table.updatedAt),
+  }),
+)
+
+export const tripDates = dbTable(
+  'trip_dates',
+  {
+    tripId: bigint('trip_id', { mode: 'number' })
+      .notNull()
+      .references(() => trips.id, { onDelete: 'cascade' }),
+    source: tripDateSourceEnum('source').notNull().default('auto'),
+    startDate: date('start_date'),
+    endDate: date('end_date'),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.tripId], name: 'trip_dates_pk' }),
+    datesCheck: check(
+      'trip_dates_order_ck',
+      sql`${table.startDate} is null or ${table.endDate} is null or ${table.startDate} <= ${table.endDate}`,
+    ),
+  }),
+)
+
+export const tripItems = dbTable(
+  'trip_items',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    tripId: bigint('trip_id', { mode: 'number' })
+      .notNull()
+      .references(() => trips.id, { onDelete: 'cascade' }),
+    itemType: tripItemTypeEnum('item_type').notNull(),
+    position: integer('position').notNull().default(0),
+    hotelId: bigint('hotel_id', { mode: 'number' }).references(() => hotels.id, {
+      onDelete: 'restrict',
+    }),
+    flightItineraryId: bigint('flight_itinerary_id', { mode: 'number' }).references(
+      () => flightItineraries.id,
+      { onDelete: 'restrict' },
+    ),
+    carInventoryId: bigint('car_inventory_id', { mode: 'number' }).references(() => carInventory.id, {
+      onDelete: 'restrict',
+    }),
+    startCityId: bigint('start_city_id', { mode: 'number' }).references(() => cities.id, {
+      onDelete: 'set null',
+    }),
+    endCityId: bigint('end_city_id', { mode: 'number' }).references(() => cities.id, {
+      onDelete: 'set null',
+    }),
+    startDate: date('start_date'),
+    endDate: date('end_date'),
+    priceCents: integer('price_cents').notNull().default(0),
+    currencyCode: varchar('currency_code', { length: 3 }).notNull().default('USD'),
+    title: varchar('title', { length: 220 }).notNull(),
+    subtitle: varchar('subtitle', { length: 280 }),
+    imageUrl: text('image_url'),
+    meta: text('meta').array().notNull().default(sql`'{}'::text[]`),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    snapshotAt: timestamp('snapshot_at', { withTimezone: true }).defaultNow().notNull(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    tripIdx: index('trip_items_trip_idx').on(table.tripId),
+    tripTypeIdx: index('trip_items_trip_type_idx').on(table.tripId, table.itemType),
+    hotelIdx: index('trip_items_hotel_idx').on(table.hotelId),
+    flightIdx: index('trip_items_flight_idx').on(table.flightItineraryId),
+    carIdx: index('trip_items_car_idx').on(table.carInventoryId),
+    startCityIdx: index('trip_items_start_city_idx').on(table.startCityId),
+    endCityIdx: index('trip_items_end_city_idx').on(table.endCityId),
+    tripPositionUq: uniqueIndex('trip_items_trip_position_uq').on(table.tripId, table.position),
+    positionCheck: check('trip_items_position_ck', sql`${table.position} >= 0`),
+    datesCheck: check(
+      'trip_items_dates_ck',
+      sql`${table.startDate} is null or ${table.endDate} is null or ${table.startDate} <= ${table.endDate}`,
+    ),
+    inventoryRefCheck: check(
+      'trip_items_inventory_ref_ck',
+      sql`(
+          ${table.itemType} = 'hotel'
+          and ${table.hotelId} is not null
+          and ${table.flightItineraryId} is null
+          and ${table.carInventoryId} is null
+        ) or (
+          ${table.itemType} = 'flight'
+          and ${table.hotelId} is null
+          and ${table.flightItineraryId} is not null
+          and ${table.carInventoryId} is null
+        ) or (
+          ${table.itemType} = 'car'
+          and ${table.hotelId} is null
+          and ${table.flightItineraryId} is null
+          and ${table.carInventoryId} is not null
+        )`,
+    ),
+  }),
+)
+
 export const countriesRelations = relations(countries, ({ many }) => ({
   regions: many(regions),
   cities: many(cities),
@@ -647,6 +763,8 @@ export const citiesRelations = relations(cities, ({ one, many }) => ({
   carInventory: many(carInventory),
   originFlightRoutes: many(flightRoutes, { relationName: 'origin_city_routes' }),
   destinationFlightRoutes: many(flightRoutes, { relationName: 'destination_city_routes' }),
+  tripItemsAsStartCity: many(tripItems, { relationName: 'trip_item_start_city' }),
+  tripItemsAsEndCity: many(tripItems, { relationName: 'trip_item_end_city' }),
 }))
 
 export const airportsRelations = relations(airports, ({ one, many }) => ({
@@ -676,6 +794,7 @@ export const hotelsRelations = relations(hotels, ({ one, many }) => ({
   amenityLinks: many(hotelAmenityLinks),
   offers: many(hotelOffers),
   availabilitySnapshots: many(hotelAvailabilitySnapshots),
+  tripItems: many(tripItems),
 }))
 
 export const hotelImagesRelations = relations(hotelImages, ({ one }) => ({
@@ -749,6 +868,7 @@ export const carInventoryRelations = relations(carInventory, ({ one, many }) => 
   }),
   images: many(carInventoryImages),
   offers: many(carOffers),
+  tripItems: many(tripItems),
 }))
 
 export const carInventoryImagesRelations = relations(carInventoryImages, ({ one }) => ({
@@ -809,6 +929,7 @@ export const flightItinerariesRelations = relations(flightItineraries, ({ one, m
   }),
   segments: many(flightSegments),
   fares: many(flightFares),
+  tripItems: many(tripItems),
 }))
 
 export const flightSegmentsRelations = relations(flightSegments, ({ one }) => ({
@@ -834,5 +955,49 @@ export const flightFaresRelations = relations(flightFares, ({ one }) => ({
   itinerary: one(flightItineraries, {
     fields: [flightFares.itineraryId],
     references: [flightItineraries.id],
+  }),
+}))
+
+export const tripsRelations = relations(trips, ({ one, many }) => ({
+  dates: one(tripDates, {
+    fields: [trips.id],
+    references: [tripDates.tripId],
+  }),
+  items: many(tripItems),
+}))
+
+export const tripDatesRelations = relations(tripDates, ({ one }) => ({
+  trip: one(trips, {
+    fields: [tripDates.tripId],
+    references: [trips.id],
+  }),
+}))
+
+export const tripItemsRelations = relations(tripItems, ({ one }) => ({
+  trip: one(trips, {
+    fields: [tripItems.tripId],
+    references: [trips.id],
+  }),
+  hotel: one(hotels, {
+    fields: [tripItems.hotelId],
+    references: [hotels.id],
+  }),
+  flightItinerary: one(flightItineraries, {
+    fields: [tripItems.flightItineraryId],
+    references: [flightItineraries.id],
+  }),
+  carInventory: one(carInventory, {
+    fields: [tripItems.carInventoryId],
+    references: [carInventory.id],
+  }),
+  startCity: one(cities, {
+    fields: [tripItems.startCityId],
+    references: [cities.id],
+    relationName: 'trip_item_start_city',
+  }),
+  endCity: one(cities, {
+    fields: [tripItems.endCityId],
+    references: [cities.id],
+    relationName: 'trip_item_end_city',
   }),
 }))

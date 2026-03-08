@@ -273,6 +273,7 @@ export async function loadCarRentalResultsPageFromDb(
 
       return {
         id: `car-${row.slug}-${effectiveOffset + index}`,
+        inventoryId: row.id,
         slug: row.slug,
         name: row.providerName,
         city: row.cityName,

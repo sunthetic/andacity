@@ -88,6 +88,20 @@ Design notes:
 - segment table enables future route-shape detail expansion
 - fare table allows multiple fare families per itinerary
 
+### Trips (Planning Foundation)
+
+- `trips`
+- `trip_dates`
+- `trip_items`
+
+Design notes:
+
+- `trips` stores planning metadata (`name`, `status`, `notes`, `metadata`) with no booking/payment coupling
+- `trip_dates` holds overall trip date span with `auto` vs `manual` source for future planner controls
+- `trip_items` normalizes hotel / flight / car segments with strict FK references to inventory entities
+- item snapshots include lightweight render fields (title/subtitle/meta/image + price snapshot) without large blobs
+- explicit item ordering (`position`) supports itinerary segment reorder flows
+
 ## Seed-to-DB Mapping
 
 ### Deterministic seed source
@@ -132,10 +146,12 @@ Examples:
   - `src/lib/repos/hotels-repo.server.ts`
   - `src/lib/repos/car-rentals-repo.server.ts`
   - `src/lib/repos/flights-repo.server.ts`
+  - `src/lib/repos/trips-repo.server.ts`
 - Query mapping boundary:
   - `src/lib/queries/hotels-search.server.ts`
   - `src/lib/queries/car-rentals-search.server.ts`
   - `src/lib/queries/flights-search.server.ts`
+  - `src/lib/queries/trips.server.ts`
 - Runtime read switch:
   - `src/lib/db/read-switch.server.ts`
 

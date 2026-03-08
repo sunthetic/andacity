@@ -169,7 +169,10 @@ const buildEditSearchHref = (state: SearchState, queryLabel: string) => {
 const buildCarRentalDetailHref = (rentalSlug: string) =>
   `/car-rentals/${encodeURIComponent(rentalSlug)}`;
 
-const toSavedCarItem = (result: CarRentalResult): SavedItem => ({
+const toSavedCarItem = (
+  result: CarRentalResult,
+  dates: SearchState["dates"],
+): SavedItem => ({
   id: result.id,
   vertical: CARS_VERTICAL,
   title: result.name,
@@ -183,6 +186,26 @@ const toSavedCarItem = (result: CarRentalResult): SavedItem => ({
   ].filter(Boolean),
   href: buildCarRentalDetailHref(result.slug),
   image: result.image || undefined,
+  tripCandidate:
+    result.inventoryId != null
+      ? {
+          itemType: "car",
+          inventoryId: result.inventoryId,
+          startDate: dates?.checkIn,
+          endDate: dates?.checkOut,
+          priceCents: Math.round(result.priceFrom * 100),
+          currencyCode: result.currency,
+          title: result.name,
+          subtitle: result.vehicleName || result.category || "Standard car",
+          imageUrl: result.image || undefined,
+          meta: [
+            result.pickupArea,
+            result.transmission || "",
+            result.seats != null ? `${result.seats} seats` : "",
+            result.bags || "",
+          ].filter(Boolean),
+        }
+      : undefined,
 });
 
 export const CarRentalsResultsAdapter = component$(
@@ -361,7 +384,7 @@ export const CarRentalsResultsAdapter = component$(
 
         <div class="grid gap-3">
           {pageItems.map((result) => {
-            const savedItem = toSavedCarItem(result);
+            const savedItem = toSavedCarItem(result, props.searchState.dates);
 
             return (
               <CarRentalCard

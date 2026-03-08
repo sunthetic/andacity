@@ -19,6 +19,7 @@ export type ActiveFilters = {
 
 export type CarRentalResult = {
   id: string
+  inventoryId?: number
   slug: string
   name: string
   city: string
