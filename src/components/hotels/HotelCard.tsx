@@ -1,0 +1,64 @@
+import { component$ } from '@builder.io/qwik'
+import type { Hotel } from '~/data/hotels'
+import { formatMoney } from '~/lib/formatMoney'
+
+export const HotelCard = component$((props: HotelCardProps) => {
+  const h = props.hotel
+
+  return (
+    <article class="t-card overflow-hidden">
+      <a class="block" href={buildHotelDetailHref(h.slug)}>
+        <div class="bg-[color:var(--color-neutral-50)]">
+          <img
+            class="h-40 w-full object-cover"
+            src={h.images[0] || '/img/demo/hotel-1.jpg'}
+            alt={h.name}
+            loading="lazy"
+            width={640}
+            height={320}
+          />
+        </div>
+      </a>
+
+      <div class="p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <a
+              class="text-sm font-semibold text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
+              href={buildHotelDetailHref(h.slug)}
+            >
+              {h.name}
+            </a>
+            <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+              {h.neighborhood} · {h.stars}★ · {h.rating.toFixed(1)} ({h.reviewCount.toLocaleString('en-US')})
+            </p>
+          </div>
+
+          <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+            {formatMoney(h.fromNightly, h.currency)}
+            <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">/night</span>
+          </div>
+        </div>
+
+        <div class="mt-3 flex flex-wrap gap-2">
+          {h.policies.freeCancellation ? (
+            <span class="t-badge t-badge--deal">Free cancellation</span>
+          ) : (
+            <span class="t-badge">Cancellation varies</span>
+          )}
+          {h.policies.payLater ? (
+            <span class="t-badge t-badge--deal">Pay later</span>
+          ) : (
+            <span class="t-badge">Prepay</span>
+          )}
+        </div>
+      </div>
+    </article>
+  )
+})
+
+type HotelCardProps = {
+  hotel: Hotel
+}
+
+const buildHotelDetailHref = (hotelSlug: string) => `/hotels/${encodeURIComponent(hotelSlug)}`
