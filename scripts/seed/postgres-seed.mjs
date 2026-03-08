@@ -9,12 +9,28 @@ import {
 } from "../../src/seed/db/postgres-seed-payload.js";
 
 const DEFAULT_OUT_DIR = path.resolve(process.cwd(), "seed/output/postgres");
+const DEFAULT_DB_SCHEMA = "andacity_app";
+const IDENTIFIER_RE = /^[a-z_][a-z0-9_]*$/;
+
+const normalizeSchemaName = (value) => {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return IDENTIFIER_RE.test(normalized) ? normalized : DEFAULT_DB_SCHEMA;
+};
+
+const quoteIdentifier = (value) => `"${String(value).replaceAll('"', '""')}"`;
+
+const schemaQualified = (schema, tableName) =>
+  `${quoteIdentifier(schema)}.${quoteIdentifier(tableName)}`;
 
 const parseArgs = (argv) => {
   const args = {
     mode: "plan",
     vertical: "all",
     outDir: DEFAULT_OUT_DIR,
+    schema: normalizeSchemaName(process.env.DB_SCHEMA),
+    reset: false,
     city: "",
     from: "",
     to: "",
@@ -78,6 +94,17 @@ const parseArgs = (argv) => {
     if (token === "--out" && value) {
       args.outDir = path.resolve(process.cwd(), value);
       i += 1;
+      continue;
+    }
+
+    if (token === "--schema" && value) {
+      args.schema = normalizeSchemaName(value);
+      i += 1;
+      continue;
+    }
+
+    if (token === "--reset") {
+      args.reset = true;
       continue;
     }
 
@@ -1097,7 +1124,32 @@ const upsertFlightFares = async (client, rows, refs) => {
   }
 };
 
-const applyPayload = async (payload) => {
+const resetSeedTables = async (client, schema) => {
+  const tables = [...TABLE_INSERT_ORDER].reverse();
+  if (!tables.length) return;
+
+  const tableList = tables.map((table) => schemaQualified(schema, table)).join(", ");
+  await client.query(`truncate table ${tableList} restart identity cascade`);
+};
+
+const readTableCounts = async (client, schema, payload) => {
+  const counts = {};
+
+  for (const table of TABLE_INSERT_ORDER) {
+    const sourceRows = payload.tables[table] || [];
+    if (!sourceRows.length) continue;
+
+    const result = await client.query(
+      `select count(*)::int as count from ${schemaQualified(schema, table)}`,
+    );
+
+    counts[table] = result.rows[0]?.count ?? 0;
+  }
+
+  return counts;
+};
+
+const applyPayload = async (payload, options = {}) => {
   const databaseUrl =
     process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
   if (!databaseUrl) {
@@ -1106,13 +1158,20 @@ const applyPayload = async (payload) => {
     );
   }
 
+  const schema = normalizeSchemaName(options.schema || process.env.DB_SCHEMA);
+  const reset = Boolean(options.reset);
   const refs = createReferenceState();
   const client = new Client({ connectionString: databaseUrl });
 
   await client.connect();
 
   try {
+    await client.query(`create schema if not exists ${quoteIdentifier(schema)}`);
+    await client.query(`set search_path to ${quoteIdentifier(schema)}, public`);
     await client.query("begin");
+    if (reset) {
+      await resetSeedTables(client, schema);
+    }
 
     await upsertCountries(client, payload.tables.countries, refs);
     await upsertRegions(client, payload.tables.regions, refs);
@@ -1161,6 +1220,11 @@ const applyPayload = async (payload) => {
     await upsertFlightFares(client, payload.tables.flight_fares, refs);
 
     await client.query("commit");
+    const persistedCounts = await readTableCounts(client, schema, payload);
+    return {
+      schema,
+      persistedCounts,
+    };
   } catch (error) {
     await client.query("rollback");
     throw error;
@@ -1205,7 +1269,10 @@ const run = async () => {
     return;
   }
 
-  await applyPayload(payload);
+  const result = await applyPayload(payload, {
+    schema: args.schema,
+    reset: args.reset,
+  });
 
   console.log(
     JSON.stringify(
@@ -1213,6 +1280,9 @@ const run = async () => {
         applied: true,
         meta: payload.meta,
         rowCounts: payload.rowCounts,
+        targetSchema: result.schema,
+        persistedCounts: result.persistedCounts,
+        reset: args.reset,
       },
       null,
       2,

@@ -3,8 +3,6 @@ import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
 import { DESTINATIONS_BY_SLUG } from '~/data/destinations'
-import { HOTELS } from '~/data/hotels'
-import { tryDbRead } from '~/lib/db/read-switch.server'
 import { loadTopDestinationStaysFromDb } from '~/lib/queries/hotels-pages.server'
 
 export const useDestinationPage = routeLoader$(async ({ params, error }) => {
@@ -14,29 +12,7 @@ export const useDestinationPage = routeLoader$(async ({ params, error }) => {
   const destination = DESTINATIONS_BY_SLUG[slug]
   if (!destination) throw error(404, 'Not found')
 
-  const topStays: HotelCard[] = await tryDbRead(
-    () => loadTopDestinationStaysFromDb(destination.slug, 4),
-    () =>
-      HOTELS
-        .filter((hotel) => hotel.cityQuery === destination.slug)
-        .sort((a, b) => b.rating - a.rating || a.fromNightly - b.fromNightly)
-        .slice(0, 4)
-        .map((hotel, index) => ({
-          id: `${slug}-top-${index + 1}`,
-          slug: hotel.slug,
-          name: hotel.name,
-          area: hotel.neighborhood,
-          rating: hotel.rating,
-          reviewCount: hotel.reviewCount,
-          from: hotel.fromNightly,
-          currency: hotel.currency,
-          image: hotel.images[0] || '/img/demo/hotel-1.jpg',
-          badges: [
-            hotel.policies.freeCancellation ? 'Free cancellation' : 'Flexible terms',
-            hotel.policies.payLater ? 'Pay later' : 'Book now',
-          ],
-        })),
-  )
+  const topStays: HotelCard[] = await loadTopDestinationStaysFromDb(destination.slug, 4)
 
   return {
     slug,

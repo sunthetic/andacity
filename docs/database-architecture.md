@@ -113,6 +113,10 @@ Modes:
 - `--mode plan` (default): preview row counts
 - `--mode files`: write normalized table payload JSON files
 - `--mode apply`: upsert into PostgreSQL in dependency order
+- `--reset`: truncate seeded tables before apply (`truncate ... restart identity cascade`)
+- `--schema andacity_app`: explicit target schema (defaults to `DB_SCHEMA` or `andacity_app`)
+
+`--mode apply` now pins `search_path` to `<schema>,public` before writes and prints `persistedCounts` so seed output confirms actual DB row persistence.
 
 Examples:
 
@@ -145,10 +149,15 @@ Implemented now:
 - migration setup and first migration SQL
 - DB seed payload mapping and apply pipeline
 - DB client module and example repositories
-- DB-backed search route loaders with fallback:
-  - `/search/hotels/...`
-  - `/search/car-rentals/...`
-  - `/search/flights/...`
+- DB-backed Hotels path end-to-end (seed -> DB -> repos -> routes):
+  - `/hotels`
+  - `/hotels/in`
+  - `/hotels/in/[citySlug]`
+  - `/hotels/[slug]`
+  - `/search/hotels/[query]/[pageNumber]`
+  - `/sitemaps/hotels/[page].xml`
+  - `/og/hotel/[slug].png`
+  - destination top stays now read from DB (`/destinations/[slug]`)
 
 Scaffolded for next phase:
 

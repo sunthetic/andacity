@@ -1,7 +1,5 @@
 import type { RequestHandler } from '@builder.io/qwik-city'
 import { Resvg } from '@resvg/resvg-js'
-import { getHotelBySlug as getHotelBySlugFromData } from '~/data/hotels'
-import { tryDbRead } from '~/lib/db/read-switch.server'
 import { loadHotelBySlugFromDb } from '~/lib/queries/hotels-pages.server'
 import { getPublicBaseUrl, shouldIndex } from '~/lib/seo/env'
 import { decodeOgPayload, getOgSecret, verifyOgSignature } from '~/lib/seo/og-sign'
@@ -38,10 +36,7 @@ export const onGet: RequestHandler = async ({ params, url, headers, send, cacheC
   const sig = url.searchParams.get('sig')
 
   const payload = readPayload({ slug, p, sig, secret })
-  const fromData = await tryDbRead(
-    () => loadHotelBySlugFromDb(slug),
-    () => getHotelBySlugFromData(slug),
-  )
+  const fromData = await loadHotelBySlugFromDb(slug)
 
   const hotelName = payload?.name || fromData?.name || titleFromSlug(slug)
   const city = payload?.city || fromData?.city || 'Andacity Travel'

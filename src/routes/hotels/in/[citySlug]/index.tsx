@@ -3,46 +3,20 @@ import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { HotelsResultsAdapter } from '~/components/hotels/HotelsResultsAdapter'
 import { Page } from '~/components/site/Page'
-import { getHotelCityBySlug } from '~/data/hotel-cities'
-import { HOTELS_BY_SLUG } from '~/data/hotels'
 import { HotelCitySearchCard } from '~/components/hotels/HotelCitySearchCard'
 import { searchStateFromUrl } from '~/lib/search/url-to-state'
-import { tryDbRead } from '~/lib/db/read-switch.server'
 import { loadHotelCityBySlugFromDb, loadHotelsForCityFromDb } from '~/lib/queries/hotels-pages.server'
 
 export const useHotelCityPage = routeLoader$(async ({ params, url, error }) => {
   const slug = String(params.citySlug || '').toLowerCase().trim()
   if (!slug) throw error(404, 'Not found')
 
-  const cityData = await tryDbRead(
-    async () => {
-      const city = await loadHotelCityBySlugFromDb(slug)
-      if (!city) return null
+  const city = await loadHotelCityBySlugFromDb(slug)
+  if (!city) throw error(404, 'Not found')
 
-      const hotels = await loadHotelsForCityFromDb(slug)
-      return {
-        city,
-        hotels,
-      }
-    },
-    () => {
-      const city = getHotelCityBySlug(slug)
-      if (!city) return null
-
-      const hotels = city.hotelSlugs
-        .map((value) => HOTELS_BY_SLUG[value])
-        .filter(Boolean)
-
-      return {
-        city,
-        hotels,
-      }
-    },
-  )
-  if (!cityData) throw error(404, 'Not found')
+  const hotels = await loadHotelsForCityFromDb(slug)
 
   const active = parseStayParams(url.searchParams)
-  const { city, hotels } = cityData
 
   const searchState = searchStateFromUrl(url, {
     query: city.city,

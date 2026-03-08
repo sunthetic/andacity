@@ -1,8 +1,8 @@
-CREATE TYPE "public"."car_location_type" AS ENUM('airport', 'city');--> statement-breakpoint
-CREATE TYPE "public"."car_transmission" AS ENUM('automatic', 'manual');--> statement-breakpoint
-CREATE TYPE "public"."flight_cabin_class" AS ENUM('economy', 'premium-economy', 'business', 'first');--> statement-breakpoint
-CREATE TYPE "public"."flight_itinerary_type" AS ENUM('one-way', 'round-trip');--> statement-breakpoint
-CREATE TYPE "public"."flight_time_window" AS ENUM('morning', 'afternoon', 'evening', 'overnight');--> statement-breakpoint
+CREATE TYPE "andacity_app"."car_location_type" AS ENUM('airport', 'city');--> statement-breakpoint
+CREATE TYPE "andacity_app"."car_transmission" AS ENUM('automatic', 'manual');--> statement-breakpoint
+CREATE TYPE "andacity_app"."flight_cabin_class" AS ENUM('economy', 'premium-economy', 'business', 'first');--> statement-breakpoint
+CREATE TYPE "andacity_app"."flight_itinerary_type" AS ENUM('one-way', 'round-trip');--> statement-breakpoint
+CREATE TYPE "andacity_app"."flight_time_window" AS ENUM('morning', 'afternoon', 'evening', 'overnight');--> statement-breakpoint
 CREATE TABLE "airlines" (
 	"id" bigserial PRIMARY KEY NOT NULL,
 	"slug" varchar(120) NOT NULL,
@@ -322,36 +322,36 @@ CREATE TABLE "regions" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "airports" ADD CONSTRAINT "airports_city_id_cities_id_fk" FOREIGN KEY ("city_id") REFERENCES "public"."cities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "car_inventory" ADD CONSTRAINT "car_inventory_provider_id_car_providers_id_fk" FOREIGN KEY ("provider_id") REFERENCES "public"."car_providers"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "car_inventory" ADD CONSTRAINT "car_inventory_city_id_cities_id_fk" FOREIGN KEY ("city_id") REFERENCES "public"."cities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "car_inventory" ADD CONSTRAINT "car_inventory_location_id_car_locations_id_fk" FOREIGN KEY ("location_id") REFERENCES "public"."car_locations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "car_inventory_images" ADD CONSTRAINT "car_inventory_images_inventory_id_car_inventory_id_fk" FOREIGN KEY ("inventory_id") REFERENCES "public"."car_inventory"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "car_locations" ADD CONSTRAINT "car_locations_city_id_cities_id_fk" FOREIGN KEY ("city_id") REFERENCES "public"."cities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "car_locations" ADD CONSTRAINT "car_locations_airport_id_airports_id_fk" FOREIGN KEY ("airport_id") REFERENCES "public"."airports"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "car_offers" ADD CONSTRAINT "car_offers_inventory_id_car_inventory_id_fk" FOREIGN KEY ("inventory_id") REFERENCES "public"."car_inventory"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "car_offers" ADD CONSTRAINT "car_offers_vehicle_class_id_car_vehicle_classes_id_fk" FOREIGN KEY ("vehicle_class_id") REFERENCES "public"."car_vehicle_classes"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "cities" ADD CONSTRAINT "cities_country_id_countries_id_fk" FOREIGN KEY ("country_id") REFERENCES "public"."countries"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "cities" ADD CONSTRAINT "cities_region_id_regions_id_fk" FOREIGN KEY ("region_id") REFERENCES "public"."regions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "flight_fares" ADD CONSTRAINT "flight_fares_itinerary_id_flight_itineraries_id_fk" FOREIGN KEY ("itinerary_id") REFERENCES "public"."flight_itineraries"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "flight_itineraries" ADD CONSTRAINT "flight_itineraries_route_id_flight_routes_id_fk" FOREIGN KEY ("route_id") REFERENCES "public"."flight_routes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "flight_itineraries" ADD CONSTRAINT "flight_itineraries_airline_id_airlines_id_fk" FOREIGN KEY ("airline_id") REFERENCES "public"."airlines"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "flight_routes" ADD CONSTRAINT "flight_routes_origin_city_id_cities_id_fk" FOREIGN KEY ("origin_city_id") REFERENCES "public"."cities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "flight_routes" ADD CONSTRAINT "flight_routes_destination_city_id_cities_id_fk" FOREIGN KEY ("destination_city_id") REFERENCES "public"."cities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "flight_routes" ADD CONSTRAINT "flight_routes_origin_airport_id_airports_id_fk" FOREIGN KEY ("origin_airport_id") REFERENCES "public"."airports"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "flight_routes" ADD CONSTRAINT "flight_routes_destination_airport_id_airports_id_fk" FOREIGN KEY ("destination_airport_id") REFERENCES "public"."airports"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "flight_segments" ADD CONSTRAINT "flight_segments_itinerary_id_flight_itineraries_id_fk" FOREIGN KEY ("itinerary_id") REFERENCES "public"."flight_itineraries"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "flight_segments" ADD CONSTRAINT "flight_segments_origin_airport_id_airports_id_fk" FOREIGN KEY ("origin_airport_id") REFERENCES "public"."airports"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "flight_segments" ADD CONSTRAINT "flight_segments_destination_airport_id_airports_id_fk" FOREIGN KEY ("destination_airport_id") REFERENCES "public"."airports"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "flight_segments" ADD CONSTRAINT "flight_segments_airline_id_airlines_id_fk" FOREIGN KEY ("airline_id") REFERENCES "public"."airlines"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "hotel_amenity_links" ADD CONSTRAINT "hotel_amenity_links_hotel_id_hotels_id_fk" FOREIGN KEY ("hotel_id") REFERENCES "public"."hotels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "hotel_amenity_links" ADD CONSTRAINT "hotel_amenity_links_amenity_id_hotel_amenities_id_fk" FOREIGN KEY ("amenity_id") REFERENCES "public"."hotel_amenities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "hotel_availability_snapshots" ADD CONSTRAINT "hotel_availability_snapshots_hotel_id_hotels_id_fk" FOREIGN KEY ("hotel_id") REFERENCES "public"."hotels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "hotel_images" ADD CONSTRAINT "hotel_images_hotel_id_hotels_id_fk" FOREIGN KEY ("hotel_id") REFERENCES "public"."hotels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "hotel_offers" ADD CONSTRAINT "hotel_offers_hotel_id_hotels_id_fk" FOREIGN KEY ("hotel_id") REFERENCES "public"."hotels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "hotels" ADD CONSTRAINT "hotels_city_id_cities_id_fk" FOREIGN KEY ("city_id") REFERENCES "public"."cities"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "hotels" ADD CONSTRAINT "hotels_brand_id_hotel_brands_id_fk" FOREIGN KEY ("brand_id") REFERENCES "public"."hotel_brands"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "regions" ADD CONSTRAINT "regions_country_id_countries_id_fk" FOREIGN KEY ("country_id") REFERENCES "public"."countries"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "airports" ADD CONSTRAINT "airports_city_id_cities_id_fk" FOREIGN KEY ("city_id") REFERENCES "andacity_app"."cities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "car_inventory" ADD CONSTRAINT "car_inventory_provider_id_car_providers_id_fk" FOREIGN KEY ("provider_id") REFERENCES "andacity_app"."car_providers"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "car_inventory" ADD CONSTRAINT "car_inventory_city_id_cities_id_fk" FOREIGN KEY ("city_id") REFERENCES "andacity_app"."cities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "car_inventory" ADD CONSTRAINT "car_inventory_location_id_car_locations_id_fk" FOREIGN KEY ("location_id") REFERENCES "andacity_app"."car_locations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "car_inventory_images" ADD CONSTRAINT "car_inventory_images_inventory_id_car_inventory_id_fk" FOREIGN KEY ("inventory_id") REFERENCES "andacity_app"."car_inventory"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "car_locations" ADD CONSTRAINT "car_locations_city_id_cities_id_fk" FOREIGN KEY ("city_id") REFERENCES "andacity_app"."cities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "car_locations" ADD CONSTRAINT "car_locations_airport_id_airports_id_fk" FOREIGN KEY ("airport_id") REFERENCES "andacity_app"."airports"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "car_offers" ADD CONSTRAINT "car_offers_inventory_id_car_inventory_id_fk" FOREIGN KEY ("inventory_id") REFERENCES "andacity_app"."car_inventory"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "car_offers" ADD CONSTRAINT "car_offers_vehicle_class_id_car_vehicle_classes_id_fk" FOREIGN KEY ("vehicle_class_id") REFERENCES "andacity_app"."car_vehicle_classes"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cities" ADD CONSTRAINT "cities_country_id_countries_id_fk" FOREIGN KEY ("country_id") REFERENCES "andacity_app"."countries"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cities" ADD CONSTRAINT "cities_region_id_regions_id_fk" FOREIGN KEY ("region_id") REFERENCES "andacity_app"."regions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "flight_fares" ADD CONSTRAINT "flight_fares_itinerary_id_flight_itineraries_id_fk" FOREIGN KEY ("itinerary_id") REFERENCES "andacity_app"."flight_itineraries"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "flight_itineraries" ADD CONSTRAINT "flight_itineraries_route_id_flight_routes_id_fk" FOREIGN KEY ("route_id") REFERENCES "andacity_app"."flight_routes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "flight_itineraries" ADD CONSTRAINT "flight_itineraries_airline_id_airlines_id_fk" FOREIGN KEY ("airline_id") REFERENCES "andacity_app"."airlines"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "flight_routes" ADD CONSTRAINT "flight_routes_origin_city_id_cities_id_fk" FOREIGN KEY ("origin_city_id") REFERENCES "andacity_app"."cities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "flight_routes" ADD CONSTRAINT "flight_routes_destination_city_id_cities_id_fk" FOREIGN KEY ("destination_city_id") REFERENCES "andacity_app"."cities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "flight_routes" ADD CONSTRAINT "flight_routes_origin_airport_id_airports_id_fk" FOREIGN KEY ("origin_airport_id") REFERENCES "andacity_app"."airports"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "flight_routes" ADD CONSTRAINT "flight_routes_destination_airport_id_airports_id_fk" FOREIGN KEY ("destination_airport_id") REFERENCES "andacity_app"."airports"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "flight_segments" ADD CONSTRAINT "flight_segments_itinerary_id_flight_itineraries_id_fk" FOREIGN KEY ("itinerary_id") REFERENCES "andacity_app"."flight_itineraries"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "flight_segments" ADD CONSTRAINT "flight_segments_origin_airport_id_airports_id_fk" FOREIGN KEY ("origin_airport_id") REFERENCES "andacity_app"."airports"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "flight_segments" ADD CONSTRAINT "flight_segments_destination_airport_id_airports_id_fk" FOREIGN KEY ("destination_airport_id") REFERENCES "andacity_app"."airports"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "flight_segments" ADD CONSTRAINT "flight_segments_airline_id_airlines_id_fk" FOREIGN KEY ("airline_id") REFERENCES "andacity_app"."airlines"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "hotel_amenity_links" ADD CONSTRAINT "hotel_amenity_links_hotel_id_hotels_id_fk" FOREIGN KEY ("hotel_id") REFERENCES "andacity_app"."hotels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "hotel_amenity_links" ADD CONSTRAINT "hotel_amenity_links_amenity_id_hotel_amenities_id_fk" FOREIGN KEY ("amenity_id") REFERENCES "andacity_app"."hotel_amenities"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "hotel_availability_snapshots" ADD CONSTRAINT "hotel_availability_snapshots_hotel_id_hotels_id_fk" FOREIGN KEY ("hotel_id") REFERENCES "andacity_app"."hotels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "hotel_images" ADD CONSTRAINT "hotel_images_hotel_id_hotels_id_fk" FOREIGN KEY ("hotel_id") REFERENCES "andacity_app"."hotels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "hotel_offers" ADD CONSTRAINT "hotel_offers_hotel_id_hotels_id_fk" FOREIGN KEY ("hotel_id") REFERENCES "andacity_app"."hotels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "hotels" ADD CONSTRAINT "hotels_city_id_cities_id_fk" FOREIGN KEY ("city_id") REFERENCES "andacity_app"."cities"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "hotels" ADD CONSTRAINT "hotels_brand_id_hotel_brands_id_fk" FOREIGN KEY ("brand_id") REFERENCES "andacity_app"."hotel_brands"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "regions" ADD CONSTRAINT "regions_country_id_countries_id_fk" FOREIGN KEY ("country_id") REFERENCES "andacity_app"."countries"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "airlines_slug_uq" ON "airlines" USING btree ("slug");--> statement-breakpoint
 CREATE UNIQUE INDEX "airlines_iata_uq" ON "airlines" USING btree ("iata_code");--> statement-breakpoint
 CREATE UNIQUE INDEX "airlines_name_uq" ON "airlines" USING btree ("name");--> statement-breakpoint

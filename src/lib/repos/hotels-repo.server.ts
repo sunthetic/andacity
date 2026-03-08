@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, lte, or, sql, type SQL } from 'drizzle-orm'
 import { getDb } from '~/lib/db/client.server'
 import {
   countries,
@@ -13,12 +13,16 @@ import {
 } from '~/lib/db/schema'
 
 export type HotelSort = 'recommended' | 'price-asc' | 'price-desc' | 'rating-desc'
+export type HotelPriceRange = 'under-150' | '150-300' | '300-500' | '500-plus'
 
 export type SearchHotelsInput = {
   citySlug: string
   checkIn?: string
   checkOut?: string
+  stars?: number[]
   starsMin?: number
+  ratingMin?: number
+  priceRanges?: HotelPriceRange[]
   priceMaxCents?: number
   amenities?: string[]
   sort?: HotelSort
@@ -138,6 +142,11 @@ export type HotelCitySummaryRow = {
   hotelSlugs: string[]
 }
 
+export type SearchHotelsResult = {
+  totalCount: number
+  rows: HotelSearchRow[]
+}
+
 const DEFAULT_LIMIT = 24
 
 const toUtcDate = (value: string) => {
@@ -192,13 +201,69 @@ const normalizeAmenitySlugs = (value: string[] | undefined) =>
     ),
   )
 
-export async function searchHotels(input: SearchHotelsInput): Promise<HotelSearchRow[]> {
-  const db = getDb()
+const normalizeStars = (stars: number[] | undefined) =>
+  Array.from(
+    new Set(
+      (stars || [])
+        .map((value) => Number.parseInt(String(value), 10))
+        .filter((value) => Number.isFinite(value) && value >= 1 && value <= 5),
+    ),
+  ).sort((a, b) => a - b)
+
+const normalizePriceRanges = (ranges: HotelPriceRange[] | undefined) => {
+  const allowed: HotelPriceRange[] = ['under-150', '150-300', '300-500', '500-plus']
+  return Array.from(new Set((ranges || []).filter((value): value is HotelPriceRange => allowed.includes(value))))
+}
+
+const buildHotelSearchConditions = (input: SearchHotelsInput) => {
   const amenitySlugs = normalizeAmenitySlugs(input.amenities)
+  const stars = normalizeStars(input.stars)
+  const priceRanges = normalizePriceRanges(input.priceRanges)
   const conditions = [eq(cities.slug, input.citySlug)]
 
-  if (input.starsMin != null) {
+  if (stars.length) {
+    conditions.push(inArray(hotels.stars, stars))
+  } else if (input.starsMin != null) {
     conditions.push(gte(hotels.stars, input.starsMin))
+  }
+
+  if (input.ratingMin != null) {
+    conditions.push(gte(hotels.rating, String(input.ratingMin)))
+  }
+
+  if (priceRanges.length) {
+    const priceConditions: SQL[] = []
+    for (const range of priceRanges) {
+      if (range === 'under-150') {
+        priceConditions.push(lte(hotels.fromNightlyCents, 14999))
+        continue
+      }
+
+      if (range === '150-300') {
+        const between150And300 = and(gte(hotels.fromNightlyCents, 15000), lte(hotels.fromNightlyCents, 30000))
+        if (between150And300) {
+          priceConditions.push(between150And300)
+        }
+        continue
+      }
+
+      if (range === '300-500') {
+        const between300And500 = and(gte(hotels.fromNightlyCents, 30001), lte(hotels.fromNightlyCents, 50000))
+        if (between300And500) {
+          priceConditions.push(between300And500)
+        }
+        continue
+      }
+
+      priceConditions.push(gte(hotels.fromNightlyCents, 50001))
+    }
+
+    if (priceConditions.length) {
+      const priceCondition = or(...priceConditions)
+      if (priceCondition) {
+        conditions.push(priceCondition)
+      }
+    }
   }
 
   if (input.priceMaxCents != null) {
@@ -209,7 +274,6 @@ export async function searchHotels(input: SearchHotelsInput): Promise<HotelSearc
   const checkInWeekday = toCheckInWeekday(input.checkIn)
 
   if (input.checkIn && nights != null) {
-    conditions.push(eq(hotelAvailabilitySnapshots.snapshotSource, 'seed'))
     conditions.push(lte(hotelAvailabilitySnapshots.checkInStart, input.checkIn))
     conditions.push(gte(hotelAvailabilitySnapshots.checkInEnd, input.checkIn))
     conditions.push(lte(hotelAvailabilitySnapshots.minNights, nights))
@@ -234,6 +298,12 @@ export async function searchHotels(input: SearchHotelsInput): Promise<HotelSearc
     `)
   }
 
+  return conditions
+}
+
+export async function searchHotels(input: SearchHotelsInput): Promise<SearchHotelsResult> {
+  const db = getDb()
+  const conditions = buildHotelSearchConditions(input)
   const rows = await db
     .select({
       id: hotels.id,
@@ -255,7 +325,10 @@ export async function searchHotels(input: SearchHotelsInput): Promise<HotelSearc
     .innerJoin(cities, eq(hotels.cityId, cities.id))
     .leftJoin(
       hotelAvailabilitySnapshots,
-      eq(hotelAvailabilitySnapshots.hotelId, hotels.id),
+      and(
+        eq(hotelAvailabilitySnapshots.hotelId, hotels.id),
+        eq(hotelAvailabilitySnapshots.snapshotSource, 'seed'),
+      ),
     )
     .leftJoin(
       hotelImages,
@@ -266,7 +339,29 @@ export async function searchHotels(input: SearchHotelsInput): Promise<HotelSearc
     .limit(input.limit ?? DEFAULT_LIMIT)
     .offset(input.offset ?? 0)
 
-  if (!rows.length) return rows.map((row) => ({ ...row, amenities: [] }))
+  const countRows = await db
+    .select({
+      count: sql<number>`count(distinct ${hotels.id})::int`,
+    })
+    .from(hotels)
+    .innerJoin(cities, eq(hotels.cityId, cities.id))
+    .leftJoin(
+      hotelAvailabilitySnapshots,
+      and(
+        eq(hotelAvailabilitySnapshots.hotelId, hotels.id),
+        eq(hotelAvailabilitySnapshots.snapshotSource, 'seed'),
+      ),
+    )
+    .where(and(...conditions))
+
+  const totalCount = countRows[0]?.count ?? 0
+
+  if (!rows.length) {
+    return {
+      totalCount,
+      rows: [],
+    }
+  }
 
   const hotelIds = rows.map((row) => row.id)
   const amenityRows = await db
@@ -289,10 +384,13 @@ export async function searchHotels(input: SearchHotelsInput): Promise<HotelSearc
     amenitiesByHotelId.set(entry.hotelId, [entry.label])
   }
 
-  return rows.map((row) => ({
-    ...row,
-    amenities: amenitiesByHotelId.get(row.id) || [],
-  }))
+  return {
+    totalCount,
+    rows: rows.map((row) => ({
+      ...row,
+      amenities: amenitiesByHotelId.get(row.id) || [],
+    })),
+  }
 }
 
 export async function getHotelBySlug(slug: string) {

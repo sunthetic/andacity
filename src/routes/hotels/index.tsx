@@ -4,17 +4,11 @@ import type { DocumentHead } from '@builder.io/qwik-city'
 import { useLocation } from '@builder.io/qwik-city'
 import { HotelSearchCard } from '~/components/hotels/search/HotelSearchCard'
 import { VerticalHeroSearchLayout } from '~/components/search/VerticalHeroSearchLayout'
-import { HOTEL_CITIES } from '~/data/hotel-cities'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
-import { tryDbRead } from '~/lib/db/read-switch.server'
 import { loadHotelCitiesFromDb } from '~/lib/queries/hotels-pages.server'
 
 export const useHotelsIndexPage = routeLoader$(async () => {
-  const items = await tryDbRead(
-    () => loadHotelCitiesFromDb(),
-    () => HOTEL_CITIES,
-  )
-
+  const items = await loadHotelCitiesFromDb()
   return { items }
 })
 

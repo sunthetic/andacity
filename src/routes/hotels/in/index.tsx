@@ -2,17 +2,11 @@ import { component$ } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
-import { HOTEL_CITIES } from '~/data/hotel-cities'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
-import { tryDbRead } from '~/lib/db/read-switch.server'
 import { loadHotelCitiesFromDb } from '~/lib/queries/hotels-pages.server'
 
 export const useHotelCitiesPage = routeLoader$(async () => {
-  const items = await tryDbRead(
-    () => loadHotelCitiesFromDb(),
-    () => HOTEL_CITIES,
-  )
-
+  const items = await loadHotelCitiesFromDb()
   return { items }
 })
 
