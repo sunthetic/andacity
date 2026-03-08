@@ -1,7 +1,7 @@
 {
   "name": "@sunthetic/andacity",
-  "version": "0.1.0",
-  "description": "A prototype of Andacity.com, an experience-driven travel booking and discovery-first travel planning site offering search modes for destinations, hotels, car rentals, and flights.",
+  "version": "0.2.0",
+  "description": "An experience-driven travel booking and discovery-first travel planning site offering search modes for destinations, hotels, car rentals, and flights.",
   "license": "SEE LICENSE IN LICENSE.md",
   "repository": {
     "type": "git",
