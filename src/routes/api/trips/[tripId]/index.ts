@@ -28,6 +28,17 @@ export const onGet: RequestHandler = async ({ params, headers, send }) => {
 
     sendJson(headers, send, 200, { trip })
   } catch (error) {
+    if (error instanceof TripRepoError) {
+      const status =
+        error.code === 'trip_schema_missing' || error.code === 'trip_runtime_stale'
+          ? 503
+          : error.code === 'trip_not_found'
+            ? 404
+            : 400
+      sendJson(headers, send, status, { error: error.message, code: error.code })
+      return
+    }
+
     const message = error instanceof Error ? error.message : 'Failed to load trip.'
     sendJson(headers, send, 500, { error: message })
   }
@@ -50,7 +61,7 @@ export const onPatch: RequestHandler = async ({ params, request, headers, send }
       const status =
         error.code === 'trip_not_found'
           ? 404
-          : error.code === 'trip_schema_missing'
+          : error.code === 'trip_schema_missing' || error.code === 'trip_runtime_stale'
             ? 503
             : 400
       sendJson(headers, send, status, { error: error.message, code: error.code })

@@ -68,6 +68,7 @@
     "seed:generate:flights": "node scripts/seed/generate.mjs --vertical flights",
     "seed:generate:hotels": "node scripts/seed/generate.mjs --vertical hotels",
     "seed:regenerate": "node scripts/seed/generate.mjs --vertical all",
+    "smoke:trips": "node scripts/validate/trip-pricing-smoke.mjs",
     "start": "vite --open --mode ssr",
     "qwik": "qwik"
   },
