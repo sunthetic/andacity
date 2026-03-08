@@ -2531,6 +2531,28 @@ const TripEditPreviewPanel = component$(
             <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
               Snapshotted {formatDateTime(props.item.snapshotTimestamp)}
             </p>
+            {props.item.availabilityCheckedAt ? (
+              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                Revalidated {formatDateTime(props.item.availabilityCheckedAt)}
+              </p>
+            ) : null}
+            {props.item.issues.length ? (
+              <div class="mt-2 grid gap-1">
+                {props.item.issues.slice(0, 2).map((issue) => (
+                  <p
+                    key={`${issue.code}-${issue.message}`}
+                    class={[
+                      'text-xs',
+                      issue.severity === 'blocking'
+                        ? 'text-[color:var(--color-error,#b91c1c)]'
+                        : 'text-[color:var(--color-warning,#92400e)]',
+                    ]}
+                  >
+                    {issue.message}
+                  </p>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div class="flex flex-wrap gap-2">
