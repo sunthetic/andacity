@@ -1,8 +1,16 @@
 import { component$ } from '@builder.io/qwik'
 import { useLocation } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { ExplorePresetChips } from '~/components/explore/ExplorePresetChips'
 import { HeroBackground } from '~/components/hero/HeroBackground'
 import { Page } from '~/components/site/Page'
+import type {
+  ExploreCarPresets,
+  ExploreDateHints,
+  ExploreHotelPresets,
+  ExploreIntent,
+  ExploreTravelStyle,
+} from '~/types/explore/intent'
 
 type ThemeKey =
   | 'beach'
@@ -116,6 +124,200 @@ const EXPLORE_IDEA_OVERLAY_MAP: Record<IdeaKey, ExploreHeroOverlayVariant> = {
 const buildFlightsToHref = (to: string) => `/flights?to=${encodeURIComponent(to)}`
 const buildHotelsDestinationHref = (destination: string) => `/hotels?destination=${encodeURIComponent(destination)}`
 const buildCarRentalsDestinationHref = (destination: string) => `/car-rentals?q=${encodeURIComponent(destination)}`
+
+const DESTINATION_CITY_LABELS: Record<DestinationKey, string> = {
+  miami: 'Miami',
+  'las-vegas': 'Las Vegas',
+  'san-diego': 'San Diego',
+  'new-york': 'New York',
+  denver: 'Denver',
+  honolulu: 'Honolulu',
+}
+
+const THEME_TRAVEL_STYLE_MAP: Record<ThemeKey, ExploreTravelStyle[]> = {
+  beach: ['beach'],
+  mountains: ['adventure'],
+  'weekend-cities': ['urban'],
+  'warm-weather': ['beach', 'wellness'],
+  luxury: ['luxury'],
+  budget: ['budget'],
+  family: ['family'],
+  solo: ['urban', 'adventure'],
+}
+
+const THEME_HOTEL_PRESET_MAP: Partial<Record<ThemeKey, ExploreHotelPresets>> = {
+  beach: {
+    amenities: ['pool', 'beachfront'],
+    propertyTypes: ['resort'],
+    priceTier: 'upscale',
+  },
+  mountains: {
+    amenities: ['parking'],
+    propertyTypes: ['lodge', 'hotel'],
+    priceTier: 'mid',
+  },
+  'weekend-cities': {
+    neighborhoods: ['downtown', 'city center'],
+    propertyTypes: ['hotel'],
+    priceTier: 'mid',
+  },
+  'warm-weather': {
+    amenities: ['pool'],
+    priceTier: 'mid',
+  },
+  luxury: {
+    starRatingMin: 5,
+    amenities: ['spa', 'pool'],
+    priceTier: 'luxury',
+  },
+  budget: {
+    starRatingMin: 3,
+    priceTier: 'budget',
+  },
+  family: {
+    amenities: ['pool', 'family rooms'],
+    propertyTypes: ['resort', 'aparthotel'],
+    priceTier: 'mid',
+  },
+  solo: {
+    amenities: ['wifi'],
+    priceTier: 'mid',
+  },
+}
+
+const THEME_CAR_PRESET_MAP: Partial<Record<ThemeKey, ExploreCarPresets>> = {
+  beach: { vehicleClasses: ['convertible', 'suv'], pickupType: 'airport' },
+  mountains: { vehicleClasses: ['suv'], pickupType: 'airport' },
+  'weekend-cities': { vehicleClasses: ['compact'], pickupType: 'city' },
+  'warm-weather': { vehicleClasses: ['suv'], pickupType: 'airport' },
+  luxury: { vehicleClasses: ['luxury', 'convertible'], pickupType: 'airport' },
+  budget: { vehicleClasses: ['economy', 'compact'], pickupType: 'city' },
+  family: { vehicleClasses: ['suv', 'minivan'], pickupType: 'airport' },
+  solo: { vehicleClasses: ['compact'], pickupType: 'city' },
+}
+
+const THEME_DATE_HINT_MAP: Partial<Record<ThemeKey, ExploreDateHints>> = {
+  beach: { season: 'summer', tripLengthDays: 5 },
+  mountains: { season: 'fall', tripLengthDays: 4 },
+  'weekend-cities': { weekendFriendly: true, tripLengthDays: 3 },
+  'warm-weather': { season: 'spring', tripLengthDays: 4 },
+  luxury: { season: 'winter', tripLengthDays: 5 },
+  budget: { weekendFriendly: true, tripLengthDays: 3 },
+  family: { season: 'summer', tripLengthDays: 6 },
+  solo: { season: 'spring', weekendFriendly: true, tripLengthDays: 3 },
+}
+
+const THEME_ACCENT_MAP: Record<ThemeKey, string> = {
+  beach: 'amber',
+  mountains: 'cobalt',
+  'weekend-cities': 'slate',
+  'warm-weather': 'sun',
+  luxury: 'orchid',
+  budget: 'mint',
+  family: 'sea',
+  solo: 'steel',
+}
+
+const IDEA_TRAVEL_STYLE_MAP: Record<IdeaKey, ExploreTravelStyle[]> = {
+  'warm-places-in-march': ['beach', 'wellness'],
+  'cheap-long-weekends': ['budget', 'urban'],
+  'scenic-coastal-drives': ['adventure', 'beach'],
+  'city-breaks-with-easy-flights': ['urban', 'business'],
+  'beach-trips-with-rental-flexibility': ['beach', 'adventure'],
+  'quick-mountain-escapes': ['adventure'],
+}
+
+const IDEA_HOTEL_PRESET_MAP: Partial<Record<IdeaKey, ExploreHotelPresets>> = {
+  'warm-places-in-march': {
+    amenities: ['pool', 'beachfront'],
+    priceTier: 'mid',
+  },
+  'cheap-long-weekends': {
+    starRatingMin: 3,
+    priceTier: 'budget',
+  },
+  'scenic-coastal-drives': {
+    amenities: ['parking'],
+    propertyTypes: ['hotel', 'motel'],
+  },
+  'city-breaks-with-easy-flights': {
+    neighborhoods: ['downtown'],
+    propertyTypes: ['hotel'],
+    priceTier: 'mid',
+  },
+  'beach-trips-with-rental-flexibility': {
+    amenities: ['pool'],
+    propertyTypes: ['resort'],
+  },
+  'quick-mountain-escapes': {
+    propertyTypes: ['lodge', 'hotel'],
+    amenities: ['parking'],
+    priceTier: 'mid',
+  },
+}
+
+const IDEA_CAR_PRESET_MAP: Partial<Record<IdeaKey, ExploreCarPresets>> = {
+  'warm-places-in-march': { vehicleClasses: ['compact', 'suv'], pickupType: 'airport' },
+  'cheap-long-weekends': { vehicleClasses: ['economy', 'compact'], pickupType: 'city' },
+  'scenic-coastal-drives': { vehicleClasses: ['convertible', 'suv'], pickupType: 'city' },
+  'city-breaks-with-easy-flights': { vehicleClasses: ['compact'], pickupType: 'airport' },
+  'beach-trips-with-rental-flexibility': { vehicleClasses: ['suv', 'convertible'], pickupType: 'airport' },
+  'quick-mountain-escapes': { vehicleClasses: ['suv'], pickupType: 'airport' },
+}
+
+const IDEA_DATE_HINT_MAP: Partial<Record<IdeaKey, ExploreDateHints>> = {
+  'warm-places-in-march': { season: 'spring', tripLengthDays: 5 },
+  'cheap-long-weekends': { weekendFriendly: true, tripLengthDays: 3 },
+  'scenic-coastal-drives': { weekendFriendly: true, tripLengthDays: 5 },
+  'city-breaks-with-easy-flights': { weekendFriendly: true, tripLengthDays: 3 },
+  'beach-trips-with-rental-flexibility': { season: 'summer', tripLengthDays: 5 },
+  'quick-mountain-escapes': { season: 'fall', weekendFriendly: true, tripLengthDays: 3 },
+}
+
+const IDEA_ACCENT_MAP: Record<IdeaKey, string> = {
+  'warm-places-in-march': 'sun',
+  'cheap-long-weekends': 'mint',
+  'scenic-coastal-drives': 'amber',
+  'city-breaks-with-easy-flights': 'slate',
+  'beach-trips-with-rental-flexibility': 'teal',
+  'quick-mountain-escapes': 'cobalt',
+}
+
+const DESTINATION_TRAVEL_STYLE_MAP: Record<DestinationKey, ExploreTravelStyle[]> = {
+  miami: ['beach', 'nightlife'],
+  'las-vegas': ['nightlife', 'urban'],
+  'san-diego': ['beach', 'family'],
+  'new-york': ['urban', 'business'],
+  denver: ['adventure'],
+  honolulu: ['beach', 'wellness'],
+}
+
+const DESTINATION_HOTEL_PRESET_MAP: Partial<Record<DestinationKey, ExploreHotelPresets>> = {
+  miami: { amenities: ['pool'], propertyTypes: ['resort'], priceTier: 'upscale' },
+  'las-vegas': { starRatingMin: 4, propertyTypes: ['hotel'], priceTier: 'mid' },
+  'san-diego': { amenities: ['pool'], propertyTypes: ['hotel'], priceTier: 'mid' },
+  'new-york': { neighborhoods: ['manhattan'], propertyTypes: ['hotel'], priceTier: 'upscale' },
+  denver: { amenities: ['parking'], propertyTypes: ['hotel'], priceTier: 'mid' },
+  honolulu: { amenities: ['pool', 'beachfront'], propertyTypes: ['resort'], priceTier: 'upscale' },
+}
+
+const DESTINATION_CAR_PRESET_MAP: Partial<Record<DestinationKey, ExploreCarPresets>> = {
+  miami: { vehicleClasses: ['suv', 'convertible'], pickupType: 'airport' },
+  'las-vegas': { vehicleClasses: ['compact', 'suv'], pickupType: 'airport' },
+  'san-diego': { vehicleClasses: ['compact', 'suv'], pickupType: 'city' },
+  'new-york': { vehicleClasses: ['compact'], pickupType: 'city' },
+  denver: { vehicleClasses: ['suv'], pickupType: 'airport' },
+  honolulu: { vehicleClasses: ['compact', 'suv'], pickupType: 'airport' },
+}
+
+const DESTINATION_ACCENT_MAP: Record<DestinationKey, string> = {
+  miami: 'amber',
+  'las-vegas': 'neon',
+  'san-diego': 'teal',
+  'new-york': 'slate',
+  denver: 'cobalt',
+  honolulu: 'sun',
+}
 
 const VIBE_ITEMS: ThemeOption[] = [
   {
@@ -769,6 +971,83 @@ const buildDestinationSteps = (destination: DestinationOption): ExploreStep[] =>
   ]
 }
 
+const toIntentLocation = (destinationKey: DestinationKey | undefined) => {
+  if (!destinationKey) return undefined
+  const city = DESTINATION_CITY_LABELS[destinationKey]
+  if (!city) return undefined
+
+  return {
+    city,
+    country: 'US',
+  }
+}
+
+const toThemeExploreIntent = (theme: ThemeOption): ExploreIntent => {
+  return {
+    kind: 'vibe',
+    label: theme.label,
+    slug: theme.key,
+    location: toIntentLocation(theme.destinationSlugs[0]),
+    travelStyle: THEME_TRAVEL_STYLE_MAP[theme.key],
+    hotelPresets: THEME_HOTEL_PRESET_MAP[theme.key],
+    carPresets: THEME_CAR_PRESET_MAP[theme.key],
+    dateHints: THEME_DATE_HINT_MAP[theme.key],
+    ui: {
+      accent: THEME_ACCENT_MAP[theme.key],
+      heroMode: EXPLORE_THEME_OVERLAY_MAP[theme.key],
+      backgroundMode: 'explore-hero',
+    },
+  }
+}
+
+const toIdeaExploreIntent = (idea: IdeaOption): ExploreIntent => {
+  const kind = idea.key === 'warm-places-in-march' ? 'seasonal' : 'idea'
+
+  return {
+    kind,
+    label: idea.title,
+    slug: idea.key,
+    location: toIntentLocation(idea.destinationSlugs[0]),
+    travelStyle: IDEA_TRAVEL_STYLE_MAP[idea.key],
+    hotelPresets: IDEA_HOTEL_PRESET_MAP[idea.key],
+    carPresets: IDEA_CAR_PRESET_MAP[idea.key],
+    dateHints: IDEA_DATE_HINT_MAP[idea.key],
+    ui: {
+      accent: IDEA_ACCENT_MAP[idea.key],
+      heroMode: EXPLORE_IDEA_OVERLAY_MAP[idea.key],
+      backgroundMode: 'explore-hero',
+    },
+  }
+}
+
+const toDestinationExploreIntent = (destination: DestinationOption): ExploreIntent => {
+  return {
+    kind: 'city',
+    label: destination.name,
+    slug: destination.key,
+    location: toIntentLocation(destination.key),
+    travelStyle: DESTINATION_TRAVEL_STYLE_MAP[destination.key],
+    hotelPresets: DESTINATION_HOTEL_PRESET_MAP[destination.key],
+    carPresets: DESTINATION_CAR_PRESET_MAP[destination.key],
+    ui: {
+      accent: DESTINATION_ACCENT_MAP[destination.key],
+      heroMode: 'explore-guided',
+      backgroundMode: 'explore-hero',
+    },
+  }
+}
+
+const deriveActiveExploreIntent = (
+  activeTheme: ThemeOption | null,
+  activeIdea: IdeaOption | null,
+  activeDestination: DestinationOption | null,
+): ExploreIntent | null => {
+  if (activeIdea) return toIdeaExploreIntent(activeIdea)
+  if (activeTheme) return toThemeExploreIntent(activeTheme)
+  if (activeDestination) return toDestinationExploreIntent(activeDestination)
+  return null
+}
+
 const deriveExploreContext = (
   activeTheme: ThemeOption | null,
   activeIdea: IdeaOption | null,
@@ -859,6 +1138,7 @@ export default component$(() => {
   const activeTheme = findThemeByKey(rawTheme)
   const activeIdea = findIdeaByKey(rawIdea)
   const activeDestination = findDestinationByKey(rawDestination)
+  const activeExploreIntent = deriveActiveExploreIntent(activeTheme, activeIdea, activeDestination)
   const context = deriveExploreContext(activeTheme, activeIdea, activeDestination)
   const heroOverlayVariant = deriveExploreOverlayVariant({
     rawTheme,
@@ -939,6 +1219,10 @@ export default component$(() => {
               <p class="mt-3 max-w-[68ch] text-sm leading-6 text-[color:var(--color-text-on-hero-muted)] md:text-base">
                 {heroDescription}
               </p>
+
+              {activeExploreIntent ? (
+                <ExplorePresetChips class="mt-6 max-w-3xl" intent={activeExploreIntent} />
+              ) : null}
 
               {isGuidedMode && contextSurfaceText ? (
                 <div class="mt-6 max-w-2xl rounded-2xl border border-white/35 bg-white/15 p-5 shadow-[var(--shadow-md)] backdrop-blur-[2px]">
