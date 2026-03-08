@@ -1,4 +1,5 @@
 import { component$ } from '@builder.io/qwik'
+import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { useLocation } from '@builder.io/qwik-city'
 import { VerticalHeroSearchLayout } from '~/components/search/VerticalHeroSearchLayout'
@@ -6,9 +7,34 @@ import { CAR_RENTALS } from '~/data/car-rentals'
 import { CAR_RENTAL_CITIES } from '~/data/car-rental-cities'
 import { CarRentalSearchCard } from '~/components/car-rentals/CarRentalSearchCard'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
+import { tryDbRead } from '~/lib/db/read-switch.server'
+import { loadCarRentalCitiesFromDb, loadFeaturedCarRentalsFromDb } from '~/lib/queries/car-rentals-pages.server'
+
+export const useCarRentalsIndexPage = routeLoader$(async () => {
+  return tryDbRead(
+    async () => {
+      const [cityItems, featuredRentals] = await Promise.all([
+        loadCarRentalCitiesFromDb(),
+        loadFeaturedCarRentalsFromDb(24),
+      ])
+
+      return {
+        cityItems,
+        featuredRentals,
+      }
+    },
+    () => ({
+      cityItems: CAR_RENTAL_CITIES,
+      featuredRentals: CAR_RENTALS.slice(0, 24).map((rental) => ({
+        slug: rental.slug,
+        name: rental.name,
+      })),
+    }),
+  )
+})
 
 export default component$(() => {
-  const cityItems = CAR_RENTAL_CITIES
+  const { cityItems } = useCarRentalsIndexPage().value
   const loc = useLocation()
 
   const q = String(loc.url.searchParams.get('q') || '').trim()
@@ -103,7 +129,8 @@ export default component$(() => {
   )
 })
 
-export const head: DocumentHead = ({ url }) => {
+export const head: DocumentHead = ({ resolveValue, url }) => {
+  const { featuredRentals } = resolveValue(useCarRentalsIndexPage)
   const title = 'Car Rentals | Andacity Travel'
   const description =
     'Browse indexable car rental guides with clear inclusions and policy summaries. Search pages stay noindex; detail pages earn rankings.'
@@ -129,12 +156,12 @@ export const head: DocumentHead = ({ url }) => {
       {
         '@type': 'ItemList',
         name: 'Andacity car rentals',
-        itemListElement: CAR_RENTALS.slice(0, listCap).map((c, i) => ({
+        itemListElement: featuredRentals.slice(0, listCap).map((c, i) => ({
           '@type': 'ListItem',
           position: i + 1,
           name: c.name,
           url: new URL(buildCarRentalDetailHref(c.slug), url.origin).href,
-          numberOfItems: CAR_RENTALS.length,
+          numberOfItems: featuredRentals.length,
         })),
       },
     ],

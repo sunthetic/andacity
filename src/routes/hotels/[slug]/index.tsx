@@ -2,15 +2,20 @@ import { component$ } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { getOgSecret, encodeOgPayload, signOgPayload } from '~/lib/seo/og-sign'
-import { getHotelBySlug } from '~/data/hotels'
+import { getHotelBySlug as getHotelBySlugFromData } from '~/data/hotels'
 import type { Hotel } from '~/data/hotels'
+import { tryDbRead } from '~/lib/db/read-switch.server'
+import { loadHotelBySlugFromDb } from '~/lib/queries/hotels-pages.server'
 import { Page } from '~/components/site/Page'
 
 export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
   const slug = String(params.slug || '').toLowerCase().trim()
   if (!slug) throw error(404, 'Not found')
 
-  const hotel = getHotelBySlug(slug)
+  const hotel = await tryDbRead(
+    () => loadHotelBySlugFromDb(slug),
+    () => getHotelBySlugFromData(slug),
+  )
   if (!hotel) throw error(404, 'Not found')
 
   const active = parseHotelStayParams(url.searchParams)

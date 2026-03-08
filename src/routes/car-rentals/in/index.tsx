@@ -1,11 +1,23 @@
 import { component$ } from '@builder.io/qwik'
+import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
 import { CAR_RENTAL_CITIES } from '~/data/car-rental-cities'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
+import { tryDbRead } from '~/lib/db/read-switch.server'
+import { loadCarRentalCitiesFromDb } from '~/lib/queries/car-rentals-pages.server'
+
+export const useCarRentalCitiesPage = routeLoader$(async () => {
+  const items = await tryDbRead(
+    () => loadCarRentalCitiesFromDb(),
+    () => CAR_RENTAL_CITIES,
+  )
+
+  return { items }
+})
 
 export default component$(() => {
-  const items = CAR_RENTAL_CITIES
+  const { items } = useCarRentalCitiesPage().value
 
   return (
     <Page breadcrumbs={[
@@ -69,7 +81,8 @@ export default component$(() => {
   )
 })
 
-export const head: DocumentHead = ({ url }) => {
+export const head: DocumentHead = ({ resolveValue, url }) => {
+  const { items } = resolveValue(useCarRentalCitiesPage)
   const title = 'Car rental cities | Andacity Travel'
   const description =
     'Browse indexable car rental city guides. City pages link into noindex search results; detail pages earn rankings.'
@@ -99,12 +112,12 @@ export const head: DocumentHead = ({ url }) => {
       {
         '@type': 'ItemList',
         name: 'Andacity car rental cities',
-        itemListElement: CAR_RENTAL_CITIES.map((c, i) => ({
+        itemListElement: items.map((c, i) => ({
           '@type': 'ListItem',
           position: i + 1,
           name: c.name,
           url: new URL(buildCityHref(c.slug), url.origin).href,
-          numberOfItems: CAR_RENTAL_CITIES.length,
+          numberOfItems: items.length,
         })),
       },
     ],

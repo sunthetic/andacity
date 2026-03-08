@@ -60,6 +60,12 @@ Useful commands:
 - `pnpm db:generate`
 - `pnpm db:migrate`
 - `pnpm db:seed:plan`
+- `pnpm db:seed`
+
+Runtime DB reads (search routes):
+
+- `DATABASE_URL=postgresql://...`
+- `DB_READS_ENABLED=1` (optional; if unset, DB reads auto-enable when `DATABASE_URL` exists)
 
 > Note: during dev mode, Vite may request a significant number of `.js` files. This does not represent a Qwik production build.
 

@@ -1,12 +1,13 @@
 import type { RequestHandler } from '@builder.io/qwik-city'
 import { HOTELS } from '~/data/hotels'
+import { tryDbRead } from '~/lib/db/read-switch.server'
+import { loadHotelSitemapPageFromDb } from '~/lib/queries/hotels-pages.server'
 import { getPublicBaseUrl, shouldIndex } from '~/lib/seo/env'
 
-export const onGet: RequestHandler = ({ params, url, headers, send, cacheControl }) => {
+export const onGet: RequestHandler = async ({ params, url, headers, send, cacheControl }) => {
   const baseUrl = getPublicBaseUrl(url)
   const prod = shouldIndex(baseUrl)
   const pageSize = 1000
-  const totalPages = Math.max(1, Math.ceil(HOTELS.length / pageSize))
 
   headers.set('content-type', 'application/xml; charset=utf-8')
 
@@ -22,16 +23,38 @@ export const onGet: RequestHandler = ({ params, url, headers, send, cacheControl
   }
 
   const page = parsePage(params.page)
-  if (page == null || page > totalPages) {
+  if (page == null) {
+    send(404, 'Not found')
+    return
+  }
+
+  const source = await tryDbRead(
+    () =>
+      loadHotelSitemapPageFromDb({
+        page,
+        pageSize,
+      }),
+    () => {
+      const totalCount = HOTELS.length
+      const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+      const start = (Math.min(page, totalPages) - 1) * pageSize
+      const slugs = HOTELS.slice(start, start + pageSize).map((hotel) => hotel.slug)
+
+      return {
+        totalCount,
+        totalPages,
+        slugs,
+      }
+    },
+  )
+  if (page > source.totalPages) {
     send(404, 'Not found')
     return
   }
 
   const origin = baseUrl.origin
-
-  const start = (page - 1) * pageSize
-  const urls = HOTELS.slice(start, start + pageSize).map((h) => ({
-    loc: `${origin}/hotels/${encodeURIComponent(h.slug)}`,
+  const urls = source.slugs.map((slug) => ({
+    loc: `${origin}/hotels/${encodeURIComponent(slug)}`,
     changefreq: 'daily' as const,
     priority: 0.8,
   }))

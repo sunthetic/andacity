@@ -1,11 +1,23 @@
 import { component$ } from '@builder.io/qwik'
+import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
 import { HOTEL_CITIES } from '~/data/hotel-cities'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
+import { tryDbRead } from '~/lib/db/read-switch.server'
+import { loadHotelCitiesFromDb } from '~/lib/queries/hotels-pages.server'
+
+export const useHotelCitiesPage = routeLoader$(async () => {
+  const items = await tryDbRead(
+    () => loadHotelCitiesFromDb(),
+    () => HOTEL_CITIES,
+  )
+
+  return { items }
+})
 
 export default component$(() => {
-  const items = HOTEL_CITIES
+  const { items } = useHotelCitiesPage().value
 
   return (
     <Page breadcrumbs={[
@@ -79,7 +91,8 @@ export default component$(() => {
   )
 })
 
-export const head: DocumentHead = ({ url }) => {
+export const head: DocumentHead = ({ resolveValue, url }) => {
+  const { items } = resolveValue(useHotelCitiesPage)
   const title = 'Hotel Destinations | Andacity Travel'
   const description =
     'Browse indexable hotel city guides. Each city page links into noindex hotel search results while earning rankings.'
@@ -102,12 +115,12 @@ export const head: DocumentHead = ({ url }) => {
       {
         '@type': 'ItemList',
         name: 'Andacity hotel cities',
-        itemListElement: HOTEL_CITIES.slice(0, listCap).map((c, i) => ({
+        itemListElement: items.slice(0, listCap).map((c, i) => ({
           '@type': 'ListItem',
           position: i + 1,
           name: c.city,
           url: new URL(buildHotelsInCityHref(c.slug), url.origin).href,
-          numberOfItems: HOTEL_CITIES.length,
+          numberOfItems: items.length,
         })),
       },
     ],

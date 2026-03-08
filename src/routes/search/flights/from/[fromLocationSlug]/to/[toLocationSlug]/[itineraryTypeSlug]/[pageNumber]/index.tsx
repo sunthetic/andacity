@@ -4,6 +4,8 @@ import type { DocumentHead } from "@builder.io/qwik-city";
 import { useLocation } from "@builder.io/qwik-city";
 import { FlightsResultsAdapter } from "~/components/flights/FlightsResultsAdapter";
 import { Page } from "~/components/site/Page";
+import { tryDbRead } from "~/lib/db/read-switch.server";
+import { loadFlightResultsFromDb } from "~/lib/queries/flights-search.server";
 import {
   buildFlightsSearchPath,
   humanizeLocationSlug,
@@ -15,7 +17,7 @@ import { findTopTravelCity } from "~/seed/cities/top-100.js";
 import { generateFlightsForRoute } from "~/seed/generators/generate-flights.js";
 import type { FlightResult } from "~/types/flights/search";
 
-export const useSearchFlightsPage = routeLoader$(({ params, url }) => {
+export const useSearchFlightsPage = routeLoader$(async ({ params, url }) => {
   const fromLocationSlug =
     slugifyLocation(String(params.fromLocationSlug || "").trim()) || "anywhere";
   const toLocationSlug =
@@ -54,14 +56,31 @@ export const useSearchFlightsPage = routeLoader$(({ params, url }) => {
     };
   }
 
-  const results = generateFlightsForRoute({
-    fromSlug: fromLocationSlug,
-    toSlug: toLocationSlug,
-    itineraryType,
-    departDate: searchState.dates?.checkIn,
-    returnDate:
-      itineraryType === "round-trip" ? searchState.dates?.checkOut : undefined,
-  }) as FlightResult[];
+  const fallbackResults = () =>
+    generateFlightsForRoute({
+      fromSlug: fromLocationSlug,
+      toSlug: toLocationSlug,
+      itineraryType,
+      departDate: searchState.dates?.checkIn,
+      returnDate:
+        itineraryType === "round-trip"
+          ? searchState.dates?.checkOut
+          : undefined,
+    }) as FlightResult[];
+
+  const results =
+    fromCity && toCity
+      ? await tryDbRead(
+          () =>
+            loadFlightResultsFromDb({
+              fromLocationSlug,
+              toLocationSlug,
+              itineraryType,
+              departDate: searchState.dates?.checkIn,
+            }),
+          fallbackResults,
+        )
+      : fallbackResults();
 
   const searchAgainHref = buildSearchFlightsHref({
     from,

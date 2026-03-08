@@ -126,7 +126,14 @@ Examples:
 - Schema contract: `src/lib/db/schema.ts`
 - Repository boundary:
   - `src/lib/repos/hotels-repo.server.ts`
+  - `src/lib/repos/car-rentals-repo.server.ts`
   - `src/lib/repos/flights-repo.server.ts`
+- Query mapping boundary:
+  - `src/lib/queries/hotels-search.server.ts`
+  - `src/lib/queries/car-rentals-search.server.ts`
+  - `src/lib/queries/flights-search.server.ts`
+- Runtime read switch:
+  - `src/lib/db/read-switch.server.ts`
 
 This keeps DB access out of route/components and creates a clean adapter path from current mock data.
 
@@ -138,16 +145,20 @@ Implemented now:
 - migration setup and first migration SQL
 - DB seed payload mapping and apply pipeline
 - DB client module and example repositories
+- DB-backed search route loaders with fallback:
+  - `/search/hotels/...`
+  - `/search/car-rentals/...`
+  - `/search/flights/...`
 
 Scaffolded for next phase:
 
-- swapping route loaders/adapters from in-memory generators to repositories
+- migrating detail/city pages and sitemap feeds off file-backed inventories
 - query-level performance tuning after real data volume profiling
 - richer multi-segment flight generation for stop-level realism
 
 ## Recommended Next Steps
 
-1. Add a feature flag to read Hotels and Cars from repositories first (lowest risk verticals).
-2. Add DB-backed flight search route for one route pattern (`from/to/itinerary`) and compare output parity.
-3. Add integration tests for seed apply + core search queries against a local Postgres instance.
-4. Add follow-up migration(s) for specialized indexes once query plans are observed (`EXPLAIN ANALYZE`).
+1. Migrate hotel/car detail pages to DB reads so detail cards and search pages share one inventory source.
+2. Add integration tests for seeded DB parity against key route loaders.
+3. Add follow-up migration(s) for specialized indexes once query plans are observed (`EXPLAIN ANALYZE`).
+4. If `public` schema permissions are restricted, keep `DATABASE_URL` search path set to your app schema (for example `andacity_app,public`).

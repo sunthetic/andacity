@@ -8,19 +8,42 @@ import { getCarRentalCityBySlug } from '~/data/car-rental-cities'
 import { CarRentalSearchCard } from '~/components/car-rentals/CarRentalSearchCard'
 import { mapCarRentalsToResults } from '~/lib/search/car-rentals/mapCarRentalsToResults'
 import { searchStateFromUrl } from '~/lib/search/url-to-state'
+import { tryDbRead } from '~/lib/db/read-switch.server'
+import { loadCarRentalCityPageFromDb } from '~/lib/queries/car-rentals-pages.server'
 
-export const useCityCarRentals = routeLoader$(({ params, url, error }) => {
+export const useCityCarRentals = routeLoader$(async ({ params, url, error }) => {
   const citySlug = String(params.citySlug || '').trim().toLowerCase()
-  const city = getCarRentalCityBySlug(citySlug)
-
-  if (!city) throw error(404, 'Not found')
-
-  const items = CAR_RENTALS.filter((c) => c.cityQuery === citySlug)
   const active = parseRentalParams(url.searchParams)
-  const results = mapCarRentalsToResults(items, city.name, {
-    pickupDate: active.pickupDate,
-    dropoffDate: active.dropoffDate,
-  })
+  const cityData = await tryDbRead(
+    () =>
+      loadCarRentalCityPageFromDb({
+        citySlug,
+        pickupDate: active.pickupDate,
+        dropoffDate: active.dropoffDate,
+      }),
+    () => {
+      const city = getCarRentalCityBySlug(citySlug)
+      if (!city) return null
+
+      const rentals = CAR_RENTALS.filter((value) => value.cityQuery === citySlug)
+      const results = mapCarRentalsToResults(rentals, city.name, {
+        pickupDate: active.pickupDate,
+        dropoffDate: active.dropoffDate,
+      })
+
+      return {
+        city,
+        results,
+        items: rentals.map((rental) => ({
+          slug: rental.slug,
+          name: rental.name,
+        })),
+      }
+    },
+  )
+  if (!cityData) throw error(404, 'Not found')
+
+  const { city, items, results } = cityData
   const searchState = searchStateFromUrl(url, {
     query: city.name,
     location: { city: city.name },

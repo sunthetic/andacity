@@ -1,12 +1,15 @@
-import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { getDb } from '~/lib/db/client.server'
 import {
+  countries,
   cities,
   hotelAmenityLinks,
   hotelAmenities,
   hotelAvailabilitySnapshots,
   hotelImages,
+  hotelOffers,
   hotels,
+  regions,
 } from '~/lib/db/schema'
 
 export type HotelSort = 'recommended' | 'price-asc' | 'price-desc' | 'rating-desc'
@@ -38,6 +41,101 @@ export type HotelSearchRow = {
   freeCancellation: boolean
   payLater: boolean
   imageUrl: string | null
+  amenities: string[]
+}
+
+export type HotelListRow = {
+  id: number
+  slug: string
+  name: string
+  citySlug: string
+  cityName: string
+  regionName: string | null
+  countryName: string
+  neighborhood: string
+  addressLine: string
+  propertyType: string
+  summary: string
+  stars: number
+  rating: string
+  reviewCount: number
+  fromNightlyCents: number
+  currencyCode: string
+  freeCancellation: boolean
+  payLater: boolean
+  noResortFees: boolean
+  checkInTime: string | null
+  checkOutTime: string | null
+  cancellationBlurb: string | null
+  paymentBlurb: string | null
+  feesBlurb: string | null
+  imageUrl: string | null
+  amenities: string[]
+}
+
+export type HotelOfferRow = {
+  externalOfferId: string
+  name: string
+  sleeps: number
+  beds: string
+  sizeSqft: number
+  priceNightlyCents: number
+  refundable: boolean
+  payLater: boolean
+  badges: string[]
+  features: string[]
+}
+
+export type HotelAvailabilityRow = {
+  checkInStart: string
+  checkInEnd: string
+  minNights: number
+  maxNights: number
+  blockedWeekdays: number[]
+}
+
+export type HotelDetailRow = {
+  id: number
+  slug: string
+  name: string
+  citySlug: string
+  cityName: string
+  regionName: string | null
+  countryName: string
+  neighborhood: string
+  propertyType: string
+  addressLine: string
+  summary: string
+  stars: number
+  rating: string
+  reviewCount: number
+  fromNightlyCents: number
+  currencyCode: string
+  freeCancellation: boolean
+  payLater: boolean
+  noResortFees: boolean
+  checkInTime: string | null
+  checkOutTime: string | null
+  cancellationBlurb: string | null
+  paymentBlurb: string | null
+  feesBlurb: string | null
+  images: string[]
+  amenities: string[]
+  offers: HotelOfferRow[]
+  availability: HotelAvailabilityRow | null
+}
+
+export type HotelCitySummaryRow = {
+  cityId: number
+  slug: string
+  city: string
+  region: string | null
+  country: string
+  hotelCount: number
+  fromNightlyCents: number
+  topAmenities: { name: string; count: number }[]
+  topNeighborhoods: { name: string; count: number }[]
+  hotelSlugs: string[]
 }
 
 const DEFAULT_LIMIT = 24
@@ -168,7 +266,33 @@ export async function searchHotels(input: SearchHotelsInput): Promise<HotelSearc
     .limit(input.limit ?? DEFAULT_LIMIT)
     .offset(input.offset ?? 0)
 
-  return rows
+  if (!rows.length) return rows.map((row) => ({ ...row, amenities: [] }))
+
+  const hotelIds = rows.map((row) => row.id)
+  const amenityRows = await db
+    .select({
+      hotelId: hotelAmenityLinks.hotelId,
+      label: hotelAmenities.label,
+    })
+    .from(hotelAmenityLinks)
+    .innerJoin(hotelAmenities, eq(hotelAmenityLinks.amenityId, hotelAmenities.id))
+    .where(inArray(hotelAmenityLinks.hotelId, hotelIds))
+    .orderBy(hotelAmenityLinks.hotelId, hotelAmenities.label)
+
+  const amenitiesByHotelId = new Map<number, string[]>()
+  for (const entry of amenityRows) {
+    const existing = amenitiesByHotelId.get(entry.hotelId)
+    if (existing) {
+      existing.push(entry.label)
+      continue
+    }
+    amenitiesByHotelId.set(entry.hotelId, [entry.label])
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    amenities: amenitiesByHotelId.get(row.id) || [],
+  }))
 }
 
 export async function getHotelBySlug(slug: string) {
@@ -194,4 +318,369 @@ export async function getHotelBySlug(slug: string) {
     .limit(1)
 
   return rows[0] ?? null
+}
+
+export async function listHotelsByCitySlug(
+  citySlug: string,
+  options: { limit?: number; offset?: number } = {},
+): Promise<HotelListRow[]> {
+  const db = getDb()
+
+  const rows = await db
+    .select({
+      id: hotels.id,
+      slug: hotels.slug,
+      name: hotels.name,
+      citySlug: cities.slug,
+      cityName: cities.name,
+      regionName: regions.name,
+      countryName: countries.name,
+      neighborhood: hotels.neighborhood,
+      addressLine: hotels.addressLine,
+      propertyType: hotels.propertyType,
+      summary: hotels.summary,
+      stars: hotels.stars,
+      rating: hotels.rating,
+      reviewCount: hotels.reviewCount,
+      fromNightlyCents: hotels.fromNightlyCents,
+      currencyCode: hotels.currencyCode,
+      freeCancellation: hotels.freeCancellation,
+      payLater: hotels.payLater,
+      noResortFees: hotels.noResortFees,
+      checkInTime: hotels.checkInTime,
+      checkOutTime: hotels.checkOutTime,
+      cancellationBlurb: hotels.cancellationBlurb,
+      paymentBlurb: hotels.paymentBlurb,
+      feesBlurb: hotels.feesBlurb,
+      imageUrl: hotelImages.url,
+    })
+    .from(hotels)
+    .innerJoin(cities, eq(hotels.cityId, cities.id))
+    .leftJoin(regions, eq(cities.regionId, regions.id))
+    .innerJoin(countries, eq(cities.countryId, countries.id))
+    .leftJoin(
+      hotelImages,
+      and(eq(hotelImages.hotelId, hotels.id), eq(hotelImages.sortOrder, 0)),
+    )
+    .where(eq(cities.slug, citySlug))
+    .orderBy(desc(hotels.rating), asc(hotels.fromNightlyCents), asc(hotels.id))
+    .limit(options.limit ?? 200)
+    .offset(options.offset ?? 0)
+
+  if (!rows.length) return []
+
+  const hotelIds = rows.map((row) => row.id)
+  const amenityRows = await db
+    .select({
+      hotelId: hotelAmenityLinks.hotelId,
+      label: hotelAmenities.label,
+    })
+    .from(hotelAmenityLinks)
+    .innerJoin(hotelAmenities, eq(hotelAmenityLinks.amenityId, hotelAmenities.id))
+    .where(inArray(hotelAmenityLinks.hotelId, hotelIds))
+    .orderBy(hotelAmenityLinks.hotelId, hotelAmenities.label)
+
+  const amenitiesByHotelId = new Map<number, string[]>()
+  for (const entry of amenityRows) {
+    const existing = amenitiesByHotelId.get(entry.hotelId)
+    if (existing) {
+      existing.push(entry.label)
+      continue
+    }
+    amenitiesByHotelId.set(entry.hotelId, [entry.label])
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    amenities: amenitiesByHotelId.get(row.id) || [],
+  }))
+}
+
+export async function getHotelDetailBySlug(slug: string): Promise<HotelDetailRow | null> {
+  const db = getDb()
+
+  const rows = await db
+    .select({
+      id: hotels.id,
+      slug: hotels.slug,
+      name: hotels.name,
+      citySlug: cities.slug,
+      cityName: cities.name,
+      regionName: regions.name,
+      countryName: countries.name,
+      neighborhood: hotels.neighborhood,
+      propertyType: hotels.propertyType,
+      addressLine: hotels.addressLine,
+      summary: hotels.summary,
+      stars: hotels.stars,
+      rating: hotels.rating,
+      reviewCount: hotels.reviewCount,
+      fromNightlyCents: hotels.fromNightlyCents,
+      currencyCode: hotels.currencyCode,
+      freeCancellation: hotels.freeCancellation,
+      payLater: hotels.payLater,
+      noResortFees: hotels.noResortFees,
+      checkInTime: hotels.checkInTime,
+      checkOutTime: hotels.checkOutTime,
+      cancellationBlurb: hotels.cancellationBlurb,
+      paymentBlurb: hotels.paymentBlurb,
+      feesBlurb: hotels.feesBlurb,
+    })
+    .from(hotels)
+    .innerJoin(cities, eq(hotels.cityId, cities.id))
+    .leftJoin(regions, eq(cities.regionId, regions.id))
+    .innerJoin(countries, eq(cities.countryId, countries.id))
+    .where(eq(hotels.slug, slug))
+    .limit(1)
+
+  const hotel = rows[0]
+  if (!hotel) return null
+
+  const imageRows = await db
+    .select({
+      url: hotelImages.url,
+    })
+    .from(hotelImages)
+    .where(eq(hotelImages.hotelId, hotel.id))
+    .orderBy(asc(hotelImages.sortOrder), asc(hotelImages.id))
+
+  const amenityRows = await db
+    .select({
+      label: hotelAmenities.label,
+    })
+    .from(hotelAmenityLinks)
+    .innerJoin(hotelAmenities, eq(hotelAmenityLinks.amenityId, hotelAmenities.id))
+    .where(eq(hotelAmenityLinks.hotelId, hotel.id))
+    .orderBy(hotelAmenities.label)
+
+  const offerRows = await db
+    .select({
+      externalOfferId: hotelOffers.externalOfferId,
+      name: hotelOffers.name,
+      sleeps: hotelOffers.sleeps,
+      beds: hotelOffers.beds,
+      sizeSqft: hotelOffers.sizeSqft,
+      priceNightlyCents: hotelOffers.priceNightlyCents,
+      refundable: hotelOffers.refundable,
+      payLater: hotelOffers.payLater,
+      badges: hotelOffers.badges,
+      features: hotelOffers.features,
+    })
+    .from(hotelOffers)
+    .where(eq(hotelOffers.hotelId, hotel.id))
+    .orderBy(asc(hotelOffers.priceNightlyCents), asc(hotelOffers.id))
+
+  const availabilityRows = await db
+    .select({
+      checkInStart: hotelAvailabilitySnapshots.checkInStart,
+      checkInEnd: hotelAvailabilitySnapshots.checkInEnd,
+      minNights: hotelAvailabilitySnapshots.minNights,
+      maxNights: hotelAvailabilitySnapshots.maxNights,
+      blockedWeekdays: hotelAvailabilitySnapshots.blockedWeekdays,
+    })
+    .from(hotelAvailabilitySnapshots)
+    .where(
+      and(
+        eq(hotelAvailabilitySnapshots.hotelId, hotel.id),
+        eq(hotelAvailabilitySnapshots.snapshotSource, 'seed'),
+      ),
+    )
+    .limit(1)
+
+  return {
+    ...hotel,
+    images: imageRows.map((row) => row.url),
+    amenities: amenityRows.map((row) => row.label),
+    offers: offerRows,
+    availability: availabilityRows[0] || null,
+  }
+}
+
+export async function countHotels(): Promise<number> {
+  const db = getDb()
+  const rows = await db
+    .select({
+      count: sql<number>`count(*)::int`,
+    })
+    .from(hotels)
+
+  return rows[0]?.count ?? 0
+}
+
+export async function listHotelSlugs(input: { limit: number; offset: number }): Promise<string[]> {
+  const db = getDb()
+  const rows = await db
+    .select({
+      slug: hotels.slug,
+    })
+    .from(hotels)
+    .orderBy(asc(hotels.id))
+    .limit(input.limit)
+    .offset(input.offset)
+
+  return rows.map((row) => row.slug)
+}
+
+export async function listHotelCitySummaries(): Promise<HotelCitySummaryRow[]> {
+  const db = getDb()
+  const cityHotelCountSql = sql<number>`count(${hotels.id})::int`
+  const cityMinPriceSql = sql<number>`min(${hotels.fromNightlyCents})::int`
+
+  const cityRows = await db
+    .select({
+      cityId: cities.id,
+      slug: cities.slug,
+      city: cities.name,
+      region: regions.name,
+      country: countries.name,
+      hotelCount: cityHotelCountSql,
+      fromNightlyCents: cityMinPriceSql,
+    })
+    .from(cities)
+    .innerJoin(countries, eq(cities.countryId, countries.id))
+    .leftJoin(regions, eq(cities.regionId, regions.id))
+    .innerJoin(hotels, eq(hotels.cityId, cities.id))
+    .groupBy(cities.id, cities.slug, cities.name, regions.name, countries.name)
+    .orderBy(asc(cities.name))
+
+  if (!cityRows.length) return []
+
+  const amenityCountSql = sql<number>`count(*)::int`
+  const amenityRows = await db
+    .select({
+      cityId: hotels.cityId,
+      name: hotelAmenities.label,
+      count: amenityCountSql,
+    })
+    .from(hotels)
+    .innerJoin(hotelAmenityLinks, eq(hotelAmenityLinks.hotelId, hotels.id))
+    .innerJoin(hotelAmenities, eq(hotelAmenities.id, hotelAmenityLinks.amenityId))
+    .groupBy(hotels.cityId, hotelAmenities.label)
+    .orderBy(asc(hotels.cityId), desc(amenityCountSql), asc(hotelAmenities.label))
+
+  const neighborhoodCountSql = sql<number>`count(*)::int`
+  const neighborhoodRows = await db
+    .select({
+      cityId: hotels.cityId,
+      name: hotels.neighborhood,
+      count: neighborhoodCountSql,
+    })
+    .from(hotels)
+    .groupBy(hotels.cityId, hotels.neighborhood)
+    .orderBy(asc(hotels.cityId), desc(neighborhoodCountSql), asc(hotels.neighborhood))
+
+  const hotelSlugRows = await db
+    .select({
+      cityId: hotels.cityId,
+      slug: hotels.slug,
+    })
+    .from(hotels)
+    .orderBy(asc(hotels.cityId), asc(hotels.slug))
+
+  const amenitiesByCityId = new Map<number, { name: string; count: number }[]>()
+  for (const row of amenityRows) {
+    const current = amenitiesByCityId.get(row.cityId) || []
+    if (current.length >= 10) continue
+    current.push({
+      name: row.name,
+      count: row.count,
+    })
+    amenitiesByCityId.set(row.cityId, current)
+  }
+
+  const neighborhoodsByCityId = new Map<number, { name: string; count: number }[]>()
+  for (const row of neighborhoodRows) {
+    const current = neighborhoodsByCityId.get(row.cityId) || []
+    if (current.length >= 10) continue
+    current.push({
+      name: row.name,
+      count: row.count,
+    })
+    neighborhoodsByCityId.set(row.cityId, current)
+  }
+
+  const slugsByCityId = new Map<number, string[]>()
+  for (const row of hotelSlugRows) {
+    const current = slugsByCityId.get(row.cityId)
+    if (current) {
+      current.push(row.slug)
+      continue
+    }
+    slugsByCityId.set(row.cityId, [row.slug])
+  }
+
+  return cityRows.map((row) => ({
+    ...row,
+    topAmenities: amenitiesByCityId.get(row.cityId) || [],
+    topNeighborhoods: neighborhoodsByCityId.get(row.cityId) || [],
+    hotelSlugs: slugsByCityId.get(row.cityId) || [],
+  }))
+}
+
+export async function getHotelCitySummaryBySlug(citySlug: string): Promise<HotelCitySummaryRow | null> {
+  const db = getDb()
+  const cityHotelCountSql = sql<number>`count(${hotels.id})::int`
+  const cityMinPriceSql = sql<number>`min(${hotels.fromNightlyCents})::int`
+
+  const cityRows = await db
+    .select({
+      cityId: cities.id,
+      slug: cities.slug,
+      city: cities.name,
+      region: regions.name,
+      country: countries.name,
+      hotelCount: cityHotelCountSql,
+      fromNightlyCents: cityMinPriceSql,
+    })
+    .from(cities)
+    .innerJoin(countries, eq(cities.countryId, countries.id))
+    .leftJoin(regions, eq(cities.regionId, regions.id))
+    .innerJoin(hotels, eq(hotels.cityId, cities.id))
+    .where(eq(cities.slug, citySlug))
+    .groupBy(cities.id, cities.slug, cities.name, regions.name, countries.name)
+    .limit(1)
+
+  const cityRow = cityRows[0]
+  if (!cityRow) return null
+
+  const amenityCountSql = sql<number>`count(*)::int`
+  const amenityRows = await db
+    .select({
+      name: hotelAmenities.label,
+      count: amenityCountSql,
+    })
+    .from(hotels)
+    .innerJoin(hotelAmenityLinks, eq(hotelAmenityLinks.hotelId, hotels.id))
+    .innerJoin(hotelAmenities, eq(hotelAmenities.id, hotelAmenityLinks.amenityId))
+    .where(eq(hotels.cityId, cityRow.cityId))
+    .groupBy(hotelAmenities.label)
+    .orderBy(desc(amenityCountSql), asc(hotelAmenities.label))
+    .limit(10)
+
+  const neighborhoodCountSql = sql<number>`count(*)::int`
+  const neighborhoodRows = await db
+    .select({
+      name: hotels.neighborhood,
+      count: neighborhoodCountSql,
+    })
+    .from(hotels)
+    .where(eq(hotels.cityId, cityRow.cityId))
+    .groupBy(hotels.neighborhood)
+    .orderBy(desc(neighborhoodCountSql), asc(hotels.neighborhood))
+    .limit(10)
+
+  const hotelSlugRows = await db
+    .select({
+      slug: hotels.slug,
+    })
+    .from(hotels)
+    .where(eq(hotels.cityId, cityRow.cityId))
+    .orderBy(asc(hotels.slug))
+
+  return {
+    ...cityRow,
+    topAmenities: amenityRows,
+    topNeighborhoods: neighborhoodRows,
+    hotelSlugs: hotelSlugRows.map((row) => row.slug),
+  }
 }
