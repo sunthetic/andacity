@@ -95,6 +95,76 @@ export const CarRentalCard = component$((props: CarRentalCardProps) => {
             .filter(Boolean)
             .join(" · ")}
         </p>
+
+        <div class="p-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <a
+                href={buildCarRentalDetailHref(r.slug)}
+                class="text-sm font-semibold text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
+              >
+                {r.name}
+              </a>
+              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                {r.vehicleName || r.category || "Standard car"}
+              </p>
+            </div>
+
+            <div class="text-right">
+              {props.savedItem && props.onToggleSave$ ? (
+                <div class="mb-2">
+                  <SaveButton
+                    saved={Boolean(props.isSaved)}
+                    onToggle$={() => {
+                      if (!props.savedItem || !props.onToggleSave$) return;
+                      props.onToggleSave$(props.savedItem);
+                    }}
+                  />
+                </div>
+              ) : null}
+
+              {props.savedItem ? (
+                <div class="mb-2">
+                  <AddToTripButton item={props.savedItem} />
+                </div>
+              ) : null}
+
+              <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                {formatMoney(r.priceFrom, r.currency)}
+                <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">
+                  /day
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-3 flex flex-wrap gap-2">
+            {r.category ? <span class="t-badge">{r.category}</span> : null}
+            {r.transmission ? (
+              <span class="t-badge">{r.transmission}</span>
+            ) : null}
+            {r.seats != null ? (
+              <span class="t-badge">{r.seats} seats</span>
+            ) : null}
+            {r.bags ? <span class="t-badge">{r.bags}</span> : null}
+            <span class="t-badge">
+              {pickupType === "airport" ? "Airport pickup" : "City pickup"}
+            </span>
+          </div>
+
+          <p class="mt-3 text-xs text-[color:var(--color-text-muted)]">
+            {r.pickupArea}
+          </p>
+
+          <div class="mt-4">
+            <a
+              class="t-btn-primary inline-block px-4 py-2 text-sm"
+              href={buildCarRentalDetailHref(r.slug)}
+            >
+              View deal
+            </a>
+          </div>
+        </div>
       </div>
 
       <ResultFactList

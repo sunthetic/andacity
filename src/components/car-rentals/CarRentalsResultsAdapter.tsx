@@ -20,6 +20,7 @@ import { revalidateInventoryApi } from "~/lib/inventory/inventory-api";
 import {
   buildCarPriceDisplay,
   describePriceChangeCollection,
+  formatMoney,
   type PriceChange,
 } from "~/lib/pricing/price-display";
 import {
@@ -135,6 +136,48 @@ const buildEditSearchHref = (state: SearchState, queryLabel: string) => {
 
   return `/car-rentals?${sp.toString()}`;
 };
+
+const buildCarRentalDetailHref = (rentalSlug: string) =>
+  `/car-rentals/${encodeURIComponent(rentalSlug)}`;
+
+const toSavedCarItem = (
+  result: CarRentalResult,
+  dates: SearchState["dates"],
+): SavedItem => ({
+  id: result.id,
+  vertical: CARS_VERTICAL,
+  title: result.name,
+  subtitle: result.vehicleName || result.category || "Standard car",
+  price: `${formatMoney(result.priceFrom, result.currency)} /day`,
+  meta: [
+    result.pickupArea,
+    result.transmission || "",
+    result.seats != null ? `${result.seats} seats` : "",
+    result.bags || "",
+  ].filter(Boolean),
+  href: buildCarRentalDetailHref(result.slug),
+  image: result.image || undefined,
+  tripCandidate:
+    result.inventoryId != null
+      ? {
+          itemType: "car",
+          inventoryId: result.inventoryId,
+          startDate: dates?.checkIn,
+          endDate: dates?.checkOut,
+          priceCents: Math.round(result.priceFrom * 100),
+          currencyCode: result.currency,
+          title: result.name,
+          subtitle: result.vehicleName || result.category || "Standard car",
+          imageUrl: result.image || undefined,
+          meta: [
+            result.pickupArea,
+            result.transmission || "",
+            result.seats != null ? `${result.seats} seats` : "",
+            result.bags || "",
+          ].filter(Boolean),
+        }
+      : undefined,
+});
 
 export const CarRentalsResultsAdapter = component$(
   (props: CarRentalsResultsAdapterProps) => {

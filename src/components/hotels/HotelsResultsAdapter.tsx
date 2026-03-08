@@ -22,6 +22,7 @@ import { revalidateInventoryApi } from "~/lib/inventory/inventory-api";
 import {
   buildHotelPriceDisplay,
   describePriceChangeCollection,
+  formatMoney,
   type PriceChange,
 } from "~/lib/pricing/price-display";
 import {
@@ -175,6 +176,46 @@ const buildEditSearchHref = (cityName: string, dates: SearchState["dates"]) => {
   if (dates?.checkOut) sp.set("checkOut", dates.checkOut);
   return `/hotels?${sp.toString()}`;
 };
+
+const buildHotelDetailHref = (hotelSlug: string) =>
+  `/hotels/${encodeURIComponent(hotelSlug)}`;
+
+const toSavedHotelItem = (
+  hotel: Hotel,
+  dates: SearchState["dates"],
+): SavedItem => ({
+  id: hotel.slug,
+  vertical: HOTELS_VERTICAL,
+  title: hotel.name,
+  subtitle: `${hotel.neighborhood} · ${hotel.stars}★ · ${hotel.rating.toFixed(1)}`,
+  price: `${formatMoney(hotel.fromNightly, hotel.currency)} /night`,
+  meta: [
+    `${hotel.reviewCount.toLocaleString("en-US")} reviews`,
+    ...(hotel.policies.freeCancellation ? ["Free cancellation"] : []),
+    ...(hotel.policies.payLater ? ["Pay later"] : []),
+  ],
+  href: buildHotelDetailHref(hotel.slug),
+  image: hotel.images[0] || undefined,
+  tripCandidate:
+    hotel.inventoryId != null
+      ? {
+          itemType: "hotel",
+          inventoryId: hotel.inventoryId,
+          startDate: dates?.checkIn,
+          endDate: dates?.checkOut,
+          priceCents: Math.round(hotel.fromNightly * 100),
+          currencyCode: hotel.currency,
+          title: hotel.name,
+          subtitle: `${hotel.neighborhood} · ${hotel.stars}★`,
+          imageUrl: hotel.images[0] || undefined,
+          meta: [
+            `${hotel.reviewCount.toLocaleString("en-US")} reviews`,
+            ...(hotel.policies.freeCancellation ? ["Free cancellation"] : []),
+            ...(hotel.policies.payLater ? ["Pay later"] : []),
+          ],
+        }
+      : undefined,
+});
 
 const buildPageLinks = (
   page: number,
