@@ -1,6 +1,7 @@
 import { component$ } from '@builder.io/qwik'
 import {
   serializeExploreIntentToCarHref,
+  serializeExploreIntentToFlightHref,
   serializeExploreIntentToHotelHref,
 } from '~/lib/explore/serialize-search'
 import type { ExploreIntent, ExploreTravelStyle } from '~/types/explore/intent'
@@ -44,7 +45,8 @@ export const ExplorePresetChips = component$((props: ExplorePresetChipsProps) =>
   const luxuryIntent = withLuxuryVariant(props.intent)
 
   const chips: ExplorePresetChip[] = [
-    { label: 'Find stays', href: serializeExploreIntentToHotelHref(props.intent), emphasis: 'primary' },
+    { label: 'Find flights', href: serializeExploreIntentToFlightHref(props.intent), emphasis: 'primary' },
+    { label: 'Find stays', href: serializeExploreIntentToHotelHref(props.intent), emphasis: 'secondary' },
     { label: 'Explore cars', href: serializeExploreIntentToCarHref(props.intent), emphasis: 'secondary' },
     { label: 'Weekend version', href: serializeExploreIntentToHotelHref(weekendIntent), emphasis: 'secondary' },
     { label: 'Luxury version', href: serializeExploreIntentToHotelHref(luxuryIntent), emphasis: 'secondary' },

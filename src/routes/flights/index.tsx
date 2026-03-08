@@ -11,8 +11,8 @@ export default component$(() => {
   const itineraryType = normalizeFlightItineraryType(String(location.url.searchParams.get('itineraryType') || '').trim())
   const from = String(location.url.searchParams.get('from') || '').trim()
   const to = String(location.url.searchParams.get('to') || '').trim()
-  const depart = ''
-  const ret = ''
+  const depart = String(location.url.searchParams.get('depart') || '').trim()
+  const ret = String(location.url.searchParams.get('return') || '').trim()
   const travelers = String(location.url.searchParams.get('travelers') || '').trim()
   const cabin = String(location.url.searchParams.get('cabin') || '').trim()
 

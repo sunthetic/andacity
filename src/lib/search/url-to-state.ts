@@ -12,6 +12,8 @@ const RESERVED_KEYS = new Set([
   'checkOut',
   'pickupDate',
   'dropoffDate',
+  'depart',
+  'return',
   'sort',
   'page',
 ])
@@ -78,8 +80,8 @@ export const searchStateFromUrl = (url: URL, defaults: SearchStateDefaults = {})
     }
   }
 
-  const checkIn = String(sp.get('checkIn') || sp.get('pickupDate') || '').trim()
-  const checkOut = String(sp.get('checkOut') || sp.get('dropoffDate') || '').trim()
+  const checkIn = String(sp.get('checkIn') || sp.get('pickupDate') || sp.get('depart') || '').trim()
+  const checkOut = String(sp.get('checkOut') || sp.get('dropoffDate') || sp.get('return') || '').trim()
   if (checkIn || checkOut) {
     state.dates = {
       ...(state.dates || {}),

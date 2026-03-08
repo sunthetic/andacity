@@ -1,3 +1,6 @@
+export type FlightCabinClass = 'economy' | 'premium-economy' | 'business' | 'first'
+export type FlightTimeWindow = 'morning' | 'afternoon' | 'evening' | 'overnight'
+
 export type FlightResult = {
   id: string
   airline: string
@@ -7,11 +10,12 @@ export type FlightResult = {
   arrivalTime: string
   departureMinutes: number
   arrivalMinutes: number
-  departureWindow: 'morning' | 'afternoon' | 'evening' | 'overnight'
-  arrivalWindow: 'morning' | 'afternoon' | 'evening' | 'overnight'
+  departureWindow: FlightTimeWindow
+  arrivalWindow: FlightTimeWindow
   stops: 0 | 1 | 2
   stopsLabel: string
   duration: string
+  cabinClass?: FlightCabinClass
   price: number
   currency: string
 }

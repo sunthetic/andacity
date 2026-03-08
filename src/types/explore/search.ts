@@ -36,3 +36,14 @@ export type CarSearchSeed = {
   }
   context?: ExploreSearchContext
 }
+
+export type FlightSearchSeed = {
+  from: string
+  to: string
+  itineraryType?: 'round-trip' | 'one-way'
+  filters: {
+    maxStops?: 0 | 1 | 2
+    cabinClass?: 'economy' | 'premium-economy' | 'business' | 'first'
+  }
+  context?: ExploreSearchContext
+}

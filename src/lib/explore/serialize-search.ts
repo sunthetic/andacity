@@ -1,7 +1,9 @@
 import { exploreIntentToCarSearchSeed } from '~/lib/explore/intent-to-cars'
+import { exploreIntentToFlightSearchSeed } from '~/lib/explore/intent-to-flights'
 import { exploreIntentToHotelSearchSeed } from '~/lib/explore/intent-to-hotels'
+import { buildFlightsSearchPath, normalizeFlightItineraryType, slugifyLocation } from '~/lib/search/flights/routing'
 import type { ExploreIntent } from '~/types/explore/intent'
-import type { CarSearchSeed, ExploreSearchContext, HotelSearchSeed } from '~/types/explore/search'
+import type { CarSearchSeed, ExploreSearchContext, FlightSearchSeed, HotelSearchSeed } from '~/types/explore/search'
 
 type SerializeSeedOptions = {
   page?: number
@@ -103,6 +105,31 @@ export const serializeCarSearchSeedToHref = (
   return query ? `${path}?${query}` : path
 }
 
+export const serializeFlightSearchSeedToHref = (
+  seed: FlightSearchSeed,
+  options: SerializeSeedOptions = {},
+) => {
+  const page = resolvePage(options.page)
+  const itineraryType = normalizeFlightItineraryType(seed.itineraryType || 'round-trip')
+  const fromSlug = slugifyLocation(seed.from) || 'anywhere'
+  const toSlug = slugifyLocation(seed.to) || 'anywhere'
+  const path = buildFlightsSearchPath(fromSlug, toSlug, itineraryType, page)
+  const sp = new URLSearchParams()
+
+  if (seed.filters.maxStops != null) {
+    sp.set('maxStops', String(seed.filters.maxStops))
+  }
+
+  if (seed.filters.cabinClass) {
+    sp.set('cabin', seed.filters.cabinClass)
+  }
+
+  setExploreContext(sp, seed.context)
+
+  const query = sp.toString()
+  return query ? `${path}?${query}` : path
+}
+
 export const serializeExploreIntentToHotelHref = (
   intent: ExploreIntent,
   options: SerializeSeedOptions = {},
@@ -115,4 +142,11 @@ export const serializeExploreIntentToCarHref = (
   options: SerializeSeedOptions = {},
 ) => {
   return serializeCarSearchSeedToHref(exploreIntentToCarSearchSeed(intent), options)
+}
+
+export const serializeExploreIntentToFlightHref = (
+  intent: ExploreIntent,
+  options: SerializeSeedOptions = {},
+) => {
+  return serializeFlightSearchSeedToHref(exploreIntentToFlightSearchSeed(intent), options)
 }

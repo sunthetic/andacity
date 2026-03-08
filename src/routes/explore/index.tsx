@@ -4,6 +4,7 @@ import type { DocumentHead } from '@builder.io/qwik-city'
 import { ExplorePresetChips } from '~/components/explore/ExplorePresetChips'
 import { HeroBackground } from '~/components/hero/HeroBackground'
 import { Page } from '~/components/site/Page'
+import { buildFlightsSearchPath, slugifyLocation } from '~/lib/search/flights/routing'
 import type {
   ExploreCarPresets,
   ExploreDateHints,
@@ -121,7 +122,10 @@ const EXPLORE_IDEA_OVERLAY_MAP: Record<IdeaKey, ExploreHeroOverlayVariant> = {
   'quick-mountain-escapes': 'explore-mountains',
 }
 
-const buildFlightsToHref = (to: string) => `/flights?to=${encodeURIComponent(to)}`
+const buildFlightsToHref = (to: string) => {
+  const toSlug = slugifyLocation(to) || 'anywhere'
+  return buildFlightsSearchPath('anywhere', toSlug, 'round-trip', 1)
+}
 const buildHotelsDestinationHref = (destination: string) => `/hotels?destination=${encodeURIComponent(destination)}`
 const buildCarRentalsDestinationHref = (destination: string) => `/car-rentals?q=${encodeURIComponent(destination)}`
 
