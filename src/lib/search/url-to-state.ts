@@ -2,7 +2,19 @@ import type { SearchState } from '~/types/search/state'
 
 type SearchStateDefaults = Partial<SearchState>
 
-const RESERVED_KEYS = new Set(['q', 'query', 'city', 'lat', 'lng', 'checkIn', 'checkOut', 'sort', 'page'])
+const RESERVED_KEYS = new Set([
+  'q',
+  'query',
+  'city',
+  'lat',
+  'lng',
+  'checkIn',
+  'checkOut',
+  'pickupDate',
+  'dropoffDate',
+  'sort',
+  'page',
+])
 
 const toMaybeNumber = (raw: string | null) => {
   if (!raw) return undefined
@@ -66,8 +78,8 @@ export const searchStateFromUrl = (url: URL, defaults: SearchStateDefaults = {})
     }
   }
 
-  const checkIn = String(sp.get('checkIn') || '').trim()
-  const checkOut = String(sp.get('checkOut') || '').trim()
+  const checkIn = String(sp.get('checkIn') || sp.get('pickupDate') || '').trim()
+  const checkOut = String(sp.get('checkOut') || sp.get('dropoffDate') || '').trim()
   if (checkIn || checkOut) {
     state.dates = {
       ...(state.dates || {}),

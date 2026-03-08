@@ -3,6 +3,10 @@ import type { SearchState } from '~/types/search/state'
 type SearchStateToUrlOptions = {
   includeQueryParam?: boolean
   includeLocationParams?: boolean
+  dateParamKeys?: {
+    checkIn?: string
+    checkOut?: string
+  }
 }
 
 const toParamValue = (value: unknown): string | null => {
@@ -23,6 +27,8 @@ export const searchStateToUrl = (
   state: SearchState,
   options: SearchStateToUrlOptions = {},
 ) => {
+  const checkInKey = options.dateParamKeys?.checkIn || 'checkIn'
+  const checkOutKey = options.dateParamKeys?.checkOut || 'checkOut'
   const sp = new URLSearchParams()
 
   if (options.includeQueryParam !== false && state.query) {
@@ -42,10 +48,10 @@ export const searchStateToUrl = (
   }
 
   if (state.dates?.checkIn) {
-    sp.set('checkIn', state.dates.checkIn)
+    sp.set(checkInKey, state.dates.checkIn)
   }
   if (state.dates?.checkOut) {
-    sp.set('checkOut', state.dates.checkOut)
+    sp.set(checkOutKey, state.dates.checkOut)
   }
 
   const filters = state.filters || {}
