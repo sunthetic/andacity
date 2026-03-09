@@ -2542,10 +2542,10 @@ const TripEditPreviewPanel = component$(
                   <p
                     key={`${issue.code}-${issue.message}`}
                     class={[
-                      'text-xs',
-                      issue.severity === 'blocking'
-                        ? 'text-[color:var(--color-error,#b91c1c)]'
-                        : 'text-[color:var(--color-warning,#92400e)]',
+                      "text-xs",
+                      issue.severity === "blocking"
+                        ? "text-[color:var(--color-error,#b91c1c)]"
+                        : "text-[color:var(--color-warning,#92400e)]",
                     ]}
                   >
                     {issue.message}
