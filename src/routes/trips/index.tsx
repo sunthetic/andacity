@@ -1,8 +1,14 @@
-import { $, component$, useSignal, type QRL } from '@builder.io/qwik'
-import { routeLoader$, type DocumentHead } from '@builder.io/qwik-city'
-import { Page } from '~/components/site/Page'
-import { getTripDetails, listTrips, TripRepoError } from '~/lib/repos/trips-repo.server'
+import { $, component$, useSignal, type QRL } from "@builder.io/qwik";
+import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
+import { Page } from "~/components/site/Page";
+import { TripSuggestionCard } from "~/components/trips/TripSuggestionCard";
 import {
+  getTripDetails,
+  listTrips,
+  TripRepoError,
+} from "~/lib/repos/trips-repo.server";
+import {
+  addItemToTripApi,
   createTripApi,
   getTripDetailsApi,
   listTripsApi,
@@ -11,226 +17,266 @@ import {
   reorderTripItemsApi,
   TripApiError,
   updateTripMetadataApi,
-} from '~/lib/trips/trips-api'
+} from "~/lib/trips/trips-api";
 import type {
   TripDetails,
   TripIntelligenceSummary,
   TripItem,
+  TripItemCandidate,
   TripItemValidityStatus,
   TripListItem,
   TripPriceDriftStatus,
   TripStatus,
   TripValidationIssue,
   TripVerticalPricing,
-} from '~/types/trips/trip'
+} from "~/types/trips/trip";
 
 export const useTripsPage = routeLoader$(async ({ url }) => {
   try {
-    const trips = await listTrips()
-    const requestedTripId = parsePositiveInt(url.searchParams.get('trip'))
+    const trips = await listTrips();
+    const requestedTripId = parsePositiveInt(url.searchParams.get("trip"));
     const activeTripId =
       requestedTripId && trips.some((trip) => trip.id === requestedTripId)
         ? requestedTripId
-        : (trips[0]?.id ?? null)
+        : (trips[0]?.id ?? null);
 
-    const activeTrip = activeTripId ? await getTripDetails(activeTripId) : null
+    const activeTrip = activeTripId ? await getTripDetails(activeTripId) : null;
 
     return {
       trips,
       activeTripId,
       activeTrip,
       setupError: null as string | null,
-    }
+    };
   } catch (error) {
-    const code = error instanceof TripRepoError ? ` (${error.code})` : ''
-    const message = error instanceof Error ? error.message : 'Failed to load trips.'
+    const code = error instanceof TripRepoError ? ` (${error.code})` : "";
+    const message =
+      error instanceof Error ? error.message : "Failed to load trips.";
 
     return {
       trips: [],
       activeTripId: null,
       activeTrip: null,
       setupError: `${message}${code}`,
-    }
+    };
   }
-})
+});
 
 export default component$(() => {
-  const data = useTripsPage().value
-  const trips = useSignal<TripListItem[]>(data.trips)
-  const activeTripId = useSignal<number | null>(data.activeTripId)
-  const activeTrip = useSignal<TripDetails | null>(data.activeTrip)
-  const loading = useSignal(false)
-  const error = useSignal<string | null>(null)
-  const createTripName = useSignal('')
-  const editingName = useSignal(data.activeTrip?.name || '')
-  const editingStatus = useSignal<TripStatus>(data.activeTrip?.status || 'draft')
+  const data = useTripsPage().value;
+  const trips = useSignal<TripListItem[]>(data.trips);
+  const activeTripId = useSignal<number | null>(data.activeTripId);
+  const activeTrip = useSignal<TripDetails | null>(data.activeTrip);
+  const loading = useSignal(false);
+  const error = useSignal<string | null>(null);
+  const createTripName = useSignal("");
+  const editingName = useSignal(data.activeTrip?.name || "");
+  const editingStatus = useSignal<TripStatus>(
+    data.activeTrip?.status || "draft",
+  );
 
   const refreshTrips$ = $(
     async (nextActiveTripId?: number | null, preserveCurrentActive = false) => {
-      const nextTrips = await listTripsApi()
-      trips.value = nextTrips
+      const nextTrips = await listTripsApi();
+      trips.value = nextTrips;
 
       if (nextActiveTripId != null) {
-        activeTripId.value = nextActiveTripId
-        return
+        activeTripId.value = nextActiveTripId;
+        return;
       }
 
       if (preserveCurrentActive && activeTripId.value != null) {
-        const current = nextTrips.find((trip) => trip.id === activeTripId.value)
+        const current = nextTrips.find(
+          (trip) => trip.id === activeTripId.value,
+        );
         if (current) {
-          activeTripId.value = current.id
-          return
+          activeTripId.value = current.id;
+          return;
         }
       }
 
-      activeTripId.value = nextTrips[0]?.id || null
+      activeTripId.value = nextTrips[0]?.id || null;
     },
-  )
+  );
 
   const loadTrip$ = $(
     async (tripId: number, options?: { refreshList?: boolean }) => {
-      loading.value = true
-      error.value = null
+      loading.value = true;
+      error.value = null;
 
       try {
         if (options?.refreshList) {
-          await refreshTrips$(tripId, true)
+          await refreshTrips$(tripId, true);
         }
-        const trip = await getTripDetailsApi(tripId)
-        activeTripId.value = trip.id
-        activeTrip.value = trip
-        editingName.value = trip.name || ''
-        editingStatus.value = trip.status || 'draft'
+        const trip = await getTripDetailsApi(tripId);
+        activeTripId.value = trip.id;
+        activeTrip.value = trip;
+        editingName.value = trip.name || "";
+        editingStatus.value = trip.status || "draft";
       } catch (cause) {
-        const message = cause instanceof TripApiError ? cause.message : 'Failed to load trip.'
-        error.value = message
+        const message =
+          cause instanceof TripApiError
+            ? cause.message
+            : "Failed to load trip.";
+        error.value = message;
       } finally {
-        loading.value = false
+        loading.value = false;
       }
     },
-  )
+  );
 
   const onCreateTrip$ = $(async () => {
-    loading.value = true
-    error.value = null
+    loading.value = true;
+    error.value = null;
 
     try {
       const trip = await createTripApi({
-        name: String(createTripName.value || '').trim() || undefined,
-      })
-      createTripName.value = ''
-      await refreshTrips$(trip.id)
-      activeTrip.value = trip
-      editingName.value = trip.name || ''
-      editingStatus.value = trip.status || 'draft'
+        name: String(createTripName.value || "").trim() || undefined,
+      });
+      createTripName.value = "";
+      await refreshTrips$(trip.id);
+      activeTrip.value = trip;
+      editingName.value = trip.name || "";
+      editingStatus.value = trip.status || "draft";
     } catch (cause) {
-      const message = cause instanceof TripApiError ? cause.message : 'Failed to create trip.'
-      error.value = message
+      const message =
+        cause instanceof TripApiError
+          ? cause.message
+          : "Failed to create trip.";
+      error.value = message;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
-  })
+  });
 
   const onUpdateTripMetadata$ = $(async () => {
-    if (!activeTrip.value) return
-    loading.value = true
-    error.value = null
+    if (!activeTrip.value) return;
+    loading.value = true;
+    error.value = null;
 
     try {
       const trip = await updateTripMetadataApi(activeTrip.value.id, {
-        name: String(editingName.value || '').trim() || activeTrip.value.name,
+        name: String(editingName.value || "").trim() || activeTrip.value.name,
         status: editingStatus.value,
-      })
-      activeTrip.value = trip
-      await refreshTrips$(trip.id, true)
-      editingName.value = trip.name || ''
-      editingStatus.value = trip.status || 'draft'
+      });
+      activeTrip.value = trip;
+      await refreshTrips$(trip.id, true);
+      editingName.value = trip.name || "";
+      editingStatus.value = trip.status || "draft";
     } catch (cause) {
       const message =
         cause instanceof TripApiError
           ? cause.message
-          : 'Failed to update trip metadata.'
-      error.value = message
+          : "Failed to update trip metadata.";
+      error.value = message;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
-  })
+  });
 
   const onRevalidateTrip$ = $(async () => {
-    if (!activeTrip.value) return
-    loading.value = true
-    error.value = null
+    if (!activeTrip.value) return;
+    loading.value = true;
+    error.value = null;
 
     try {
-      const trip = await revalidateTripApi(activeTrip.value.id)
-      activeTrip.value = trip
-      await refreshTrips$(trip.id, true)
-      editingName.value = trip.name || ''
-      editingStatus.value = trip.status || 'draft'
+      const trip = await revalidateTripApi(activeTrip.value.id);
+      activeTrip.value = trip;
+      await refreshTrips$(trip.id, true);
+      editingName.value = trip.name || "";
+      editingStatus.value = trip.status || "draft";
     } catch (cause) {
       const message =
-        cause instanceof TripApiError ? cause.message : 'Failed to revalidate trip.'
-      error.value = message
+        cause instanceof TripApiError
+          ? cause.message
+          : "Failed to revalidate trip.";
+      error.value = message;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
-  })
+  });
 
   const onRemoveItem$ = $(async (itemId: number) => {
-    if (!activeTrip.value) return
-    loading.value = true
-    error.value = null
+    if (!activeTrip.value) return;
+    loading.value = true;
+    error.value = null;
 
     try {
-      const trip = await removeTripItemApi(activeTrip.value.id, itemId)
-      activeTrip.value = trip
-      await refreshTrips$(trip.id, true)
+      const trip = await removeTripItemApi(activeTrip.value.id, itemId);
+      activeTrip.value = trip;
+      await refreshTrips$(trip.id, true);
     } catch (cause) {
       const message =
         cause instanceof TripApiError
           ? cause.message
-          : 'Failed to remove trip item.'
-      error.value = message
+          : "Failed to remove trip item.";
+      error.value = message;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
-  })
+  });
 
   const onMoveItem$ = $(async (itemId: number, direction: -1 | 1) => {
-    if (!activeTrip.value) return
-    const currentItems = [...activeTrip.value.items].sort((a, b) => a.position - b.position)
-    const currentIndex = currentItems.findIndex((item) => item.id === itemId)
-    if (currentIndex < 0) return
+    if (!activeTrip.value) return;
+    const currentItems = [...activeTrip.value.items].sort(
+      (a, b) => a.position - b.position,
+    );
+    const currentIndex = currentItems.findIndex((item) => item.id === itemId);
+    if (currentIndex < 0) return;
 
-    const nextIndex = currentIndex + direction
-    if (nextIndex < 0 || nextIndex >= currentItems.length) return
+    const nextIndex = currentIndex + direction;
+    if (nextIndex < 0 || nextIndex >= currentItems.length) return;
 
-    const [moved] = currentItems.splice(currentIndex, 1)
-    currentItems.splice(nextIndex, 0, moved)
-    const orderedItemIds = currentItems.map((item) => item.id)
+    const [moved] = currentItems.splice(currentIndex, 1);
+    currentItems.splice(nextIndex, 0, moved);
+    const orderedItemIds = currentItems.map((item) => item.id);
 
-    loading.value = true
-    error.value = null
+    loading.value = true;
+    error.value = null;
     try {
-      const trip = await reorderTripItemsApi(activeTrip.value.id, orderedItemIds)
-      activeTrip.value = trip
-      await refreshTrips$(trip.id, true)
+      const trip = await reorderTripItemsApi(
+        activeTrip.value.id,
+        orderedItemIds,
+      );
+      activeTrip.value = trip;
+      await refreshTrips$(trip.id, true);
     } catch (cause) {
       const message =
         cause instanceof TripApiError
           ? cause.message
-          : 'Failed to reorder trip items.'
-      error.value = message
+          : "Failed to reorder trip items.";
+      error.value = message;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
-  })
+  });
+
+  const onAddSuggestedItem$ = $(async (candidate: TripItemCandidate) => {
+    if (!activeTrip.value) return;
+
+    loading.value = true;
+    error.value = null;
+
+    try {
+      const trip = await addItemToTripApi(activeTrip.value.id, candidate);
+      activeTrip.value = trip;
+      await refreshTrips$(trip.id, true);
+    } catch (cause) {
+      const message =
+        cause instanceof TripApiError
+          ? cause.message
+          : "Failed to add suggested trip item.";
+      error.value = message;
+    } finally {
+      loading.value = false;
+    }
+  });
 
   return (
     <Page
       breadcrumbs={[
-        { label: 'Andacity Travel', href: '/' },
-        { label: 'Trips', href: '/trips' },
+        { label: "Andacity Travel", href: "/" },
+        { label: "Trips", href: "/trips" },
       ]}
     >
       <div class="mt-4">
@@ -238,7 +284,8 @@ export default component$(() => {
           Trip builder
         </h1>
         <p class="mt-2 max-w-[80ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-          Build trip plans across stays, flights, and car rentals. This phase stores planning data only, with no booking or payment flow.
+          Build trip plans across stays, flights, and car rentals. This phase
+          stores planning data only, with no booking or payment flow.
         </p>
       </div>
 
@@ -253,8 +300,8 @@ export default component$(() => {
               type="text"
               value={createTripName.value}
               onInput$={(event, target) => {
-                void event
-                createTripName.value = target.value
+                void event;
+                createTripName.value = target.value;
               }}
               placeholder="Trip name"
               class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm"
@@ -277,10 +324,10 @@ export default component$(() => {
                   type="button"
                   onClick$={() => loadTrip$(trip.id)}
                   class={[
-                    'rounded-xl border px-3 py-2 text-left',
+                    "rounded-xl border px-3 py-2 text-left",
                     activeTripId.value === trip.id
-                      ? 'border-[color:var(--color-action)] bg-[color:var(--color-primary-50)]'
-                      : 'border-[color:var(--color-border)]',
+                      ? "border-[color:var(--color-action)] bg-[color:var(--color-primary-50)]"
+                      : "border-[color:var(--color-border)]",
                   ]}
                 >
                   <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
@@ -309,14 +356,17 @@ export default component$(() => {
                 <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <SummaryBlock
                     label="Trip dates"
-                    value={formatTripDateRange(activeTrip.value.startDate, activeTrip.value.endDate)}
+                    value={formatTripDateRange(
+                      activeTrip.value.startDate,
+                      activeTrip.value.endDate,
+                    )}
                   />
                   <SummaryBlock
                     label="Cities involved"
                     value={
                       activeTrip.value.citiesInvolved.length
-                        ? activeTrip.value.citiesInvolved.join(', ')
-                        : 'Not set'
+                        ? activeTrip.value.citiesInvolved.join(", ")
+                        : "Not set"
                     }
                   />
                   <SummaryBlock
@@ -332,7 +382,10 @@ export default component$(() => {
                 {activeTrip.value.pricing.verticals.length ? (
                   <div class="mt-4 grid gap-3 border-t border-[color:var(--color-divider)] pt-4 md:grid-cols-2 xl:grid-cols-3">
                     {activeTrip.value.pricing.verticals.map((vertical) => (
-                      <VerticalSubtotalCard key={vertical.itemType} vertical={vertical} />
+                      <VerticalSubtotalCard
+                        key={vertical.itemType}
+                        vertical={vertical}
+                      />
                     ))}
                   </div>
                 ) : null}
@@ -345,7 +398,9 @@ export default component$(() => {
                     {formatDriftSummary(activeTrip.value)}
                   </p>
                   <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                    Prices are snapshotted when items are added. Indicators compare that snapshot against current pricing in the database.
+                    Prices are snapshotted when items are added. Indicators
+                    compare that snapshot against current pricing in the
+                    database.
                   </p>
                 </div>
 
@@ -357,14 +412,18 @@ export default component$(() => {
                       </p>
                       <p
                         class={[
-                          'mt-1 text-sm font-semibold',
+                          "mt-1 text-sm font-semibold",
                           intelligenceToneClass(activeTrip.value.intelligence),
                         ]}
                       >
-                        {formatTripIntelligenceStatus(activeTrip.value.intelligence)}
+                        {formatTripIntelligenceStatus(
+                          activeTrip.value.intelligence,
+                        )}
                       </p>
                       <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                        {formatTripIntelligenceMeta(activeTrip.value.intelligence)}
+                        {formatTripIntelligenceMeta(
+                          activeTrip.value.intelligence,
+                        )}
                       </p>
                     </div>
 
@@ -374,40 +433,48 @@ export default component$(() => {
                       disabled={loading.value}
                       class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm"
                     >
-                      {loading.value ? 'Revalidating...' : 'Revalidate trip'}
+                      {loading.value ? "Revalidating..." : "Revalidate trip"}
                     </button>
                   </div>
 
                   <div class="mt-4 grid gap-3 md:grid-cols-3">
                     <IntelligenceStatCard
                       label="Availability"
-                      value={formatTripAvailabilitySummary(activeTrip.value.intelligence)}
+                      value={formatTripAvailabilitySummary(
+                        activeTrip.value.intelligence,
+                      )}
                     />
                     <IntelligenceStatCard
                       label="Issues"
-                      value={formatTripIssueSummary(activeTrip.value.intelligence)}
+                      value={formatTripIssueSummary(
+                        activeTrip.value.intelligence,
+                      )}
                     />
                     <IntelligenceStatCard
                       label="Freshness"
-                      value={formatTripFreshnessSummary(activeTrip.value.intelligence)}
+                      value={formatTripFreshnessSummary(
+                        activeTrip.value.intelligence,
+                      )}
                     />
                   </div>
 
                   {activeTrip.value.intelligence.issues.length ? (
                     <div class="mt-4 grid gap-2 border-t border-[color:var(--color-divider)] pt-4">
-                      {activeTrip.value.intelligence.issues.slice(0, 5).map((issue) => (
-                        <div
-                          key={`${issue.code}-${issue.itemId || 'trip'}-${(issue.relatedItemIds || []).join('-')}`}
-                          class={[
-                            'rounded-lg border px-3 py-2 text-sm',
-                            issue.severity === 'blocking'
-                              ? 'border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.06)] text-[color:var(--color-error,#b91c1c)]'
-                              : 'border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] text-[color:var(--color-warning,#92400e)]',
-                          ]}
-                        >
-                          {issue.message}
-                        </div>
-                      ))}
+                      {activeTrip.value.intelligence.issues
+                        .slice(0, 5)
+                        .map((issue) => (
+                          <div
+                            key={`${issue.code}-${issue.itemId || "trip"}-${(issue.relatedItemIds || []).join("-")}`}
+                            class={[
+                              "rounded-lg border px-3 py-2 text-sm",
+                              issue.severity === "blocking"
+                                ? "border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.06)] text-[color:var(--color-error,#b91c1c)]"
+                                : "border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] text-[color:var(--color-warning,#92400e)]",
+                            ]}
+                          >
+                            {issue.message}
+                          </div>
+                        ))}
                     </div>
                   ) : null}
                 </div>
@@ -417,8 +484,8 @@ export default component$(() => {
                     type="text"
                     value={editingName.value}
                     onInput$={(event, target) => {
-                      void event
-                      editingName.value = target.value
+                      void event;
+                      editingName.value = target.value;
                     }}
                     class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm"
                     aria-label="Trip name"
@@ -427,15 +494,17 @@ export default component$(() => {
                   <select
                     value={editingStatus.value}
                     onChange$={(event, target) => {
-                      void event
-                      const value = String(target.value || 'draft').trim().toLowerCase()
+                      void event;
+                      const value = String(target.value || "draft")
+                        .trim()
+                        .toLowerCase();
                       if (
-                        value === 'draft' ||
-                        value === 'planning' ||
-                        value === 'ready' ||
-                        value === 'archived'
+                        value === "draft" ||
+                        value === "planning" ||
+                        value === "ready" ||
+                        value === "archived"
                       ) {
-                        editingStatus.value = value
+                        editingStatus.value = value;
                       }
                     }}
                     class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm"
@@ -457,6 +526,41 @@ export default component$(() => {
                   </button>
                 </div>
               </section>
+
+              {activeTrip.value.bundling.gaps.length ? (
+                <section class="t-card p-4">
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                        Suggested additions
+                      </h2>
+                      <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                        {formatTripBundlingSummary(activeTrip.value)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {activeTrip.value.bundling.suggestions.length ? (
+                    <div class="mt-4 grid gap-3">
+                      {activeTrip.value.bundling.suggestions.map(
+                        (suggestion) => (
+                          <TripSuggestionCard
+                            key={suggestion.id}
+                            suggestion={suggestion}
+                            loading={loading.value}
+                            onAdd$={onAddSuggestedItem$}
+                          />
+                        ),
+                      )}
+                    </div>
+                  ) : (
+                    <p class="mt-4 text-sm text-[color:var(--color-text-muted)]">
+                      Live inventory was not available for the detected trip
+                      gaps yet.
+                    </p>
+                  )}
+                </section>
+              ) : null}
 
               <section class="t-card p-4">
                 <h2 class="text-sm font-semibold text-[color:var(--color-text-strong)]">
@@ -482,7 +586,8 @@ export default component$(() => {
                   </div>
                 ) : (
                   <p class="mt-3 text-sm text-[color:var(--color-text-muted)]">
-                    This trip has no items yet. Use “Add to trip” on hotel, flight, or car results.
+                    This trip has no items yet. Use “Add to trip” on hotel,
+                    flight, or car results.
                   </p>
                 )}
               </section>
@@ -493,7 +598,8 @@ export default component$(() => {
                 No trip selected
               </h2>
               <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-                Create a trip from the left panel, then add saved or search items into it.
+                Create a trip from the left panel, then add saved or search
+                items into it.
               </p>
             </section>
           )}
@@ -509,11 +615,13 @@ export default component$(() => {
       ) : null}
 
       {error.value ? (
-        <p class="mt-4 text-sm text-[color:var(--color-error,#b91c1c)]">{error.value}</p>
+        <p class="mt-4 text-sm text-[color:var(--color-error,#b91c1c)]">
+          {error.value}
+        </p>
       ) : null}
     </Page>
-  )
-})
+  );
+});
 
 const SummaryBlock = component$((props: { label: string; value: string }) => {
   return (
@@ -525,49 +633,58 @@ const SummaryBlock = component$((props: { label: string; value: string }) => {
         {props.value}
       </p>
     </div>
-  )
-})
+  );
+});
 
-const IntelligenceStatCard = component$((props: { label: string; value: string }) => {
-  return (
-    <div class="rounded-xl border border-[color:var(--color-border)] px-3 py-2">
-      <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-        {props.label}
-      </p>
-      <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
-        {props.value}
-      </p>
-    </div>
-  )
-})
+const IntelligenceStatCard = component$(
+  (props: { label: string; value: string }) => {
+    return (
+      <div class="rounded-xl border border-[color:var(--color-border)] px-3 py-2">
+        <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+          {props.label}
+        </p>
+        <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
+          {props.value}
+        </p>
+      </div>
+    );
+  },
+);
 
-const VerticalSubtotalCard = component$((props: { vertical: TripVerticalPricing }) => {
-  return (
-    <div class="rounded-xl border border-[color:var(--color-border)] px-3 py-3">
-      <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-        {formatVerticalLabel(props.vertical.itemType)} subtotal
-      </p>
-      <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
-        Snapshot {formatVerticalSnapshot(props.vertical)}
-      </p>
-      <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-        Live {formatVerticalCurrent(props.vertical)}
-      </p>
-      <p class={['mt-2 text-xs font-medium', driftToneClass(verticalDriftStatus(props.vertical))]}>
-        {formatVerticalDrift(props.vertical)}
-      </p>
-    </div>
-  )
-})
+const VerticalSubtotalCard = component$(
+  (props: { vertical: TripVerticalPricing }) => {
+    return (
+      <div class="rounded-xl border border-[color:var(--color-border)] px-3 py-3">
+        <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+          {formatVerticalLabel(props.vertical.itemType)} subtotal
+        </p>
+        <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
+          Snapshot {formatVerticalSnapshot(props.vertical)}
+        </p>
+        <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+          Live {formatVerticalCurrent(props.vertical)}
+        </p>
+        <p
+          class={[
+            "mt-2 text-xs font-medium",
+            driftToneClass(verticalDriftStatus(props.vertical)),
+          ]}
+        >
+          {formatVerticalDrift(props.vertical)}
+        </p>
+      </div>
+    );
+  },
+);
 
 const TripItemRow = component$(
   (props: {
-    item: TripItem
-    index: number
-    total: number
-    loading: boolean
-    onRemove$: QRL<(itemId: number) => Promise<void>>
-    onMove$: QRL<(itemId: number, direction: -1 | 1) => Promise<void>>
+    item: TripItem;
+    index: number;
+    total: number;
+    loading: boolean;
+    onRemove$: QRL<(itemId: number) => Promise<void>>;
+    onMove$: QRL<(itemId: number, direction: -1 | 1) => Promise<void>>;
   }) => {
     return (
       <article class="rounded-xl border border-[color:var(--color-border)] p-3">
@@ -575,7 +692,9 @@ const TripItemRow = component$(
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <span class="t-badge">{props.item.itemType.toUpperCase()}</span>
-              <span class={availabilityBadgeClass(props.item.availabilityStatus)}>
+              <span
+                class={availabilityBadgeClass(props.item.availabilityStatus)}
+              >
                 {formatItemAvailabilityLabel(props.item.availabilityStatus)}
               </span>
               {props.item.issues.length ? (
@@ -596,14 +715,14 @@ const TripItemRow = component$(
               {formatTripDateRange(props.item.startDate, props.item.endDate)}
               {(props.item.startCityName || props.item.endCityName) &&
               props.item.startCityName !== props.item.endCityName
-                ? ` · ${props.item.startCityName || 'Unknown'} → ${props.item.endCityName || 'Unknown'}`
+                ? ` · ${props.item.startCityName || "Unknown"} → ${props.item.endCityName || "Unknown"}`
                 : props.item.startCityName
                   ? ` · ${props.item.startCityName}`
-                  : ''}
+                  : ""}
             </p>
             {props.item.meta.length ? (
               <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                {props.item.meta.join(' · ')}
+                {props.item.meta.join(" · ")}
               </p>
             ) : null}
             <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
@@ -620,10 +739,10 @@ const TripItemRow = component$(
                   <p
                     key={`${issue.code}-${issue.message}`}
                     class={[
-                      'text-xs',
-                      issue.severity === 'blocking'
-                        ? 'text-[color:var(--color-error,#b91c1c)]'
-                        : 'text-[color:var(--color-warning,#92400e)]',
+                      "text-xs",
+                      issue.severity === "blocking"
+                        ? "text-[color:var(--color-error,#b91c1c)]"
+                        : "text-[color:var(--color-warning,#92400e)]",
                     ]}
                   >
                     {issue.message}
@@ -638,17 +757,25 @@ const TripItemRow = component$(
               Snapshot price
             </p>
             <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
-              {formatMoneyFromCents(props.item.snapshotPriceCents, props.item.snapshotCurrencyCode)}
+              {formatMoneyFromCents(
+                props.item.snapshotPriceCents,
+                props.item.snapshotCurrencyCode,
+              )}
             </p>
             <p
               class={[
-                'mt-1 text-xs font-medium',
+                "mt-1 text-xs font-medium",
                 availabilityToneClass(props.item.availabilityStatus),
               ]}
             >
               {formatItemAvailabilityStatus(props.item)}
             </p>
-            <p class={['mt-1 text-xs font-medium', driftToneClass(props.item.priceDriftStatus)]}>
+            <p
+              class={[
+                "mt-1 text-xs font-medium",
+                driftToneClass(props.item.priceDriftStatus),
+              ]}
+            >
               {formatItemDrift(props.item)}
             </p>
             <div class="mt-3 flex flex-wrap justify-end gap-2">
@@ -680,287 +807,352 @@ const TripItemRow = component$(
           </div>
         </div>
       </article>
-    )
+    );
   },
-)
+);
 
-const formatTripDateRange = (startDate: string | null, endDate: string | null) => {
+const formatTripDateRange = (
+  startDate: string | null,
+  endDate: string | null,
+) => {
   if (startDate && endDate && startDate !== endDate) {
-    return `${formatDate(startDate)} – ${formatDate(endDate)}`
+    return `${formatDate(startDate)} – ${formatDate(endDate)}`;
   }
-  if (startDate) return formatDate(startDate)
-  if (endDate) return formatDate(endDate)
-  return 'Not set'
-}
+  if (startDate) return formatDate(startDate);
+  if (endDate) return formatDate(endDate);
+  return "Not set";
+};
 
 const formatTripListEstimate = (trip: TripListItem) => {
-  if (!trip.itemCount) return 'No priced items'
-  if (trip.hasMixedCurrencies) return 'Mixed currencies'
-  return formatMoneyFromCents(trip.estimatedTotalCents, trip.currencyCode)
-}
+  if (!trip.itemCount) return "No priced items";
+  if (trip.hasMixedCurrencies) return "Mixed currencies";
+  return formatMoneyFromCents(trip.estimatedTotalCents, trip.currencyCode);
+};
 
 const formatSnapshotEstimate = (trip: TripDetails) => {
-  if (trip.pricing.hasMixedCurrencies) return 'Mixed currencies'
+  if (trip.pricing.hasMixedCurrencies) return "Mixed currencies";
   return formatMoneyFromCents(
     trip.pricing.snapshotTotalCents ?? trip.estimatedTotalCents,
     trip.pricing.currencyCode || trip.currencyCode,
-  )
-}
+  );
+};
 
 const formatLiveEstimate = (trip: TripDetails) => {
-  if (trip.pricing.hasMixedCurrencies) return 'Mixed currencies'
-  if (trip.pricing.currentTotalCents == null) return 'Current price unavailable'
+  if (trip.pricing.hasMixedCurrencies) return "Mixed currencies";
+  if (trip.pricing.currentTotalCents == null)
+    return "Current price unavailable";
   return formatMoneyFromCents(
     trip.pricing.currentTotalCents,
     trip.pricing.currencyCode || trip.currencyCode,
-  )
-}
+  );
+};
 
 const formatDriftSummary = (trip: TripDetails) => {
-  const counts = trip.pricing.driftCounts
-  const parts: string[] = []
+  const counts = trip.pricing.driftCounts;
+  const parts: string[] = [];
 
-  if (counts.increased) parts.push(`${counts.increased} increased`)
-  if (counts.decreased) parts.push(`${counts.decreased} decreased`)
-  if (counts.unchanged) parts.push(`${counts.unchanged} unchanged`)
-  if (counts.unavailable) parts.push(`${counts.unavailable} unavailable`)
+  if (counts.increased) parts.push(`${counts.increased} increased`);
+  if (counts.decreased) parts.push(`${counts.decreased} decreased`);
+  if (counts.unchanged) parts.push(`${counts.unchanged} unchanged`);
+  if (counts.unavailable) parts.push(`${counts.unavailable} unavailable`);
 
-  return parts.length ? parts.join(' · ') : 'No priced items yet'
-}
+  return parts.length ? parts.join(" · ") : "No priced items yet";
+};
 
-const formatTripIntelligenceStatus = (intelligence: TripIntelligenceSummary) => {
-  if (intelligence.status === 'blocking_issues_present') return 'Blocking issues present'
-  if (intelligence.status === 'warnings_present') return 'Warnings present'
-  return 'Valid itinerary'
-}
+const formatTripIntelligenceStatus = (
+  intelligence: TripIntelligenceSummary,
+) => {
+  if (intelligence.status === "blocking_issues_present")
+    return "Blocking issues present";
+  if (intelligence.status === "warnings_present") return "Warnings present";
+  return "Valid itinerary";
+};
 
 const formatTripIntelligenceMeta = (intelligence: TripIntelligenceSummary) => {
   if (!intelligence.checkedAt) {
-    return 'Availability checks run automatically when trip details are loaded.'
+    return "Availability checks run automatically when trip details are loaded.";
   }
 
-  const checked = formatDateTime(intelligence.checkedAt)
-  const expires = intelligence.expiresAt ? formatDateTime(intelligence.expiresAt) : null
-  return expires ? `Checked ${checked} · refresh by ${expires}` : `Checked ${checked}`
-}
+  const checked = formatDateTime(intelligence.checkedAt);
+  const expires = intelligence.expiresAt
+    ? formatDateTime(intelligence.expiresAt)
+    : null;
+  return expires
+    ? `Checked ${checked} · refresh by ${expires}`
+    : `Checked ${checked}`;
+};
 
-const formatTripAvailabilitySummary = (intelligence: TripIntelligenceSummary) => {
-  const counts = intelligence.itemStatusCounts
-  const parts: string[] = []
+const formatTripAvailabilitySummary = (
+  intelligence: TripIntelligenceSummary,
+) => {
+  const counts = intelligence.itemStatusCounts;
+  const parts: string[] = [];
 
-  if (counts.valid) parts.push(`${counts.valid} valid`)
-  if (counts.price_only_changed) parts.push(`${counts.price_only_changed} price-only changes`)
-  if (counts.stale) parts.push(`${counts.stale} stale`)
-  if (counts.unavailable) parts.push(`${counts.unavailable} unavailable`)
+  if (counts.valid) parts.push(`${counts.valid} valid`);
+  if (counts.price_only_changed)
+    parts.push(`${counts.price_only_changed} price-only changes`);
+  if (counts.stale) parts.push(`${counts.stale} stale`);
+  if (counts.unavailable) parts.push(`${counts.unavailable} unavailable`);
 
-  return parts.length ? parts.join(' · ') : 'No items yet'
-}
+  return parts.length ? parts.join(" · ") : "No items yet";
+};
 
 const formatTripIssueSummary = (intelligence: TripIntelligenceSummary) => {
-  const parts: string[] = []
+  const parts: string[] = [];
   if (intelligence.issueCounts.blocking) {
-    parts.push(`${intelligence.issueCounts.blocking} blocking`)
+    parts.push(`${intelligence.issueCounts.blocking} blocking`);
   }
   if (intelligence.issueCounts.warning) {
-    parts.push(`${intelligence.issueCounts.warning} warnings`)
+    parts.push(`${intelligence.issueCounts.warning} warnings`);
   }
 
-  return parts.length ? parts.join(' · ') : 'No itinerary issues'
-}
+  return parts.length ? parts.join(" · ") : "No itinerary issues";
+};
 
 const formatTripFreshnessSummary = (intelligence: TripIntelligenceSummary) => {
-  if (!intelligence.expiresAt) return 'Revalidate to refresh live availability'
-  return `Next refresh by ${formatDateTime(intelligence.expiresAt)}`
-}
+  if (!intelligence.expiresAt) return "Revalidate to refresh live availability";
+  return `Next refresh by ${formatDateTime(intelligence.expiresAt)}`;
+};
+
+const formatTripBundlingSummary = (trip: TripDetails) => {
+  const gapCount = trip.bundling.gaps.length;
+  const suggestionCount = trip.bundling.suggestions.length;
+
+  if (!gapCount) return "No missing components detected.";
+  if (!suggestionCount) {
+    return `${gapCount} trip gap${gapCount === 1 ? "" : "s"} detected, but no matching live inventory is available right now.`;
+  }
+
+  if (gapCount === suggestionCount) {
+    return `${suggestionCount} contextual suggestion${suggestionCount === 1 ? "" : "s"} based on the current itinerary.`;
+  }
+
+  return `${suggestionCount} suggestion${suggestionCount === 1 ? "" : "s"} for ${gapCount} detected trip gap${gapCount === 1 ? "" : "s"}.`;
+};
 
 const intelligenceToneClass = (intelligence: TripIntelligenceSummary) => {
-  if (intelligence.status === 'blocking_issues_present') {
-    return 'text-[color:var(--color-error,#b91c1c)]'
+  if (intelligence.status === "blocking_issues_present") {
+    return "text-[color:var(--color-error,#b91c1c)]";
   }
-  if (intelligence.status === 'warnings_present') {
-    return 'text-[color:var(--color-warning,#92400e)]'
+  if (intelligence.status === "warnings_present") {
+    return "text-[color:var(--color-warning,#92400e)]";
   }
-  return 'text-[color:var(--color-success,#0f766e)]'
-}
+  return "text-[color:var(--color-success,#0f766e)]";
+};
 
 const formatItemAvailabilityLabel = (status: TripItemValidityStatus) => {
-  if (status === 'price_only_changed') return 'PRICE CHANGED'
-  return status.replace(/_/g, ' ').toUpperCase()
-}
+  if (status === "price_only_changed") return "PRICE CHANGED";
+  return status.replace(/_/g, " ").toUpperCase();
+};
 
 const getHighestIssueSeverity = (issues: TripValidationIssue[]) => {
-  return issues.some((issue) => issue.severity === 'blocking') ? 'blocking' : 'warning'
-}
+  return issues.some((issue) => issue.severity === "blocking")
+    ? "blocking"
+    : "warning";
+};
 
 const issueBadgeClass = (issues: TripValidationIssue[]) => {
-  return getHighestIssueSeverity(issues) === 'blocking'
-    ? 'rounded-full border border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-error,#b91c1c)]'
-    : 'rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning,#92400e)]'
-}
+  return getHighestIssueSeverity(issues) === "blocking"
+    ? "rounded-full border border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-error,#b91c1c)]"
+    : "rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning,#92400e)]";
+};
 
 const availabilityBadgeClass = (status: TripItemValidityStatus) => {
-  if (status === 'valid') {
-    return 'rounded-full border border-[color:var(--color-success,#0f766e)] bg-[color:rgba(15,118,110,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-success,#0f766e)]'
+  if (status === "valid") {
+    return "rounded-full border border-[color:var(--color-success,#0f766e)] bg-[color:rgba(15,118,110,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-success,#0f766e)]";
   }
-  if (status === 'price_only_changed') {
-    return 'rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning,#92400e)]'
+  if (status === "price_only_changed") {
+    return "rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning,#92400e)]";
   }
-  if (status === 'stale') {
-    return 'rounded-full border border-[color:var(--color-text-muted)] bg-[color:rgba(15,23,42,0.05)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-text-muted)]'
+  if (status === "stale") {
+    return "rounded-full border border-[color:var(--color-text-muted)] bg-[color:rgba(15,23,42,0.05)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-text-muted)]";
   }
-  return 'rounded-full border border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-error,#b91c1c)]'
-}
+  return "rounded-full border border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-error,#b91c1c)]";
+};
 
 const availabilityToneClass = (status: TripItemValidityStatus) => {
-  if (status === 'valid') return 'text-[color:var(--color-success,#0f766e)]'
-  if (status === 'price_only_changed') return 'text-[color:var(--color-warning,#92400e)]'
-  if (status === 'stale') return 'text-[color:var(--color-text-muted)]'
-  return 'text-[color:var(--color-error,#b91c1c)]'
-}
+  if (status === "valid") return "text-[color:var(--color-success,#0f766e)]";
+  if (status === "price_only_changed")
+    return "text-[color:var(--color-warning,#92400e)]";
+  if (status === "stale") return "text-[color:var(--color-text-muted)]";
+  return "text-[color:var(--color-error,#b91c1c)]";
+};
 
 const getPrimaryAvailabilityIssue = (item: TripItem) =>
-  item.issues.find((issue) => issue.scope === 'availability') || item.issues[0] || null
+  item.issues.find((issue) => issue.scope === "availability") ||
+  item.issues[0] ||
+  null;
 
 const formatItemAvailabilityStatus = (item: TripItem) => {
-  const primaryIssue = getPrimaryAvailabilityIssue(item)
+  const primaryIssue = getPrimaryAvailabilityIssue(item);
 
-  if (item.availabilityStatus === 'valid') return 'Availability confirmed'
-  if (item.availabilityStatus === 'price_only_changed') return 'Still available, but price changed'
-  if (item.availabilityStatus === 'stale') {
-    return primaryIssue?.message || 'Availability check incomplete'
+  if (item.availabilityStatus === "valid") return "Availability confirmed";
+  if (item.availabilityStatus === "price_only_changed")
+    return "Still available, but price changed";
+  if (item.availabilityStatus === "stale") {
+    return primaryIssue?.message || "Availability check incomplete";
   }
 
-  return primaryIssue?.message || 'Currently unavailable'
-}
+  return primaryIssue?.message || "Currently unavailable";
+};
 
 const formatItemIssueBadge = (issues: TripValidationIssue[]) => {
-  const blockingCount = issues.filter((issue) => issue.severity === 'blocking').length
+  const blockingCount = issues.filter(
+    (issue) => issue.severity === "blocking",
+  ).length;
   if (blockingCount) {
-    return `${blockingCount} blocking`
+    return `${blockingCount} blocking`;
   }
-  return `${issues.length} warning${issues.length === 1 ? '' : 's'}`
-}
+  return `${issues.length} warning${issues.length === 1 ? "" : "s"}`;
+};
 
-const formatVerticalLabel = (value: TripVerticalPricing['itemType']) => {
-  if (value === 'hotel') return 'Hotels'
-  if (value === 'flight') return 'Flights'
-  return 'Cars'
-}
+const formatVerticalLabel = (value: TripVerticalPricing["itemType"]) => {
+  if (value === "hotel") return "Hotels";
+  if (value === "flight") return "Flights";
+  return "Cars";
+};
 
 const formatVerticalSnapshot = (vertical: TripVerticalPricing) => {
-  if (vertical.hasMixedCurrencies) return 'Mixed currencies'
-  if (vertical.snapshotSubtotalCents == null || !vertical.currencyCode) return 'Unavailable'
-  return formatMoneyFromCents(vertical.snapshotSubtotalCents, vertical.currencyCode)
-}
+  if (vertical.hasMixedCurrencies) return "Mixed currencies";
+  if (vertical.snapshotSubtotalCents == null || !vertical.currencyCode)
+    return "Unavailable";
+  return formatMoneyFromCents(
+    vertical.snapshotSubtotalCents,
+    vertical.currencyCode,
+  );
+};
 
 const formatVerticalCurrent = (vertical: TripVerticalPricing) => {
-  if (vertical.hasMixedCurrencies) return 'Mixed currencies'
+  if (vertical.hasMixedCurrencies) return "Mixed currencies";
   if (vertical.currentSubtotalCents == null || !vertical.currencyCode) {
-    return 'Current price unavailable'
+    return "Current price unavailable";
   }
-  return formatMoneyFromCents(vertical.currentSubtotalCents, vertical.currencyCode)
-}
+  return formatMoneyFromCents(
+    vertical.currentSubtotalCents,
+    vertical.currencyCode,
+  );
+};
 
-const verticalDriftStatus = (vertical: TripVerticalPricing): TripPriceDriftStatus => {
-  if (vertical.hasMixedCurrencies || vertical.currentSubtotalCents == null || vertical.priceDeltaCents == null) {
-    return 'unavailable'
+const verticalDriftStatus = (
+  vertical: TripVerticalPricing,
+): TripPriceDriftStatus => {
+  if (
+    vertical.hasMixedCurrencies ||
+    vertical.currentSubtotalCents == null ||
+    vertical.priceDeltaCents == null
+  ) {
+    return "unavailable";
   }
-  if (vertical.priceDeltaCents > 0) return 'increased'
-  if (vertical.priceDeltaCents < 0) return 'decreased'
-  return 'unchanged'
-}
+  if (vertical.priceDeltaCents > 0) return "increased";
+  if (vertical.priceDeltaCents < 0) return "decreased";
+  return "unchanged";
+};
 
 const formatVerticalDrift = (vertical: TripVerticalPricing) => {
-  const status = verticalDriftStatus(vertical)
-  if (status === 'unavailable') return 'Live comparison unavailable'
-  if (!vertical.currencyCode) return 'Live comparison unavailable'
-  if (status === 'unchanged') return 'No change'
+  const status = verticalDriftStatus(vertical);
+  if (status === "unavailable") return "Live comparison unavailable";
+  if (!vertical.currencyCode) return "Live comparison unavailable";
+  if (status === "unchanged") return "No change";
 
-  return `${status === 'increased' ? '↑' : '↓'} ${formatSignedMoneyFromCents(
+  return `${status === "increased" ? "↑" : "↓"} ${formatSignedMoneyFromCents(
     vertical.priceDeltaCents || 0,
     vertical.currencyCode,
-  )}`
-}
+  )}`;
+};
 
 const formatItemDrift = (item: TripItem) => {
-  if (item.priceDriftStatus === 'unavailable' || item.currentPriceCents == null || !item.currentCurrencyCode) {
-    return 'Current price unavailable'
+  if (
+    item.priceDriftStatus === "unavailable" ||
+    item.currentPriceCents == null ||
+    !item.currentCurrencyCode
+  ) {
+    return "Current price unavailable";
   }
 
-  const currentPrice = formatMoneyFromCents(item.currentPriceCents, item.currentCurrencyCode)
-  if (item.priceDriftStatus === 'unchanged') {
-    return `No change · ${currentPrice}`
+  const currentPrice = formatMoneyFromCents(
+    item.currentPriceCents,
+    item.currentCurrencyCode,
+  );
+  if (item.priceDriftStatus === "unchanged") {
+    return `No change · ${currentPrice}`;
   }
 
-  return `${item.priceDriftStatus === 'increased' ? '↑' : '↓'} Now ${currentPrice} (${formatSignedMoneyFromCents(
+  return `${item.priceDriftStatus === "increased" ? "↑" : "↓"} Now ${currentPrice} (${formatSignedMoneyFromCents(
     item.priceDriftCents || 0,
     item.currentCurrencyCode,
-  )})`
-}
+  )})`;
+};
 
 const driftToneClass = (status: TripPriceDriftStatus) => {
-  if (status === 'increased') return 'text-[color:var(--color-error,#b91c1c)]'
-  if (status === 'decreased') return 'text-[color:var(--color-success,#0f766e)]'
-  return 'text-[color:var(--color-text-muted)]'
-}
+  if (status === "increased") return "text-[color:var(--color-error,#b91c1c)]";
+  if (status === "decreased")
+    return "text-[color:var(--color-success,#0f766e)]";
+  return "text-[color:var(--color-text-muted)]";
+};
 
 const formatDate = (value: string) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
-  const [year, month, day] = value.split('-').map((part) => Number.parseInt(part, 10))
-  const date = new Date(Date.UTC(year, month - 1, day))
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(date)
-}
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const [year, month, day] = value
+    .split("-")
+    .map((part) => Number.parseInt(part, 10));
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+};
 
 const formatDateTime = (value: string) => {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date)
-}
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+};
 
-const formatMoneyFromCents = (cents: number | null | undefined, currency: string | null | undefined) => {
-  const amount = Math.max(0, Number(cents || 0)) / 100
+const formatMoneyFromCents = (
+  cents: number | null | undefined,
+  currency: string | null | undefined,
+) => {
+  const amount = Math.max(0, Number(cents || 0)) / 100;
   try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency || 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency || "USD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
-    }).format(amount)
+    }).format(amount);
   } catch {
-    return `${amount.toFixed(2)} ${currency || 'USD'}`
+    return `${amount.toFixed(2)} ${currency || "USD"}`;
   }
-}
+};
 
 const formatSignedMoneyFromCents = (cents: number, currency: string) => {
-  const absolute = formatMoneyFromCents(Math.abs(cents), currency)
-  if (cents > 0) return `+${absolute}`
-  if (cents < 0) return `-${absolute}`
-  return absolute
-}
+  const absolute = formatMoneyFromCents(Math.abs(cents), currency);
+  if (cents > 0) return `+${absolute}`;
+  if (cents < 0) return `-${absolute}`;
+  return absolute;
+};
 
 const parsePositiveInt = (value: string | null) => {
-  const n = Number.parseInt(String(value || ''), 10)
-  if (!Number.isFinite(n) || n < 1) return null
-  return n
-}
+  const n = Number.parseInt(String(value || ""), 10);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return n;
+};
 
 export const head: DocumentHead = {
-  title: 'Trips | Andacity Travel',
+  title: "Trips | Andacity Travel",
   meta: [
     {
-      name: 'description',
-      content: 'Create and manage trip itineraries with hotels, flights, and car rentals.',
+      name: "description",
+      content:
+        "Create and manage trip itineraries with hotels, flights, and car rentals.",
     },
   ],
-}
+};
