@@ -7,6 +7,19 @@ import {
   buildPostgresSeedPayload,
   TABLE_INSERT_ORDER,
 } from "../../src/seed/db/postgres-seed-payload.js";
+import {
+  getRollingHorizonDates,
+  resolveSeedConfig,
+} from "../../src/seed/config/seed-config.js";
+import {
+  generateFlightsForRoute,
+  getFlightRoutes,
+} from "../../src/seed/generators/generate-flights.js";
+import {
+  assertSeedInventory,
+  validateSeedInventory,
+} from "../../src/seed/validation/inventory-validation.js";
+import { parseIsoDate } from "../../src/seed/fns/format.js";
 
 const DEFAULT_OUT_DIR = path.resolve(process.cwd(), "seed/output/postgres");
 const DEFAULT_DB_SCHEMA = "andacity_app";
@@ -38,6 +51,8 @@ const parseArgs = (argv) => {
     itineraryType: "",
     departDate: "",
     maxFlightRoutes: DEFAULT_MAX_FLIGHT_ROUTES,
+    horizonDays: undefined,
+    anchorDate: "",
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -117,6 +132,18 @@ const parseArgs = (argv) => {
       i += 1;
       continue;
     }
+
+    if (token === "--horizon-days" && value) {
+      args.horizonDays = Number.parseInt(String(value), 10);
+      i += 1;
+      continue;
+    }
+
+    if ((token === "--anchor-date" || token === "--horizon-start") && value) {
+      args.anchorDate = String(value).trim();
+      i += 1;
+      continue;
+    }
   }
 
   if (!["plan", "files", "apply"].includes(args.mode)) {
@@ -131,18 +158,7 @@ const writeJson = async (filePath, payload) => {
   await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
 };
 
-const logPlan = (payload) => {
-  const totalRows = TABLE_INSERT_ORDER.reduce(
-    (sum, table) => sum + Number(payload.rowCounts[table] || 0),
-    0,
-  );
-
-  const summary = {
-    ...payload.meta,
-    totalRows,
-    tables: payload.rowCounts,
-  };
-
+const logPlan = (summary) => {
   console.log(JSON.stringify(summary, null, 2));
 };
 
@@ -1153,6 +1169,637 @@ const readTableCounts = async (client, schema, payload) => {
   return counts;
 };
 
+const toCentAmount = (amount) => Math.round(Number(amount || 0) * 100);
+
+const toIsoTimestampAtMinutes = (isoDate, totalMinutes) => {
+  const parsed = parseIsoDate(isoDate);
+  if (!parsed) return null;
+
+  const next = new Date(parsed.getTime());
+  next.setUTCMinutes(Number(totalMinutes || 0), 0, 0);
+  return next.toISOString();
+};
+
+const addMinutesToIso = (isoTimestamp, minutes) => {
+  const parsed = new Date(isoTimestamp);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getTime() + Number(minutes || 0) * 60_000).toISOString();
+};
+
+const buildValuesSql = (rowCount, columnCount) => {
+  return Array.from({ length: rowCount }, (_, rowIndex) => {
+    const values = Array.from({ length: columnCount }, (_, columnIndex) => {
+      return `$${rowIndex * columnCount + columnIndex + 1}`;
+    }).join(", ");
+    return `(${values})`;
+  }).join(",\n");
+};
+
+const batchInsertRows = async (
+  client,
+  tableName,
+  columns,
+  rows,
+  onConflictSql,
+  returningSql = "",
+) => {
+  if (!rows.length) return { rows: [] };
+
+  const sql = `
+    insert into ${tableName} (${columns.join(", ")})
+    values
+    ${buildValuesSql(rows.length, columns.length)}
+    ${onConflictSql}
+    ${returningSql}
+  `;
+
+  return client.query(sql, rows.flat());
+};
+
+const createFlightRouteRows = (routes) => {
+  return routes.map((route) => ({
+    seedKey: `${route.from}:${route.originAirport}->${route.to}:${route.destinationAirport}`,
+    originCitySlug: route.from,
+    destinationCitySlug: route.to,
+    originAirportIata: route.originAirport,
+    destinationAirportIata: route.destinationAirport,
+    distanceKm: route.distanceKm,
+    isPopular: route.isPopular,
+  }));
+};
+
+const createAirlineRowsForRoutes = (routes) => {
+  const rows = [];
+  const seen = new Set();
+
+  for (const route of routes) {
+    for (const airlineName of route.airlinePool || []) {
+      const slug = String(airlineName || "")
+        .trim()
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9]+/g, "-")
+        .replaceAll(/(^-|-$)/g, "");
+      if (!slug || seen.has(slug)) continue;
+      seen.add(slug);
+      rows.push({
+        slug,
+        iataCode: null,
+        name: airlineName,
+      });
+    }
+  }
+
+  return rows;
+};
+
+const buildSelectedFlightRoutes = (args, seedConfig) => {
+  const allRoutes = getFlightRoutes({ seedConfig });
+  let routes = allRoutes;
+
+  if (args.city) {
+    routes = routes.filter((route) => route.from === args.city);
+  }
+  if (args.from) {
+    routes = routes.filter((route) => route.from === args.from);
+  }
+  if (args.to) {
+    routes = routes.filter((route) => route.to === args.to);
+  }
+
+  return routes;
+};
+
+const itineraryTypesForArgs = (args) => {
+  if (args.itineraryType === "one-way" || args.itineraryType === "round-trip") {
+    return [args.itineraryType];
+  }
+  return ["round-trip", "one-way"];
+};
+
+const serviceDatesForArgs = (args, seedConfig) => {
+  if (args.departDate) return [args.departDate];
+  return getRollingHorizonDates(seedConfig);
+};
+
+const seedKeyForRoute = (route) =>
+  `${route.from}:${route.originAirport}->${route.to}:${route.destinationAirport}`;
+
+const flightBatchSummary = () => ({
+  itineraries: 0,
+  segments: 0,
+  fares: 0,
+});
+
+const insertFlightItineraryBatch = async (client, rows) => {
+  return batchInsertRows(
+    client,
+    "flight_itineraries",
+    [
+      "seed_key",
+      "route_id",
+      "airline_id",
+      "itinerary_type",
+      "service_date",
+      "season_bucket",
+      "departure_at_utc",
+      "arrival_at_utc",
+      "departure_minutes",
+      "arrival_minutes",
+      "departure_window",
+      "arrival_window",
+      "stops",
+      "duration_minutes",
+      "stops_label",
+      "cabin_class",
+      "currency_code",
+      "base_price_cents",
+      "seats_remaining",
+    ],
+    rows.map((row) => [
+      row.seedKey,
+      row.routeId,
+      row.airlineId,
+      row.itineraryType,
+      row.serviceDate,
+      row.seasonBucket,
+      row.departureAtUtc,
+      row.arrivalAtUtc,
+      row.departureMinutes,
+      row.arrivalMinutes,
+      row.departureWindow,
+      row.arrivalWindow,
+      row.stops,
+      row.durationMinutes,
+      row.stopsLabel,
+      row.cabinClass,
+      row.currencyCode,
+      row.basePriceCents,
+      row.seatsRemaining,
+    ]),
+    `
+      on conflict (seed_key, service_date)
+      do update set
+        route_id = excluded.route_id,
+        airline_id = excluded.airline_id,
+        itinerary_type = excluded.itinerary_type,
+        season_bucket = excluded.season_bucket,
+        departure_at_utc = excluded.departure_at_utc,
+        arrival_at_utc = excluded.arrival_at_utc,
+        departure_minutes = excluded.departure_minutes,
+        arrival_minutes = excluded.arrival_minutes,
+        departure_window = excluded.departure_window,
+        arrival_window = excluded.arrival_window,
+        stops = excluded.stops,
+        duration_minutes = excluded.duration_minutes,
+        stops_label = excluded.stops_label,
+        cabin_class = excluded.cabin_class,
+        currency_code = excluded.currency_code,
+        base_price_cents = excluded.base_price_cents,
+        seats_remaining = excluded.seats_remaining,
+        updated_at = now()
+    `,
+    "returning id, seed_key, service_date::text as service_date",
+  );
+};
+
+const insertFlightSegmentBatch = async (client, rows) => {
+  return batchInsertRows(
+    client,
+    "flight_segments",
+    [
+      "itinerary_id",
+      "segment_order",
+      "origin_airport_id",
+      "destination_airport_id",
+      "airline_id",
+      "operating_flight_number",
+      "departure_at_utc",
+      "arrival_at_utc",
+      "duration_minutes",
+    ],
+    rows.map((row) => [
+      row.itineraryId,
+      row.segmentOrder,
+      row.originAirportId,
+      row.destinationAirportId,
+      row.airlineId,
+      row.operatingFlightNumber,
+      row.departureAtUtc,
+      row.arrivalAtUtc,
+      row.durationMinutes,
+    ]),
+    `
+      on conflict (itinerary_id, segment_order)
+      do update set
+        origin_airport_id = excluded.origin_airport_id,
+        destination_airport_id = excluded.destination_airport_id,
+        airline_id = excluded.airline_id,
+        operating_flight_number = excluded.operating_flight_number,
+        departure_at_utc = excluded.departure_at_utc,
+        arrival_at_utc = excluded.arrival_at_utc,
+        duration_minutes = excluded.duration_minutes
+    `,
+  );
+};
+
+const insertFlightFareBatch = async (client, rows) => {
+  return batchInsertRows(
+    client,
+    "flight_fares",
+    [
+      "itinerary_id",
+      "fare_code",
+      "cabin_class",
+      "price_cents",
+      "currency_code",
+      "refundable",
+      "changeable",
+      "checked_bags_included",
+      "seats_remaining",
+    ],
+    rows.map((row) => [
+      row.itineraryId,
+      row.fareCode,
+      row.cabinClass,
+      row.priceCents,
+      row.currencyCode,
+      row.refundable,
+      row.changeable,
+      row.checkedBagsIncluded,
+      row.seatsRemaining,
+    ]),
+    `
+      on conflict (itinerary_id, fare_code)
+      do update set
+        cabin_class = excluded.cabin_class,
+        price_cents = excluded.price_cents,
+        currency_code = excluded.currency_code,
+        refundable = excluded.refundable,
+        changeable = excluded.changeable,
+        checked_bags_included = excluded.checked_bags_included,
+        seats_remaining = excluded.seats_remaining,
+        updated_at = now()
+    `,
+  );
+};
+
+const flushFlightBatch = async (client, refs, batch) => {
+  if (!batch.itineraries.length) return;
+
+  const itineraryResult = await insertFlightItineraryBatch(client, batch.itineraries);
+  const itineraryIdByKey = new Map();
+  for (const row of itineraryResult.rows) {
+    itineraryIdByKey.set(`${row.seed_key}:${row.service_date}`, row.id);
+  }
+
+  const segmentRows = batch.segments
+    .map((row) => {
+      const itineraryId = itineraryIdByKey.get(row.itineraryNaturalKey);
+      const originAirportId = refs.airports.get(row.originAirportIata);
+      const destinationAirportId = refs.airports.get(row.destinationAirportIata);
+      const airlineId = refs.airlines.get(row.airlineSlug);
+      if (!itineraryId || !originAirportId || !destinationAirportId || !airlineId) {
+        return null;
+      }
+      return {
+        itineraryId,
+        segmentOrder: row.segmentOrder,
+        originAirportId,
+        destinationAirportId,
+        airlineId,
+        operatingFlightNumber: row.operatingFlightNumber,
+        departureAtUtc: row.departureAtUtc,
+        arrivalAtUtc: row.arrivalAtUtc,
+        durationMinutes: row.durationMinutes,
+      };
+    })
+    .filter(Boolean);
+
+  const fareRows = batch.fares
+    .map((row) => {
+      const itineraryId = itineraryIdByKey.get(row.itineraryNaturalKey);
+      if (!itineraryId) return null;
+      return {
+        itineraryId,
+        fareCode: row.fareCode,
+        cabinClass: row.cabinClass,
+        priceCents: row.priceCents,
+        currencyCode: row.currencyCode,
+        refundable: row.refundable,
+        changeable: row.changeable,
+        checkedBagsIncluded: row.checkedBagsIncluded,
+        seatsRemaining: row.seatsRemaining,
+      };
+    })
+    .filter(Boolean);
+
+  await insertFlightSegmentBatch(client, segmentRows);
+  await insertFlightFareBatch(client, fareRows);
+
+  batch.itineraries.length = 0;
+  batch.segments.length = 0;
+  batch.fares.length = 0;
+};
+
+const applyDenseFlights = async (client, refs, args, seedConfig) => {
+  if (!(args.vertical === "all" || args.vertical === "flights")) {
+    return flightBatchSummary();
+  }
+
+  const routes = buildSelectedFlightRoutes(args, seedConfig);
+  if (!routes.length) return flightBatchSummary();
+
+  const airlines = createAirlineRowsForRoutes(routes);
+  const routeRows = createFlightRouteRows(routes);
+  await upsertAirlines(client, airlines, refs);
+  await upsertFlightRoutes(client, routeRows, refs);
+
+  const routeSeedKeys = routeRows.map((row) => row.seedKey);
+  if (routeSeedKeys.length) {
+    const params = [routeSeedKeys];
+    let itineraryFilterSql = "";
+    if (args.itineraryType) {
+      params.push(args.itineraryType);
+      itineraryFilterSql = `and fi.itinerary_type = $${params.length}`;
+    }
+
+    await client.query(
+      `
+        delete from flight_itineraries fi
+        using flight_routes fr
+        where fi.route_id = fr.id
+          and fr.seed_key = any($1::text[])
+          ${itineraryFilterSql}
+      `,
+      params,
+    );
+  }
+
+  const dates = serviceDatesForArgs(args, seedConfig);
+  const itineraryTypes = itineraryTypesForArgs(args);
+  const batch = {
+    itineraries: [],
+    segments: [],
+    fares: [],
+  };
+  const summary = flightBatchSummary();
+  const batchLimit = 750;
+
+  for (const route of routes) {
+    const routeSeedKey = seedKeyForRoute(route);
+    const routeId = refs.flightRoutes.get(routeSeedKey);
+    if (!routeId) continue;
+
+    for (const itineraryType of itineraryTypes) {
+      for (const serviceDate of dates) {
+        const flights = generateFlightsForRoute({
+          fromSlug: route.from,
+          toSlug: route.to,
+          itineraryType,
+          departDate: serviceDate,
+          seedConfig,
+        });
+
+        for (const flight of flights) {
+          const airlineSlug = String(flight.airline || "")
+            .trim()
+            .toLowerCase()
+            .replaceAll(/[^a-z0-9]+/g, "-")
+            .replaceAll(/(^-|-$)/g, "");
+          const airlineId = refs.airlines.get(airlineSlug);
+          if (!airlineId) continue;
+
+          const departureAtUtc = toIsoTimestampAtMinutes(
+            serviceDate,
+            flight.departureMinutes,
+          );
+          const durationMinutes =
+            Number(flight.arrivalMinutes) >= Number(flight.departureMinutes)
+              ? Number(flight.arrivalMinutes) - Number(flight.departureMinutes)
+              : Number(flight.arrivalMinutes) -
+                  Number(flight.departureMinutes) +
+                  1440;
+          const arrivalAtUtc = departureAtUtc
+            ? addMinutesToIso(departureAtUtc, durationMinutes)
+            : null;
+          if (!departureAtUtc || !arrivalAtUtc) continue;
+
+          const itineraryNaturalKey = `${flight.id}:${serviceDate}`;
+          batch.itineraries.push({
+            seedKey: flight.id,
+            routeId,
+            airlineId,
+            itineraryType,
+            serviceDate,
+            seasonBucket: Number(flight.seedMeta?.seasonBucket || 0),
+            departureAtUtc,
+            arrivalAtUtc,
+            departureMinutes: Number(flight.departureMinutes),
+            arrivalMinutes: Number(flight.arrivalMinutes),
+            departureWindow: flight.departureWindow,
+            arrivalWindow: flight.arrivalWindow,
+            stops: Number(flight.stops),
+            durationMinutes,
+            stopsLabel: flight.stopsLabel,
+            cabinClass: flight.cabinClass,
+            currencyCode: flight.currency || "USD",
+            basePriceCents: toCentAmount(flight.price),
+            seatsRemaining: Number(flight.seatsRemaining || 9),
+          });
+
+          batch.segments.push({
+            itineraryNaturalKey,
+            segmentOrder: 1,
+            originAirportIata: route.originAirport,
+            destinationAirportIata: route.destinationAirport,
+            airlineSlug,
+            operatingFlightNumber: null,
+            departureAtUtc,
+            arrivalAtUtc,
+            durationMinutes,
+          });
+
+          const fareVariants =
+            Array.isArray(flight.fareVariants) && flight.fareVariants.length
+              ? flight.fareVariants
+              : [
+                  {
+                    fareCode: "standard",
+                    cabinClass: flight.cabinClass,
+                    price: flight.price,
+                    refundable: false,
+                    changeable: true,
+                    checkedBagsIncluded: 0,
+                    seatsRemaining: Number(flight.seatsRemaining || 9),
+                  },
+                ];
+
+          for (const fare of fareVariants) {
+            batch.fares.push({
+              itineraryNaturalKey,
+              fareCode: fare.fareCode,
+              cabinClass: fare.cabinClass,
+              priceCents: toCentAmount(fare.price),
+              currencyCode: flight.currency || "USD",
+              refundable: !!fare.refundable,
+              changeable: fare.changeable !== false,
+              checkedBagsIncluded: Number(fare.checkedBagsIncluded || 0),
+              seatsRemaining: Number(
+                fare.seatsRemaining || flight.seatsRemaining || 9,
+              ),
+            });
+          }
+
+          summary.itineraries += 1;
+          summary.segments += 1;
+          summary.fares += fareVariants.length;
+        }
+
+        if (batch.itineraries.length >= batchLimit) {
+          await flushFlightBatch(client, refs, batch);
+        }
+      }
+    }
+  }
+
+  await flushFlightBatch(client, refs, batch);
+  return summary;
+};
+
+const applyHybridSeed = async (args, seedConfig) => {
+  const databaseUrl =
+    process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
+  if (!databaseUrl) {
+    throw new Error(
+      "DATABASE_URL (or POSTGRES_URL) is required for --mode apply",
+    );
+  }
+
+  const schema = normalizeSchemaName(args.schema || process.env.DB_SCHEMA);
+  const refs = createReferenceState();
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+
+  const counts = {};
+  const debugCounts = {};
+
+  const readCount = async (tableName) => {
+    const result = await client.query(`select count(*)::bigint as count from ${tableName}`);
+    return Number(result.rows[0]?.count || 0);
+  };
+
+  try {
+    await client.query(`create schema if not exists ${quoteIdentifier(schema)}`);
+    await client.query(`set search_path to ${quoteIdentifier(schema)}, public`);
+    await client.query("begin");
+
+    if (args.reset) {
+      await resetSeedTables(client, schema);
+    }
+
+    const geographyPayload = buildPostgresSeedPayload({
+      vertical: "geography",
+      seedConfig,
+    });
+    await upsertCountries(client, geographyPayload.tables.countries, refs);
+    await upsertRegions(client, geographyPayload.tables.regions, refs);
+    await upsertCities(client, geographyPayload.tables.cities, refs);
+    await upsertAirports(client, geographyPayload.tables.airports, refs);
+    debugCounts.afterGeography = {
+      countries: await readCount("countries"),
+      regions: await readCount("regions"),
+      cities: await readCount("cities"),
+      airports: await readCount("airports"),
+    };
+
+    if (args.vertical === "all" || args.vertical === "hotels") {
+      const hotelPayload = buildPostgresSeedPayload({
+        vertical: "hotels",
+        city: args.city,
+        seedConfig,
+      });
+      await upsertHotelBrands(client, hotelPayload.tables.hotel_brands, refs);
+      await upsertHotels(client, hotelPayload.tables.hotels, refs);
+      await upsertHotelImages(client, hotelPayload.tables.hotel_images, refs);
+      await upsertHotelAmenities(
+        client,
+        hotelPayload.tables.hotel_amenities,
+        refs,
+      );
+      await upsertHotelAmenityLinks(
+        client,
+        hotelPayload.tables.hotel_amenity_links,
+        refs,
+      );
+      await upsertHotelOffers(client, hotelPayload.tables.hotel_offers, refs);
+      await upsertHotelAvailability(
+        client,
+        hotelPayload.tables.hotel_availability_snapshots,
+        refs,
+      );
+      debugCounts.afterHotels = {
+        hotels: await readCount("hotels"),
+        hotelOffers: await readCount("hotel_offers"),
+        hotelAvailability: await readCount("hotel_availability_snapshots"),
+      };
+    }
+
+    if (args.vertical === "all" || args.vertical === "cars") {
+      const carPayload = buildPostgresSeedPayload({
+        vertical: "cars",
+        city: args.city,
+        seedConfig,
+      });
+      await upsertCarProviders(client, carPayload.tables.car_providers, refs);
+      await upsertCarVehicleClasses(
+        client,
+        carPayload.tables.car_vehicle_classes,
+        refs,
+      );
+      await upsertCarLocations(client, carPayload.tables.car_locations, refs);
+      await upsertCarInventory(client, carPayload.tables.car_inventory, refs);
+      await upsertCarInventoryImages(
+        client,
+        carPayload.tables.car_inventory_images,
+        refs,
+      );
+      await upsertCarOffers(client, carPayload.tables.car_offers, refs);
+      debugCounts.afterCars = {
+        carInventory: await readCount("car_inventory"),
+        carOffers: await readCount("car_offers"),
+        carLocations: await readCount("car_locations"),
+      };
+    }
+
+    const flightCounts = await applyDenseFlights(client, refs, args, seedConfig);
+    if (args.vertical === "all" || args.vertical === "flights") {
+      debugCounts.afterFlights = {
+        flightRoutes: await readCount("flight_routes"),
+        flightItineraries: await readCount("flight_itineraries"),
+        flightSegments: await readCount("flight_segments"),
+        flightFares: await readCount("flight_fares"),
+      };
+    }
+
+    await client.query("commit");
+
+    counts.flight_itineraries = flightCounts.itineraries;
+    counts.flight_segments = flightCounts.segments;
+    counts.flight_fares = flightCounts.fares;
+
+    return {
+      schema,
+      counts,
+      debugCounts,
+    };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    await client.end();
+  }
+};
+
 const applyPayload = async (payload, options = {}) => {
   const databaseUrl =
     process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
@@ -1239,23 +1886,37 @@ const applyPayload = async (payload, options = {}) => {
 
 const run = async () => {
   const args = parseArgs(process.argv.slice(2));
-
-  const payload = buildPostgresSeedPayload({
-    vertical: args.vertical,
-    city: args.city,
-    from: args.from,
-    to: args.to,
-    itineraryType: args.itineraryType,
-    departDate: args.departDate,
-    maxFlightRoutes: args.maxFlightRoutes,
+  const seedConfig = resolveSeedConfig({
+    horizonDays: args.horizonDays,
+    horizonStartDate: args.anchorDate,
   });
 
   if (args.mode === "plan") {
-    logPlan(payload);
+    const report = validateSeedInventory({ seedConfig });
+    logPlan(report);
     return;
   }
 
   if (args.mode === "files") {
+    if (
+      (args.vertical === "all" || args.vertical === "flights") &&
+      !(args.from && args.to && args.departDate)
+    ) {
+      throw new Error(
+        "Dense horizon flights are not exported as a monolithic file set. Use scripts/seed/generate.mjs for route files, or --mode apply for PostgreSQL materialization.",
+      );
+    }
+
+    const payload = buildPostgresSeedPayload({
+      vertical: args.vertical,
+      city: args.city,
+      from: args.from,
+      to: args.to,
+      itineraryType: args.itineraryType,
+      departDate: args.departDate || seedConfig.horizonStartDate,
+      maxFlightRoutes: args.maxFlightRoutes,
+      seedConfig,
+    });
     const manifest = {
       meta: payload.meta,
       rowCounts: payload.rowCounts,
@@ -1273,19 +1934,26 @@ const run = async () => {
     return;
   }
 
-  const result = await applyPayload(payload, {
-    schema: args.schema,
-    reset: args.reset,
-  });
+  const validation = assertSeedInventory({ seedConfig });
+  const result = await applyHybridSeed(args, seedConfig);
 
   console.log(
     JSON.stringify(
       {
         applied: true,
-        meta: payload.meta,
-        rowCounts: payload.rowCounts,
+        vertical: args.vertical,
+        seed: seedConfig.seed,
+        horizonDays: seedConfig.horizonDays,
+        horizonStartDate: seedConfig.horizonStartDate,
+        horizonEndDate: seedConfig.horizonEndDate,
+        validation: {
+          estimatedGb: validation.storage.estimatedGb,
+          flightItineraries: validation.flights.estimatedItineraryRows,
+          flightFares: validation.flights.estimatedFareRows,
+        },
         targetSchema: result.schema,
-        persistedCounts: result.persistedCounts,
+        appliedCounts: result.counts,
+        debugCounts: result.debugCounts,
         reset: args.reset,
       },
       null,

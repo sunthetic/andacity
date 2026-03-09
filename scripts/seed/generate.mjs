@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { getTopTravelCities } from "../../src/seed/cities/top-100.js";
-import { SEED_CONFIG } from "../../src/seed/config/seed-config.js";
+import { resolveSeedConfig } from "../../src/seed/config/seed-config.js";
 import {
   generateHotelsForCity,
   generateHotelsInventory,
@@ -30,6 +30,8 @@ const parseArgs = (argv) => {
     to: "",
     itineraryType: "round-trip",
     departDate: "",
+    horizonDays: undefined,
+    anchorDate: "",
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -78,6 +80,17 @@ const parseArgs = (argv) => {
       index += 1;
       continue;
     }
+
+    if (token === "--horizon-days" && value) {
+      args.horizonDays = Number.parseInt(String(value), 10);
+      index += 1;
+      continue;
+    }
+
+    if ((token === "--anchor-date" || token === "--horizon-start") && value) {
+      args.anchorDate = String(value).trim();
+      index += 1;
+    }
   }
 
   return args;
@@ -92,17 +105,20 @@ const writeJson = async (filePath, payload) => {
   await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
 };
 
-const writeCities = async (outDir) => {
+const writeCities = async (outDir, config) => {
   const cities = getTopTravelCities().map((city) => ({
     ...city,
     query: city.slug,
     airportCode: city.airportCodes[0] || "",
   }));
 
-  await writeJson(path.join(outDir, "cities/top-100.json"), {
-    seed: SEED_CONFIG.seed,
+  await writeJson(path.join(outDir, "cities/catalog.json"), {
+    seed: config.seed,
     count: cities.length,
     generatedAt: new Date().toISOString(),
+    horizonDays: config.horizonDays,
+    horizonStartDate: config.horizonStartDate,
+    horizonEndDate: config.horizonEndDate,
     cities,
   });
 
@@ -118,7 +134,9 @@ const writeHotels = async (outDir, options = {}) => {
   let hotelsWritten = 0;
 
   for (const city of filteredCities) {
-    const hotels = generateHotelsForCity(city);
+    const hotels = generateHotelsForCity(city, {
+      seedConfig: options.seedConfig,
+    });
     hotelsWritten += hotels.length;
 
     await writeJson(path.join(outDir, `hotels/${city.slug}.json`), {
@@ -136,7 +154,9 @@ const writeHotels = async (outDir, options = {}) => {
   return {
     cityFiles: filteredCities.length,
     hotels: hotelsWritten,
-    totalHotelsInMemory: generateHotelsInventory().length,
+    totalHotelsInMemory: generateHotelsInventory({
+      seedConfig: options.seedConfig,
+    }).length,
   };
 };
 
@@ -149,7 +169,9 @@ const writeCars = async (outDir, options = {}) => {
   let rentalsWritten = 0;
 
   for (const city of filteredCities) {
-    const rentals = generateCarRentalsForCity(city);
+    const rentals = generateCarRentalsForCity(city, {
+      seedConfig: options.seedConfig,
+    });
     rentalsWritten += rentals.length;
 
     await writeJson(path.join(outDir, `cars/${city.slug}.json`), {
@@ -167,7 +189,9 @@ const writeCars = async (outDir, options = {}) => {
   return {
     cityFiles: filteredCities.length,
     rentals: rentalsWritten,
-    totalRentalsInMemory: generateCarRentalsInventory().length,
+    totalRentalsInMemory: generateCarRentalsInventory({
+      seedConfig: options.seedConfig,
+    }).length,
   };
 };
 
@@ -180,6 +204,7 @@ const writeFlights = async (outDir, options = {}) => {
       toSlug: options.to,
       itineraryType: options.itineraryType,
       departDate: options.departDate || undefined,
+      seedConfig: options.seedConfig,
     });
 
     await writeJson(
@@ -191,7 +216,7 @@ const writeFlights = async (outDir, options = {}) => {
         from: options.from,
         to: options.to,
         itineraryType: options.itineraryType,
-        departDate: options.departDate || null,
+        departDate: options.departDate || options.seedConfig.horizonStartDate,
         count: flights.length,
         flights,
       },
@@ -210,54 +235,77 @@ const writeFlights = async (outDir, options = {}) => {
     ? allCities.filter((city) => city.slug === options.city)
     : allCities;
 
+  const scaleSummary = getFlightRouteScaleSummary({
+    seedConfig: options.seedConfig,
+  });
+
   for (const city of cities) {
-    const pairings = getFlightPairingsForCity(city.slug);
+    const pairings = getFlightPairingsForCity(city.slug, {
+      seedConfig: options.seedConfig,
+    });
 
     await writeJson(path.join(outDir, `flights/pairings/${city.slug}.json`), {
       city: city.slug,
       count: pairings.length,
       pairings,
       notes:
-        "Use --from/--to to materialize route-level flight results. Pairing generation is deterministic and yields >=20 flights per pairing.",
+        "Use --from/--to with --depart to materialize a concrete route day. Pairings follow the dense rolling horizon and target >=30 itineraries per route per week.",
     });
   }
 
   await writeJson(path.join(outDir, "flights/scale-summary.json"), {
-    ...getFlightRouteScaleSummary(),
-    pairingCountsByCity: getFlightPairingCountByCity(),
+    ...scaleSummary,
+    pairingCountsByCity: getFlightPairingCountByCity({
+      seedConfig: options.seedConfig,
+    }),
   });
 
   return {
     mode: "pairings",
     cityFiles: cities.length,
-    minPairingsPerCity: getFlightRouteScaleSummary().minPairingsPerCity,
-    flightsPerPairing: SEED_CONFIG.flightsPerPairing,
-    estimatedRows: getFlightRouteScaleSummary().estimatedRows,
+    minPairingsPerCity: scaleSummary.minPairingsPerCity,
+    minRoutesPerCity: scaleSummary.minRoutesPerCity,
+    flightsPerPairing: scaleSummary.flightsPerPairing,
+    horizonDays: scaleSummary.horizonDays,
+    estimatedRows: scaleSummary.estimatedRows,
   };
 };
 
 const run = async () => {
   const args = parseArgs(process.argv.slice(2));
+  const seedConfig = resolveSeedConfig({
+    horizonDays: args.horizonDays,
+    horizonStartDate: args.anchorDate,
+  });
 
   await ensureDir(args.outDir);
 
   const result = {
     outputDirectory: args.outDir,
-    seed: SEED_CONFIG.seed,
+    seed: seedConfig.seed,
     vertical: args.vertical,
+    horizonDays: seedConfig.horizonDays,
+    horizonStartDate: seedConfig.horizonStartDate,
+    horizonEndDate: seedConfig.horizonEndDate,
     steps: {},
   };
 
   if (args.vertical === "all" || args.vertical === "cities") {
-    result.steps.cities = await writeCities(args.outDir);
+    result.steps.cities = await writeCities(args.outDir, seedConfig);
   }
 
   if (args.vertical === "all" || args.vertical === "hotels") {
-    result.steps.hotels = await writeHotels(args.outDir, { city: args.city });
+    result.steps.hotels = await writeHotels(args.outDir, {
+      city: args.city,
+      seedConfig,
+    });
   }
 
   if (args.vertical === "all" || args.vertical === "cars") {
-    result.steps.cars = await writeCars(args.outDir, { city: args.city });
+    result.steps.cars = await writeCars(args.outDir, {
+      city: args.city,
+      seedConfig,
+    });
   }
 
   if (args.vertical === "all" || args.vertical === "flights") {
@@ -267,6 +315,7 @@ const run = async () => {
       to: args.to,
       itineraryType: args.itineraryType,
       departDate: args.departDate,
+      seedConfig,
     });
   }
 

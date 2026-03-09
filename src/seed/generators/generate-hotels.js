@@ -1,5 +1,11 @@
 // @ts-nocheck
-import { SEED_CONFIG, DEMO_IMAGE_SETS } from "../config/seed-config.js";
+import {
+  DEMO_IMAGE_SETS,
+  SEED_CONFIG,
+  hotelCountForCity,
+  isDenseInventoryCity,
+  resolveSeedConfig,
+} from "../config/seed-config.js";
 import {
   createDeterministicRandom,
   deterministicId,
@@ -12,7 +18,7 @@ import {
   sampleUnique,
   weightedPick,
 } from "../fns/random.js";
-import { addDays, parseIsoDate, toIsoDate } from "../fns/format.js";
+import { parseIsoDate } from "../fns/format.js";
 import { getTopTravelCities } from "../cities/top-100.js";
 
 const HOTEL_BRANDS = [
@@ -123,11 +129,25 @@ const ROOM_TEMPLATES = [
     sizeSqft: 320,
   },
   {
+    id: "double-queen",
+    name: "Deluxe Double Queen",
+    sleeps: 4,
+    beds: "2 queen",
+    sizeSqft: 410,
+  },
+  {
     id: "suite-1br",
     name: "One Bedroom Suite",
     sleeps: 4,
     beds: "1 king + sofa",
     sizeSqft: 520,
+  },
+  {
+    id: "family-suite",
+    name: "Family Suite",
+    sleeps: 5,
+    beds: "2 queen + sofa",
+    sizeSqft: 590,
   },
   {
     id: "suite-premium",
@@ -137,6 +157,21 @@ const ROOM_TEMPLATES = [
     sizeSqft: 620,
   },
 ];
+
+const resolveConfig = (options = {}) => {
+  return resolveSeedConfig(options.seedConfig || {});
+};
+
+const cacheKeyForConfig = (config) => {
+  return [
+    config.seed,
+    config.topCityCount,
+    config.horizonStartDate,
+    config.horizonDays,
+    config.hotelDensity.denseCityHotels,
+    config.hotelDensity.secondaryCityHotels,
+  ].join(":");
+};
 
 const normalizeCountry = (value) =>
   String(value || "")
@@ -240,9 +275,9 @@ const propertyTypeFromRand = (rand) => {
   ]);
 };
 
-const cityCostMultiplier = (city) => {
+const cityCostMultiplier = (city, config) => {
   const rankFactor =
-    (SEED_CONFIG.topCityCount - city.rank) / SEED_CONFIG.topCityCount;
+    (config.topCityCount - city.rank) / config.topCityCount;
   const expensive = new Set([
     "new-york",
     "london",
@@ -275,8 +310,25 @@ const buildSummary = (city, propertyType, neighborhood) => {
 
 const buildRooms = (rand, nightlyBase) => {
   return ROOM_TEMPLATES.map((template, index) => {
-    const multiplier = index === 0 ? 1 : index === 1 ? 1.27 : 1.55;
+    const multiplier =
+      index === 0
+        ? 1
+        : index === 1
+          ? 1.16
+          : index === 2
+            ? 1.3
+            : index === 3
+              ? 1.44
+              : 1.62;
     const priceFrom = Math.max(59, Math.round(nightlyBase * multiplier));
+    const smokingToken =
+      index === 0 || rand() > 0.72 ? "Non-smoking" : "Smoking optional";
+    const occupancyToken =
+      template.sleeps >= 5
+        ? "Group-friendly layout"
+        : template.sleeps >= 4
+          ? "Family layout"
+          : "Couples layout";
 
     return {
       id: template.id,
@@ -288,7 +340,15 @@ const buildRooms = (rand, nightlyBase) => {
       refundable: rand() > 0.22,
       payLater: rand() > 0.35,
       badges:
-        index === 0 ? ["Best value"] : index === 1 ? ["Top pick"] : ["Premium"],
+        index === 0
+          ? ["Best value"]
+          : index === 1
+            ? ["Most booked"]
+            : index === 2
+              ? ["Top pick"]
+              : index === 3
+                ? ["Family-ready"]
+                : ["Premium"],
       features: sampleUnique(
         rand,
         [
@@ -299,6 +359,8 @@ const buildRooms = (rand, nightlyBase) => {
           "High floor",
           "Water view",
           "Smart TV",
+          smokingToken,
+          occupancyToken,
         ],
         3,
       ),
@@ -306,46 +368,54 @@ const buildRooms = (rand, nightlyBase) => {
   });
 };
 
-const buildAvailability = (rand, citySlug, hotelIndex) => {
-  const anchor = parseIsoDate(SEED_CONFIG.availabilityAnchorDate);
+const buildAvailability = (rand, city, hotelIndex, count, config) => {
+  const anchor = parseIsoDate(config.horizonStartDate);
+  const end = parseIsoDate(config.horizonEndDate);
   if (!anchor) {
     return {
-      checkInStart: SEED_CONFIG.availabilityAnchorDate,
-      checkInEnd: SEED_CONFIG.availabilityAnchorDate,
+      checkInStart: config.horizonStartDate,
+      checkInEnd: config.horizonStartDate,
       minNights: 1,
       maxNights: 14,
       blockedWeekdays: [],
     };
   }
 
-  const startOffset = randomInt(rand, 0, 90);
-  const span = randomInt(rand, 250, 620);
-  const start = addDays(anchor, startOffset);
-  const end = addDays(start, span);
-
   const blockedWeekdays = [];
-  if (rand() > 0.65) blockedWeekdays.push(randomInt(rand, 0, 6));
-  if (rand() > 0.82) {
-    const day = randomInt(rand, 0, 6);
-    if (!blockedWeekdays.includes(day)) blockedWeekdays.push(day);
+  const denseCity = isDenseInventoryCity(city, config);
+  const nightlyMinimum = denseCity ? 6 : 3;
+  const guaranteedNightly = Math.min(count, nightlyMinimum);
+  const continuityTargetIndex = Math.max(
+    guaranteedNightly,
+    Math.ceil(count * 0.7),
+  );
+  const weeklongFriendly = hotelIndex < Math.max(guaranteedNightly, Math.ceil(count * 0.8));
+  const continuityFriendly = hotelIndex < continuityTargetIndex;
+  const nightlyBaseline = hotelIndex < guaranteedNightly;
+
+  if (!nightlyBaseline && !continuityFriendly && rand() > (denseCity ? 0.58 : 0.5)) {
+    blockedWeekdays.push(randomInt(rand, 0, 6));
   }
 
   return {
-    checkInStart: toIsoDate(start),
-    checkInEnd: toIsoDate(end),
-    minNights: randomInt(rand, 1, 3),
-    maxNights: randomInt(rand, 9, 16),
+    checkInStart: config.horizonStartDate,
+    checkInEnd: end ? config.horizonEndDate : config.horizonStartDate,
+    minNights: nightlyBaseline
+      ? 1
+      : continuityFriendly
+        ? (rand() > 0.4 ? 1 : 2)
+        : randomInt(rand, 1, 3),
+    maxNights: weeklongFriendly ? randomInt(rand, 8, 16) : randomInt(rand, 5, 12),
     blockedWeekdays,
-    pairingKey: `${citySlug}:${hotelIndex}`,
+    pairingKey: `${city.slug}:${hotelIndex}`,
   };
 };
 
 export const generateHotelsForCity = (city, options = {}) => {
-  const count = Math.max(
-    10,
-    Number(options.count) || SEED_CONFIG.hotelsPerCity,
-  );
-  const citySeed = hashParts(SEED_CONFIG.seed, "hotels", city.slug);
+  const config = resolveConfig(options);
+  const defaultCount = hotelCountForCity(city, config);
+  const count = Math.max(3, Number(options.count) || defaultCount);
+  const citySeed = hashParts(config.seed, "hotels", city.slug);
   const hotels = [];
 
   for (let index = 0; index < count; index += 1) {
@@ -358,7 +428,7 @@ export const generateHotelsForCity = (city, options = {}) => {
     const styleWord = pickOne(rand, HOTEL_STYLE_WORDS) || "Hotel";
     const slug = `${city.slug}-${propertyType}-${String(index + 1).padStart(2, "0")}`;
 
-    const cityMultiplier = cityCostMultiplier(city);
+    const cityMultiplier = cityCostMultiplier(city, config);
     const starMultiplier = 0.72 + stars * 0.19;
     const propertyMultiplier =
       propertyType === "resort"
@@ -384,7 +454,7 @@ export const generateHotelsForCity = (city, options = {}) => {
       AMENITIES_POOL,
       randomInt(rand, 8, 13),
     );
-    const availability = buildAvailability(rand, city.slug, index);
+    const availability = buildAvailability(rand, city, index, count, config);
 
     const ratingBase = 3.4 + stars * 0.25 + randomFloat(rand, -0.3, 0.45, 2);
     const rating = Math.max(3.2, Math.min(4.9, Number(ratingBase.toFixed(1))));
@@ -434,12 +504,19 @@ export const generateHotelsForCity = (city, options = {}) => {
         },
         {
           q: "Do rates change by date?",
-          a: "Yes. Prices are deterministic mock rates that still vary by date and demand windows.",
+          a: "Yes. Prices are deterministic mock rates that still vary by demand windows inside the rolling horizon.",
         },
       ],
       availability,
       seedMeta: {
-        id: deterministicId("hotel", city.slug, index),
+        id: deterministicId(
+          "hotel",
+          config.seed,
+          config.horizonStartDate,
+          config.horizonDays,
+          city.slug,
+          index,
+        ),
       },
     };
 
@@ -449,40 +526,51 @@ export const generateHotelsForCity = (city, options = {}) => {
   return hotels;
 };
 
-let hotelsCache = null;
-let hotelsBySlugCache = null;
+const hotelsCache = new Map();
+const hotelsBySlugCache = new Map();
 
-export const generateHotelsInventory = () => {
-  if (hotelsCache) return hotelsCache;
+export const generateHotelsInventory = (options = {}) => {
+  const config = resolveConfig(options);
+  const cacheKey = cacheKeyForConfig(config);
+  if (hotelsCache.has(cacheKey)) return hotelsCache.get(cacheKey);
 
   const allHotels = [];
   for (const city of getTopTravelCities()) {
-    allHotels.push(...generateHotelsForCity(city));
+    allHotels.push(...generateHotelsForCity(city, { seedConfig: config }));
   }
 
-  hotelsCache = allHotels;
-  return hotelsCache;
+  hotelsCache.set(cacheKey, allHotels);
+  return allHotels;
 };
 
-export const hotelsBySlug = () => {
-  if (hotelsBySlugCache) return hotelsBySlugCache;
-  const entries = generateHotelsInventory().map((hotel) => [hotel.slug, hotel]);
-  hotelsBySlugCache = Object.fromEntries(entries);
-  return hotelsBySlugCache;
+export const hotelsBySlug = (options = {}) => {
+  const config = resolveConfig(options);
+  const cacheKey = cacheKeyForConfig(config);
+  if (hotelsBySlugCache.has(cacheKey)) return hotelsBySlugCache.get(cacheKey);
+  const entries = generateHotelsInventory({ seedConfig: config }).map((hotel) => [
+    hotel.slug,
+    hotel,
+  ]);
+  const bySlug = Object.fromEntries(entries);
+  hotelsBySlugCache.set(cacheKey, bySlug);
+  return bySlug;
 };
 
-export const getHotelBySlug = (slug) => {
+export const getHotelBySlug = (slug, options = {}) => {
   const key = String(slug || "")
     .trim()
     .toLowerCase();
   if (!key) return null;
-  const hotelsMap = hotelsBySlug();
+  const hotelsMap = hotelsBySlug(options);
   return hotelsMap[key] || null;
 };
 
-export const hotelPairingCountByCity = () => {
-  const count = Math.max(10, SEED_CONFIG.hotelsPerCity);
-  return getTopTravelCities().map((city) => ({ city: city.slug, count }));
+export const hotelPairingCountByCity = (options = {}) => {
+  const config = resolveConfig(options);
+  return getTopTravelCities().map((city) => ({
+    city: city.slug,
+    count: hotelCountForCity(city, config),
+  }));
 };
 
 export const hotelPropertyTypes = () => PROPERTY_TYPE_KEYWORDS.slice();
