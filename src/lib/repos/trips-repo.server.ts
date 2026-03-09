@@ -28,9 +28,12 @@ import {
   validateTripItineraryCoherence,
   type TripItineraryValidationItem,
 } from '~/lib/trips/itinerary-coherence'
+import { bundlingSuggestionService } from '~/lib/trips/bundling-suggestion-service.server'
 import { buildTripIntelligenceSummary } from '~/lib/trips/status-aggregation'
+import type { TripGapAnalyzerItem } from '~/lib/trips/trip-gap-analyzer'
 import {
   TRIP_ITEM_TYPES,
+  type TripBundlingSummary,
   type TripDetails,
   type TripIntelligenceSummary,
   type TripItem,
@@ -715,8 +718,7 @@ const resolveFlightTripItem = async (
     )
   }
 
-  const startDate = toIsoDate(candidate.startDate || row.serviceDate)
-  const endDate = toIsoDate(candidate.endDate || row.serviceDate)
+  const serviceDate = toIsoDate(row.serviceDate)
   const fallbackSubtitle = `${row.originCityName} → ${row.destinationCityName}`
   const normalizedMeta = normalizeMeta(candidate.meta)
   const fallbackMeta = [row.stopsLabel, titleCaseToken(row.cabinClass)]
@@ -728,8 +730,11 @@ const resolveFlightTripItem = async (
     carInventoryId: null,
     startCityId: row.originCityId,
     endCityId: row.destinationCityId,
-    startDate,
-    endDate,
+    // Flight inventory is bound to a single service date. Persist the actual
+    // itinerary date instead of the search request date so revalidation can
+    // compare like-for-like.
+    startDate: serviceDate,
+    endDate: serviceDate,
     snapshotPriceCents: normalizePriceCents(candidate.priceCents, row.priceCents),
     snapshotCurrencyCode: normalizeCurrencyCode(candidate.currencyCode || row.currencyCode),
     title: String(candidate.title || '').trim() || row.airlineName,
@@ -1020,6 +1025,7 @@ const refreshTripItemAvailability = async (
   )
 
   const results = new Map<number, TripItemAvailabilityValidationResult>()
+  const normalizedFlightDates = new Map<number, string>()
 
   for (const item of items) {
     if (item.itemType === 'hotel') {
@@ -1073,6 +1079,13 @@ const refreshTripItemAvailability = async (
       continue
     }
 
+    const liveServiceDate = toIsoDate(item.liveFlightServiceDate)
+    if (liveServiceDate && (item.startDate !== liveServiceDate || item.endDate !== liveServiceDate)) {
+      item.startDate = liveServiceDate
+      item.endDate = liveServiceDate
+      normalizedFlightDates.set(item.id, liveServiceDate)
+    }
+
     results.set(
       item.id,
       validateTripItemAvailability(
@@ -1095,17 +1108,34 @@ const refreshTripItemAvailability = async (
 
   const db = getDb()
   await db.transaction(async (tx) => {
+    const tripIdsNeedingDateSync = new Set<number>()
+
     for (const item of items) {
       const result = results.get(item.id)
       if (!result) continue
 
+      const normalizedFlightDate = normalizedFlightDates.get(item.id)
       await tx
         .update(tripItems)
         .set({
+          ...(normalizedFlightDate
+            ? {
+                startDate: normalizedFlightDate,
+                endDate: normalizedFlightDate,
+              }
+            : {}),
           metadata: writeStoredTripItemAvailability(item.metadata, result),
           updatedAt: new Date(),
         })
         .where(eq(tripItems.id, item.id))
+
+      if (normalizedFlightDate) {
+        tripIdsNeedingDateSync.add(item.tripId)
+      }
+    }
+
+    for (const tripId of tripIdsNeedingDateSync) {
+      await syncTripDatesIfAuto(tx, tripId)
     }
   })
 
@@ -1169,6 +1199,22 @@ const toItineraryValidationItem = (
   liveFlightDepartureAt: item.liveFlightDepartureAt,
   liveFlightArrivalAt: item.liveFlightArrivalAt,
   liveCarLocationType: item.liveCarLocationType,
+})
+
+const toTripGapAnalyzerItem = (item: TripItemRecord): TripGapAnalyzerItem => ({
+  id: item.id,
+  itemType: item.itemType,
+  position: item.position,
+  title: item.title,
+  startDate: item.startDate,
+  endDate: item.endDate,
+  startCityId: item.startCityId,
+  endCityId: item.endCityId,
+  startCityName: item.startCityName,
+  endCityName: item.endCityName,
+  flightServiceDate: item.liveFlightServiceDate,
+  flightItineraryType: item.liveFlightItineraryType,
+  carLocationType: item.liveCarLocationType,
 })
 
 const getIssuesForTripItem = (
@@ -1272,6 +1318,7 @@ const summarizeTrip = (input: {
   updatedAt: Date | string
   items: TripItem[]
   intelligence: TripIntelligenceSummary
+  bundling: TripBundlingSummary
 }): TripDetails => {
   const pricing = buildTripPricingSummary(input.items)
   const currencyCode =
@@ -1315,6 +1362,7 @@ const summarizeTrip = (input: {
     citiesInvolved: [...citySet],
     pricing,
     intelligence: input.intelligence,
+    bundling: input.bundling,
     items: input.items,
   }
 }
@@ -1439,6 +1487,11 @@ export async function getTripDetails(
       toTripItem(item, availabilityByItemId.get(item.id), itinerary.issues),
     )
     const intelligence = buildTripIntelligenceSummary({ items })
+    const bundling = await bundlingSuggestionService.buildTripBundlingSummary({
+      tripStartDate: base.startDate,
+      tripEndDate: base.endDate,
+      items: itemRecords.map(toTripGapAnalyzerItem),
+    })
 
     return summarizeTrip({
       id: base.id,
@@ -1451,6 +1504,7 @@ export async function getTripDetails(
       updatedAt: base.updatedAt,
       items,
       intelligence,
+      bundling,
     })
   })
 }

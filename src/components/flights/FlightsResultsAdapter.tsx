@@ -228,11 +228,8 @@ export const FlightsResultsAdapter = component$(
           ? {
               itemType: 'flight',
               inventoryId: result.itineraryId,
-              startDate: props.searchState.dates?.checkIn || result.serviceDate,
-              endDate:
-                props.searchState.dates?.checkOut ||
-                props.searchState.dates?.checkIn ||
-                result.serviceDate,
+              startDate: result.serviceDate,
+              endDate: result.serviceDate,
               priceCents: Math.round(result.price * 100),
               currencyCode: result.currency,
               title: result.airline,
