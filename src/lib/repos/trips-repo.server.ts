@@ -1662,11 +1662,17 @@ const buildTripDetailsFromRecords = async (
   const items = workingItems.map((item) =>
     toTripItem(item, availabilityByItemId.get(item.id), itinerary.issues),
   )
+  const pricing = buildTripPricingSummary(items)
   const intelligence = buildTripIntelligenceSummary({ items })
   const bundling = await bundlingSuggestionService.buildTripBundlingSummary({
     tripStartDate: base.startDate,
     tripEndDate: base.endDate,
     items: workingItems.map(toTripGapAnalyzerItem),
+    pricing: {
+      currencyCode: pricing.currencyCode,
+      snapshotTotalCents: pricing.snapshotTotalCents,
+      hasMixedCurrencies: pricing.hasMixedCurrencies,
+    },
   })
 
   return summarizeTrip({

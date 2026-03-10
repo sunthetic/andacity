@@ -337,7 +337,7 @@ export default component$(() => {
                   {headlinePriceDisplay.baseLabel}
                 </div>
                 <div class="mt-2 flex items-end gap-2">
-                  <span class="text-4xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+                  <span class="text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
                     {formatMoney(
                       headlinePriceDisplay.baseAmount,
                       rental.currency,

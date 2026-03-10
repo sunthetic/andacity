@@ -66,6 +66,22 @@ export const TRIP_BUNDLING_SUGGESTION_TYPES = [
 export type TripBundlingSuggestionType =
   (typeof TRIP_BUNDLING_SUGGESTION_TYPES)[number];
 
+export const TRIP_BUNDLING_EXPLANATION_STRENGTHS = [
+  "strong",
+  "moderate",
+  "tentative",
+] as const;
+export type TripBundlingExplanationStrength =
+  (typeof TRIP_BUNDLING_EXPLANATION_STRENGTHS)[number];
+
+export const TRIP_BUNDLING_PRICE_POSITIONS = [
+  "lowest_exact_match",
+  "above_lowest_exact_match",
+  "unknown",
+] as const;
+export type TripBundlingPricePosition =
+  (typeof TRIP_BUNDLING_PRICE_POSITIONS)[number];
+
 export type TripValidationIssue = {
   code: string;
   scope: "availability" | "itinerary";
@@ -213,6 +229,40 @@ export type TripBundlingInventoryReference = {
   freshness?: InventoryFreshnessModel;
 };
 
+export type TripBundlingSavingsBreakdown = {
+  currencyCode: string;
+  currentTripBaseTotalCents: number | null;
+  addedComponentBaseCents: number;
+  projectedBundleBaseTotalCents: number | null;
+  selectedComponentBaseCents: number;
+  cheapestExactMatchBaseCents: number | null;
+  deltaFromCheapestExactMatchCents: number | null;
+  pricePosition: TripBundlingPricePosition;
+  summary: string;
+};
+
+export type TripBundlingStrengthIndicator = {
+  level: TripBundlingExplanationStrength;
+  label: string;
+  reason: string;
+};
+
+export type TripBundlingExplanation = {
+  summary: string;
+  why: string[];
+  savings: TripBundlingSavingsBreakdown;
+  constraints: string[];
+  tradeoffs: string[];
+  strength: TripBundlingStrengthIndicator;
+  missingSignals: string[];
+};
+
+export type TripBundlingPricingContext = {
+  currencyCode: string | null;
+  snapshotTotalCents: number | null;
+  hasMixedCurrencies: boolean;
+};
+
 export type TripBundlingSuggestion = {
   id: string;
   gapId: string;
@@ -225,6 +275,7 @@ export type TripBundlingSuggestion = {
   startDate: string | null;
   endDate: string | null;
   cityName: string | null;
+  explanation: TripBundlingExplanation;
   inventory: TripBundlingInventoryReference;
   tripCandidate: TripItemCandidate;
 };

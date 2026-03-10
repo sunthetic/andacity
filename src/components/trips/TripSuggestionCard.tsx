@@ -1,6 +1,7 @@
 import { component$, type QRL } from "@builder.io/qwik";
 import { AsyncPendingButton } from "~/components/async/AsyncPendingButton";
 import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
+import { TripBundleExplanation } from "~/components/trips/TripBundleExplanation";
 import {
   buildPriceDisplayFromMetadata,
   formatMoney,
@@ -149,6 +150,8 @@ export const TripSuggestionCard = component$(
             ) : null}
           </div>
         </div>
+
+        <TripBundleExplanation explanation={suggestion.explanation} />
       </article>
     );
   },

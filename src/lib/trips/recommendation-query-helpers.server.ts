@@ -38,6 +38,11 @@ type RecommendationInventoryMatch = {
   availabilityConfidence: import('~/lib/inventory/availability-confidence').AvailabilityConfidenceModel
   freshness: InventoryFreshnessModel
   serviceDate?: string | null
+  explainability: {
+    cheapestExactMatchPriceCents: number | null
+    preferredLocationType: 'airport' | 'city' | null
+    selectedLocationType: 'airport' | 'city' | null
+  }
 }
 
 type HotelRecommendationInput = {
@@ -173,8 +178,19 @@ const findHotelRecommendation = async (
     .orderBy(desc(hotels.rating), desc(hotels.reviewCount), asc(hotels.fromNightlyCents), asc(hotels.id))
     .limit(1)
 
+  const cheapestRows = await db
+    .select({
+      priceCents: hotels.fromNightlyCents,
+    })
+    .from(hotels)
+    .innerJoin(hotelAvailabilitySnapshots, eq(hotelAvailabilitySnapshots.hotelId, hotels.id))
+    .where(and(...conditions))
+    .orderBy(asc(hotels.fromNightlyCents), desc(hotels.rating), desc(hotels.reviewCount), asc(hotels.id))
+    .limit(1)
+
   const row = rows[0]
   if (!row) return null
+  const cheapestExactMatchPriceCents = cheapestRows[0]?.priceCents ?? null
 
   const freshness = buildInventoryFreshness({
     checkedAt: row.freshnessTimestamp,
@@ -201,6 +217,11 @@ const findHotelRecommendation = async (
       match: 'exact',
     }),
     freshness,
+    explainability: {
+      cheapestExactMatchPriceCents,
+      preferredLocationType: null,
+      selectedLocationType: null,
+    },
   }
 }
 
@@ -260,8 +281,19 @@ const readCarRecommendation = async (
     .orderBy(desc(carInventory.score), desc(carInventory.rating), asc(carInventory.fromDailyCents), asc(carInventory.id))
     .limit(1)
 
+  const cheapestRows = await db
+    .select({
+      priceCents: carInventory.fromDailyCents,
+    })
+    .from(carInventory)
+    .innerJoin(carLocations, eq(carInventory.locationId, carLocations.id))
+    .where(and(...conditions))
+    .orderBy(asc(carInventory.fromDailyCents), desc(carInventory.score), desc(carInventory.rating), asc(carInventory.id))
+    .limit(1)
+
   const row = rows[0]
   if (!row) return null
+  const cheapestExactMatchPriceCents = cheapestRows[0]?.priceCents ?? null
 
   const freshness = buildInventoryFreshness({
     checkedAt: row.freshnessTimestamp,
@@ -286,6 +318,11 @@ const readCarRecommendation = async (
       match: 'exact',
     }),
     freshness,
+    explainability: {
+      cheapestExactMatchPriceCents,
+      preferredLocationType: locationType || null,
+      selectedLocationType: row.locationType,
+    },
   } satisfies RecommendationInventoryMatch
 }
 
@@ -358,8 +395,33 @@ const readFlightRecommendationForDate = async (
     .orderBy(desc(flightRoutes.isPopular), asc(oneWayRankSql), asc(flightItineraries.stops), asc(priceSql), asc(flightItineraries.departureMinutes), asc(flightItineraries.id))
     .limit(1)
 
+  const cheapestRows = await db
+    .select({
+      priceCents: priceSql,
+    })
+    .from(flightItineraries)
+    .innerJoin(flightRoutes, eq(flightItineraries.routeId, flightRoutes.id))
+    .leftJoin(
+      standardFare,
+      and(
+        eq(standardFare.itineraryId, flightItineraries.id),
+        eq(standardFare.fareCode, 'standard'),
+        eq(standardFare.cabinClass, flightItineraries.cabinClass),
+      ),
+    )
+    .where(
+      and(
+        eq(flightRoutes.originCityId, input.originCityId),
+        eq(flightRoutes.destinationCityId, input.destinationCityId),
+        eq(flightItineraries.serviceDate, serviceDate),
+      ),
+    )
+    .orderBy(asc(priceSql), asc(flightItineraries.stops), asc(flightItineraries.departureMinutes), asc(flightItineraries.id))
+    .limit(1)
+
   const row = rows[0]
   if (!row) return null
+  const cheapestExactMatchPriceCents = cheapestRows[0]?.priceCents ?? null
 
   const departureLabel = formatFlightTime(row.departureAt)
   const arrivalLabel = formatFlightTime(row.arrivalAt)
@@ -393,6 +455,11 @@ const readFlightRecommendationForDate = async (
     }),
     freshness,
     serviceDate: row.serviceDate,
+    explainability: {
+      cheapestExactMatchPriceCents,
+      preferredLocationType: null,
+      selectedLocationType: null,
+    },
   } satisfies RecommendationInventoryMatch
 }
 

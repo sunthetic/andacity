@@ -8,6 +8,7 @@ import { DetailSkeleton } from "~/components/async/AsyncSurfaceSkeleton";
 import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import { InventoryRefreshControl } from "~/components/inventory/InventoryRefreshControl";
 import { Page } from "~/components/site/Page";
+import { TripBundleExplanation } from "~/components/trips/TripBundleExplanation";
 import { TripSuggestionCard } from "~/components/trips/TripSuggestionCard";
 import {
   resolveBookingAsyncState,
@@ -38,6 +39,7 @@ import {
   updateTripItemApi,
   updateTripMetadataApi,
 } from "~/lib/trips/trips-api";
+import { readTripBundlingExplanation } from "~/lib/trips/bundle-explainability";
 import { compareIsoDate, differenceInDays } from "~/lib/trips/date-utils";
 import type {
   TripAppliedChange,
@@ -1695,6 +1697,7 @@ const TripTimelineItemCard = component$(
       props.item.metadata,
       props.item.snapshotCurrencyCode,
     );
+    const bundleExplanation = readTripBundlingExplanation(props.item.metadata);
     const detailSummary = buildTimelineDisclosureSummary(props.item);
 
     return (
@@ -1982,6 +1985,15 @@ const TripTimelineItemCard = component$(
                 </div>
               </div>
             </div>
+
+            {bundleExplanation ? (
+              <div class="mt-3">
+                <TripBundleExplanation
+                  explanation={bundleExplanation}
+                  dense={false}
+                />
+              </div>
+            ) : null}
 
             {props.replacementPanelOpen ? (
               <TripReplacementOptionsPanel

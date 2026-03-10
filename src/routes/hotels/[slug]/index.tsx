@@ -556,7 +556,7 @@ export default component$(() => {
                 {stayPriceDisplay.baseLabel}
               </div>
               <div class="mt-2 flex items-end gap-2">
-                <span class="text-4xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+                <span class="text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
                   {formatMoney(stayPriceDisplay.baseAmount, h.currency)}
                 </span>
                 <span class="pb-1 text-sm text-[color:var(--color-text-muted)]">
