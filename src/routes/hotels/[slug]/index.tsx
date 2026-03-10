@@ -39,9 +39,10 @@ import {
 import { buildHotelSavedItem } from "~/lib/save-compare/item-builders";
 import { getOgSecret, encodeOgPayload, signOgPayload } from "~/lib/seo/og-sign";
 import {
-  DetailTrustPanel,
-  type DetailTrustPanelRow,
-} from "~/components/trust/DetailTrustPanel";
+  DecisionSummarySection,
+  type DecisionSummaryBlock,
+  type DecisionSummaryCaveat,
+} from "~/components/decision/DecisionSummarySection";
 import type { Hotel } from "~/data/hotels";
 import { loadHotelBySlugFromDb } from "~/lib/queries/hotels-pages.server";
 import { Page } from "~/components/site/Page";
@@ -365,6 +366,19 @@ export default component$(() => {
             </div>
           </div>
 
+          <section class="mt-8">
+            <DecisionSummarySection
+              title="Should you shortlist this stay?"
+              description="Quick fit and tradeoff scan from the current stay data."
+              blocks={buildHotelDecisionSummaryBlocks(h, stayPriceDisplay)}
+              primaryBlockCount={3}
+              detailTitle="Stay notes and constraints"
+              detailCtaLabel="Notes"
+              caveat={buildHotelDecisionCaveat(h)}
+              note="Derived from property policies, listed rooms, location fields, and current availability signals."
+            />
+          </section>
+
           {/* Summary + amenities (high scan zone) */}
           <section class="mt-8 t-card p-5">
             <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
@@ -545,6 +559,38 @@ export default component$(() => {
               </div>
             </div>
 
+            <div class="mt-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-4 py-4">
+              <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+                {stayPriceDisplay.baseLabel}
+              </div>
+              <div class="mt-2 flex items-end gap-2">
+                <span class="text-4xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+                  {formatMoney(stayPriceDisplay.baseAmount, h.currency)}
+                </span>
+                <span class="pb-1 text-sm text-[color:var(--color-text-muted)]">
+                  {formatPriceQualifier(stayPriceDisplay.baseQualifier)}
+                </span>
+              </div>
+              {stayPriceDisplay.totalAmount != null ? (
+                <div class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+                  {stayPriceDisplay.totalLabel}:{" "}
+                  <span class="font-medium text-[color:var(--color-text)]">
+                    {formatMoney(stayPriceDisplay.totalAmount, h.currency)}
+                  </span>
+                  {stayPriceDisplay.unitCountLabel ? (
+                    <span class="ml-1">
+                      ({stayPriceDisplay.unitCountLabel})
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+              {stayPriceDisplay.supportText ? (
+                <div class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+                  {stayPriceDisplay.supportText}
+                </div>
+              ) : null}
+            </div>
+
             <form method="get" class="mt-4 grid gap-3">
               <div class="grid grid-cols-2 gap-2">
                 <div>
@@ -608,16 +654,18 @@ export default component$(() => {
             </form>
 
             <div class="mt-5 border-t border-[color:var(--color-divider)] pt-5">
-              <DetailTrustPanel
-                eyebrow="Decision support"
-                title="Stay trust summary"
-                freshness={h.freshness}
-                confidence={h.availabilityConfidence}
-                rows={buildHotelTrustRows(h, stayPriceDisplay, data.nights)}
-                note={buildHotelTrustNote(h)}
-              >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="text-xs font-semibold text-[color:var(--color-text-strong)]">
+                    {h.availabilityConfidence?.label || "Unknown availability"}
+                    {h.freshness ? ` · ${h.freshness.relativeLabel}` : ""}
+                  </div>
+                  <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                    {buildHotelSidebarStatusNote(h)}
+                  </div>
+                </div>
+
                 <InventoryRefreshControl
-                  q:slot="actions"
                   id={refreshSnapshotId}
                   mode={h.inventoryId != null ? "action" : "unsupported"}
                   onRefresh$={
@@ -625,18 +673,19 @@ export default component$(() => {
                   }
                   reloadHref={refreshHref}
                   reloadOnSuccess={true}
-                  label="Refresh availability"
+                  label="Refresh"
                   refreshingLabel="Refreshing..."
-                  refreshedLabel="Availability refreshed"
-                  failedLabel="Retry refresh"
-                  unsupportedLabel="Refresh unavailable"
+                  refreshedLabel="Refreshed"
+                  failedLabel="Retry"
+                  unsupportedLabel="Unavailable"
                   unsupportedMessage="This hotel cannot refresh availability right now."
                   successMessage="Hotel availability was refreshed. Any nightly-rate changes are highlighted below."
                   failureMessage="Failed to refresh this hotel's availability signals."
+                  compact={true}
                   align="right"
                   disabled={location.isNavigating}
                 />
-              </DetailTrustPanel>
+              </div>
 
               {refreshPriceSummary.value ? (
                 <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
@@ -677,16 +726,20 @@ export default component$(() => {
 
       {/* Mobile sticky CTA */}
       <div class="fixed inset-x-0 bottom-0 z-50 border-t border-[color:var(--color-divider)] bg-white/95 backdrop-blur lg:hidden">
-        <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
+        <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5">
           <div class="min-w-0">
-            <div class="truncate text-sm font-semibold text-[color:var(--color-text-strong)]">
-              {stayPriceDisplay.baseLabel}{" "}
-              {formatMoney(stayPriceDisplay.baseAmount, h.currency)}{" "}
-              <span class="text-xs font-normal text-[color:var(--color-text-muted)]">
+            <div class="flex items-baseline gap-1.5">
+              <span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+                {stayPriceDisplay.baseLabel}
+              </span>
+              <span class="truncate text-lg font-semibold text-[color:var(--color-text-strong)]">
+                {formatMoney(stayPriceDisplay.baseAmount, h.currency)}
+              </span>
+              <span class="truncate text-xs font-medium text-[color:var(--color-text-muted)]">
                 {formatPriceQualifier(stayPriceDisplay.baseQualifier)}
               </span>
             </div>
-            <div class="text-xs text-[color:var(--color-text-muted)]">
+            <div class="truncate text-[11px] leading-4 text-[color:var(--color-text-muted)]">
               {stayPriceDisplay.unitCountLabel
                 ? `${stayPriceDisplay.unitCountLabel} · `
                 : ""}
@@ -694,11 +747,13 @@ export default component$(() => {
             </div>
           </div>
 
-          <a class="t-btn-primary px-5" href="#rooms">
-            Rooms
+          <a class="t-btn-primary px-4 py-2.5 text-sm" href="#rooms">
+            Select room
           </a>
         </div>
       </div>
+
+      <div class="h-16 lg:hidden" />
 
       {decisioning.state.compare.hotels.length ? (
         <CompareTray
@@ -812,20 +867,25 @@ const buildHotelDetailStatusNotice = (
   return undefined;
 };
 
-const buildHotelTrustRows = (
+const buildHotelDecisionFacts = (
   hotel: Hotel,
   priceDisplay: ReturnType<typeof buildHotelPriceDisplay>,
-  nights: number | null,
-): DetailTrustPanelRow[] => {
+): Array<{
+  label: string;
+  value: string;
+  detail?: string | null;
+  tone?: "warning" | "default";
+}> => {
+  const roomCount = hotel.rooms.length;
+  const refundableCount = hotel.rooms.filter((room) => room.refundable).length;
+  const payLaterCount = hotel.rooms.filter((room) => room.payLater).length;
   const priceDetail = [
     priceDisplay.totalAmount != null
       ? `${priceDisplay.totalLabel || "Estimated total"} ${formatMoney(
           priceDisplay.totalAmount,
           hotel.currency,
         )}${priceDisplay.unitCountLabel ? ` for ${priceDisplay.unitCountLabel}` : ""}`
-      : nights
-        ? "Refresh exact room totals after you pick a room."
-        : "Add dates to estimate the full stay total.",
+      : "Add dates to estimate the full stay total.",
     priceDisplay.supportText || null,
     priceDisplay.delta &&
     priceDisplay.delta.status !== "unchanged" &&
@@ -845,19 +905,17 @@ const buildHotelTrustRows = (
       detail: priceDetail,
     },
     {
-      label: "Cancellation",
-      value: hotel.policies.freeCancellation
-        ? "Free cancellation on select rooms"
-        : "Cancellation varies by room",
-      detail: hotel.policies.cancellationBlurb,
-      tone: hotel.policies.freeCancellation ? "positive" : "default",
-    },
-    {
-      label: "Payment",
-      value: hotel.policies.payLater
-        ? "Pay later often available"
-        : "Prepay may be required",
-      detail: hotel.policies.paymentBlurb,
+      label: "Room terms",
+      value: buildHotelRoomTermsValue(
+        roomCount,
+        refundableCount,
+        payLaterCount,
+      ),
+      detail: buildHotelRoomTermsDetail(
+        roomCount,
+        refundableCount,
+        payLaterCount,
+      ),
     },
     {
       label: "Important constraints",
@@ -865,19 +923,87 @@ const buildHotelTrustRows = (
       detail: buildHotelConstraintDetail(hotel),
       tone: hotel.availabilityConfidence?.degraded ? "warning" : "default",
     },
+  ];
+};
+
+const buildHotelDecisionSummaryBlocks = (
+  hotel: Hotel,
+  priceDisplay: ReturnType<typeof buildHotelPriceDisplay>,
+): DecisionSummaryBlock[] => {
+  const trustFacts = buildHotelDecisionFacts(hotel, priceDisplay);
+  const amenityPreview = hotel.amenities.slice(0, 3);
+  const keyNotes = [
+    `${hotel.rating.toFixed(1)} ★ from ${hotel.reviewCount.toLocaleString("en-US")} guest reviews.`,
+    hotel.rooms.length
+      ? `${hotel.rooms.length.toLocaleString("en-US")} listed room option${hotel.rooms.length === 1 ? "" : "s"} right now.`
+      : "Room options are not listed yet.",
+    amenityPreview.length
+      ? `Top amenity signals: ${joinShortList(amenityPreview)}.`
+      : null,
+    `Check-in ${hotel.policies.checkInTime}; check-out ${hotel.policies.checkOutTime}.`,
+  ].filter(Boolean) as string[];
+  const constraints = hotel.availability
+    ? [
+        buildNightRangeLabel(
+          hotel.availability.minNights,
+          hotel.availability.maxNights,
+        ),
+        `Check-in window: ${formatCalendarDate(
+          hotel.availability.checkInStart,
+        )} to ${formatCalendarDate(hotel.availability.checkInEnd)}.`,
+        hotel.availability.blockedWeekdays.length
+          ? `Blocked check-in days: ${formatWeekdayList(
+              hotel.availability.blockedWeekdays,
+            )}.`
+          : "No blocked check-in weekdays are posted.",
+      ]
+    : ["Live stay window is unavailable; refresh after adding dates."];
+  const location = [
+    [hotel.neighborhood, hotel.city, hotel.region].filter(Boolean).join(", "),
+    hotel.addressLine,
+    hotel.propertyType
+      ? `${hotel.propertyType} inventory in ${hotel.city}.`
+      : null,
+  ].filter(Boolean) as string[];
+
+  return [
+    ...trustFacts.map((row) => ({
+      label: row.label,
+      items: [row.value, row.detail].filter(Boolean) as string[],
+      tone: row.tone,
+    })),
+    { label: "Stay notes", items: keyNotes },
+    { label: "Location context", items: location },
     {
-      label: "Fees",
-      value: hotel.policies.noResortFees
-        ? "No resort fees"
-        : "Mandatory fees may apply",
-      detail: hotel.policies.feesBlurb,
-      tone: hotel.policies.noResortFees ? "positive" : "default",
+      label: "Stay rules",
+      items: constraints,
+      tone: hotel.availabilityConfidence?.degraded ? "warning" : "default",
     },
   ];
 };
 
-const buildHotelTrustNote = (hotel: Hotel) => {
-  return `Check-in ${hotel.policies.checkInTime}. Check-out ${hotel.policies.checkOutTime}. Final total depends on room choice and payment schedule.`;
+const buildHotelDecisionCaveat = (
+  hotel: Hotel,
+): DecisionSummaryCaveat | null => {
+  const confidence = hotel.availabilityConfidence;
+  if (!confidence?.degraded) return null;
+
+  return {
+    title:
+      confidence.state === "unavailable"
+        ? "Current dates do not cleanly fit this stay"
+        : "Availability confidence is reduced",
+    summary:
+      confidence.state === "unavailable"
+        ? "Review the current rules before relying on this stay."
+        : "Open the detail notes before treating this stay as current.",
+    message: [
+      confidence.supportText ||
+        "Refresh availability before relying on this stay.",
+      "Room policies and final totals can still vary by selected rate.",
+    ].join(" "),
+    tone: confidence.state === "unavailable" ? "critical" : "warning",
+  };
 };
 
 const buildHotelConstraintSummary = (hotel: Hotel) => {
@@ -902,6 +1028,69 @@ const buildHotelConstraintDetail = (hotel: Hotel) => {
   return `Check-in window ${formatCalendarDate(
     hotel.availability.checkInStart,
   )} to ${formatCalendarDate(hotel.availability.checkInEnd)}.`;
+};
+
+const buildHotelSidebarStatusNote = (hotel: Hotel) => {
+  if (hotel.availabilityConfidence?.supportText) {
+    return hotel.availabilityConfidence.supportText;
+  }
+
+  return "Refresh before booking to confirm the latest inventory.";
+};
+
+const buildHotelRoomTermsValue = (
+  roomCount: number,
+  refundableCount: number,
+  payLaterCount: number,
+) => {
+  if (!roomCount) return "Room terms load with current inventory";
+
+  if (refundableCount === roomCount && payLaterCount === roomCount) {
+    return "All listed rooms show flexible terms";
+  }
+
+  if (refundableCount > 0 || payLaterCount > 0) {
+    return "Flexibility depends on the room you choose";
+  }
+
+  return "Listed rooms skew toward firmer terms";
+};
+
+const buildHotelRoomTermsDetail = (
+  roomCount: number,
+  refundableCount: number,
+  payLaterCount: number,
+) => {
+  if (!roomCount) {
+    return "Refresh room inventory to confirm cancellation and payment options.";
+  }
+
+  return `${refundableCount} of ${roomCount} room${roomCount === 1 ? "" : "s"} show refundable terms. ${payLaterCount} of ${roomCount} show pay-later terms.`;
+};
+
+const buildNightRangeLabel = (minNights: number, maxNights: number) => {
+  if (minNights === maxNights) {
+    return `Stay length is fixed at ${minNights} night${minNights === 1 ? "" : "s"}.`;
+  }
+
+  return `Stay length must be ${minNights}-${maxNights} nights.`;
+};
+
+const joinShortList = (items: string[]) => {
+  if (items.length <= 1) return items[0] || "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+};
+
+const formatWeekdayList = (days: number[]) => {
+  const labels = Array.from(
+    new Set(days.filter((day) => day >= 0 && day <= 6)),
+  ).map(
+    (day) =>
+      ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day] || "Unknown",
+  );
+
+  return joinShortList(labels);
 };
 
 const RoomCard = component$(

@@ -41,9 +41,10 @@ import { buildCarDetailSavedItem } from "~/lib/save-compare/item-builders";
 import { loadCarRentalBySlugFromDb } from "~/lib/queries/car-rentals-pages.server";
 import { computeDays } from "~/lib/search/car-rentals/dates";
 import {
-  DetailTrustPanel,
-  type DetailTrustPanelRow,
-} from "~/components/trust/DetailTrustPanel";
+  DecisionSummarySection,
+  type DecisionSummaryBlock,
+  type DecisionSummaryCaveat,
+} from "~/components/decision/DecisionSummarySection";
 
 export const useCarRental = routeLoader$(async ({ params, url, error }) => {
   const slug = String(params.slug || "")
@@ -331,48 +332,99 @@ export default component$(() => {
                 </div>
               </div>
 
-              <div class="mt-1">
-                <DetailTrustPanel
-                  eyebrow="Decision support"
-                  title="Rental trust summary"
-                  freshness={rental.freshness}
-                  confidence={rental.availabilityConfidence}
-                  rows={buildCarTrustRows(rental, headlinePriceDisplay)}
-                  note={buildCarTrustNote(rental)}
-                >
-                  <InventoryRefreshControl
-                    q:slot="actions"
-                    id={refreshSnapshotId}
-                    mode={rental.inventoryId != null ? "action" : "unsupported"}
-                    onRefresh$={
-                      rental.inventoryId != null
-                        ? onRevalidateRental$
-                        : undefined
-                    }
-                    reloadHref={refreshHref}
-                    reloadOnSuccess={true}
-                    label="Refresh availability"
-                    refreshingLabel="Refreshing..."
-                    refreshedLabel="Availability refreshed"
-                    failedLabel="Retry refresh"
-                    unsupportedLabel="Refresh unavailable"
-                    unsupportedMessage="This car rental cannot refresh availability right now."
-                    successMessage="Car rental availability was refreshed. Any daily-rate changes are highlighted below."
-                    failureMessage="Failed to refresh this car rental's availability signals."
-                    align="right"
-                    disabled={location.isNavigating}
-                  />
-                </DetailTrustPanel>
-
-                {refreshPriceSummary.value ? (
-                  <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
-                    {refreshPriceSummary.value}
+              <div class="mt-1 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-4 py-4">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+                  {headlinePriceDisplay.baseLabel}
+                </div>
+                <div class="mt-2 flex items-end gap-2">
+                  <span class="text-4xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+                    {formatMoney(
+                      headlinePriceDisplay.baseAmount,
+                      rental.currency,
+                    )}
+                  </span>
+                  <span class="pb-1 text-sm text-[color:var(--color-text-muted)]">
+                    {formatPriceQualifier(headlinePriceDisplay.baseQualifier)}
+                  </span>
+                </div>
+                {headlinePriceDisplay.baseTotalAmount != null ? (
+                  <div class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+                    {headlinePriceDisplay.baseTotalLabel}:{" "}
+                    <span class="font-medium text-[color:var(--color-text)]">
+                      {formatMoney(
+                        headlinePriceDisplay.baseTotalAmount,
+                        rental.currency,
+                      )}
+                    </span>
+                    {headlinePriceDisplay.unitCountLabel ? (
+                      <span class="ml-1">
+                        ({headlinePriceDisplay.unitCountLabel})
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+                {headlinePriceDisplay.supportText ? (
+                  <div class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+                    {headlinePriceDisplay.supportText}
                   </div>
                 ) : null}
               </div>
+
+              <div class="mt-4 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="text-xs font-semibold text-[color:var(--color-text-strong)]">
+                    {rental.availabilityConfidence?.label ||
+                      "Unknown availability"}
+                    {rental.freshness
+                      ? ` · ${rental.freshness.relativeLabel}`
+                      : ""}
+                  </div>
+                  <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                    {buildCarSidebarStatusNote(rental)}
+                  </div>
+                </div>
+
+                <InventoryRefreshControl
+                  id={refreshSnapshotId}
+                  mode={rental.inventoryId != null ? "action" : "unsupported"}
+                  onRefresh$={
+                    rental.inventoryId != null ? onRevalidateRental$ : undefined
+                  }
+                  reloadHref={refreshHref}
+                  reloadOnSuccess={true}
+                  label="Refresh"
+                  refreshingLabel="Refreshing..."
+                  refreshedLabel="Refreshed"
+                  failedLabel="Retry"
+                  unsupportedLabel="Unavailable"
+                  unsupportedMessage="This car rental cannot refresh availability right now."
+                  successMessage="Car rental availability was refreshed. Any daily-rate changes are highlighted below."
+                  failureMessage="Failed to refresh this car rental's availability signals."
+                  compact={true}
+                  align="right"
+                  disabled={location.isNavigating}
+                />
+              </div>
+
+              {refreshPriceSummary.value ? (
+                <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
+                  {refreshPriceSummary.value}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
+
+        <DecisionSummarySection
+          title="Should you shortlist this rental?"
+          description="Quick fit and tradeoff scan from the current rental data."
+          blocks={buildCarDecisionSummaryBlocks(rental, headlinePriceDisplay)}
+          primaryBlockCount={3}
+          detailTitle="Rental notes and constraints"
+          detailCtaLabel="Notes"
+          caveat={buildCarDecisionCaveat(rental)}
+          note="Derived from current provider policies, listed offers, pickup fields, and availability signals."
+        />
 
         {/* Hero image */}
         <div class="t-card overflow-hidden">
@@ -756,13 +808,27 @@ const buildCarDetailStatusNotice = (
   return undefined;
 };
 
-const buildCarTrustRows = (
-  rental: Exclude<
-    ReturnType<typeof useCarRental>["value"],
-    { loadError: string }
-  >,
+type LoadedCarRental = Exclude<
+  ReturnType<typeof useCarRental>["value"],
+  { loadError: string }
+>;
+
+const buildCarDecisionFacts = (
+  rental: LoadedCarRental,
   priceDisplay: ReturnType<typeof buildCarPriceDisplay>,
-): DetailTrustPanelRow[] => {
+): Array<{
+  label: string;
+  value: string;
+  detail?: string | null;
+  tone?: "warning" | "default";
+}> => {
+  const offerCount = rental.offers.length;
+  const freeCancellationCount = rental.offers.filter(
+    (offer) => offer.freeCancellation,
+  ).length;
+  const payAtCounterCount = rental.offers.filter(
+    (offer) => offer.payAtCounter,
+  ).length;
   const priceDetail = [
     priceDisplay.baseTotalAmount != null
       ? `${priceDisplay.baseTotalLabel || "Base rental total"} ${formatMoney(
@@ -789,19 +855,17 @@ const buildCarTrustRows = (
       detail: priceDetail,
     },
     {
-      label: "Cancellation",
-      value: rental.policies.freeCancellation
-        ? "Free cancellation on select offers"
-        : "Cancellation varies by offer",
-      detail: rental.policies.cancellationBlurb,
-      tone: rental.policies.freeCancellation ? "positive" : "default",
-    },
-    {
-      label: "Payment",
-      value: rental.policies.payAtCounter
-        ? "Pay at counter"
-        : "Prepay before pickup",
-      detail: rental.policies.paymentBlurb,
+      label: "Offer terms",
+      value: buildCarOfferTermsValue(
+        offerCount,
+        freeCancellationCount,
+        payAtCounterCount,
+      ),
+      detail: buildCarOfferTermsDetail(
+        offerCount,
+        freeCancellationCount,
+        payAtCounterCount,
+      ),
     },
     {
       label: "Important constraints",
@@ -809,31 +873,93 @@ const buildCarTrustRows = (
       detail: buildCarConstraintDetail(rental),
       tone: rental.availabilityConfidence?.degraded ? "warning" : "default",
     },
+  ];
+};
+
+const buildCarDecisionSummaryBlocks = (
+  rental: LoadedCarRental,
+  priceDisplay: ReturnType<typeof buildCarPriceDisplay>,
+): DecisionSummaryBlock[] => {
+  const trustFacts = buildCarDecisionFacts(rental, priceDisplay);
+  const categoryPreview = Array.from(
+    new Set(rental.offers.map((offer) => offer.category).filter(Boolean)),
+  ).slice(0, 3);
+  const keyNotes = [
+    `${rental.rating.toFixed(1)} ★ from ${rental.reviewCount.toLocaleString("en-US")} renter reviews.`,
+    rental.offers.length
+      ? `${rental.offers.length.toLocaleString("en-US")} listed offer${rental.offers.length === 1 ? "" : "s"} right now.`
+      : "Offer details are not listed yet.",
+    rental.inclusions.length
+      ? `Inclusions shown: ${joinShortList(rental.inclusions.slice(0, 3))}.`
+      : null,
+    categoryPreview.length
+      ? `Vehicle mix includes ${joinShortList(categoryPreview)}.`
+      : null,
+    `Minimum driver age ${rental.policies.minDriverAge}+; fuel policy ${rental.policies.fuelPolicy}.`,
+  ].filter(Boolean) as string[];
+  const constraints = rental.availability
+    ? [
+        buildDayRangeLabel(
+          rental.availability.minDays,
+          rental.availability.maxDays,
+        ),
+        `Pickup window: ${formatCalendarDate(
+          rental.availability.pickupStart,
+        )} to ${formatCalendarDate(rental.availability.pickupEnd)}.`,
+        rental.availability.blockedWeekdays.length
+          ? `Blocked pickup days: ${formatWeekdayList(
+              rental.availability.blockedWeekdays,
+            )}.`
+          : "No blocked pickup weekdays are posted.",
+      ]
+    : ["Live rental window is unavailable; refresh after adding dates."];
+  const location = [
+    [rental.pickupArea, rental.city, rental.region].filter(Boolean).join(", "),
+    rental.pickupAddressLine,
+    inferPickupContext(rental),
+  ].filter(Boolean) as string[];
+
+  return [
+    ...trustFacts.map((row) => ({
+      label: row.label,
+      items: [row.value, row.detail].filter(Boolean) as string[],
+      tone: row.tone,
+    })),
+    { label: "Rental notes", items: keyNotes },
+    { label: "Location context", items: location },
     {
-      label: "Counter facts",
-      value: rental.policies.securityDepositRequired
-        ? "Deposit required at pickup"
-        : "Deposit varies by vehicle class",
-      detail: `${rental.policies.depositBlurb} Fuel policy: ${rental.policies.fuelPolicy}.`,
+      label: "Rental rules",
+      items: constraints,
+      tone: rental.availabilityConfidence?.degraded ? "warning" : "default",
     },
   ];
 };
 
-const buildCarTrustNote = (
-  rental: Exclude<
-    ReturnType<typeof useCarRental>["value"],
-    { loadError: string }
-  >,
-) => {
-  return `Minimum driver age ${rental.policies.minDriverAge}+. Exact taxes and extras are confirmed before checkout.`;
+const buildCarDecisionCaveat = (
+  rental: LoadedCarRental,
+): DecisionSummaryCaveat | null => {
+  const confidence = rental.availabilityConfidence;
+  if (!confidence?.degraded) return null;
+
+  return {
+    title:
+      confidence.state === "unavailable"
+        ? "Current dates do not cleanly fit this rental"
+        : "Availability confidence is reduced",
+    summary:
+      confidence.state === "unavailable"
+        ? "Review pickup rules before relying on this rental."
+        : "Open the detail notes before treating this rental as current.",
+    message: [
+      confidence.supportText ||
+        "Refresh availability before relying on this rental.",
+      "Offer-level policies and pickup fees can still change by vehicle class.",
+    ].join(" "),
+    tone: confidence.state === "unavailable" ? "critical" : "warning",
+  };
 };
 
-const buildCarConstraintSummary = (
-  rental: Exclude<
-    ReturnType<typeof useCarRental>["value"],
-    { loadError: string }
-  >,
-) => {
+const buildCarConstraintSummary = (rental: LoadedCarRental) => {
   if (!rental.availability) {
     return `Driver age ${rental.policies.minDriverAge}+ · live rental window unavailable`;
   }
@@ -846,12 +972,7 @@ const buildCarConstraintSummary = (
   return `${rental.availability.minDays}-${rental.availability.maxDays} day rentals · ${blockedLabel}`;
 };
 
-const buildCarConstraintDetail = (
-  rental: Exclude<
-    ReturnType<typeof useCarRental>["value"],
-    { loadError: string }
-  >,
-) => {
+const buildCarConstraintDetail = (rental: LoadedCarRental) => {
   if (!rental.availability) {
     return "Refresh availability after adding dates to confirm pickup and dropoff rules.";
   }
@@ -859,6 +980,83 @@ const buildCarConstraintDetail = (
   return `Pickup window ${formatCalendarDate(
     rental.availability.pickupStart,
   )} to ${formatCalendarDate(rental.availability.pickupEnd)}.`;
+};
+
+const buildCarSidebarStatusNote = (rental: LoadedCarRental) => {
+  if (rental.availabilityConfidence?.supportText) {
+    return rental.availabilityConfidence.supportText;
+  }
+
+  return "Refresh before booking to confirm the latest inventory.";
+};
+
+const buildCarOfferTermsValue = (
+  offerCount: number,
+  freeCancellationCount: number,
+  payAtCounterCount: number,
+) => {
+  if (!offerCount) return "Offer terms load with current inventory";
+
+  if (
+    freeCancellationCount === offerCount &&
+    payAtCounterCount === offerCount
+  ) {
+    return "All listed offers show flexible terms";
+  }
+
+  if (freeCancellationCount > 0 || payAtCounterCount > 0) {
+    return "Flexibility depends on the offer you choose";
+  }
+
+  return "Listed offers skew toward firmer terms";
+};
+
+const buildCarOfferTermsDetail = (
+  offerCount: number,
+  freeCancellationCount: number,
+  payAtCounterCount: number,
+) => {
+  if (!offerCount) {
+    return "Refresh offer inventory to confirm cancellation and payment options.";
+  }
+
+  return `${freeCancellationCount} of ${offerCount} offer${offerCount === 1 ? "" : "s"} show free cancellation. ${payAtCounterCount} of ${offerCount} show pay-at-counter terms.`;
+};
+
+const buildDayRangeLabel = (minDays: number, maxDays: number) => {
+  if (minDays === maxDays) {
+    return `Rental length is fixed at ${minDays} day${minDays === 1 ? "" : "s"}.`;
+  }
+
+  return `Rental length must be ${minDays}-${maxDays} days.`;
+};
+
+const inferPickupContext = (rental: LoadedCarRental) => {
+  const locationText =
+    `${rental.pickupArea} ${rental.pickupAddressLine}`.toLowerCase();
+
+  if (locationText.includes("airport") || locationText.includes("terminal")) {
+    return "Airport-linked";
+  }
+
+  return "City-based";
+};
+
+const joinShortList = (items: string[]) => {
+  if (items.length <= 1) return items[0] || "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+};
+
+const formatWeekdayList = (days: number[]) => {
+  const labels = Array.from(
+    new Set(days.filter((day) => day >= 0 && day <= 6)),
+  ).map(
+    (day) =>
+      ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day] || "Unknown",
+  );
+
+  return joinShortList(labels);
 };
 
 const buildCarRentalsHref = () => {
