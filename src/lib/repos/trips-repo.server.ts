@@ -42,7 +42,9 @@ import { buildTripIntelligenceSummary } from '~/lib/trips/status-aggregation'
 import type { TripGapAnalyzerItem } from '~/lib/trips/trip-gap-analyzer'
 import {
   TRIP_ITEM_TYPES,
+  type TripAppliedChange,
   type TripBundlingSummary,
+  type TripChangeSummary,
   type TripEditPreview,
   type TripEditPreviewActionType,
   type TripDetails,
@@ -50,6 +52,8 @@ import {
   type TripIntelligenceSummary,
   type TripItem,
   type TripItemCandidate,
+  type TripRollbackDraft,
+  type TripRollbackItemSnapshot,
   type TripItemType,
   type TripItemValidityStatus,
   type TripListItem,
@@ -1596,6 +1600,38 @@ const cloneTripItemRecord = (item: TripItemRecord): TripItemRecord => ({
   liveCarBlockedWeekdays: [...item.liveCarBlockedWeekdays],
 })
 
+const toTripRollbackItemSnapshot = (
+  item: TripItemRecord,
+): TripRollbackItemSnapshot => ({
+  id: item.id,
+  itemType: item.itemType,
+  position: item.position,
+  hotelId: item.hotelId,
+  flightItineraryId: item.flightItineraryId,
+  carInventoryId: item.carInventoryId,
+  startCityId: item.startCityId,
+  endCityId: item.endCityId,
+  startDate: item.startDate,
+  endDate: item.endDate,
+  snapshotPriceCents: item.snapshotPriceCents,
+  snapshotCurrencyCode: item.snapshotCurrencyCode,
+  snapshotTimestamp: item.snapshotTimestamp,
+  title: item.title,
+  subtitle: item.subtitle,
+  imageUrl: item.imageUrl,
+  meta: [...item.meta],
+  metadata: { ...item.metadata },
+})
+
+const buildTripRollbackDraft = (
+  items: TripItemRecord[],
+): TripRollbackDraft => ({
+  items: items
+    .slice()
+    .sort((left, right) => left.position - right.position || left.id - right.id)
+    .map(toTripRollbackItemSnapshot),
+})
+
 const buildTripDetailsFromRecords = async (
   base: TripBaseRecord,
   itemRecords: TripItemRecord[],
@@ -2318,21 +2354,106 @@ const buildPreviewLimitations = (
   return limitations
 }
 
+const buildTripEditChangeSummary = (
+  actionType: TripEditPreviewActionType,
+  focusItem: TripItem,
+  preview: Pick<
+    TripEditPreview,
+    'autoRebalanced' | 'priceImpact' | 'timingImpact' | 'coherenceImpact'
+  >,
+): TripChangeSummary => {
+  const impactParts = [preview.timingImpact.summary]
+
+  if (preview.coherenceImpact.status !== 'unchanged') {
+    impactParts.push(preview.coherenceImpact.summary)
+  }
+
+  if (
+    preview.priceImpact.snapshotDeltaCents != null &&
+    preview.priceImpact.snapshotDeltaCents !== 0
+  ) {
+    impactParts.push(preview.priceImpact.summary)
+  }
+
+  const safetyLevel: TripChangeSummary['safetyLevel'] =
+    actionType === 'remove' ||
+    preview.autoRebalanced ||
+    preview.timingImpact.changedItems.length >= 2 ||
+    preview.coherenceImpact.status === 'riskier' ||
+    preview.coherenceImpact.status === 'mixed'
+      ? 'major'
+      : 'minor'
+
+  if (actionType === 'remove') {
+    return {
+      safetyLevel,
+      headline: 'Review itinerary removal',
+      whatChanged: `${focusItem.title} will be removed from the itinerary.`,
+      whyChanged:
+        'Removing a scheduled stop can create downstream timing changes, so it stays in draft until you apply it.',
+      impactSummary: impactParts.join(' '),
+    }
+  }
+
+  if (actionType === 'reorder') {
+    return {
+      safetyLevel,
+      headline:
+        safetyLevel === 'major'
+          ? 'Review major itinerary reorder'
+          : 'Review itinerary reorder',
+      whatChanged: `${focusItem.title} will move within the itinerary order.`,
+      whyChanged:
+        'Moving one stop can shift sequencing for nearby items, so timing and coherence are recalculated before apply.',
+      impactSummary: impactParts.join(' '),
+    }
+  }
+
+  return {
+    safetyLevel,
+    headline:
+      safetyLevel === 'major'
+        ? 'Review major itinerary replacement'
+        : 'Review itinerary replacement',
+    whatChanged: `${focusItem.title} will be replaced with a different itinerary option.`,
+    whyChanged: preview.autoRebalanced
+      ? 'Auto-rebalance is enabled, so unlocked items may move around locked anchors when this replacement lands.'
+      : 'Replacing one inventory option can change price, timing, or itinerary coherence, so the impact is previewed first.',
+    impactSummary: impactParts.join(' '),
+  }
+}
+
 const buildTripEditPreviewResult = (
   actionType: TripEditPreviewActionType,
+  focusItem: TripItem,
   currentTrip: TripDetails,
   nextTrip: TripDetails,
   autoRebalanced: boolean,
-): TripEditPreview => ({
-  actionType,
-  trip: nextTrip,
-  autoRebalanced,
-  lockedItemIdsPreserved: currentTrip.items.filter((item) => item.locked).map((item) => item.id),
-  limitations: buildPreviewLimitations(currentTrip, nextTrip, autoRebalanced),
-  priceImpact: buildPriceImpact(currentTrip, nextTrip),
-  timingImpact: buildTimingImpact(currentTrip, nextTrip, actionType),
-  coherenceImpact: buildCoherenceImpact(currentTrip, nextTrip),
-})
+): TripEditPreview => {
+  const priceImpact = buildPriceImpact(currentTrip, nextTrip)
+  const timingImpact = buildTimingImpact(currentTrip, nextTrip, actionType)
+  const coherenceImpact = buildCoherenceImpact(currentTrip, nextTrip)
+  const preview: TripEditPreview = {
+    actionType,
+    trip: nextTrip,
+    autoRebalanced,
+    lockedItemIdsPreserved: currentTrip.items.filter((item) => item.locked).map((item) => item.id),
+    limitations: buildPreviewLimitations(currentTrip, nextTrip, autoRebalanced),
+    priceImpact,
+    timingImpact,
+    coherenceImpact,
+    changeSummary: {
+      safetyLevel: 'minor',
+      headline: '',
+      whatChanged: '',
+      whyChanged: '',
+      impactSummary: '',
+    },
+  }
+
+  preview.changeSummary = buildTripEditChangeSummary(actionType, focusItem, preview)
+  return preview
+}
 
 export async function createTrip(input: CreateTripInput = {}): Promise<TripDetails> {
   return withTripSchemaGuard(async () => {
@@ -2663,13 +2784,125 @@ export async function previewTripItemEdit(
       buildTripDetailsFromRecords(base, currentItemRecords, { preview: true }),
       buildTripDetailsFromRecords(base, nextItemRecords, { preview: true }),
     ])
+    const focusItem = currentTrip.items.find((item) => item.id === itemId)
+
+    if (!focusItem) {
+      throw new TripRepoError(
+        'trip_item_not_found',
+        `Trip item ${itemId} was not found on trip ${tripId}.`,
+      )
+    }
 
     return buildTripEditPreviewResult(
       input.actionType,
+      focusItem,
       currentTrip,
       nextTrip,
       autoRebalanced,
     )
+  })
+}
+
+export async function applyTripItemEdit(
+  tripId: number,
+  itemId: number,
+  input:
+    | {
+        actionType: 'reorder'
+        orderedItemIds: number[]
+      }
+    | {
+        actionType: 'remove'
+      }
+    | {
+        actionType: 'replace'
+        candidate: TripItemCandidate
+      },
+): Promise<{
+  trip: TripDetails
+  appliedChange: TripAppliedChange | null
+}> {
+  return withTripSchemaGuard(async () => {
+    const preview = await previewTripItemEdit(tripId, itemId, input)
+    const currentItemRecords = await readTripItems(tripId)
+    requireTripItemRecord(currentItemRecords, tripId, itemId)
+
+    let trip: TripDetails
+    if (input.actionType === 'reorder') {
+      trip = await reorderTripItems(tripId, input.orderedItemIds)
+    } else if (input.actionType === 'remove') {
+      trip = await removeItemFromTrip(tripId, itemId)
+    } else {
+      trip = await updateTripItem(tripId, itemId, {
+        candidate: input.candidate,
+      })
+    }
+
+    return {
+      trip,
+      appliedChange:
+        preview.changeSummary.safetyLevel === 'major'
+          ? {
+              summary: preview.changeSummary,
+              preview,
+              rollbackDraft: buildTripRollbackDraft(currentItemRecords),
+            }
+          : null,
+    }
+  })
+}
+
+export async function restoreTripRollbackDraft(
+  tripId: number,
+  draft: TripRollbackDraft,
+): Promise<TripDetails> {
+  return withTripSchemaGuard(async () => {
+    const db = getDb()
+    await db.transaction(async (tx) => {
+      await assertTripExists(tx, tripId)
+
+      await tx.delete(tripItems).where(eq(tripItems.tripId, tripId))
+
+      if (draft.items.length) {
+        await tx.insert(tripItems).values(
+          draft.items.map((item) => ({
+            id: item.id,
+            tripId,
+            itemType: item.itemType,
+            position: item.position,
+            hotelId: item.hotelId,
+            flightItineraryId: item.flightItineraryId,
+            carInventoryId: item.carInventoryId,
+            startCityId: item.startCityId,
+            endCityId: item.endCityId,
+            startDate: item.startDate,
+            endDate: item.endDate,
+            snapshotPriceCents: item.snapshotPriceCents,
+            snapshotCurrencyCode: item.snapshotCurrencyCode,
+            snapshotTimestamp: new Date(item.snapshotTimestamp),
+            title: item.title,
+            subtitle: item.subtitle,
+            imageUrl: item.imageUrl,
+            meta: item.meta,
+            metadata: item.metadata,
+          })),
+        )
+      }
+
+      await normalizeTripItemPositions(tx, tripId)
+      await syncTripDatesIfAuto(tx, tripId)
+      await touchTrip(tx, tripId)
+    })
+
+    const details = await getTripDetails(tripId)
+    if (!details) {
+      throw new TripRepoError(
+        'trip_not_found',
+        `Trip ${tripId} was not found after restoring the itinerary draft.`,
+      )
+    }
+
+    return details
   })
 }
 

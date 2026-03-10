@@ -1,9 +1,11 @@
 import type {
+  TripAppliedChange,
   TripDetails,
   TripEditPreview,
   TripItemCandidate,
   TripItemReplacementOption,
   TripListItem,
+  TripRollbackDraft,
 } from '~/types/trips/trip'
 
 export class TripApiError extends Error {
@@ -142,6 +144,34 @@ export const previewTripItemEditApi = async (
   return payload.preview
 }
 
+export const applyTripItemEditApi = async (
+  tripId: number,
+  itemId: number,
+  input:
+    | {
+        actionType: 'reorder'
+        orderedItemIds: number[]
+      }
+    | {
+        actionType: 'remove'
+      }
+    | {
+        actionType: 'replace'
+        candidate: TripItemCandidate
+      },
+): Promise<{
+  trip: TripDetails
+  appliedChange: TripAppliedChange | null
+}> => {
+  return requestJson<{ trip: TripDetails; appliedChange: TripAppliedChange | null }>(
+    `/api/trips/${tripId}/items/${itemId}/apply`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  )
+}
+
 export const listTripItemReplacementOptionsApi = async (
   tripId: number,
   itemId: number,
@@ -170,6 +200,17 @@ export const updateTripMetadataApi = async (
   const payload = await requestJson<{ trip: TripDetails }>(`/api/trips/${tripId}`, {
     method: 'PATCH',
     body: JSON.stringify(input || {}),
+  })
+  return payload.trip
+}
+
+export const restoreTripRollbackDraftApi = async (
+  tripId: number,
+  draft: TripRollbackDraft,
+): Promise<TripDetails> => {
+  const payload = await requestJson<{ trip: TripDetails }>(`/api/trips/${tripId}/restore`, {
+    method: 'POST',
+    body: JSON.stringify(draft),
   })
   return payload.trip
 }

@@ -263,6 +263,41 @@ export type TripItemReplacementOption = {
 
 export type TripEditPreviewActionType = "reorder" | "remove" | "replace";
 
+export type TripChangeSafetyLevel = "minor" | "major";
+
+export type TripChangeSummary = {
+  safetyLevel: TripChangeSafetyLevel;
+  headline: string;
+  whatChanged: string;
+  whyChanged: string;
+  impactSummary: string;
+};
+
+export type TripRollbackItemSnapshot = {
+  id: number;
+  itemType: TripItemType;
+  position: number;
+  hotelId: number | null;
+  flightItineraryId: number | null;
+  carInventoryId: number | null;
+  startCityId: number | null;
+  endCityId: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  snapshotPriceCents: number;
+  snapshotCurrencyCode: string;
+  snapshotTimestamp: string;
+  title: string;
+  subtitle: string | null;
+  imageUrl: string | null;
+  meta: string[];
+  metadata: Record<string, unknown>;
+};
+
+export type TripRollbackDraft = {
+  items: TripRollbackItemSnapshot[];
+};
+
 export type TripEditTimingChange = {
   itemId: number;
   title: string;
@@ -294,9 +329,16 @@ export type TripEditPreview = {
   actionType: TripEditPreviewActionType;
   trip: TripDetails;
   autoRebalanced: boolean;
+  changeSummary: TripChangeSummary;
   lockedItemIdsPreserved: number[];
   limitations: string[];
   priceImpact: TripEditPriceImpact;
   timingImpact: TripEditTimingImpact;
   coherenceImpact: TripEditCoherenceImpact;
+};
+
+export type TripAppliedChange = {
+  summary: TripChangeSummary;
+  preview: TripEditPreview;
+  rollbackDraft: TripRollbackDraft | null;
 };

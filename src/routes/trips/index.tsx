@@ -7,7 +7,6 @@ import { AsyncStateNotice } from "~/components/async/AsyncStateNotice";
 import { DetailSkeleton } from "~/components/async/AsyncSurfaceSkeleton";
 import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import { InventoryRefreshControl } from "~/components/inventory/InventoryRefreshControl";
-import { UndoSnackbar } from "~/components/save-compare/UndoSnackbar";
 import { Page } from "~/components/site/Page";
 import { TripSuggestionCard } from "~/components/trips/TripSuggestionCard";
 import {
@@ -27,20 +26,21 @@ import {
 } from "~/lib/repos/trips-repo.server";
 import {
   addItemToTripApi,
+  applyTripItemEditApi,
   createTripApi,
   getTripDetailsApi,
   listTripItemReplacementOptionsApi,
   listTripsApi,
   previewTripItemEditApi,
-  removeTripItemApi,
   revalidateTripApi,
-  reorderTripItemsApi,
+  restoreTripRollbackDraftApi,
   TripApiError,
   updateTripItemApi,
   updateTripMetadataApi,
 } from "~/lib/trips/trips-api";
 import { compareIsoDate, differenceInDays } from "~/lib/trips/date-utils";
 import type {
+  TripAppliedChange,
   TripDetails,
   TripEditPreview,
   TripIntelligenceSummary,
@@ -94,9 +94,7 @@ type TripEditDraft =
   | {
       actionType: "remove";
       itemId: number;
-      removedItem: TripItemCandidate;
       removedTitle: string;
-      originalPosition: number;
     }
   | {
       actionType: "replace";
@@ -111,11 +109,9 @@ type TripActionFeedback = {
   message: string;
 };
 
-type UndoRemovalState = {
+type AppliedTripChangeState = {
   tripId: number;
-  originalPosition: number;
-  candidate: TripItemCandidate;
-  message: string;
+  change: TripAppliedChange;
 };
 
 export default component$(() => {
@@ -136,7 +132,7 @@ export default component$(() => {
   const editPreview = useSignal<TripEditPreview | null>(null);
   const editDraft = useSignal<TripEditDraft | null>(null);
   const previewItemId = useSignal<number | null>(null);
-  const undoRemoval = useSignal<UndoRemovalState | null>(null);
+  const appliedTripChange = useSignal<AppliedTripChangeState | null>(null);
   const replacementPanelItemId = useSignal<number | null>(null);
   const replacementOptions = useSignal<
     Record<number, TripItemReplacementOption[]>
@@ -171,7 +167,7 @@ export default component$(() => {
     editPreview.value = null;
     editDraft.value = null;
     previewItemId.value = null;
-    undoRemoval.value = null;
+    appliedTripChange.value = null;
     replacementPanelItemId.value = null;
     replacementOptions.value = {};
   });
@@ -273,6 +269,7 @@ export default component$(() => {
     loading.value = true;
     activeAction.value = "revalidate-trip";
     error.value = null;
+    appliedTripChange.value = null;
 
     try {
       const trip = await revalidateTripApi(activeTrip.value.id);
@@ -317,9 +314,7 @@ export default component$(() => {
       editDraft.value = {
         actionType: "remove",
         itemId: item.id,
-        removedItem: toTripItemCandidate(item),
         removedTitle: item.title,
-        originalPosition: item.position,
       };
       editPreview.value = preview;
       previewItemId.value = item.id;
@@ -479,42 +474,21 @@ export default component$(() => {
     actionFeedback.value = null;
 
     try {
-      let trip: TripDetails;
-
-      if (draft.actionType === "reorder") {
-        trip = await reorderTripItemsApi(
-          activeTrip.value.id,
-          draft.orderedItemIds,
-        );
-        actionFeedback.value = {
-          tone: "success",
-          title: "Itinerary order updated",
-          message: "The item move was applied to the trip timeline.",
-        };
-      } else if (draft.actionType === "remove") {
-        trip = await removeTripItemApi(activeTrip.value.id, draft.itemId);
-        undoRemoval.value = {
-          tripId: trip.id,
-          originalPosition: draft.originalPosition,
-          candidate: draft.removedItem,
-          message: `${draft.removedTitle} was removed from the itinerary.`,
-        };
-        actionFeedback.value = {
-          tone: "success",
-          title: "Item removed",
-          message:
-            "The item was removed from this itinerary. Undo is available below.",
-        };
-      } else {
-        trip = await updateTripItemApi(activeTrip.value.id, draft.itemId, {
-          candidate: draft.candidate,
-        });
-        actionFeedback.value = {
-          tone: "success",
-          title: "Item replaced",
-          message: `${draft.replacementTitle} is now in the itinerary.`,
-        };
-      }
+      const result =
+        draft.actionType === "reorder"
+          ? await applyTripItemEditApi(activeTrip.value.id, draft.itemId, {
+              actionType: "reorder",
+              orderedItemIds: draft.orderedItemIds,
+            })
+          : draft.actionType === "remove"
+            ? await applyTripItemEditApi(activeTrip.value.id, draft.itemId, {
+                actionType: "remove",
+              })
+            : await applyTripItemEditApi(activeTrip.value.id, draft.itemId, {
+                actionType: "replace",
+                candidate: draft.candidate,
+              });
+      const trip = result.trip;
 
       activeTrip.value = trip;
       await refreshTrips$(trip.id, true);
@@ -522,6 +496,36 @@ export default component$(() => {
       editPreview.value = null;
       previewItemId.value = null;
       replacementPanelItemId.value = null;
+      appliedTripChange.value = result.appliedChange
+        ? {
+            tripId: trip.id,
+            change: result.appliedChange,
+          }
+        : null;
+      actionFeedback.value = result.appliedChange
+        ? {
+            tone: "success",
+            title: "Major itinerary change applied",
+            message:
+              "Review the change summary and use rollback if the recomputed trip feels off.",
+          }
+        : draft.actionType === "reorder"
+          ? {
+              tone: "success",
+              title: "Itinerary order updated",
+              message: "The item move was applied to the trip timeline.",
+            }
+          : draft.actionType === "remove"
+            ? {
+                tone: "success",
+                title: "Item removed",
+                message: `${draft.removedTitle} was removed from the itinerary.`,
+              }
+            : {
+                tone: "success",
+                title: "Item replaced",
+                message: `${draft.replacementTitle} is now in the itinerary.`,
+              };
     } catch (cause) {
       const message =
         cause instanceof TripApiError
@@ -540,6 +544,7 @@ export default component$(() => {
     activeAction.value = `toggle-lock:${item.id}`;
     error.value = null;
     actionFeedback.value = null;
+    appliedTripChange.value = null;
 
     try {
       const trip = await updateTripItemApi(activeTrip.value.id, item.id, {
@@ -577,6 +582,7 @@ export default component$(() => {
     activeAction.value = "toggle-auto-rebalance";
     error.value = null;
     actionFeedback.value = null;
+    appliedTripChange.value = null;
 
     try {
       const trip = await updateTripMetadataApi(activeTrip.value.id, {
@@ -607,52 +613,42 @@ export default component$(() => {
     }
   });
 
-  const onDismissUndo$ = $(() => {
-    undoRemoval.value = null;
+  const onDismissAppliedChange$ = $(() => {
+    appliedTripChange.value = null;
   });
 
-  const onUndoRemove$ = $(async () => {
-    if (!undoRemoval.value || loading.value) return;
+  const onRollbackAppliedChange$ = $(async () => {
+    if (
+      !appliedTripChange.value ||
+      !appliedTripChange.value.change.rollbackDraft ||
+      loading.value
+    ) {
+      return;
+    }
 
     loading.value = true;
-    activeAction.value = "undo-remove";
+    activeAction.value = "rollback-change";
     error.value = null;
 
     try {
-      let trip = await addItemToTripApi(
-        undoRemoval.value.tripId,
-        undoRemoval.value.candidate,
+      const rollbackDraft = appliedTripChange.value.change.rollbackDraft;
+      const trip = await restoreTripRollbackDraftApi(
+        appliedTripChange.value.tripId,
+        rollbackDraft,
       );
-
-      const orderedItems = [...trip.items].sort(
-        (a, b) => a.position - b.position,
-      );
-      const restoredItem = orderedItems[orderedItems.length - 1] || null;
-      const targetIndex = Math.min(
-        undoRemoval.value.originalPosition,
-        Math.max(orderedItems.length - 1, 0),
-      );
-
-      if (restoredItem && restoredItem.position !== targetIndex) {
-        const reorderedIds = orderedItems.map((item) => item.id);
-        reorderedIds.splice(restoredItem.position, 1);
-        reorderedIds.splice(targetIndex, 0, restoredItem.id);
-        trip = await reorderTripItemsApi(trip.id, reorderedIds);
-      }
-
       activeTrip.value = trip;
       await refreshTrips$(trip.id, true);
-      undoRemoval.value = null;
+      appliedTripChange.value = null;
       actionFeedback.value = {
         tone: "success",
-        title: "Removal undone",
-        message: "The removed itinerary item was restored.",
+        title: "Change rolled back",
+        message: "The prior itinerary draft was restored.",
       };
     } catch (cause) {
       const message =
         cause instanceof TripApiError
           ? cause.message
-          : "Failed to restore removed item.";
+          : "Failed to roll back itinerary change.";
       error.value = message;
     } finally {
       loading.value = false;
@@ -666,6 +662,7 @@ export default component$(() => {
     loading.value = true;
     activeAction.value = `add-suggestion:${candidate.inventoryId}`;
     error.value = null;
+    appliedTripChange.value = null;
 
     try {
       const trip = await addItemToTripApi(activeTrip.value.id, candidate);
@@ -806,6 +803,17 @@ export default component$(() => {
           onDismiss$={$(() => {
             actionFeedback.value = null;
           })}
+        />
+      ) : null}
+
+      {appliedTripChange.value ? (
+        <RecentTripChangeNotice
+          class="mt-4"
+          change={appliedTripChange.value.change}
+          loading={loading.value}
+          pendingActionId={activeAction.value}
+          onRollback$={onRollbackAppliedChange$}
+          onDismiss$={onDismissAppliedChange$}
         />
       ) : null}
 
@@ -1266,12 +1274,6 @@ export default component$(() => {
           )}
         </main>
       </section>
-
-      <UndoSnackbar
-        message={undoRemoval.value?.message || null}
-        onUndo$={onUndoRemove$}
-        onDismiss$={onDismissUndo$}
-      />
     </Page>
   );
 });
@@ -1369,11 +1371,11 @@ const buildTripStatusNotice = (
       };
     }
 
-    if (actionId === "undo-remove") {
+    if (actionId === "rollback-change") {
       return {
-        title: "Restoring item",
+        title: "Rolling back itinerary change",
         message:
-          "The removed itinerary item is being restored to the trip surface.",
+          "The prior itinerary draft is being restored before the current trip view updates.",
       };
     }
 
@@ -2115,10 +2117,15 @@ const TripEditPreviewPanel = component$(
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-              Edit preview
+              {props.preview.changeSummary.safetyLevel === "major"
+                ? "Major edit draft"
+                : "Edit preview"}
             </p>
             <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
-              {formatPreviewActionLabel(props.preview, props.item)}
+              {props.preview.changeSummary.headline}
+            </p>
+            <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+              {props.preview.changeSummary.whatChanged}
             </p>
             {props.preview.autoRebalanced ? (
               <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
@@ -2143,7 +2150,9 @@ const TripEditPreviewPanel = component$(
               }
               onClick$={props.onApplyPreview$}
             >
-              Apply change
+              {props.preview.changeSummary.safetyLevel === "major"
+                ? "Apply major change"
+                : "Apply change"}
             </AsyncPendingButton>
             <button
               type="button"
@@ -2157,6 +2166,10 @@ const TripEditPreviewPanel = component$(
 
         <div class="mt-3 grid gap-3 md:grid-cols-3">
           <PreviewStatCard
+            label="Why"
+            summary={props.preview.changeSummary.whyChanged}
+          />
+          <PreviewStatCard
             label="Total price"
             summary={props.preview.priceImpact.summary}
           />
@@ -2164,10 +2177,18 @@ const TripEditPreviewPanel = component$(
             label="Timing"
             summary={props.preview.timingImpact.summary}
           />
-          <PreviewStatCard
-            label="Coherence"
-            summary={props.preview.coherenceImpact.summary}
-          />
+        </div>
+
+        <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
+          <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+            Impact
+          </p>
+          <p class="mt-2 text-sm text-[color:var(--color-text-strong)]">
+            {props.preview.changeSummary.impactSummary}
+          </p>
+          <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+            {props.preview.coherenceImpact.summary}
+          </p>
         </div>
 
         {props.preview.timingImpact.changedItems.length ? (
@@ -2226,6 +2247,77 @@ const PreviewStatCard = component$(
           {props.summary}
         </p>
       </div>
+    );
+  },
+);
+
+const RecentTripChangeNotice = component$(
+  (props: {
+    change: TripAppliedChange;
+    loading: boolean;
+    pendingActionId: string | null;
+    class?: string;
+    onRollback$: QRL<() => Promise<void>>;
+    onDismiss$: QRL<() => void>;
+  }) => {
+    return (
+      <section
+        class={[
+          "rounded-[var(--radius-xl)] border border-[color:var(--color-primary-150)] bg-[color:var(--color-primary-25)] px-4 py-4 shadow-[var(--shadow-sm)]",
+          props.class,
+        ]}
+      >
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+              Recent itinerary change
+            </p>
+            <h2 class="mt-1 text-base font-semibold text-[color:var(--color-text-strong)]">
+              {props.change.summary.headline}
+            </h2>
+            <p class="mt-1 text-sm text-[color:var(--color-text)]">
+              {props.change.summary.whatChanged}
+            </p>
+            <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+              {props.change.summary.whyChanged}
+            </p>
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            {props.change.rollbackDraft ? (
+              <AsyncPendingButton
+                class="rounded-lg bg-[color:var(--color-action)] px-3 py-2 text-xs font-semibold text-white"
+                pending={props.pendingActionId === "rollback-change"}
+                pendingLabel="Rolling back..."
+                disabled={
+                  props.loading && props.pendingActionId !== "rollback-change"
+                }
+                onClick$={props.onRollback$}
+              >
+                Roll back
+              </AsyncPendingButton>
+            ) : null}
+            <button
+              type="button"
+              class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
+              onClick$={props.onDismiss$}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-3 grid gap-3 md:grid-cols-2">
+          <PreviewStatCard
+            label="Impact"
+            summary={props.change.summary.impactSummary}
+          />
+          <PreviewStatCard
+            label="Coherence"
+            summary={props.change.preview.coherenceImpact.summary}
+          />
+        </div>
+      </section>
     );
   },
 );
@@ -2620,10 +2712,6 @@ const formatTimelineScheduleSummary = (item: TripItem) => {
 
     return [
       `${formatTimeUtcCompact(item.liveFlightDepartureAt)} → ${formatTimeUtcCompact(item.liveFlightArrivalAt)} UTC`,
-      formatDurationBetween(
-        item.liveFlightDepartureAt,
-        item.liveFlightArrivalAt,
-      ),
       stopLabel,
       crossesDay ? `arrives ${formatDate(arrivalDay)}` : null,
     ]
@@ -3087,37 +3175,6 @@ const formatSignedMoneyFromCents = (cents: number, currency: string) => {
   if (cents > 0) return `+${absolute}`;
   if (cents < 0) return `-${absolute}`;
   return absolute;
-};
-
-const toTripItemCandidate = (item: TripItem): TripItemCandidate => {
-  return {
-    itemType: item.itemType,
-    inventoryId:
-      item.itemType === "hotel"
-        ? item.hotelId || item.id
-        : item.itemType === "flight"
-          ? item.flightItineraryId || item.id
-          : item.carInventoryId || item.id,
-    startDate: item.startDate || undefined,
-    endDate: item.endDate || undefined,
-    priceCents: item.snapshotPriceCents,
-    currencyCode: item.snapshotCurrencyCode,
-    title: item.title,
-    subtitle: item.subtitle || undefined,
-    imageUrl: item.imageUrl || undefined,
-    meta: item.meta,
-    metadata: item.metadata,
-  };
-};
-
-const formatPreviewActionLabel = (preview: TripEditPreview, item: TripItem) => {
-  if (preview.actionType === "remove") {
-    return `Remove ${item.title}`;
-  }
-  if (preview.actionType === "reorder") {
-    return `Reorder ${item.title}`;
-  }
-  return `Replace ${item.title}`;
 };
 
 const parsePositiveInt = (value: string | null) => {

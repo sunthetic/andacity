@@ -3,6 +3,7 @@ import {
   TRIP_STATUSES,
   type TripEditPreviewActionType,
   type TripItemCandidate,
+  type TripRollbackDraft,
   type TripStatus,
 } from '~/types/trips/trip'
 
@@ -229,4 +230,85 @@ export const parseTripEditPreviewInput = (body: unknown): ParsedTripEditPreviewI
   }
 
   return null
+}
+
+export const parseTripRollbackDraftInput = (body: unknown): TripRollbackDraft | null => {
+  const obj = isRecord(body) ? body : {}
+  if (!Array.isArray(obj.items)) return null
+
+  const items = obj.items
+    .map((entry) => {
+      if (!isRecord(entry)) return null
+
+      const itemTypeToken = toTrimmedString(entry.itemType).toLowerCase()
+      const itemType = TRIP_ITEM_TYPES.includes(itemTypeToken as TripItemCandidate['itemType'])
+        ? (itemTypeToken as TripItemCandidate['itemType'])
+        : null
+      const id = toOptionalInt(entry.id)
+      const position = toOptionalInt(entry.position)
+      const snapshotPriceCents = toOptionalInt(entry.snapshotPriceCents)
+      const snapshotCurrencyCode = toOptionalCurrencyCode(entry.snapshotCurrencyCode)
+      const snapshotTimestamp = toTrimmedString(entry.snapshotTimestamp)
+      const meta = Array.isArray(entry.meta)
+        ? entry.meta.map((value) => toTrimmedString(value)).filter(Boolean)
+        : null
+      const metadata = toRecord(entry.metadata)
+
+      if (
+        !itemType ||
+        id == null ||
+        id < 1 ||
+        position == null ||
+        position < 0 ||
+        snapshotPriceCents == null ||
+        !snapshotCurrencyCode ||
+        !snapshotTimestamp ||
+        Number.isNaN(Date.parse(snapshotTimestamp)) ||
+        meta == null ||
+        !metadata
+      ) {
+        return null
+      }
+
+      const hotelId =
+        entry.hotelId == null ? null : (toOptionalInt(entry.hotelId) ?? null)
+      const flightItineraryId =
+        entry.flightItineraryId == null
+          ? null
+          : (toOptionalInt(entry.flightItineraryId) ?? null)
+      const carInventoryId =
+        entry.carInventoryId == null
+          ? null
+          : (toOptionalInt(entry.carInventoryId) ?? null)
+      const startCityId =
+        entry.startCityId == null ? null : (toOptionalInt(entry.startCityId) ?? null)
+      const endCityId =
+        entry.endCityId == null ? null : (toOptionalInt(entry.endCityId) ?? null)
+
+      return {
+        id,
+        itemType,
+        position,
+        hotelId,
+        flightItineraryId,
+        carInventoryId,
+        startCityId,
+        endCityId,
+        startDate: toOptionalIsoDate(entry.startDate) ?? null,
+        endDate: toOptionalIsoDate(entry.endDate) ?? null,
+        snapshotPriceCents,
+        snapshotCurrencyCode,
+        snapshotTimestamp,
+        title: toTrimmedString(entry.title),
+        subtitle:
+          entry.subtitle == null ? null : toOptionalString(entry.subtitle) || null,
+        imageUrl: entry.imageUrl == null ? null : toOptionalString(entry.imageUrl) || null,
+        meta,
+        metadata,
+      }
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+
+  if (items.length !== obj.items.length) return null
+  return { items }
 }
