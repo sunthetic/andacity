@@ -21,26 +21,14 @@ import {
 } from 'drizzle-orm/pg-core'
 
 const DEFAULT_DB_SCHEMA = 'andacity_app'
-
-const resolveDbSchema = () => {
-  const value = String(process.env.DB_SCHEMA || DEFAULT_DB_SCHEMA)
-    .trim()
-    .toLowerCase()
-
-  return /^[a-z_][a-z0-9_]*$/.test(value) ? value : DEFAULT_DB_SCHEMA
-}
-
-const schemaName = resolveDbSchema()
-const explicitSchema = schemaName === 'public' ? null : pgSchema(schemaName)
+const explicitSchema = pgSchema(DEFAULT_DB_SCHEMA)
 
 const dbTable = ((...args: unknown[]) => {
-  if (explicitSchema) return (explicitSchema.table as (...args: unknown[]) => unknown)(...args)
-  return (pgTable as (...args: unknown[]) => unknown)(...args)
+  return (explicitSchema.table as (...args: unknown[]) => unknown)(...args)
 }) as typeof pgTable
 
 const dbEnum = ((...args: unknown[]) => {
-  if (explicitSchema) return (explicitSchema.enum as (...args: unknown[]) => unknown)(...args)
-  return (pgEnum as (...args: unknown[]) => unknown)(...args)
+  return (explicitSchema.enum as (...args: unknown[]) => unknown)(...args)
 }) as typeof pgEnum
 
 const createdAtColumn = () => timestamp('created_at', { withTimezone: true }).defaultNow().notNull()

@@ -2,7 +2,7 @@
  * This is the base config for vite.
  * When building, the adapter config is used which loads this file and extends it.
  */
-import { defineConfig, type UserConfig } from "vite";
+import { defineConfig, loadEnv, type UserConfig } from "vite";
 import { qwikVite } from "@builder.io/qwik/optimizer";
 import { qwikCity } from "@builder.io/qwik-city/vite";
 import tsconfigPaths from "vite-tsconfig-paths";
@@ -20,7 +20,25 @@ errorOnDuplicatesPkgDeps(devDependencies, dependencies);
  * Note that Vite normally starts from `index.html` but the qwikCity plugin makes start at `src/entry.ssr.tsx` instead.
  */
 export default defineConfig(({ command, mode }): UserConfig => {
+  const envMode = mode === "ssr" ? "development" : mode;
+
+  // Mirror Vite-loaded env files onto process.env so Qwik's Node adapter can
+  // expose them through RequestEvent.env during dev and preview.
+  const loadedEnv = loadEnv(envMode, ".", "");
+  for (const [key, value] of Object.entries(loadedEnv)) {
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+
+  const publicEnvDefines = Object.fromEntries(
+    Object.entries(loadedEnv)
+      .filter(([key]) => key.startsWith("PUBLIC_"))
+      .map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)]),
+  );
+
   return {
+    define: publicEnvDefines,
     plugins: [qwikCity(), qwikVite(), tsconfigPaths({ root: "." })],
     // This tells Vite which dependencies to pre-build in dev mode.
     optimizeDeps: {

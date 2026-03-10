@@ -4,7 +4,7 @@ export const SEO_HOSTS = {
 } as const
 
 export const getPublicBaseUrl = (fallbackUrl: URL) => {
-  const envBase = (globalThis as any)?.process?.env?.PUBLIC_BASE_URL as string | undefined
+  const envBase = String(import.meta.env.PUBLIC_BASE_URL || '').trim()
   if (envBase) {
     try {
       return new URL(envBase)
