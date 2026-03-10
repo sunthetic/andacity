@@ -5,8 +5,14 @@ import { HotelFilters } from "~/components/hotels/HotelFilters";
 import type { HotelFilterGroup } from "~/components/hotels/HotelFilters";
 import { buildResultsFilterChips } from "~/components/results/ResultsFilterGroups";
 import { ResultsShell } from "~/components/results/ResultsShell";
-import { CompareDrawer } from "~/components/save-compare/CompareDrawer";
+import {
+  isCompared,
+  isShortlisted,
+  useDecisioning,
+} from "~/components/save-compare/DecisioningProvider";
+import { CompareSheet } from "~/components/save-compare/CompareSheet";
 import { CompareTray } from "~/components/save-compare/CompareTray";
+import { RecentlyViewedModule } from "~/components/save-compare/RecentlyViewedModule";
 import type { ResultsSortOption } from "~/components/results/ResultsSort";
 import type { HotelCity } from "~/data/hotel-cities";
 import type { Hotel } from "~/data/hotels";
@@ -14,8 +20,6 @@ import { revalidateInventoryApi } from "~/lib/inventory/inventory-api";
 import {
   buildHotelPriceDisplay,
   describePriceChangeCollection,
-  formatPriceQualifier,
-  mergePriceDisplayMetadata,
   type PriceChange,
 } from "~/lib/pricing/price-display";
 import {
@@ -23,19 +27,13 @@ import {
   consumeRefreshPriceSnapshot,
   storeRefreshPriceSnapshot,
 } from "~/lib/pricing/refresh-price-snapshot";
-import { canOpenCompare } from "~/lib/save-compare/compare-state";
 import {
-  clearSavedCollection,
-  isItemSaved,
-  loadSavedItems,
-  persistSavedItems,
-  removeSavedItem,
-  toggleSavedItem,
-} from "~/lib/save-compare/saved-state";
-import { SAVE_COMPARE_STORAGE_KEY } from "~/lib/save-compare/storage";
+  buildHotelDetailHrefWithDates,
+  buildHotelSavedItem,
+} from "~/lib/save-compare/item-builders";
+import { canOpenCompare } from "~/lib/save-compare/compare-state";
 import { computeNights } from "~/lib/search/hotels/dates";
 import { searchStateToUrl } from "~/lib/search/state-to-url";
-import { formatMoney } from "~/lib/formatMoney";
 import {
   resolveAvailabilityAsyncState,
   summarizeAvailabilitySignals,
@@ -176,98 +174,6 @@ const buildEditSearchHref = (cityName: string, dates: SearchState["dates"]) => {
   return `/hotels?${sp.toString()}`;
 };
 
-const buildHotelDetailHref = (hotelSlug: string) =>
-  `/hotels/${encodeURIComponent(hotelSlug)}`;
-
-const buildHotelDetailHrefWithDates = (
-  hotelSlug: string,
-  dates: SearchState["dates"],
-) => {
-  const base = buildHotelDetailHref(hotelSlug);
-  const sp = new URLSearchParams();
-
-  if (dates?.checkIn) sp.set("checkIn", dates.checkIn);
-  if (dates?.checkOut) sp.set("checkOut", dates.checkOut);
-
-  const query = sp.toString();
-  return query ? `${base}?${query}` : base;
-};
-
-const toSavedHotelItem = (
-  hotel: Hotel,
-  dates: SearchState["dates"],
-  priceDisplay: ReturnType<typeof buildHotelPriceDisplay>,
-): SavedItem => ({
-  id: hotel.slug,
-  vertical: HOTELS_VERTICAL,
-  title: hotel.name,
-  subtitle: `${hotel.neighborhood} · ${hotel.stars}★ · ${hotel.rating.toFixed(1)}`,
-  price:
-    priceDisplay.baseTotalAmount != null
-      ? `${priceDisplay.baseTotalLabel} ${formatMoney(
-          priceDisplay.baseTotalAmount,
-          hotel.currency,
-        )}`
-      : `${priceDisplay.baseLabel} ${formatMoney(
-          priceDisplay.baseAmount,
-          hotel.currency,
-        )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`.trim(),
-  meta: [
-    priceDisplay.baseTotalAmount != null
-      ? `${priceDisplay.baseLabel} ${formatMoney(
-          priceDisplay.baseAmount,
-          hotel.currency,
-        )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`
-      : "",
-    priceDisplay.totalAmount != null
-      ? `${priceDisplay.totalLabel} ${formatMoney(
-          priceDisplay.totalAmount,
-          hotel.currency,
-        )}`
-      : "",
-    `${hotel.reviewCount.toLocaleString("en-US")} reviews`,
-    ...(hotel.policies.freeCancellation ? ["Free cancellation"] : []),
-    ...(hotel.policies.payLater ? ["Pay later"] : []),
-  ].filter(Boolean),
-  href: buildHotelDetailHref(hotel.slug),
-  image: hotel.images[0] || undefined,
-  tripCandidate:
-    hotel.inventoryId != null
-      ? {
-          itemType: "hotel",
-          inventoryId: hotel.inventoryId,
-          startDate: dates?.checkIn,
-          endDate: dates?.checkOut,
-          priceCents: Math.round(
-            (priceDisplay.baseTotalAmount ?? priceDisplay.baseAmount ?? 0) *
-              100,
-          ),
-          currencyCode: hotel.currency,
-          title: hotel.name,
-          subtitle: `${hotel.neighborhood} · ${hotel.stars}★`,
-          imageUrl: hotel.images[0] || undefined,
-          meta: [
-            priceDisplay.baseTotalAmount != null
-              ? `${priceDisplay.baseLabel} ${formatMoney(
-                  priceDisplay.baseAmount,
-                  hotel.currency,
-                )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`
-              : "",
-            priceDisplay.totalAmount != null
-              ? `${priceDisplay.totalLabel} ${formatMoney(
-                  priceDisplay.totalAmount,
-                  hotel.currency,
-                )}`
-              : "",
-            `${hotel.reviewCount.toLocaleString("en-US")} reviews`,
-            ...(hotel.policies.freeCancellation ? ["Free cancellation"] : []),
-            ...(hotel.policies.payLater ? ["Pay later"] : []),
-          ].filter(Boolean),
-          metadata: mergePriceDisplayMetadata(undefined, "hotel", priceDisplay),
-        }
-      : undefined,
-});
-
 const buildPageLinks = (
   page: number,
   totalPages: number,
@@ -290,6 +196,7 @@ const buildPageLinks = (
 
 export const HotelsResultsAdapter = component$(
   (props: HotelsResultsAdapterProps) => {
+    const decisioning = useDecisioning();
     const location = useLocation();
     const basePath = `/hotels/in/${encodeURIComponent(props.citySlug)}`;
     const toHref = (nextState: SearchState) =>
@@ -394,8 +301,6 @@ export const HotelsResultsAdapter = component$(
         nights,
       }),
     );
-    const savedItems = useSignal<SavedItem[]>([]);
-    const compareOpen = useSignal(false);
     const refreshPriceChanges = useSignal<Record<string, PriceChange>>({});
     const refreshPriceSummary = useSignal<string | null>(null);
     const availabilitySignals = summarizeAvailabilitySignals(pageItems);
@@ -409,23 +314,6 @@ export const HotelsResultsAdapter = component$(
       partialCount: availabilitySignals.partialCount,
       staleCount: availabilitySignals.staleCount,
       failedCount: availabilitySignals.failedCount,
-    });
-
-    // eslint-disable-next-line qwik/no-use-visible-task
-    useVisibleTask$(({ cleanup }) => {
-      const syncSaved = () => {
-        savedItems.value = loadSavedItems(HOTELS_VERTICAL);
-      };
-
-      syncSaved();
-
-      const onStorage = (event: StorageEvent) => {
-        if (event.key && event.key !== SAVE_COMPARE_STORAGE_KEY) return;
-        syncSaved();
-      };
-
-      window.addEventListener("storage", onStorage);
-      cleanup(() => window.removeEventListener("storage", onStorage));
     });
 
     // eslint-disable-next-line qwik/no-use-visible-task
@@ -454,31 +342,21 @@ export const HotelsResultsAdapter = component$(
     });
 
     const onToggleSave$ = $((item: SavedItem) => {
-      const next = toggleSavedItem(savedItems.value, item);
-      savedItems.value = next;
-      persistSavedItems(HOTELS_VERTICAL, next);
+      decisioning.toggleShortlist$(HOTELS_VERTICAL, item);
     });
 
-    const onRemoveSaved$ = $((id: string) => {
-      const next = removeSavedItem(savedItems.value, id);
-      savedItems.value = next;
-      persistSavedItems(HOTELS_VERTICAL, next);
-    });
-
-    const onClearSaved$ = $(() => {
-      const next = clearSavedCollection();
-      savedItems.value = next;
-      persistSavedItems(HOTELS_VERTICAL, next);
-      compareOpen.value = false;
+    const onToggleCompare$ = $((item: SavedItem) => {
+      decisioning.toggleCompare$(HOTELS_VERTICAL, item);
     });
 
     const onOpenCompare$ = $(() => {
-      if (!canOpenCompare(savedItems.value.length)) return;
-      compareOpen.value = true;
+      if (!canOpenCompare(decisioning.state.compare[HOTELS_VERTICAL].length))
+        return;
+      decisioning.openCompare$(HOTELS_VERTICAL);
     });
 
-    const onCloseCompare$ = $(() => {
-      compareOpen.value = false;
+    const onClearCompare$ = $(() => {
+      decisioning.clearComparedItems$(HOTELS_VERTICAL);
     });
 
     const onRevalidateVisibleResults$ = $(async () => {
@@ -501,7 +379,8 @@ export const HotelsResultsAdapter = component$(
       });
     });
 
-    const canCompare = canOpenCompare(savedItems.value.length);
+    const comparedItems = decisioning.state.compare[HOTELS_VERTICAL];
+    const canCompare = canOpenCompare(comparedItems.length);
 
     const sortOptions: ResultsSortOption[] = HOTEL_SORT_OPTIONS.map(
       (option) => ({
@@ -702,16 +581,28 @@ export const HotelsResultsAdapter = component$(
           </div>
         ) : null}
 
+        <RecentlyViewedModule
+          vertical={HOTELS_VERTICAL}
+          excludeIds={pageItems.map((hotel) => hotel.slug)}
+          class="mb-4"
+        />
+
         <div class="grid gap-3">
           {pageItems.map((hotel, index) => {
             const priceDisplay = {
               ...priceDisplays[index],
               delta: refreshPriceChanges.value[hotel.slug] || null,
             };
-            const savedItem = toSavedHotelItem(
+            const savedItem = buildHotelSavedItem(
               hotel,
               props.searchState.dates,
               priceDisplays[index],
+              buildHotelDetailHrefWithDates(hotel.slug, props.searchState.dates),
+            );
+            const compared = isCompared(
+              decisioning.state,
+              HOTELS_VERTICAL,
+              savedItem.id,
             );
 
             return (
@@ -721,8 +612,18 @@ export const HotelsResultsAdapter = component$(
                 priceDisplay={priceDisplay}
                 activeSort={activeSort}
                 savedItem={savedItem}
-                isSaved={isItemSaved(savedItems.value, savedItem.id)}
+                isSaved={isShortlisted(
+                  decisioning.state,
+                  HOTELS_VERTICAL,
+                  savedItem.id,
+                )}
                 onToggleSave$={onToggleSave$}
+                isCompared={compared}
+                compareDisabled={
+                  !compared &&
+                  comparedItems.length >= decisioning.state.compareLimit
+                }
+                onToggleCompare$={onToggleCompare$}
                 detailHref={buildHotelDetailHrefWithDates(
                   hotel.slug,
                   props.searchState.dates,
@@ -732,24 +633,25 @@ export const HotelsResultsAdapter = component$(
           })}
         </div>
 
-        {canCompare ? (
+        {comparedItems.length ? (
           <CompareTray
             q:slot="results-overlay"
             vertical={HOTELS_VERTICAL}
-            savedCount={savedItems.value.length}
+            compareCount={comparedItems.length}
             onOpen$={onOpenCompare$}
-            onClear$={onClearSaved$}
+            onClear$={onClearCompare$}
           />
         ) : null}
 
-        <CompareDrawer
+        <CompareSheet
           q:slot="results-overlay"
-          open={compareOpen.value && canCompare}
+          open={
+            decisioning.state.compareOpen &&
+            decisioning.state.compareVertical === HOTELS_VERTICAL &&
+            canCompare
+          }
           vertical={HOTELS_VERTICAL}
-          items={savedItems.value}
-          onClose$={onCloseCompare$}
-          onClear$={onClearSaved$}
-          onRemove$={onRemoveSaved$}
+          items={comparedItems}
         />
       </ResultsShell>
     );

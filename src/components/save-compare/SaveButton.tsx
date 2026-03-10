@@ -12,9 +12,12 @@ export const SaveButton = component$((props: SaveButtonProps) => {
       type="button"
       aria-pressed={props.saved}
       onClick$={props.onToggle$}
+      disabled={props.disabled}
       class={[base, stateClass, props.class]}
     >
-      {props.saved ? "Saved" : "Save"}
+      {props.saved
+        ? props.activeLabel || "Saved"
+        : props.idleLabel || "Save"}
     </button>
   );
 });
@@ -23,4 +26,7 @@ type SaveButtonProps = {
   saved: boolean;
   onToggle$: QRL<() => void>;
   class?: string;
+  idleLabel?: string;
+  activeLabel?: string;
+  disabled?: boolean;
 };

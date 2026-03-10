@@ -7,6 +7,7 @@ import {
   ResultTrustBar,
 } from "~/components/results/ResultCardScaffold";
 import { buildFlightWhyThis } from "~/components/results/result-card-copy";
+import { CompareButton } from "~/components/save-compare/CompareButton";
 import { SaveButton } from "~/components/save-compare/SaveButton";
 import { AddToTripButton } from "~/components/trips/AddToTripButton";
 import type { PriceDisplayContract } from "~/lib/pricing/price-display";
@@ -86,9 +87,23 @@ export const FlightCard = component$((props: FlightCardProps) => {
             <SaveButton
               class="min-h-9 px-3 py-2"
               saved={Boolean(props.isSaved)}
+              idleLabel="Shortlist"
+              activeLabel="Shortlisted"
               onToggle$={() => {
                 if (!props.savedItem || !props.onToggleSave$) return;
                 props.onToggleSave$(props.savedItem);
+              }}
+            />
+          ) : null}
+
+          {props.onToggleCompare$ ? (
+            <CompareButton
+              class="min-h-9 px-3 py-2"
+              selected={Boolean(props.isCompared)}
+              disabled={Boolean(props.compareDisabled)}
+              onToggle$={() => {
+                if (!props.savedItem || !props.onToggleCompare$) return;
+                props.onToggleCompare$(props.savedItem);
               }}
             />
           ) : null}
@@ -170,4 +185,7 @@ type FlightCardProps = {
   savedItem?: SavedItem;
   isSaved?: boolean;
   onToggleSave$?: QRL<(item: SavedItem) => void>;
+  isCompared?: boolean;
+  compareDisabled?: boolean;
+  onToggleCompare$?: QRL<(item: SavedItem) => void>;
 };

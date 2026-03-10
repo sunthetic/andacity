@@ -1,18 +1,29 @@
 import { component$, type QRL } from "@builder.io/qwik";
-import { verticalCompareLabel } from "~/lib/save-compare/compare-state";
+import {
+  canOpenCompare,
+  compareCountLabel,
+  verticalCompareTitle,
+} from "~/lib/save-compare/compare-state";
 import type { SavedVertical } from "~/types/save-compare/saved-item";
 
 export const CompareTray = component$((props: CompareTrayProps) => {
+  const canOpen = canOpenCompare(props.compareCount);
+
   return (
-    <div class="sticky bottom-3 z-40 mt-6">
+    <div class={["sticky bottom-3 z-40 mt-6", props.class]}>
       <div class="t-card flex flex-wrap items-center justify-between gap-3 bg-white/95 p-3 backdrop-blur">
         <div>
           <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-            Shortlist
+            Compare
           </p>
           <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-            {verticalCompareLabel(props.vertical, props.savedCount)}
+            {compareCountLabel(props.vertical, props.compareCount)}
           </p>
+          {!canOpen ? (
+            <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+              Select one more item to open comparison.
+            </p>
+          ) : null}
         </div>
 
         <div class="ml-auto flex items-center gap-2">
@@ -26,9 +37,13 @@ export const CompareTray = component$((props: CompareTrayProps) => {
           <button
             type="button"
             onClick$={props.onOpen$}
-            class="t-btn-primary px-4 py-1.5 text-xs font-semibold"
+            disabled={!canOpen}
+            class={[
+              "t-btn-primary px-4 py-1.5 text-xs font-semibold",
+              !canOpen ? "cursor-not-allowed opacity-60" : null,
+            ]}
           >
-            Compare
+            {verticalCompareTitle(props.vertical)}
           </button>
         </div>
       </div>
@@ -38,7 +53,8 @@ export const CompareTray = component$((props: CompareTrayProps) => {
 
 type CompareTrayProps = {
   vertical: SavedVertical;
-  savedCount: number;
+  compareCount: number;
   onOpen$: QRL<() => void>;
   onClear$: QRL<() => void>;
+  class?: string;
 };

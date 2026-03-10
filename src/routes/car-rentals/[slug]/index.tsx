@@ -5,6 +5,15 @@ import { AsyncRetryControl } from "~/components/async/AsyncRetryControl";
 import { AsyncStateNotice } from "~/components/async/AsyncStateNotice";
 import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import { InventoryRefreshControl } from "~/components/inventory/InventoryRefreshControl";
+import { CompareButton } from "~/components/save-compare/CompareButton";
+import {
+  isCompared,
+  isShortlisted,
+  useDecisioning,
+} from "~/components/save-compare/DecisioningProvider";
+import { CompareSheet } from "~/components/save-compare/CompareSheet";
+import { CompareTray } from "~/components/save-compare/CompareTray";
+import { SaveButton } from "~/components/save-compare/SaveButton";
 import { Page } from "~/components/site/Page";
 import {
   resolveAvailabilityAsyncState,
@@ -29,6 +38,7 @@ import {
   consumeRefreshPriceSnapshot,
   storeRefreshPriceSnapshot,
 } from "~/lib/pricing/refresh-price-snapshot";
+import { buildCarDetailSavedItem } from "~/lib/save-compare/item-builders";
 import { loadCarRentalBySlugFromDb } from "~/lib/queries/car-rentals-pages.server";
 import { computeDays } from "~/lib/search/car-rentals/dates";
 
@@ -74,6 +84,7 @@ export const useCarRental = routeLoader$(async ({ params, url, error }) => {
 });
 
 export default component$(() => {
+  const decisioning = useDecisioning();
   const data = useCarRental().value;
   const location = useLocation();
 
@@ -183,6 +194,38 @@ export default component$(() => {
     }),
     delta: refreshPriceChange.value,
   };
+  const decisionItem = buildCarDetailSavedItem(
+    rental,
+    rental.active,
+    headlinePriceDisplay,
+    refreshHref,
+  );
+  const compared = isCompared(decisioning.state, "cars", decisionItem.id);
+  const compareDisabled =
+    !compared &&
+    decisioning.state.compare.cars.length >= decisioning.state.compareLimit;
+
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(() => {
+    decisioning.recordRecentlyViewed$("cars", decisionItem);
+  });
+
+  const onToggleShortlist$ = $(() => {
+    decisioning.toggleShortlist$("cars", decisionItem);
+  });
+
+  const onToggleCompare$ = $(() => {
+    decisioning.toggleCompare$("cars", decisionItem);
+  });
+
+  const onOpenCompare$ = $(() => {
+    if (decisioning.state.compare.cars.length < 2) return;
+    decisioning.openCompare$("cars");
+  });
+
+  const onClearCompare$ = $(() => {
+    decisioning.clearComparedItems$("cars");
+  });
 
   return (
     <Page
@@ -309,6 +352,27 @@ export default component$(() => {
 
           <div class="lg:sticky lg:top-24">
             <div class="t-card p-5 bg-surface">
+              <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <span class="t-badge">Cars</span>
+                <div class="flex flex-wrap gap-2">
+                  <SaveButton
+                    saved={isShortlisted(
+                      decisioning.state,
+                      "cars",
+                      decisionItem.id,
+                    )}
+                    idleLabel="Shortlist"
+                    activeLabel="Shortlisted"
+                    onToggle$={onToggleShortlist$}
+                  />
+                  <CompareButton
+                    selected={compared}
+                    disabled={compareDisabled}
+                    onToggle$={onToggleCompare$}
+                  />
+                </div>
+              </div>
+
               <div class="mt-1 text-2xl font-semibold text-[color:var(--color-text-strong)]">
                 {headlinePriceDisplay.baseLabel}{" "}
                 {formatMoney(headlinePriceDisplay.baseAmount, rental.currency)}
@@ -626,6 +690,25 @@ export default component$(() => {
             ))}
           </div>
         </div>
+
+        {decisioning.state.compare.cars.length ? (
+          <CompareTray
+            vertical="cars"
+            compareCount={decisioning.state.compare.cars.length}
+            onOpen$={onOpenCompare$}
+            onClear$={onClearCompare$}
+          />
+        ) : null}
+
+        <CompareSheet
+          open={
+            decisioning.state.compareOpen &&
+            decisioning.state.compareVertical === "cars" &&
+            decisioning.state.compare.cars.length >= 2
+          }
+          vertical="cars"
+          items={decisioning.state.compare.cars}
+        />
       </div>
     </Page>
   );

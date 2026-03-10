@@ -5,16 +5,18 @@ import { FlightFilters } from "~/components/flights/FlightFilters";
 import type { FlightFilterGroup } from "~/components/flights/FlightFilters";
 import { buildResultsFilterChips } from "~/components/results/ResultsFilterGroups";
 import { ResultsShell } from "~/components/results/ResultsShell";
-import { CompareDrawer } from "~/components/save-compare/CompareDrawer";
+import {
+  isCompared,
+  isShortlisted,
+  useDecisioning,
+} from "~/components/save-compare/DecisioningProvider";
+import { CompareSheet } from "~/components/save-compare/CompareSheet";
 import { CompareTray } from "~/components/save-compare/CompareTray";
 import type { ResultsSortOption } from "~/components/results/ResultsSort";
 import { revalidateInventoryApi } from "~/lib/inventory/inventory-api";
 import {
   buildFlightPriceDisplay,
   describePriceChangeCollection,
-  formatMoney,
-  formatPriceQualifier,
-  mergePriceDisplayMetadata,
   type PriceChange,
 } from "~/lib/pricing/price-display";
 import {
@@ -22,6 +24,7 @@ import {
   consumeRefreshPriceSnapshot,
   storeRefreshPriceSnapshot,
 } from "~/lib/pricing/refresh-price-snapshot";
+import { buildFlightSavedItem } from "~/lib/save-compare/item-builders";
 import {
   FLIGHT_SORT_OPTIONS,
   type FlightSortKey,
@@ -33,15 +36,6 @@ import type {
 import type { FlightItineraryTypeSlug } from "~/lib/search/flights/routing";
 import { searchStateToUrl } from "~/lib/search/state-to-url";
 import { canOpenCompare } from "~/lib/save-compare/compare-state";
-import {
-  clearSavedCollection,
-  isItemSaved,
-  loadSavedItems,
-  persistSavedItems,
-  removeSavedItem,
-  toggleSavedItem,
-} from "~/lib/save-compare/saved-state";
-import { SAVE_COMPARE_STORAGE_KEY } from "~/lib/save-compare/storage";
 import {
   resolveAvailabilityAsyncState,
   summarizeAvailabilitySignals,
@@ -175,6 +169,7 @@ const toTravelerCount = (value: unknown) => {
 
 export const FlightsResultsAdapter = component$(
   (props: FlightsResultsAdapterProps) => {
+    const decisioning = useDecisioning();
     const location = useLocation();
     const toHref = (nextState: SearchState) =>
       searchStateToUrl(props.basePath, nextState, {
@@ -207,8 +202,6 @@ export const FlightsResultsAdapter = component$(
         travelers,
       }),
     );
-    const savedItems = useSignal<SavedItem[]>([]);
-    const compareOpen = useSignal(false);
     const refreshPriceChanges = useSignal<Record<string, PriceChange>>({});
     const refreshPriceSummary = useSignal<string | null>(null);
     const availabilitySignals = summarizeAvailabilitySignals(pageItems);
@@ -223,91 +216,6 @@ export const FlightsResultsAdapter = component$(
       partialCount: availabilitySignals.partialCount,
       staleCount: availabilitySignals.staleCount,
       failedCount: availabilitySignals.failedCount,
-    });
-
-    const toSavedFlightItem = (
-      result: FlightResult,
-      priceDisplay: ReturnType<typeof buildFlightPriceDisplay>,
-    ): SavedItem => ({
-      id: result.id,
-      vertical: FLIGHTS_VERTICAL,
-      title: result.airline,
-      subtitle: `${result.origin} → ${result.destination}`,
-      price:
-        priceDisplay.baseTotalAmount != null
-          ? `${priceDisplay.baseTotalLabel} ${formatMoney(
-              priceDisplay.baseTotalAmount,
-              result.currency,
-            )}`
-          : `${priceDisplay.baseLabel} ${formatMoney(
-              priceDisplay.baseAmount,
-              result.currency,
-            )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`.trim(),
-      meta: [
-        priceDisplay.baseTotalAmount != null
-          ? `${priceDisplay.baseLabel} ${formatMoney(
-              priceDisplay.baseAmount,
-              result.currency,
-            )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`
-          : "",
-        `Depart ${result.departureTime}`,
-        `Arrive ${result.arrivalTime}`,
-        result.duration,
-        result.stopsLabel,
-        result.cabinClass ? titleCase(result.cabinClass) : "",
-      ].filter(Boolean),
-      href: props.flightCtaHref || props.editSearchHref || "/flights",
-      tripCandidate:
-        result.itineraryId != null
-          ? {
-              itemType: "flight",
-              inventoryId: result.itineraryId,
-              startDate: result.serviceDate,
-              endDate: result.serviceDate,
-              priceCents: Math.round(
-                (priceDisplay.baseTotalAmount ?? priceDisplay.baseAmount ?? 0) *
-                  100,
-              ),
-              currencyCode: result.currency,
-              title: result.airline,
-              subtitle: `${result.origin} → ${result.destination}`,
-              meta: [
-                priceDisplay.baseTotalAmount != null
-                  ? `${priceDisplay.baseLabel} ${formatMoney(
-                      priceDisplay.baseAmount,
-                      result.currency,
-                    )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`
-                  : "",
-                `Depart ${result.departureTime}`,
-                `Arrive ${result.arrivalTime}`,
-                result.duration,
-                result.stopsLabel,
-                result.cabinClass ? titleCase(result.cabinClass) : "",
-              ].filter(Boolean),
-              metadata: mergePriceDisplayMetadata(
-                undefined,
-                "flight",
-                priceDisplay,
-              ),
-            }
-          : undefined,
-    });
-
-    // eslint-disable-next-line qwik/no-use-visible-task
-    useVisibleTask$(({ cleanup }) => {
-      const syncSaved = () => {
-        savedItems.value = loadSavedItems(FLIGHTS_VERTICAL);
-      };
-
-      syncSaved();
-
-      const onStorage = (event: StorageEvent) => {
-        if (event.key && event.key !== SAVE_COMPARE_STORAGE_KEY) return;
-        syncSaved();
-      };
-
-      window.addEventListener("storage", onStorage);
-      cleanup(() => window.removeEventListener("storage", onStorage));
     });
 
     // eslint-disable-next-line qwik/no-use-visible-task
@@ -336,31 +244,21 @@ export const FlightsResultsAdapter = component$(
     });
 
     const onToggleSave$ = $((item: SavedItem) => {
-      const next = toggleSavedItem(savedItems.value, item);
-      savedItems.value = next;
-      persistSavedItems(FLIGHTS_VERTICAL, next);
+      decisioning.toggleShortlist$(FLIGHTS_VERTICAL, item);
     });
 
-    const onRemoveSaved$ = $((id: string) => {
-      const next = removeSavedItem(savedItems.value, id);
-      savedItems.value = next;
-      persistSavedItems(FLIGHTS_VERTICAL, next);
-    });
-
-    const onClearSaved$ = $(() => {
-      const next = clearSavedCollection();
-      savedItems.value = next;
-      persistSavedItems(FLIGHTS_VERTICAL, next);
-      compareOpen.value = false;
+    const onToggleCompare$ = $((item: SavedItem) => {
+      decisioning.toggleCompare$(FLIGHTS_VERTICAL, item);
     });
 
     const onOpenCompare$ = $(() => {
-      if (!canOpenCompare(savedItems.value.length)) return;
-      compareOpen.value = true;
+      if (!canOpenCompare(decisioning.state.compare[FLIGHTS_VERTICAL].length))
+        return;
+      decisioning.openCompare$(FLIGHTS_VERTICAL);
     });
 
-    const onCloseCompare$ = $(() => {
-      compareOpen.value = false;
+    const onClearCompare$ = $(() => {
+      decisioning.clearComparedItems$(FLIGHTS_VERTICAL);
     });
 
     const onRevalidateVisibleResults$ = $(async () => {
@@ -383,7 +281,8 @@ export const FlightsResultsAdapter = component$(
       });
     });
 
-    const canCompare = canOpenCompare(savedItems.value.length);
+    const comparedItems = decisioning.state.compare[FLIGHTS_VERTICAL];
+    const canCompare = canOpenCompare(comparedItems.length);
 
     const sortOptions: ResultsSortOption[] = FLIGHT_SORT_OPTIONS.map(
       (option) => ({
@@ -596,7 +495,16 @@ export const FlightsResultsAdapter = component$(
               ...priceDisplays[index],
               delta: refreshPriceChanges.value[result.id] || null,
             };
-            const savedItem = toSavedFlightItem(result, priceDisplays[index]);
+            const savedItem = buildFlightSavedItem(
+              result,
+              priceDisplays[index],
+              props.flightCtaHref || props.editSearchHref || "/flights",
+            );
+            const compared = isCompared(
+              decisioning.state,
+              FLIGHTS_VERTICAL,
+              savedItem.id,
+            );
 
             return (
               <FlightCard
@@ -606,31 +514,42 @@ export const FlightsResultsAdapter = component$(
                 activeSort={props.activeSort}
                 ctaHref={props.flightCtaHref}
                 savedItem={savedItem}
-                isSaved={isItemSaved(savedItems.value, savedItem.id)}
+                isSaved={isShortlisted(
+                  decisioning.state,
+                  FLIGHTS_VERTICAL,
+                  savedItem.id,
+                )}
                 onToggleSave$={onToggleSave$}
+                isCompared={compared}
+                compareDisabled={
+                  !compared &&
+                  comparedItems.length >= decisioning.state.compareLimit
+                }
+                onToggleCompare$={onToggleCompare$}
               />
             );
           })}
         </div>
 
-        {canCompare ? (
+        {comparedItems.length ? (
           <CompareTray
             q:slot="results-overlay"
             vertical={FLIGHTS_VERTICAL}
-            savedCount={savedItems.value.length}
+            compareCount={comparedItems.length}
             onOpen$={onOpenCompare$}
-            onClear$={onClearSaved$}
+            onClear$={onClearCompare$}
           />
         ) : null}
 
-        <CompareDrawer
+        <CompareSheet
           q:slot="results-overlay"
-          open={compareOpen.value && canCompare}
+          open={
+            decisioning.state.compareOpen &&
+            decisioning.state.compareVertical === FLIGHTS_VERTICAL &&
+            canCompare
+          }
           vertical={FLIGHTS_VERTICAL}
-          items={savedItems.value}
-          onClose$={onCloseCompare$}
-          onClear$={onClearSaved$}
-          onRemove$={onRemoveSaved$}
+          items={comparedItems}
         />
       </ResultsShell>
     );

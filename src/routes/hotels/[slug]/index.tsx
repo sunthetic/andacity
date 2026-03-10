@@ -5,6 +5,15 @@ import { AsyncRetryControl } from "~/components/async/AsyncRetryControl";
 import { AsyncStateNotice } from "~/components/async/AsyncStateNotice";
 import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import { InventoryRefreshControl } from "~/components/inventory/InventoryRefreshControl";
+import { CompareButton } from "~/components/save-compare/CompareButton";
+import {
+  isCompared,
+  isShortlisted,
+  useDecisioning,
+} from "~/components/save-compare/DecisioningProvider";
+import { CompareSheet } from "~/components/save-compare/CompareSheet";
+import { CompareTray } from "~/components/save-compare/CompareTray";
+import { SaveButton } from "~/components/save-compare/SaveButton";
 import {
   resolveAvailabilityAsyncState,
   summarizeAvailabilitySignals,
@@ -28,6 +37,7 @@ import {
   consumeRefreshPriceSnapshot,
   storeRefreshPriceSnapshot,
 } from "~/lib/pricing/refresh-price-snapshot";
+import { buildHotelSavedItem } from "~/lib/save-compare/item-builders";
 import { getOgSecret, encodeOgPayload, signOgPayload } from "~/lib/seo/og-sign";
 import type { Hotel } from "~/data/hotels";
 import { loadHotelBySlugFromDb } from "~/lib/queries/hotels-pages.server";
@@ -124,6 +134,7 @@ export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
 });
 
 export default component$(() => {
+  const decisioning = useDecisioning();
   const data = useHotelPage().value;
   const h = data.hotel;
   const location = useLocation();
@@ -227,6 +238,38 @@ export default component$(() => {
     }),
     delta: refreshPriceChange.value,
   };
+  const decisionItem = buildHotelSavedItem(
+    h,
+    data.active,
+    stayPriceDisplay,
+    refreshHref,
+  );
+  const compared = isCompared(decisioning.state, "hotels", decisionItem.id);
+  const compareDisabled =
+    !compared &&
+    decisioning.state.compare.hotels.length >= decisioning.state.compareLimit;
+
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(() => {
+    decisioning.recordRecentlyViewed$("hotels", decisionItem);
+  });
+
+  const onToggleShortlist$ = $(() => {
+    decisioning.toggleShortlist$("hotels", decisionItem);
+  });
+
+  const onToggleCompare$ = $(() => {
+    decisioning.toggleCompare$("hotels", decisionItem);
+  });
+
+  const onOpenCompare$ = $(() => {
+    if (decisioning.state.compare.hotels.length < 2) return;
+    decisioning.openCompare$("hotels");
+  });
+
+  const onClearCompare$ = $(() => {
+    decisioning.clearComparedItems$("hotels");
+  });
 
   return (
     <Page
@@ -522,7 +565,24 @@ export default component$(() => {
                   Set dates to reveal totals. GET URLs stay shareable.
                 </div>
               </div>
-              <span class="t-badge">Hotels</span>
+              <div class="flex flex-wrap items-center justify-end gap-2">
+                <span class="t-badge">Hotels</span>
+                <SaveButton
+                  saved={isShortlisted(
+                    decisioning.state,
+                    "hotels",
+                    decisionItem.id,
+                  )}
+                  idleLabel="Shortlist"
+                  activeLabel="Shortlisted"
+                  onToggle$={onToggleShortlist$}
+                />
+                <CompareButton
+                  selected={compared}
+                  disabled={compareDisabled}
+                  onToggle$={onToggleCompare$}
+                />
+              </div>
             </div>
 
             <form method="get" class="mt-4 grid gap-3">
@@ -719,6 +779,26 @@ export default component$(() => {
           </a>
         </div>
       </div>
+
+      {decisioning.state.compare.hotels.length ? (
+        <CompareTray
+          vertical="hotels"
+          compareCount={decisioning.state.compare.hotels.length}
+          onOpen$={onOpenCompare$}
+          onClear$={onClearCompare$}
+          class="bottom-20 lg:bottom-3"
+        />
+      ) : null}
+
+      <CompareSheet
+        open={
+          decisioning.state.compareOpen &&
+          decisioning.state.compareVertical === "hotels" &&
+          decisioning.state.compare.hotels.length >= 2
+        }
+        vertical="hotels"
+        items={decisioning.state.compare.hotels}
+      />
     </Page>
   );
 });
