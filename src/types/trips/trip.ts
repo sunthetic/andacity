@@ -1,5 +1,5 @@
-import type { AvailabilityConfidenceModel } from '~/lib/inventory/availability-confidence'
-import type { InventoryFreshnessModel } from '~/lib/inventory/freshness'
+import type { AvailabilityConfidenceModel } from "~/lib/inventory/availability-confidence";
+import type { InventoryFreshnessModel } from "~/lib/inventory/freshness";
 
 export const TRIP_STATUSES = [
   "draft",
@@ -110,6 +110,7 @@ export type TripVerticalPricing = {
   currentSubtotalCents: number | null;
   priceDeltaCents: number | null;
   hasMixedCurrencies: boolean;
+  hasPartialPricing: boolean;
 };
 
 export type TripPricingSummary = {
@@ -118,6 +119,7 @@ export type TripPricingSummary = {
   currentTotalCents: number | null;
   priceDeltaCents: number | null;
   hasMixedCurrencies: boolean;
+  hasPartialPricing: boolean;
   driftCounts: Record<TripPriceDriftStatus, number>;
   verticals: TripVerticalPricing[];
 };

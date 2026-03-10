@@ -5,6 +5,12 @@ import { InventoryRefreshControl } from "~/components/inventory/InventoryRefresh
 import { Page } from "~/components/site/Page";
 import { TripSuggestionCard } from "~/components/trips/TripSuggestionCard";
 import {
+  buildPriceDisplayFromMetadata,
+  formatMoneyFromCents,
+  formatPriceQualifier,
+  readStoredPriceDisplayMetadata,
+} from "~/lib/pricing/price-display";
+import {
   getTripDetails,
   listTrips,
   TripRepoError,
@@ -339,7 +345,7 @@ export default component$(() => {
                     {trip.itemCount} items
                   </div>
                   <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                    Snapshot estimate: {formatTripListEstimate(trip)}
+                    Stored price sum: {formatTripListEstimate(trip)}
                   </div>
                 </button>
               ))
@@ -372,13 +378,30 @@ export default component$(() => {
                     }
                   />
                   <SummaryBlock
-                    label="Snapshot estimate"
+                    label={
+                      activeTrip.value.pricing.hasPartialPricing
+                        ? "Partial bundle base total"
+                        : "Snapshot bundle base total"
+                    }
                     value={formatSnapshotEstimate(activeTrip.value)}
                   />
                   <SummaryBlock
-                    label="Live total"
+                    label={
+                      activeTrip.value.pricing.hasPartialPricing
+                        ? "Live partial base total"
+                        : "Live bundle base total"
+                    }
                     value={formatLiveEstimate(activeTrip.value)}
                   />
+                </div>
+
+                <div class="mt-4 rounded-xl border border-[color:var(--color-border)] px-3 py-3">
+                  <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                    Bundle pricing note
+                  </p>
+                  <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                    {formatTripPricingSupport(activeTrip.value)}
+                  </p>
                 </div>
 
                 {activeTrip.value.pricing.verticals.length ? (
@@ -428,8 +451,8 @@ export default component$(() => {
                         )}
                       </p>
                       <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                        Revalidate here to refresh trip item and bundle inventory
-                        freshness.
+                        Revalidate here to refresh trip item and bundle
+                        inventory freshness.
                       </p>
                     </div>
 
@@ -441,7 +464,7 @@ export default component$(() => {
                       refreshingLabel="Revalidating..."
                       refreshedLabel="Trip revalidated"
                       failedLabel="Retry revalidation"
-                      successMessage="Trip availability was revalidated."
+                      successMessage="Trip availability was revalidated. Bundle price changes remain highlighted against the stored trip snapshot below."
                       failureMessage="Failed to revalidate trip."
                       align="right"
                       disabled={loading.value}
@@ -667,7 +690,10 @@ const VerticalSubtotalCard = component$(
     return (
       <div class="rounded-xl border border-[color:var(--color-border)] px-3 py-3">
         <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-          {formatVerticalLabel(props.vertical.itemType)} subtotal
+          {formatVerticalLabel(props.vertical.itemType)}{" "}
+          {props.vertical.hasPartialPricing
+            ? "partial base subtotal"
+            : "base subtotal"}
         </p>
         <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
           Snapshot {formatVerticalSnapshot(props.vertical)}
@@ -675,6 +701,12 @@ const VerticalSubtotalCard = component$(
         <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
           Live {formatVerticalCurrent(props.vertical)}
         </p>
+        {props.vertical.hasPartialPricing ? (
+          <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+            Some items in this vertical still use unit pricing because trip
+            dates were not saved.
+          </p>
+        ) : null}
         <p
           class={[
             "mt-2 text-xs font-medium",
@@ -697,6 +729,12 @@ const TripItemRow = component$(
     onRemove$: QRL<(itemId: number) => Promise<void>>;
     onMove$: QRL<(itemId: number, direction: -1 | 1) => Promise<void>>;
   }) => {
+    const storedPrice = readStoredPriceDisplayMetadata(props.item.metadata);
+    const priceDisplay = buildPriceDisplayFromMetadata(
+      props.item.metadata,
+      props.item.snapshotCurrencyCode,
+    );
+
     return (
       <article class="rounded-xl border border-[color:var(--color-border)] p-3">
         <div class="flex flex-wrap items-start justify-between gap-3">
@@ -738,7 +776,9 @@ const TripItemRow = component$(
               <AvailabilityConfidence
                 confidence={props.item.availabilityConfidence}
                 compact={false}
-                showSupport={Boolean(props.item.availabilityConfidence.supportText)}
+                showSupport={Boolean(
+                  props.item.availabilityConfidence.supportText,
+                )}
               />
             </div>
             {props.item.issues.length ? (
@@ -762,7 +802,7 @@ const TripItemRow = component$(
 
           <div class="min-w-[200px] text-right">
             <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-              Snapshot price
+              {formatTripItemSnapshotLabel(props.item)}
             </p>
             <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
               {formatMoneyFromCents(
@@ -770,6 +810,43 @@ const TripItemRow = component$(
                 props.item.snapshotCurrencyCode,
               )}
             </p>
+            {priceDisplay?.baseTotalAmount != null ? (
+              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                {priceDisplay.baseLabel}{" "}
+                <span class="font-medium text-[color:var(--color-text)]">
+                  {formatMoneyFromCents(
+                    storedPrice?.baseAmountCents,
+                    props.item.snapshotCurrencyCode,
+                  )}
+                </span>{" "}
+                {formatPriceQualifier(priceDisplay.baseQualifier)}
+              </p>
+            ) : null}
+            {priceDisplay?.totalAmount != null &&
+            priceDisplay?.estimatedFeesAmount != null ? (
+              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                {priceDisplay.totalLabel}{" "}
+                <span class="font-medium text-[color:var(--color-text)]">
+                  {formatMoneyFromCents(
+                    storedPrice?.totalAmountCents,
+                    props.item.snapshotCurrencyCode,
+                  )}
+                </span>
+                <span class="ml-1">
+                  incl.{" "}
+                  {formatMoneyFromCents(
+                    storedPrice?.estimatedFeesAmountCents,
+                    props.item.snapshotCurrencyCode,
+                  )}{" "}
+                  est.
+                </span>
+              </p>
+            ) : null}
+            {priceDisplay?.supportText ? (
+              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                {priceDisplay.supportText}
+              </p>
+            ) : null}
             <p
               class={[
                 "mt-1 text-xs font-medium",
@@ -929,6 +1006,15 @@ const formatTripBundlingSummary = (trip: TripDetails) => {
   return `${suggestionCount} suggestion${suggestionCount === 1 ? "" : "s"} for ${gapCount} detected trip gap${gapCount === 1 ? "" : "s"}.`;
 };
 
+const formatTripPricingSupport = (trip: TripDetails) => {
+  const base =
+    "Bundle totals add each item's stored displayed base amount so the total can reconcile with the cards below.";
+  const partial = trip.pricing.hasPartialPricing
+    ? " Some hotel or car items were added without dates, so those entries still use unit pricing."
+    : "";
+  return `${base}${partial} Estimated taxes and fees stay on the item when supplier data is incomplete.`;
+};
+
 const intelligenceToneClass = (intelligence: TripIntelligenceSummary) => {
   if (intelligence.status === "blocking_issues_present") {
     return "text-[color:var(--color-error,#b91c1c)]";
@@ -965,6 +1051,17 @@ const formatVerticalLabel = (value: TripVerticalPricing["itemType"]) => {
   if (value === "hotel") return "Hotels";
   if (value === "flight") return "Flights";
   return "Cars";
+};
+
+const formatTripItemSnapshotLabel = (item: TripItem) => {
+  const storedPrice = readStoredPriceDisplayMetadata(item.metadata);
+  if (storedPrice?.baseTotalLabel) {
+    return `Snapshot ${storedPrice.baseTotalLabel.toLowerCase()}`;
+  }
+  if (storedPrice?.baseLabel) {
+    return `Snapshot ${storedPrice.baseLabel.toLowerCase()}`;
+  }
+  return "Snapshot base price";
 };
 
 const formatVerticalSnapshot = (vertical: TripVerticalPricing) => {
@@ -1016,12 +1113,16 @@ const formatVerticalDrift = (vertical: TripVerticalPricing) => {
 };
 
 const formatItemDrift = (item: TripItem) => {
+  const storedPrice = readStoredPriceDisplayMetadata(item.metadata);
+  const liveLabel =
+    storedPrice?.baseTotalLabel || storedPrice?.baseLabel || "Live base price";
+
   if (
     item.priceDriftStatus === "unavailable" ||
     item.currentPriceCents == null ||
     !item.currentCurrencyCode
   ) {
-    return "Current price unavailable";
+    return `${liveLabel} unavailable`;
   }
 
   const currentPrice = formatMoneyFromCents(
@@ -1029,10 +1130,10 @@ const formatItemDrift = (item: TripItem) => {
     item.currentCurrencyCode,
   );
   if (item.priceDriftStatus === "unchanged") {
-    return `No change · ${currentPrice}`;
+    return `${liveLabel} unchanged · ${currentPrice}`;
   }
 
-  return `${item.priceDriftStatus === "increased" ? "↑" : "↓"} Now ${currentPrice} (${formatSignedMoneyFromCents(
+  return `${item.priceDriftStatus === "increased" ? "↑" : "↓"} ${liveLabel} ${currentPrice} (${formatSignedMoneyFromCents(
     item.priceDriftCents || 0,
     item.currentCurrencyCode,
   )})`;
@@ -1069,23 +1170,6 @@ const formatDateTime = (value: string) => {
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
-};
-
-const formatMoneyFromCents = (
-  cents: number | null | undefined,
-  currency: string | null | undefined,
-) => {
-  const amount = Math.max(0, Number(cents || 0)) / 100;
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency || "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  } catch {
-    return `${amount.toFixed(2)} ${currency || "USD"}`;
-  }
 };
 
 const formatSignedMoneyFromCents = (cents: number, currency: string) => {

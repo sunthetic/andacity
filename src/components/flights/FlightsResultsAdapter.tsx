@@ -1,24 +1,36 @@
-import { $, component$, useSignal, useVisibleTask$ } from '@builder.io/qwik'
-import { FlightCard } from '~/components/flights/FlightCard'
-import { FlightFilters } from '~/components/flights/FlightFilters'
-import type { FlightFilterGroup } from '~/components/flights/FlightFilters'
-import { ResultsShell } from '~/components/results/ResultsShell'
-import { CompareDrawer } from '~/components/save-compare/CompareDrawer'
-import { CompareTray } from '~/components/save-compare/CompareTray'
-import type { ResultsSortOption } from '~/components/results/ResultsSort'
-import { formatMoney } from '~/lib/formatMoney'
-import { revalidateInventoryApi } from '~/lib/inventory/inventory-api'
+import { $, component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
+import { FlightCard } from "~/components/flights/FlightCard";
+import { FlightFilters } from "~/components/flights/FlightFilters";
+import type { FlightFilterGroup } from "~/components/flights/FlightFilters";
+import { ResultsShell } from "~/components/results/ResultsShell";
+import { CompareDrawer } from "~/components/save-compare/CompareDrawer";
+import { CompareTray } from "~/components/save-compare/CompareTray";
+import type { ResultsSortOption } from "~/components/results/ResultsSort";
+import { revalidateInventoryApi } from "~/lib/inventory/inventory-api";
+import {
+  buildFlightPriceDisplay,
+  describePriceChangeCollection,
+  formatMoney,
+  formatPriceQualifier,
+  mergePriceDisplayMetadata,
+  type PriceChange,
+} from "~/lib/pricing/price-display";
+import {
+  buildRefreshPriceChangeMap,
+  consumeRefreshPriceSnapshot,
+  storeRefreshPriceSnapshot,
+} from "~/lib/pricing/refresh-price-snapshot";
 import {
   FLIGHT_SORT_OPTIONS,
   type FlightSortKey,
-} from '~/lib/search/flights/flight-sort-options'
+} from "~/lib/search/flights/flight-sort-options";
 import type {
   FlightSearchFacets,
   FlightsSelectedFilters,
-} from '~/lib/search/flights/filter-types'
-import type { FlightItineraryTypeSlug } from '~/lib/search/flights/routing'
-import { searchStateToUrl } from '~/lib/search/state-to-url'
-import { canOpenCompare } from '~/lib/save-compare/compare-state'
+} from "~/lib/search/flights/filter-types";
+import type { FlightItineraryTypeSlug } from "~/lib/search/flights/routing";
+import { searchStateToUrl } from "~/lib/search/state-to-url";
+import { canOpenCompare } from "~/lib/save-compare/compare-state";
 import {
   clearSavedCollection,
   isItemSaved,
@@ -26,37 +38,37 @@ import {
   persistSavedItems,
   removeSavedItem,
   toggleSavedItem,
-} from '~/lib/save-compare/saved-state'
-import { SAVE_COMPARE_STORAGE_KEY } from '~/lib/save-compare/storage'
-import type { FlightResult } from '~/types/flights/search'
-import type { SavedItem } from '~/types/save-compare/saved-item'
-import type { SearchState } from '~/types/search/state'
+} from "~/lib/save-compare/saved-state";
+import { SAVE_COMPARE_STORAGE_KEY } from "~/lib/save-compare/storage";
+import type { FlightResult } from "~/types/flights/search";
+import type { SavedItem } from "~/types/save-compare/saved-item";
+import type { SearchState } from "~/types/search/state";
 
-const FLIGHTS_VERTICAL = 'flights' as const
+const FLIGHTS_VERTICAL = "flights" as const;
 
 const normalizeToken = (value: string) =>
-  String(value || '')
+  String(value || "")
     .trim()
     .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, '-')
-    .replaceAll(/(^-|-$)/g, '')
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/(^-|-$)/g, "");
 
 const titleCase = (token: string) =>
   normalizeToken(token)
-    .split('-')
+    .split("-")
     .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
-    .join(' ')
+    .join(" ");
 
 const formatDate = (isoDate: string | undefined) => {
-  if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return ''
-  const [y, m, d] = isoDate.split('-').map((x) => Number.parseInt(x, 10))
-  const date = new Date(Date.UTC(y, m - 1, d))
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(date)
-}
+  if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return "";
+  const [y, m, d] = isoDate.split("-").map((x) => Number.parseInt(x, 10));
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+};
 
 const buildQuerySummary = (
   fromLabel: string,
@@ -65,34 +77,34 @@ const buildQuerySummary = (
   depart?: string,
   ret?: string,
 ) => {
-  const parts = [`Flights from ${fromLabel} to ${toLabel}`]
-  parts.push(itineraryType === 'one-way' ? 'One-way' : 'Round-trip')
+  const parts = [`Flights from ${fromLabel} to ${toLabel}`];
+  parts.push(itineraryType === "one-way" ? "One-way" : "Round-trip");
 
-  const departLabel = formatDate(depart)
-  const returnLabel = formatDate(ret)
+  const departLabel = formatDate(depart);
+  const returnLabel = formatDate(ret);
 
-  if (itineraryType === 'one-way' && departLabel) {
-    parts.push(`Depart ${departLabel}`)
+  if (itineraryType === "one-way" && departLabel) {
+    parts.push(`Depart ${departLabel}`);
   } else if (departLabel && returnLabel) {
-    parts.push(`${departLabel}–${returnLabel}`)
+    parts.push(`${departLabel}–${returnLabel}`);
   } else if (departLabel) {
-    parts.push(`Depart ${departLabel}`)
+    parts.push(`Depart ${departLabel}`);
   }
 
-  return parts.join(' · ')
-}
+  return parts.join(" · ");
+};
 
 const withFilters = (
   state: SearchState,
   updater: (filters: Record<string, unknown>) => Record<string, unknown>,
 ): SearchState => {
-  const nextFilters = updater({ ...(state.filters || {}) })
+  const nextFilters = updater({ ...(state.filters || {}) });
   return {
     ...state,
     page: 1,
     filters: Object.keys(nextFilters).length ? nextFilters : undefined,
-  }
-}
+  };
+};
 
 const withSingleToggle = (
   state: SearchState,
@@ -100,15 +112,15 @@ const withSingleToggle = (
   value: string,
 ): SearchState => {
   return withFilters(state, (filters) => {
-    const current = normalizeToken(String(filters[key] || ''))
+    const current = normalizeToken(String(filters[key] || ""));
     if (current === normalizeToken(value)) {
-      delete filters[key]
+      delete filters[key];
     } else {
-      filters[key] = value
+      filters[key] = value;
     }
-    return filters
-  })
-}
+    return filters;
+  });
+};
 
 const withArrayToggle = (
   state: SearchState,
@@ -116,86 +128,92 @@ const withArrayToggle = (
   value: string,
 ): SearchState => {
   return withFilters(state, (filters) => {
-    const currentRaw = filters[key]
+    const currentRaw = filters[key];
     const current = Array.isArray(currentRaw)
       ? currentRaw
-          .map((item) => normalizeToken(String(item || '')))
+          .map((item) => normalizeToken(String(item || "")))
           .filter(Boolean)
-      : String(currentRaw || '')
-          .split(',')
+      : String(currentRaw || "")
+          .split(",")
           .map((item) => normalizeToken(item))
-          .filter(Boolean)
+          .filter(Boolean);
 
-    const has = current.includes(value)
+    const has = current.includes(value);
     const next = has
       ? current.filter((item) => item !== value)
-      : [...current, value]
+      : [...current, value];
 
     if (next.length) {
-      filters[key] = next
+      filters[key] = next;
     } else {
-      delete filters[key]
+      delete filters[key];
     }
 
-    return filters
-  })
-}
+    return filters;
+  });
+};
 
 const withMaxStopsToggle = (
   state: SearchState,
-  value: '0' | '1' | '2',
+  value: "0" | "1" | "2",
 ): SearchState => {
   return withFilters(state, (filters) => {
-    delete filters.nonstop
-    delete filters.stops
+    delete filters.nonstop;
+    delete filters.stops;
 
-    const current = String(filters.maxStops || '').trim()
+    const current = String(filters.maxStops || "").trim();
     if (current === value) {
-      delete filters.maxStops
+      delete filters.maxStops;
     } else {
-      filters.maxStops = value
+      filters.maxStops = value;
     }
 
-    return filters
-  })
-}
+    return filters;
+  });
+};
 
 const withSort = (state: SearchState, sort: string): SearchState => ({
   ...state,
   sort,
   page: 1,
-})
+});
 
 const withPage = (state: SearchState, page: number): SearchState => ({
   ...state,
   page,
-})
+});
 
 const buildPageLinks = (
   page: number,
   totalPages: number,
   toHref: (pageNumber: number) => string,
 ) => {
-  const links: { label: string; href: string; active?: boolean }[] = []
-  const start = Math.max(1, page - 2)
-  const end = Math.min(totalPages, start + 4)
+  const links: { label: string; href: string; active?: boolean }[] = [];
+  const start = Math.max(1, page - 2);
+  const end = Math.min(totalPages, start + 4);
 
   for (let current = start; current <= end; current += 1) {
     links.push({
       label: String(current),
       href: toHref(current),
       active: current === page,
-    })
+    });
   }
 
-  return links
-}
+  return links;
+};
 
 const stopLabel = (value: 0 | 1 | 2) => {
-  if (value === 0) return 'Nonstop'
-  if (value === 1) return 'Up to 1 stop'
-  return 'Up to 2 stops'
-}
+  if (value === 0) return "Nonstop";
+  if (value === 1) return "Up to 1 stop";
+  return "Up to 2 stops";
+};
+
+const toTravelerCount = (value: unknown) => {
+  const count = Number.parseInt(String(value || "").trim(), 10);
+  if (!Number.isFinite(count) || count < 1) return 1;
+  return Math.min(count, 9);
+};
 
 export const FlightsResultsAdapter = component$(
   (props: FlightsResultsAdapterProps) => {
@@ -203,165 +221,252 @@ export const FlightsResultsAdapter = component$(
       searchStateToUrl(props.basePath, nextState, {
         includeQueryParam: false,
         includeLocationParams: false,
-        dateParamKeys: { checkIn: 'depart', checkOut: 'return' },
-      })
+        dateParamKeys: { checkIn: "depart", checkOut: "return" },
+      });
 
-    const pageItems = props.results
-    const refreshHref = toHref(withPage(props.searchState, props.page))
+    const pageItems = props.results;
+    const travelers = toTravelerCount(props.searchState.filters?.travelers);
+    const refreshHref = toHref(withPage(props.searchState, props.page));
+    const refreshSnapshotId = `flight-results:${refreshHref}`;
     const visibleInventoryIds = pageItems.flatMap((result) =>
       result.itineraryId != null ? [result.itineraryId] : [],
-    )
-    const savedItems = useSignal<SavedItem[]>([])
-    const compareOpen = useSignal(false)
+    );
+    const priceDisplays = pageItems.map((result) =>
+      buildFlightPriceDisplay({
+        currencyCode: result.currency,
+        fare: result.price,
+        travelers,
+      }),
+    );
+    const savedItems = useSignal<SavedItem[]>([]);
+    const compareOpen = useSignal(false);
+    const refreshPriceChanges = useSignal<Record<string, PriceChange>>({});
+    const refreshPriceSummary = useSignal<string | null>(null);
 
-    const toSavedFlightItem = (result: FlightResult): SavedItem => ({
+    const toSavedFlightItem = (
+      result: FlightResult,
+      priceDisplay: ReturnType<typeof buildFlightPriceDisplay>,
+    ): SavedItem => ({
       id: result.id,
       vertical: FLIGHTS_VERTICAL,
       title: result.airline,
       subtitle: `${result.origin} → ${result.destination}`,
-      price: `${formatMoney(result.price, result.currency)} /traveler`,
+      price:
+        priceDisplay.baseTotalAmount != null
+          ? `${priceDisplay.baseTotalLabel} ${formatMoney(
+              priceDisplay.baseTotalAmount,
+              result.currency,
+            )}`
+          : `${priceDisplay.baseLabel} ${formatMoney(
+              priceDisplay.baseAmount,
+              result.currency,
+            )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`.trim(),
       meta: [
+        priceDisplay.baseTotalAmount != null
+          ? `${priceDisplay.baseLabel} ${formatMoney(
+              priceDisplay.baseAmount,
+              result.currency,
+            )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`
+          : "",
         `Depart ${result.departureTime}`,
         `Arrive ${result.arrivalTime}`,
         result.duration,
         result.stopsLabel,
-        result.cabinClass ? titleCase(result.cabinClass) : '',
+        result.cabinClass ? titleCase(result.cabinClass) : "",
       ].filter(Boolean),
-      href: props.flightCtaHref || props.editSearchHref || '/flights',
+      href: props.flightCtaHref || props.editSearchHref || "/flights",
       tripCandidate:
         result.itineraryId != null
           ? {
-              itemType: 'flight',
+              itemType: "flight",
               inventoryId: result.itineraryId,
               startDate: result.serviceDate,
               endDate: result.serviceDate,
-              priceCents: Math.round(result.price * 100),
+              priceCents: Math.round(
+                (priceDisplay.baseTotalAmount ?? priceDisplay.baseAmount ?? 0) *
+                  100,
+              ),
               currencyCode: result.currency,
               title: result.airline,
               subtitle: `${result.origin} → ${result.destination}`,
               meta: [
+                priceDisplay.baseTotalAmount != null
+                  ? `${priceDisplay.baseLabel} ${formatMoney(
+                      priceDisplay.baseAmount,
+                      result.currency,
+                    )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`
+                  : "",
                 `Depart ${result.departureTime}`,
                 `Arrive ${result.arrivalTime}`,
                 result.duration,
                 result.stopsLabel,
-                result.cabinClass ? titleCase(result.cabinClass) : '',
+                result.cabinClass ? titleCase(result.cabinClass) : "",
               ].filter(Boolean),
+              metadata: mergePriceDisplayMetadata(
+                undefined,
+                "flight",
+                priceDisplay,
+              ),
             }
           : undefined,
-    })
+    });
 
     // eslint-disable-next-line qwik/no-use-visible-task
     useVisibleTask$(({ cleanup }) => {
       const syncSaved = () => {
-        savedItems.value = loadSavedItems(FLIGHTS_VERTICAL)
-      }
+        savedItems.value = loadSavedItems(FLIGHTS_VERTICAL);
+      };
 
-      syncSaved()
+      syncSaved();
 
       const onStorage = (event: StorageEvent) => {
-        if (event.key && event.key !== SAVE_COMPARE_STORAGE_KEY) return
-        syncSaved()
+        if (event.key && event.key !== SAVE_COMPARE_STORAGE_KEY) return;
+        syncSaved();
+      };
+
+      window.addEventListener("storage", onStorage);
+      cleanup(() => window.removeEventListener("storage", onStorage));
+    });
+
+    // eslint-disable-next-line qwik/no-use-visible-task
+    useVisibleTask$(() => {
+      const previousEntries = consumeRefreshPriceSnapshot(refreshSnapshotId);
+      if (!previousEntries.length) {
+        refreshPriceChanges.value = {};
+        refreshPriceSummary.value = null;
+        return;
       }
 
-      window.addEventListener('storage', onStorage)
-      cleanup(() => window.removeEventListener('storage', onStorage))
-    })
+      const nextChanges = buildRefreshPriceChangeMap(
+        previousEntries,
+        pageItems.map((result) => ({
+          id: result.id,
+          amount: result.price,
+          currencyCode: result.currency,
+        })),
+        "Base fare",
+      );
+
+      refreshPriceChanges.value = nextChanges;
+      refreshPriceSummary.value = describePriceChangeCollection(
+        Object.values(nextChanges),
+      );
+    });
 
     const onToggleSave$ = $((item: SavedItem) => {
-      const next = toggleSavedItem(savedItems.value, item)
-      savedItems.value = next
-      persistSavedItems(FLIGHTS_VERTICAL, next)
-    })
+      const next = toggleSavedItem(savedItems.value, item);
+      savedItems.value = next;
+      persistSavedItems(FLIGHTS_VERTICAL, next);
+    });
 
     const onRemoveSaved$ = $((id: string) => {
-      const next = removeSavedItem(savedItems.value, id)
-      savedItems.value = next
-      persistSavedItems(FLIGHTS_VERTICAL, next)
-    })
+      const next = removeSavedItem(savedItems.value, id);
+      savedItems.value = next;
+      persistSavedItems(FLIGHTS_VERTICAL, next);
+    });
 
     const onClearSaved$ = $(() => {
-      const next = clearSavedCollection()
-      savedItems.value = next
-      persistSavedItems(FLIGHTS_VERTICAL, next)
-      compareOpen.value = false
-    })
+      const next = clearSavedCollection();
+      savedItems.value = next;
+      persistSavedItems(FLIGHTS_VERTICAL, next);
+      compareOpen.value = false;
+    });
 
     const onOpenCompare$ = $(() => {
-      if (!canOpenCompare(savedItems.value.length)) return
-      compareOpen.value = true
-    })
+      if (!canOpenCompare(savedItems.value.length)) return;
+      compareOpen.value = true;
+    });
 
     const onCloseCompare$ = $(() => {
-      compareOpen.value = false
-    })
+      compareOpen.value = false;
+    });
 
     const onRevalidateVisibleResults$ = $(async () => {
       if (!visibleInventoryIds.length) {
-        throw new Error('No visible flight inventory can be revalidated.')
+        throw new Error("No visible flight inventory can be revalidated.");
       }
 
+      storeRefreshPriceSnapshot(
+        refreshSnapshotId,
+        pageItems.map((result) => ({
+          id: result.id,
+          amount: result.price,
+          currencyCode: result.currency,
+        })),
+      );
+
       await revalidateInventoryApi({
-        itemType: 'flight',
+        itemType: "flight",
         inventoryIds: visibleInventoryIds,
-      })
-    })
+      });
+    });
 
-    const canCompare = canOpenCompare(savedItems.value.length)
+    const canCompare = canOpenCompare(savedItems.value.length);
 
-    const sortOptions: ResultsSortOption[] = FLIGHT_SORT_OPTIONS.map((option) => ({
-      label: option.label,
-      value: option.value,
-      active: props.activeSort === option.value,
-      href: toHref(withSort(props.searchState, option.value)),
-    }))
+    const sortOptions: ResultsSortOption[] = FLIGHT_SORT_OPTIONS.map(
+      (option) => ({
+        label: option.label,
+        value: option.value,
+        active: props.activeSort === option.value,
+        href: toHref(withSort(props.searchState, option.value)),
+      }),
+    );
 
     const stopFilters = props.filterFacets.maxStops.map((value) => ({
       label: stopLabel(value),
-      href: toHref(withMaxStopsToggle(props.searchState, String(value) as '0' | '1' | '2')),
+      href: toHref(
+        withMaxStopsToggle(props.searchState, String(value) as "0" | "1" | "2"),
+      ),
       active: props.selectedFilters.maxStops === value,
-    }))
+    }));
 
-    const departureFilters = props.filterFacets.departureWindows.map((window) => ({
-      label: titleCase(window),
-      href: toHref(withArrayToggle(props.searchState, 'departureWindow', window)),
-      active: props.selectedFilters.departureWindows.includes(window),
-    }))
+    const departureFilters = props.filterFacets.departureWindows.map(
+      (window) => ({
+        label: titleCase(window),
+        href: toHref(
+          withArrayToggle(props.searchState, "departureWindow", window),
+        ),
+        active: props.selectedFilters.departureWindows.includes(window),
+      }),
+    );
 
     const arrivalFilters = props.filterFacets.arrivalWindows.map((window) => ({
       label: titleCase(window),
-      href: toHref(withArrayToggle(props.searchState, 'arrivalWindow', window)),
+      href: toHref(withArrayToggle(props.searchState, "arrivalWindow", window)),
       active: props.selectedFilters.arrivalWindows.includes(window),
-    }))
+    }));
 
     const cabinFilters = props.filterFacets.cabinClasses.map((value) => ({
       label: titleCase(value),
-      href: toHref(withSingleToggle(props.searchState, 'cabin', value)),
+      href: toHref(withSingleToggle(props.searchState, "cabin", value)),
       active: props.selectedFilters.cabinClass === value,
-    }))
+    }));
 
     const priceBands: {
-      label: string
-      value: 'under-200' | '200-400' | '400-700' | '700-plus'
+      label: string;
+      value: "under-200" | "200-400" | "400-700" | "700-plus";
     }[] = [
-      { label: 'Under $200', value: 'under-200' },
-      { label: '$200–$400', value: '200-400' },
-      { label: '$400–$700', value: '400-700' },
-      { label: '$700+', value: '700-plus' },
-    ]
+      { label: "Under $200", value: "under-200" },
+      { label: "$200–$400", value: "200-400" },
+      { label: "$400–$700", value: "400-700" },
+      { label: "$700+", value: "700-plus" },
+    ];
 
     const priceFilters = priceBands.map((option) => ({
       label: option.label,
-      href: toHref(withSingleToggle(props.searchState, 'priceBand', option.value)),
+      href: toHref(
+        withSingleToggle(props.searchState, "priceBand", option.value),
+      ),
       active: props.selectedFilters.priceBand === option.value,
-    }))
+    }));
 
     const filterGroups: FlightFilterGroup[] = [
-      { title: 'Stops', options: stopFilters },
-      { title: 'Departure window', options: departureFilters },
-      { title: 'Arrival window', options: arrivalFilters },
-      { title: 'Cabin class', options: cabinFilters },
-      { title: 'Price band', options: priceFilters },
-    ].filter((group) => group.options.length > 0)
+      { title: "Stops", options: stopFilters },
+      { title: "Departure window", options: departureFilters },
+      { title: "Arrival window", options: arrivalFilters },
+      { title: "Cabin class", options: cabinFilters },
+      { title: "Price band", options: priceFilters },
+    ].filter((group) => group.options.length > 0);
 
     return (
       <ResultsShell
@@ -374,25 +479,27 @@ export const FlightsResultsAdapter = component$(
         )}
         editSearchHref={props.editSearchHref}
         refreshControl={{
-          id: `flight-results:${refreshHref}`,
-          mode: visibleInventoryIds.length ? 'action' : 'unsupported',
+          id: refreshSnapshotId,
+          mode: visibleInventoryIds.length ? "action" : "unsupported",
           onRefresh$: visibleInventoryIds.length
             ? onRevalidateVisibleResults$
             : undefined,
           reloadHref: refreshHref,
           reloadOnSuccess: true,
-          label: 'Refresh visible availability',
-          refreshingLabel: 'Refreshing...',
-          refreshedLabel: 'Availability refreshed',
-          failedLabel: 'Retry refresh',
-          unsupportedLabel: 'Refresh unavailable',
-          unsupportedMessage: 'No visible flight inventory can refresh availability right now.',
+          label: "Refresh visible availability",
+          refreshingLabel: "Refreshing...",
+          refreshedLabel: "Availability refreshed",
+          failedLabel: "Retry refresh",
+          unsupportedLabel: "Refresh unavailable",
+          unsupportedMessage:
+            "No visible flight inventory can refresh availability right now.",
           successMessage:
-            'Visible flight availability signals were refreshed from the latest stored inventory.',
-          failureMessage: 'Failed to refresh visible flight availability signals.',
+            "Visible flight availability was refreshed. Any fare changes are highlighted below.",
+          failureMessage:
+            "Failed to refresh visible flight availability signals.",
         }}
         filtersTitle="Flight filters"
-        resultCountLabel={`${props.totalCount.toLocaleString('en-US')} flights`}
+        resultCountLabel={`${props.totalCount.toLocaleString("en-US")} flights`}
         sortOptions={sortOptions}
         pagination={{
           page: props.page,
@@ -405,8 +512,10 @@ export const FlightsResultsAdapter = component$(
             props.page < props.totalPages
               ? toHref(withPage(props.searchState, props.page + 1))
               : undefined,
-          pageLinks: buildPageLinks(props.page, props.totalPages, (pageNumber) =>
-            toHref(withPage(props.searchState, pageNumber)),
+          pageLinks: buildPageLinks(
+            props.page,
+            props.totalPages,
+            (pageNumber) => toHref(withPage(props.searchState, pageNumber)),
           ),
         }}
         empty={
@@ -415,14 +524,14 @@ export const FlightsResultsAdapter = component$(
             : {
                 title: `No flights match this selection from ${props.fromLabel} to ${props.toLabel}`,
                 description:
-                  'Try removing a filter, changing sort, or broadening your route and dates.',
+                  "Try removing a filter, changing sort, or broadening your route and dates.",
                 primaryAction: props.emptyPrimaryAction || {
-                  label: 'Search flights again',
-                  href: '/flights',
+                  label: "Search flights again",
+                  href: "/flights",
                 },
                 secondaryAction: props.emptySecondaryAction || {
-                  label: 'Explore destinations',
-                  href: '/explore',
+                  label: "Explore destinations",
+                  href: "/explore",
                 },
               }
         }
@@ -430,20 +539,31 @@ export const FlightsResultsAdapter = component$(
         <FlightFilters q:slot="filters-desktop" groups={filterGroups} />
         <FlightFilters q:slot="filters-mobile" groups={filterGroups} />
 
+        {refreshPriceSummary.value ? (
+          <div class="mb-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
+            {refreshPriceSummary.value}
+          </div>
+        ) : null}
+
         <div class="grid gap-3">
-          {pageItems.map((result) => {
-            const savedItem = toSavedFlightItem(result)
+          {pageItems.map((result, index) => {
+            const priceDisplay = {
+              ...priceDisplays[index],
+              delta: refreshPriceChanges.value[result.id] || null,
+            };
+            const savedItem = toSavedFlightItem(result, priceDisplays[index]);
 
             return (
               <FlightCard
                 key={result.id}
                 result={result}
+                priceDisplay={priceDisplay}
                 ctaHref={props.flightCtaHref}
                 savedItem={savedItem}
                 isSaved={isItemSaved(savedItems.value, savedItem.id)}
                 onToggleSave$={onToggleSave$}
               />
-            )
+            );
           })}
         </div>
 
@@ -467,31 +587,31 @@ export const FlightsResultsAdapter = component$(
           onRemove$={onRemoveSaved$}
         />
       </ResultsShell>
-    )
+    );
   },
-)
+);
 
 type FlightsResultsAdapterProps = {
-  results: FlightResult[]
-  totalCount: number
-  page: number
-  totalPages: number
-  activeSort: FlightSortKey
-  selectedFilters: FlightsSelectedFilters
-  filterFacets: FlightSearchFacets
-  searchState: SearchState
-  fromLabel: string
-  toLabel: string
-  itineraryType: FlightItineraryTypeSlug
-  basePath: string
-  editSearchHref?: string
-  flightCtaHref?: string
+  results: FlightResult[];
+  totalCount: number;
+  page: number;
+  totalPages: number;
+  activeSort: FlightSortKey;
+  selectedFilters: FlightsSelectedFilters;
+  filterFacets: FlightSearchFacets;
+  searchState: SearchState;
+  fromLabel: string;
+  toLabel: string;
+  itineraryType: FlightItineraryTypeSlug;
+  basePath: string;
+  editSearchHref?: string;
+  flightCtaHref?: string;
   emptyPrimaryAction?: {
-    label: string
-    href: string
-  }
+    label: string;
+    href: string;
+  };
   emptySecondaryAction?: {
-    label: string
-    href: string
-  }
-}
+    label: string;
+    href: string;
+  };
+};

@@ -6,8 +6,20 @@ import { ResultsShell } from "~/components/results/ResultsShell";
 import { CompareDrawer } from "~/components/save-compare/CompareDrawer";
 import { CompareTray } from "~/components/save-compare/CompareTray";
 import type { ResultsSortOption } from "~/components/results/ResultsSort";
-import { formatMoney } from "~/lib/formatMoney";
 import { revalidateInventoryApi } from "~/lib/inventory/inventory-api";
+import {
+  buildCarPriceDisplay,
+  describePriceChangeCollection,
+  formatMoney,
+  formatPriceQualifier,
+  mergePriceDisplayMetadata,
+  type PriceChange,
+} from "~/lib/pricing/price-display";
+import {
+  buildRefreshPriceChangeMap,
+  consumeRefreshPriceSnapshot,
+  storeRefreshPriceSnapshot,
+} from "~/lib/pricing/refresh-price-snapshot";
 import { canOpenCompare } from "~/lib/save-compare/compare-state";
 import {
   clearSavedCollection,
@@ -18,6 +30,7 @@ import {
   toggleSavedItem,
 } from "~/lib/save-compare/saved-state";
 import { SAVE_COMPARE_STORAGE_KEY } from "~/lib/save-compare/storage";
+import { computeDays } from "~/lib/search/car-rentals/dates";
 import {
   CAR_RENTALS_SORT_OPTIONS,
   type CarRentalsSortKey,
@@ -191,13 +204,29 @@ const buildCarRentalDetailHrefWithDates = (
 const toSavedCarItem = (
   result: CarRentalResult,
   dates: SearchState["dates"],
+  priceDisplay: ReturnType<typeof buildCarPriceDisplay>,
 ): SavedItem => ({
   id: result.id,
   vertical: CARS_VERTICAL,
   title: result.name,
   subtitle: result.vehicleName || result.category || "Standard car",
-  price: `${formatMoney(result.priceFrom, result.currency)} /day`,
+  price:
+    priceDisplay.baseTotalAmount != null
+      ? `${priceDisplay.baseTotalLabel} ${formatMoney(
+          priceDisplay.baseTotalAmount,
+          result.currency,
+        )}`
+      : `${priceDisplay.baseLabel} ${formatMoney(
+          priceDisplay.baseAmount,
+          result.currency,
+        )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`.trim(),
   meta: [
+    priceDisplay.baseTotalAmount != null
+      ? `${priceDisplay.baseLabel} ${formatMoney(
+          priceDisplay.baseAmount,
+          result.currency,
+        )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`
+      : "",
     result.pickupArea,
     result.transmission || "",
     result.seats != null ? `${result.seats} seats` : "",
@@ -212,17 +241,27 @@ const toSavedCarItem = (
           inventoryId: result.inventoryId,
           startDate: dates?.checkIn,
           endDate: dates?.checkOut,
-          priceCents: Math.round(result.priceFrom * 100),
+          priceCents: Math.round(
+            (priceDisplay.baseTotalAmount ?? priceDisplay.baseAmount ?? 0) *
+              100,
+          ),
           currencyCode: result.currency,
           title: result.name,
           subtitle: result.vehicleName || result.category || "Standard car",
           imageUrl: result.image || undefined,
           meta: [
+            priceDisplay.baseTotalAmount != null
+              ? `${priceDisplay.baseLabel} ${formatMoney(
+                  priceDisplay.baseAmount,
+                  result.currency,
+                )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`
+              : "",
             result.pickupArea,
             result.transmission || "",
             result.seats != null ? `${result.seats} seats` : "",
             result.bags || "",
           ].filter(Boolean),
+          metadata: mergePriceDisplayMetadata(undefined, "car", priceDisplay),
         }
       : undefined,
 });
@@ -237,12 +276,26 @@ export const CarRentalsResultsAdapter = component$(
       });
 
     const pageItems = props.results;
+    const days = computeDays(
+      props.searchState.dates?.checkIn || null,
+      props.searchState.dates?.checkOut || null,
+    );
     const refreshHref = toHref(withPage(props.searchState, props.page));
+    const refreshSnapshotId = `car-results:${refreshHref}`;
     const visibleInventoryIds = pageItems.flatMap((result) =>
       result.inventoryId != null ? [result.inventoryId] : [],
     );
+    const priceDisplays = pageItems.map((result) =>
+      buildCarPriceDisplay({
+        currencyCode: result.currency,
+        dailyRate: result.priceFrom,
+        days,
+      }),
+    );
     const savedItems = useSignal<SavedItem[]>([]);
     const compareOpen = useSignal(false);
+    const refreshPriceChanges = useSignal<Record<string, PriceChange>>({});
+    const refreshPriceSummary = useSignal<string | null>(null);
 
     // eslint-disable-next-line qwik/no-use-visible-task
     useVisibleTask$(({ cleanup }) => {
@@ -259,6 +312,31 @@ export const CarRentalsResultsAdapter = component$(
 
       window.addEventListener("storage", onStorage);
       cleanup(() => window.removeEventListener("storage", onStorage));
+    });
+
+    // eslint-disable-next-line qwik/no-use-visible-task
+    useVisibleTask$(() => {
+      const previousEntries = consumeRefreshPriceSnapshot(refreshSnapshotId);
+      if (!previousEntries.length) {
+        refreshPriceChanges.value = {};
+        refreshPriceSummary.value = null;
+        return;
+      }
+
+      const nextChanges = buildRefreshPriceChangeMap(
+        previousEntries,
+        pageItems.map((result) => ({
+          id: result.id,
+          amount: result.priceFrom,
+          currencyCode: result.currency,
+        })),
+        "Daily rate",
+      );
+
+      refreshPriceChanges.value = nextChanges;
+      refreshPriceSummary.value = describePriceChangeCollection(
+        Object.values(nextChanges),
+      );
     });
 
     const onToggleSave$ = $((item: SavedItem) => {
@@ -294,6 +372,15 @@ export const CarRentalsResultsAdapter = component$(
         throw new Error("No visible car rental inventory can be revalidated.");
       }
 
+      storeRefreshPriceSnapshot(
+        refreshSnapshotId,
+        pageItems.map((result) => ({
+          id: result.id,
+          amount: result.priceFrom,
+          currencyCode: result.currency,
+        })),
+      );
+
       await revalidateInventoryApi({
         itemType: "car",
         inventoryIds: visibleInventoryIds,
@@ -317,28 +404,27 @@ export const CarRentalsResultsAdapter = component$(
       active: props.selectedFilters.vehicleClasses.includes(item.value),
     }));
 
-    const pickupTypeOptions = props.filterFacets.pickupTypes
-      .map((pickupType) => ({
+    const pickupTypeOptions = props.filterFacets.pickupTypes.map(
+      (pickupType) => ({
         label: pickupType === "airport" ? "Airport pickup" : "City pickup",
         href: toHref(withSingleToggle(props.searchState, "pickup", pickupType)),
         active: props.selectedFilters.pickupType === pickupType,
-      }));
+      }),
+    );
 
-    const transmissionOptions = props.filterFacets.transmissions
-      .map((kind) => ({
+    const transmissionOptions = props.filterFacets.transmissions.map(
+      (kind) => ({
         label: kind === "automatic" ? "Automatic" : "Manual",
         href: toHref(withSingleToggle(props.searchState, "transmission", kind)),
         active: props.selectedFilters.transmission === kind,
-      }));
+      }),
+    );
 
-    const seatOptions = props.filterFacets.seats
-      .map((seats) => ({
-        label: `${seats}+ seats`,
-        href: toHref(
-          withSingleToggle(props.searchState, "seats", String(seats)),
-        ),
-        active: props.selectedFilters.seatsMin === seats,
-      }));
+    const seatOptions = props.filterFacets.seats.map((seats) => ({
+      label: `${seats}+ seats`,
+      href: toHref(withSingleToggle(props.searchState, "seats", String(seats))),
+      active: props.selectedFilters.seatsMin === seats,
+    }));
 
     const priceBandOptions: {
       label: string;
@@ -378,7 +464,7 @@ export const CarRentalsResultsAdapter = component$(
           buildEditSearchHref(props.searchState, props.queryLabel)
         }
         refreshControl={{
-          id: `car-results:${refreshHref}`,
+          id: refreshSnapshotId,
           mode: visibleInventoryIds.length ? "action" : "unsupported",
           onRefresh$: visibleInventoryIds.length
             ? onRevalidateVisibleResults$
@@ -393,8 +479,9 @@ export const CarRentalsResultsAdapter = component$(
           unsupportedMessage:
             "No visible car rental inventory can refresh availability right now.",
           successMessage:
-            "Visible car rental availability signals were refreshed from the latest stored inventory.",
-          failureMessage: "Failed to refresh visible car rental availability signals.",
+            "Visible car rental availability was refreshed. Any daily-rate changes are highlighted below.",
+          failureMessage:
+            "Failed to refresh visible car rental availability signals.",
         }}
         filtersTitle="Car rental filters"
         resultCountLabel={`${props.totalCount.toLocaleString("en-US")} rentals`}
@@ -410,8 +497,10 @@ export const CarRentalsResultsAdapter = component$(
             props.page < props.totalPages
               ? toHref(withPage(props.searchState, props.page + 1))
               : undefined,
-          pageLinks: buildPageLinks(props.page, props.totalPages, (pageNumber) =>
-            toHref(withPage(props.searchState, pageNumber)),
+          pageLinks: buildPageLinks(
+            props.page,
+            props.totalPages,
+            (pageNumber) => toHref(withPage(props.searchState, pageNumber)),
           ),
         }}
         empty={
@@ -435,14 +524,29 @@ export const CarRentalsResultsAdapter = component$(
         <CarRentalFilters q:slot="filters-desktop" groups={filterGroups} />
         <CarRentalFilters q:slot="filters-mobile" groups={filterGroups} />
 
+        {refreshPriceSummary.value ? (
+          <div class="mb-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
+            {refreshPriceSummary.value}
+          </div>
+        ) : null}
+
         <div class="grid gap-3">
-          {pageItems.map((result) => {
-            const savedItem = toSavedCarItem(result, props.searchState.dates);
+          {pageItems.map((result, index) => {
+            const priceDisplay = {
+              ...priceDisplays[index],
+              delta: refreshPriceChanges.value[result.id] || null,
+            };
+            const savedItem = toSavedCarItem(
+              result,
+              props.searchState.dates,
+              priceDisplays[index],
+            );
 
             return (
               <CarRentalCard
                 key={result.id}
                 result={result}
+                priceDisplay={priceDisplay}
                 savedItem={savedItem}
                 isSaved={isItemSaved(savedItems.value, savedItem.id)}
                 onToggleSave$={onToggleSave$}

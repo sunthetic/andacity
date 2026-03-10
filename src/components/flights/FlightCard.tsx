@@ -1,6 +1,11 @@
 import { component$, type QRL } from "@builder.io/qwik";
 import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
-import { formatMoney } from "~/lib/formatMoney";
+import {
+  formatMoney,
+  formatPriceChange,
+  formatPriceQualifier,
+  type PriceDisplayContract,
+} from "~/lib/pricing/price-display";
 import { SaveButton } from "~/components/save-compare/SaveButton";
 import { AddToTripButton } from "~/components/trips/AddToTripButton";
 import type { FlightResult } from "~/types/flights/search";
@@ -31,7 +36,9 @@ export const FlightCard = component$((props: FlightCardProps) => {
           </div>
 
           <div class="mt-3">
-            <AvailabilityConfidence confidence={flight.availabilityConfidence} />
+            <AvailabilityConfidence
+              confidence={flight.availabilityConfidence}
+            />
           </div>
         </div>
 
@@ -54,12 +61,53 @@ export const FlightCard = component$((props: FlightCardProps) => {
             </div>
           ) : null}
 
-          <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-            {formatMoney(flight.price, flight.currency)}
-            <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">
-              /traveler
-            </span>
-          </p>
+          <div class="text-right">
+            <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+              {props.priceDisplay.baseLabel}{" "}
+              {formatMoney(props.priceDisplay.baseAmount, flight.currency)}
+              <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">
+                {formatPriceQualifier(props.priceDisplay.baseQualifier)}
+              </span>
+            </p>
+
+            {props.priceDisplay.baseTotalAmount != null ? (
+              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                {props.priceDisplay.baseTotalLabel}:{" "}
+                <span class="font-medium text-[color:var(--color-text)]">
+                  {formatMoney(
+                    props.priceDisplay.baseTotalAmount,
+                    flight.currency,
+                  )}
+                </span>
+                {props.priceDisplay.unitCountLabel ? (
+                  <span class="ml-1">
+                    ({props.priceDisplay.unitCountLabel})
+                  </span>
+                ) : null}
+              </p>
+            ) : null}
+
+            {props.priceDisplay.supportText ? (
+              <p class="mt-1 max-w-[220px] text-xs text-[color:var(--color-text-muted)]">
+                {props.priceDisplay.supportText}
+              </p>
+            ) : null}
+
+            {props.priceDisplay.delta &&
+            props.priceDisplay.delta.status !== "unchanged" &&
+            props.priceDisplay.delta.status !== "unavailable" ? (
+              <p
+                class={[
+                  "mt-1 text-xs font-medium",
+                  props.priceDisplay.delta.status === "increased"
+                    ? "text-[color:var(--color-error,#b91c1c)]"
+                    : "text-[color:var(--color-success,#0f766e)]",
+                ]}
+              >
+                {formatPriceChange(props.priceDisplay.delta, flight.currency)}
+              </p>
+            ) : null}
+          </div>
 
           <div class="mt-4">
             <a
@@ -84,6 +132,7 @@ const formatCabinClass = (value: string) => {
 
 type FlightCardProps = {
   result: FlightResult;
+  priceDisplay: PriceDisplayContract;
   ctaHref?: string;
   savedItem?: SavedItem;
   isSaved?: boolean;

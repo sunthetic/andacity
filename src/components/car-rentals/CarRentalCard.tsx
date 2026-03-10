@@ -1,7 +1,12 @@
 import { component$, type QRL } from "@builder.io/qwik";
 import type { CarRentalResult } from "~/types/car-rentals/search";
 import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
-import { formatMoney } from "~/lib/formatMoney";
+import {
+  formatMoney,
+  formatPriceChange,
+  formatPriceQualifier,
+  type PriceDisplayContract,
+} from "~/lib/pricing/price-display";
 import { SaveButton } from "~/components/save-compare/SaveButton";
 import { AddToTripButton } from "~/components/trips/AddToTripButton";
 import type { SavedItem } from "~/types/save-compare/saved-item";
@@ -62,12 +67,48 @@ export const CarRentalCard = component$((props: CarRentalCardProps) => {
                 </div>
               ) : null}
 
-              <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                {formatMoney(r.priceFrom, r.currency)}
-                <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">
-                  /day
-                </span>
-              </p>
+              <div class="text-right">
+                <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                  {props.priceDisplay.baseLabel}{" "}
+                  {formatMoney(props.priceDisplay.baseAmount, r.currency)}
+                  <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">
+                    {formatPriceQualifier(props.priceDisplay.baseQualifier)}
+                  </span>
+                </p>
+
+                {props.priceDisplay.baseTotalAmount != null ? (
+                  <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                    {props.priceDisplay.baseTotalLabel}:{" "}
+                    <span class="font-medium text-[color:var(--color-text)]">
+                      {formatMoney(
+                        props.priceDisplay.baseTotalAmount,
+                        r.currency,
+                      )}
+                    </span>
+                  </p>
+                ) : null}
+
+                {props.priceDisplay.supportText ? (
+                  <p class="mt-1 max-w-[220px] text-xs text-[color:var(--color-text-muted)]">
+                    {props.priceDisplay.supportText}
+                  </p>
+                ) : null}
+
+                {props.priceDisplay.delta &&
+                props.priceDisplay.delta.status !== "unchanged" &&
+                props.priceDisplay.delta.status !== "unavailable" ? (
+                  <p
+                    class={[
+                      "mt-1 text-xs font-medium",
+                      props.priceDisplay.delta.status === "increased"
+                        ? "text-[color:var(--color-error,#b91c1c)]"
+                        : "text-[color:var(--color-success,#0f766e)]",
+                    ]}
+                  >
+                    {formatPriceChange(props.priceDisplay.delta, r.currency)}
+                  </p>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -109,6 +150,7 @@ export const CarRentalCard = component$((props: CarRentalCardProps) => {
 
 type CarRentalCardProps = {
   result: CarRentalResult;
+  priceDisplay: PriceDisplayContract;
   savedItem?: SavedItem;
   isSaved?: boolean;
   onToggleSave$?: QRL<(item: SavedItem) => void>;

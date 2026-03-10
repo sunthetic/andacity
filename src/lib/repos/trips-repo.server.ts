@@ -4,6 +4,10 @@ import { getDb } from '~/lib/db/client.server'
 import { buildAvailabilityConfidence } from '~/lib/inventory/availability-confidence'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import {
+  readStoredPriceDisplayMetadata,
+  resolveComparablePriceCents,
+} from '~/lib/pricing/price-display'
+import {
   airlines,
   carInventory,
   carLocations,
@@ -374,6 +378,13 @@ const getPriceDriftCents = (
 }
 
 const summarizePricingGroup = (items: TripItem[]) => {
+  const hasPartialPricing = items.some((item) => {
+    const storedPrice = readStoredPriceDisplayMetadata(item.metadata)
+    if (!storedPrice) return item.itemType === 'hotel' || item.itemType === 'car'
+    if (item.itemType !== 'hotel' && item.itemType !== 'car') return false
+    return storedPrice.baseTotalAmountCents == null
+  })
+
   if (!items.length) {
     return {
       currencyCode: DEFAULT_CURRENCY,
@@ -381,6 +392,7 @@ const summarizePricingGroup = (items: TripItem[]) => {
       currentTotalCents: 0,
       priceDeltaCents: 0,
       hasMixedCurrencies: false,
+      hasPartialPricing: false,
     }
   }
 
@@ -416,6 +428,7 @@ const summarizePricingGroup = (items: TripItem[]) => {
         ? currentTotalCents - snapshotTotalCents
         : null,
     hasMixedCurrencies,
+    hasPartialPricing,
   }
 }
 
@@ -437,6 +450,7 @@ const buildTripPricingSummary = (items: TripItem[]): TripPricingSummary => {
       currentSubtotalCents: totals.currentTotalCents,
       priceDeltaCents: totals.priceDeltaCents,
       hasMixedCurrencies: totals.hasMixedCurrencies,
+      hasPartialPricing: totals.hasPartialPricing,
     }
   }).filter((vertical) => vertical.itemCount > 0)
 
@@ -448,6 +462,7 @@ const buildTripPricingSummary = (items: TripItem[]): TripPricingSummary => {
     currentTotalCents: totals.currentTotalCents,
     priceDeltaCents: totals.priceDeltaCents,
     hasMixedCurrencies: totals.hasMixedCurrencies,
+    hasPartialPricing: totals.hasPartialPricing,
     driftCounts,
     verticals,
   }
@@ -850,12 +865,13 @@ const readTripItems = async (tripId: number): Promise<TripItemRecord[]> => {
     .orderBy(asc(tripItems.position), asc(tripItems.id))
 
   return rows.map((row) => {
-    const currentPriceCents =
+    const metadata = normalizeMetadata(row.metadata)
+    const comparableCurrentPriceCents =
       row.itemType === 'hotel'
-        ? row.currentHotelPriceCents
+        ? resolveComparablePriceCents(row.currentHotelPriceCents, metadata)
         : row.itemType === 'car'
-          ? row.currentCarPriceCents
-          : row.currentFlightPriceCents
+          ? resolveComparablePriceCents(row.currentCarPriceCents, metadata)
+          : resolveComparablePriceCents(row.currentFlightPriceCents, metadata)
 
     const currentCurrencyCode =
       row.itemType === 'hotel'
@@ -882,23 +898,28 @@ const readTripItems = async (tripId: number): Promise<TripItemRecord[]> => {
       snapshotCurrencyCode: snapshotCurrencyCode,
       snapshotTimestamp: toIsoTimestamp(row.snapshotTimestamp),
       currentPriceCents:
-        currentPriceCents == null ? null : normalizePriceCents(currentPriceCents, currentPriceCents),
+        comparableCurrentPriceCents == null
+          ? null
+          : normalizePriceCents(
+              comparableCurrentPriceCents,
+              comparableCurrentPriceCents,
+            ),
       currentCurrencyCode: normalizedCurrentCurrencyCode,
       priceDriftStatus: getPriceDriftStatus(
         row.snapshotPriceCents,
         snapshotCurrencyCode,
-        currentPriceCents,
+        comparableCurrentPriceCents,
         normalizedCurrentCurrencyCode,
       ),
       priceDriftCents: getPriceDriftCents(
         row.snapshotPriceCents,
         snapshotCurrencyCode,
-        currentPriceCents,
+        comparableCurrentPriceCents,
         normalizedCurrentCurrencyCode,
       ),
       imageUrl: row.imageUrl,
       meta: normalizeMeta(row.meta),
-      metadata: normalizeMetadata(row.metadata),
+      metadata,
       hotelId: row.hotelId,
       flightItineraryId: row.flightItineraryId,
       carInventoryId: row.carInventoryId,

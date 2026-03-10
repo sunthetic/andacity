@@ -1,3 +1,11 @@
+import {
+  buildCarPriceDisplay,
+  buildFlightPriceDisplay,
+  buildHotelPriceDisplay,
+  mergePriceDisplayMetadata,
+} from '~/lib/pricing/price-display'
+import { computeDays } from '~/lib/search/car-rentals/dates'
+import { computeNights } from '~/lib/search/hotels/dates'
 import { addDays } from '~/lib/trips/date-utils'
 import { recommendationQueryHelpers } from '~/lib/trips/recommendation-query-helpers.server'
 import {
@@ -81,18 +89,30 @@ const buildHotelSuggestion = async (
   if (!inventory) return null
 
   const suggestionType = toSuggestionType(gap.gapType)
+  const priceDisplay = buildHotelPriceDisplay({
+    currencyCode: inventory.currencyCode,
+    nightlyRate: inventory.priceCents / 100,
+    nights: computeNights(gap.startDate, gap.endDate),
+  })
   const tripCandidate: TripItemCandidate = {
     itemType: 'hotel',
     inventoryId: inventory.inventoryId,
     startDate: gap.startDate,
     endDate: gap.endDate,
-    priceCents: inventory.priceCents,
+    priceCents:
+      Math.round(
+        (priceDisplay.baseTotalAmount ?? priceDisplay.baseAmount ?? 0) * 100,
+      ) || inventory.priceCents,
     currencyCode: inventory.currencyCode,
     title: inventory.title,
     subtitle: inventory.subtitle || undefined,
     imageUrl: inventory.imageUrl || undefined,
     meta: inventory.meta,
-    metadata: buildSuggestionCandidateMetadata(gap, suggestionType, generatedAt),
+    metadata: mergePriceDisplayMetadata(
+      buildSuggestionCandidateMetadata(gap, suggestionType, generatedAt),
+      'hotel',
+      priceDisplay,
+    ),
   }
 
   return {
@@ -130,18 +150,30 @@ const buildCarSuggestion = async (
   if (!inventory) return null
 
   const suggestionType = toSuggestionType(gap.gapType)
+  const priceDisplay = buildCarPriceDisplay({
+    currencyCode: inventory.currencyCode,
+    dailyRate: inventory.priceCents / 100,
+    days: computeDays(gap.startDate, dropoffDate),
+  })
   const tripCandidate: TripItemCandidate = {
     itemType: 'car',
     inventoryId: inventory.inventoryId,
     startDate: gap.startDate,
     endDate: dropoffDate,
-    priceCents: inventory.priceCents,
+    priceCents:
+      Math.round(
+        (priceDisplay.baseTotalAmount ?? priceDisplay.baseAmount ?? 0) * 100,
+      ) || inventory.priceCents,
     currencyCode: inventory.currencyCode,
     title: inventory.title,
     subtitle: inventory.subtitle || undefined,
     imageUrl: inventory.imageUrl || undefined,
     meta: inventory.meta,
-    metadata: buildSuggestionCandidateMetadata(gap, suggestionType, generatedAt),
+    metadata: mergePriceDisplayMetadata(
+      buildSuggestionCandidateMetadata(gap, suggestionType, generatedAt),
+      'car',
+      priceDisplay,
+    ),
   }
 
   return {
@@ -179,17 +211,29 @@ const buildFlightSuggestion = async (
 
   const serviceDate = inventory.serviceDate || gap.startDate
   const suggestionType = toSuggestionType(gap.gapType)
+  const priceDisplay = buildFlightPriceDisplay({
+    currencyCode: inventory.currencyCode,
+    fare: inventory.priceCents / 100,
+    travelers: 1,
+  })
   const tripCandidate: TripItemCandidate = {
     itemType: 'flight',
     inventoryId: inventory.inventoryId,
     startDate: serviceDate,
     endDate: serviceDate,
-    priceCents: inventory.priceCents,
+    priceCents:
+      Math.round(
+        (priceDisplay.baseTotalAmount ?? priceDisplay.baseAmount ?? 0) * 100,
+      ) || inventory.priceCents,
     currencyCode: inventory.currencyCode,
     title: inventory.title,
     subtitle: inventory.subtitle || undefined,
     meta: inventory.meta,
-    metadata: buildSuggestionCandidateMetadata(gap, suggestionType, generatedAt),
+    metadata: mergePriceDisplayMetadata(
+      buildSuggestionCandidateMetadata(gap, suggestionType, generatedAt),
+      'flight',
+      priceDisplay,
+    ),
   }
 
   return {

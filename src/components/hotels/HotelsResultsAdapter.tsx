@@ -9,6 +9,18 @@ import type { ResultsSortOption } from "~/components/results/ResultsSort";
 import type { HotelCity } from "~/data/hotel-cities";
 import type { Hotel } from "~/data/hotels";
 import { revalidateInventoryApi } from "~/lib/inventory/inventory-api";
+import {
+  buildHotelPriceDisplay,
+  describePriceChangeCollection,
+  formatPriceQualifier,
+  mergePriceDisplayMetadata,
+  type PriceChange,
+} from "~/lib/pricing/price-display";
+import {
+  buildRefreshPriceChangeMap,
+  consumeRefreshPriceSnapshot,
+  storeRefreshPriceSnapshot,
+} from "~/lib/pricing/refresh-price-snapshot";
 import { canOpenCompare } from "~/lib/save-compare/compare-state";
 import {
   clearSavedCollection,
@@ -19,6 +31,7 @@ import {
   toggleSavedItem,
 } from "~/lib/save-compare/saved-state";
 import { SAVE_COMPARE_STORAGE_KEY } from "~/lib/save-compare/storage";
+import { computeNights } from "~/lib/search/hotels/dates";
 import { searchStateToUrl } from "~/lib/search/state-to-url";
 import { formatMoney } from "~/lib/formatMoney";
 import type { SavedItem } from "~/types/save-compare/saved-item";
@@ -215,17 +228,39 @@ const buildHotelDetailHrefWithDates = (
 const toSavedHotelItem = (
   hotel: Hotel,
   dates: SearchState["dates"],
+  priceDisplay: ReturnType<typeof buildHotelPriceDisplay>,
 ): SavedItem => ({
   id: hotel.slug,
   vertical: HOTELS_VERTICAL,
   title: hotel.name,
   subtitle: `${hotel.neighborhood} · ${hotel.stars}★ · ${hotel.rating.toFixed(1)}`,
-  price: `${formatMoney(hotel.fromNightly, hotel.currency)} /night`,
+  price:
+    priceDisplay.baseTotalAmount != null
+      ? `${priceDisplay.baseTotalLabel} ${formatMoney(
+          priceDisplay.baseTotalAmount,
+          hotel.currency,
+        )}`
+      : `${priceDisplay.baseLabel} ${formatMoney(
+          priceDisplay.baseAmount,
+          hotel.currency,
+        )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`.trim(),
   meta: [
+    priceDisplay.baseTotalAmount != null
+      ? `${priceDisplay.baseLabel} ${formatMoney(
+          priceDisplay.baseAmount,
+          hotel.currency,
+        )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`
+      : "",
+    priceDisplay.totalAmount != null
+      ? `${priceDisplay.totalLabel} ${formatMoney(
+          priceDisplay.totalAmount,
+          hotel.currency,
+        )}`
+      : "",
     `${hotel.reviewCount.toLocaleString("en-US")} reviews`,
     ...(hotel.policies.freeCancellation ? ["Free cancellation"] : []),
     ...(hotel.policies.payLater ? ["Pay later"] : []),
-  ],
+  ].filter(Boolean),
   href: buildHotelDetailHref(hotel.slug),
   image: hotel.images[0] || undefined,
   tripCandidate:
@@ -235,16 +270,32 @@ const toSavedHotelItem = (
           inventoryId: hotel.inventoryId,
           startDate: dates?.checkIn,
           endDate: dates?.checkOut,
-          priceCents: Math.round(hotel.fromNightly * 100),
+          priceCents: Math.round(
+            (priceDisplay.baseTotalAmount ?? priceDisplay.baseAmount ?? 0) *
+              100,
+          ),
           currencyCode: hotel.currency,
           title: hotel.name,
           subtitle: `${hotel.neighborhood} · ${hotel.stars}★`,
           imageUrl: hotel.images[0] || undefined,
           meta: [
+            priceDisplay.baseTotalAmount != null
+              ? `${priceDisplay.baseLabel} ${formatMoney(
+                  priceDisplay.baseAmount,
+                  hotel.currency,
+                )} ${formatPriceQualifier(priceDisplay.baseQualifier)}`
+              : "",
+            priceDisplay.totalAmount != null
+              ? `${priceDisplay.totalLabel} ${formatMoney(
+                  priceDisplay.totalAmount,
+                  hotel.currency,
+                )}`
+              : "",
             `${hotel.reviewCount.toLocaleString("en-US")} reviews`,
             ...(hotel.policies.freeCancellation ? ["Free cancellation"] : []),
             ...(hotel.policies.payLater ? ["Pay later"] : []),
-          ],
+          ].filter(Boolean),
+          metadata: mergePriceDisplayMetadata(undefined, "hotel", priceDisplay),
         }
       : undefined,
 });
@@ -351,12 +402,26 @@ export const HotelsResultsAdapter = component$(
     const page = clampPage(requestedPage, totalPages);
     const offset = (page - 1) * PAGE_SIZE;
     const pageItems = sortedHotels.slice(offset, offset + PAGE_SIZE);
+    const nights = computeNights(
+      props.searchState.dates?.checkIn || null,
+      props.searchState.dates?.checkOut || null,
+    );
     const refreshHref = toHref(withPage(props.searchState, page));
+    const refreshSnapshotId = `hotel-results:${refreshHref}`;
     const visibleInventoryIds = pageItems.flatMap((hotel) =>
       hotel.inventoryId != null ? [hotel.inventoryId] : [],
     );
+    const priceDisplays = pageItems.map((hotel) =>
+      buildHotelPriceDisplay({
+        currencyCode: hotel.currency,
+        nightlyRate: hotel.fromNightly,
+        nights,
+      }),
+    );
     const savedItems = useSignal<SavedItem[]>([]);
     const compareOpen = useSignal(false);
+    const refreshPriceChanges = useSignal<Record<string, PriceChange>>({});
+    const refreshPriceSummary = useSignal<string | null>(null);
 
     // eslint-disable-next-line qwik/no-use-visible-task
     useVisibleTask$(({ cleanup }) => {
@@ -373,6 +438,31 @@ export const HotelsResultsAdapter = component$(
 
       window.addEventListener("storage", onStorage);
       cleanup(() => window.removeEventListener("storage", onStorage));
+    });
+
+    // eslint-disable-next-line qwik/no-use-visible-task
+    useVisibleTask$(() => {
+      const previousEntries = consumeRefreshPriceSnapshot(refreshSnapshotId);
+      if (!previousEntries.length) {
+        refreshPriceChanges.value = {};
+        refreshPriceSummary.value = null;
+        return;
+      }
+
+      const nextChanges = buildRefreshPriceChangeMap(
+        previousEntries,
+        pageItems.map((hotel) => ({
+          id: hotel.slug,
+          amount: hotel.fromNightly,
+          currencyCode: hotel.currency,
+        })),
+        "Nightly rate",
+      );
+
+      refreshPriceChanges.value = nextChanges;
+      refreshPriceSummary.value = describePriceChangeCollection(
+        Object.values(nextChanges),
+      );
     });
 
     const onToggleSave$ = $((item: SavedItem) => {
@@ -407,6 +497,15 @@ export const HotelsResultsAdapter = component$(
       if (!visibleInventoryIds.length) {
         throw new Error("No visible hotel inventory can be revalidated.");
       }
+
+      storeRefreshPriceSnapshot(
+        refreshSnapshotId,
+        pageItems.map((hotel) => ({
+          id: hotel.slug,
+          amount: hotel.fromNightly,
+          currencyCode: hotel.currency,
+        })),
+      );
 
       await revalidateInventoryApi({
         itemType: "hotel",
@@ -487,7 +586,7 @@ export const HotelsResultsAdapter = component$(
           props.searchState.dates,
         )}
         refreshControl={{
-          id: `hotel-results:${refreshHref}`,
+          id: refreshSnapshotId,
           mode: visibleInventoryIds.length ? "action" : "unsupported",
           onRefresh$: visibleInventoryIds.length
             ? onRevalidateVisibleResults$
@@ -499,10 +598,12 @@ export const HotelsResultsAdapter = component$(
           refreshedLabel: "Availability refreshed",
           failedLabel: "Retry refresh",
           unsupportedLabel: "Refresh unavailable",
-          unsupportedMessage: "No visible hotel inventory can refresh availability right now.",
+          unsupportedMessage:
+            "No visible hotel inventory can refresh availability right now.",
           successMessage:
-            "Visible hotel availability signals were refreshed from the latest stored inventory.",
-          failureMessage: "Failed to refresh visible hotel availability signals.",
+            "Visible hotel availability was refreshed. Any nightly-rate changes are highlighted below.",
+          failureMessage:
+            "Failed to refresh visible hotel availability signals.",
         }}
         filtersTitle="Hotel filters"
         resultCountLabel={`${sortedHotels.length.toLocaleString("en-US")} stays`}
@@ -540,14 +641,29 @@ export const HotelsResultsAdapter = component$(
         <HotelFilters q:slot="filters-desktop" groups={filterGroups} />
         <HotelFilters q:slot="filters-mobile" groups={filterGroups} />
 
+        {refreshPriceSummary.value ? (
+          <div class="mb-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
+            {refreshPriceSummary.value}
+          </div>
+        ) : null}
+
         <div class="grid gap-3 sm:grid-cols-2">
-          {pageItems.map((hotel) => {
-            const savedItem = toSavedHotelItem(hotel, props.searchState.dates);
+          {pageItems.map((hotel, index) => {
+            const priceDisplay = {
+              ...priceDisplays[index],
+              delta: refreshPriceChanges.value[hotel.slug] || null,
+            };
+            const savedItem = toSavedHotelItem(
+              hotel,
+              props.searchState.dates,
+              priceDisplays[index],
+            );
 
             return (
               <HotelCard
                 key={hotel.slug}
                 hotel={hotel}
+                priceDisplay={priceDisplay}
                 savedItem={savedItem}
                 isSaved={isItemSaved(savedItems.value, savedItem.id)}
                 onToggleSave$={onToggleSave$}

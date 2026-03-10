@@ -3,7 +3,12 @@ import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfi
 import { SaveButton } from "~/components/save-compare/SaveButton";
 import { AddToTripButton } from "~/components/trips/AddToTripButton";
 import type { Hotel } from "~/data/hotels";
-import { formatMoney } from "~/lib/formatMoney";
+import {
+  formatMoney,
+  formatPriceChange,
+  formatPriceQualifier,
+  type PriceDisplayContract,
+} from "~/lib/pricing/price-display";
 import type { SavedItem } from "~/types/save-compare/saved-item";
 
 export const HotelCard = component$((props: HotelCardProps) => {
@@ -54,11 +59,65 @@ export const HotelCard = component$((props: HotelCardProps) => {
               <AddToTripButton item={props.savedItem} />
             ) : null}
 
-            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-              {formatMoney(h.fromNightly, h.currency)}
-              <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">
-                /night
-              </span>
+            <div class="text-right">
+              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                {props.priceDisplay.baseLabel}{" "}
+                {formatMoney(props.priceDisplay.baseAmount, h.currency)}
+                <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">
+                  {formatPriceQualifier(props.priceDisplay.baseQualifier)}
+                </span>
+              </div>
+
+              {props.priceDisplay.baseTotalAmount != null ? (
+                <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                  {props.priceDisplay.baseTotalLabel}:{" "}
+                  <span class="font-medium text-[color:var(--color-text)]">
+                    {formatMoney(
+                      props.priceDisplay.baseTotalAmount,
+                      h.currency,
+                    )}
+                  </span>
+                </div>
+              ) : null}
+
+              {props.priceDisplay.totalAmount != null &&
+              props.priceDisplay.estimatedFeesAmount != null ? (
+                <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                  {props.priceDisplay.totalLabel}:{" "}
+                  <span class="font-medium text-[color:var(--color-text)]">
+                    {formatMoney(props.priceDisplay.totalAmount, h.currency)}
+                  </span>
+                  <span class="ml-1">
+                    incl.{" "}
+                    {formatMoney(
+                      props.priceDisplay.estimatedFeesAmount,
+                      h.currency,
+                    )}{" "}
+                    est.
+                  </span>
+                </div>
+              ) : null}
+
+              {props.priceDisplay.supportText ? (
+                <div class="mt-1 max-w-[220px] text-xs text-[color:var(--color-text-muted)]">
+                  {props.priceDisplay.supportText}
+                </div>
+              ) : null}
+
+              {props.priceDisplay.delta &&
+              props.priceDisplay.delta.status !== "unchanged" &&
+              props.priceDisplay.delta.status !== "unavailable" ? (
+                <div
+                  class={[
+                    "mt-1 text-xs font-medium",
+                    props.priceDisplay.delta.status === "increased"
+                      ? "text-[color:var(--color-error,#b91c1c)]"
+                      : "text-[color:var(--color-success,#0f766e)]",
+                  ]}
+                >
+                  {formatPriceChange(props.priceDisplay.delta, h.currency)}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -86,6 +145,7 @@ export const HotelCard = component$((props: HotelCardProps) => {
 
 type HotelCardProps = {
   hotel: Hotel;
+  priceDisplay: PriceDisplayContract;
   savedItem?: SavedItem;
   isSaved?: boolean;
   onToggleSave$?: QRL<(item: SavedItem) => void>;
