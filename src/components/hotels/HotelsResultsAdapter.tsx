@@ -119,10 +119,9 @@ const hotelValueScore = (hotel: Hotel) => {
     (hotel.policies.payLater ? 12 : 0);
 
   return (
-    hotel.rating * 100 +
-    hotel.stars * 22 +
-    policyBonus
-  ) / Math.max(hotel.fromNightly, 1);
+    (hotel.rating * 100 + hotel.stars * 22 + policyBonus) /
+    Math.max(hotel.fromNightly, 1)
+  );
 };
 
 const matchesPropertyType = (hotel: Hotel, propertyType: string) => {
@@ -308,7 +307,10 @@ export const HotelsResultsAdapter = component$(
 
     const rawFilters = props.searchState.filters || {};
     const preservedFilterKeys = Object.keys(rawFilters).filter(
-      (key) => !HOTEL_RESULTS_FILTER_KEYS.includes(key as (typeof HOTEL_RESULTS_FILTER_KEYS)[number]),
+      (key) =>
+        !HOTEL_RESULTS_FILTER_KEYS.includes(
+          key as (typeof HOTEL_RESULTS_FILTER_KEYS)[number],
+        ),
     );
     const selectedStarMin = toMaybeNumber(rawFilters.starsMin);
     const selectedPriceTier = normalizeToken(String(rawFilters.price || "")) as
@@ -501,12 +503,14 @@ export const HotelsResultsAdapter = component$(
 
     const canCompare = canOpenCompare(savedItems.value.length);
 
-    const sortOptions: ResultsSortOption[] = HOTEL_SORT_OPTIONS.map((option) => ({
-      label: option.label,
-      value: option.value,
-      active: activeSort === option.value,
-      href: toHref(withSearchStateSort(props.searchState, option.value)),
-    }));
+    const sortOptions: ResultsSortOption[] = HOTEL_SORT_OPTIONS.map(
+      (option) => ({
+        label: option.label,
+        value: option.value,
+        active: activeSort === option.value,
+        href: toHref(withSearchStateSort(props.searchState, option.value)),
+      }),
+    );
 
     const starFilterOptions = [3, 4, 5].map((stars) => ({
       label: `${stars}+ stars`,
@@ -698,7 +702,7 @@ export const HotelsResultsAdapter = component$(
           </div>
         ) : null}
 
-        <div class="grid gap-3 sm:grid-cols-2">
+        <div class="grid gap-3">
           {pageItems.map((hotel, index) => {
             const priceDisplay = {
               ...priceDisplays[index],
@@ -715,6 +719,7 @@ export const HotelsResultsAdapter = component$(
                 key={hotel.slug}
                 hotel={hotel}
                 priceDisplay={priceDisplay}
+                activeSort={activeSort}
                 savedItem={savedItem}
                 isSaved={isItemSaved(savedItems.value, savedItem.id)}
                 onToggleSave$={onToggleSave$}

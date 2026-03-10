@@ -280,7 +280,7 @@ export const buildHotelPriceDisplay = (input: {
     totalLabel: totalAmount == null ? null : 'Estimated total',
     supportText:
       toNullableLabel(input.supportText) ||
-      'Base room rate shown first. Taxes and fees are estimated from current policy data.',
+      'Taxes and fees are estimated from current policy data.',
     delta: buildPriceChange({
       label: 'Nightly rate',
       previousAmount: input.previousNightlyRate,

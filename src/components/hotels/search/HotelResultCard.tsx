@@ -1,15 +1,23 @@
 import { component$ } from "@builder.io/qwik";
-import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import {
-  buildHotelPriceDisplay,
-  formatMoney,
-  formatPriceChange,
-  formatPriceQualifier,
-} from "~/lib/pricing/price-display";
+  ResultCardScaffold,
+  ResultFactList,
+  ResultPricePanel,
+  ResultReasonCallout,
+  ResultTrustBar,
+} from "~/components/results/ResultCardScaffold";
+import { buildHotelWhyThis } from "~/components/results/result-card-copy";
+import { buildHotelPriceDisplay } from "~/lib/pricing/price-display";
 import type { HotelResultCardProps } from "~/types/hotels/search";
 
 export const HotelResultCard = component$(
-  ({ h, nights, detailHref, priceDisplay }: HotelResultCardProps) => {
+  ({
+    h,
+    nights,
+    detailHref,
+    priceDisplay,
+    activeSort,
+  }: HotelResultCardProps) => {
     const display =
       priceDisplay ||
       buildHotelPriceDisplay({
@@ -17,135 +25,116 @@ export const HotelResultCard = component$(
         nightlyRate: h.priceFrom,
         nights,
       });
+    const href = detailHref || `/hotels/${encodeURIComponent(h.slug)}`;
+    const whyThis = buildHotelWhyThis(
+      {
+        rating: h.rating,
+        reviewCount: h.reviewCount,
+        priceFrom: h.priceFrom,
+        stars: h.stars,
+        freeCancellation: h.refundable,
+        payLater: h.badges.some((badge) => badge.toLowerCase() === "pay later"),
+      },
+      activeSort,
+    );
+    const amenityHighlights = h.amenities.slice(0, 3).join(" · ");
 
     return (
-      <a
-        class="t-card block overflow-hidden hover:bg-white"
-        href={detailHref || `/hotels/${encodeURIComponent(h.slug)}`}
+      <ResultCardScaffold
+        hasMedia={true}
+        hasFacts={true}
+        hasDetails={Boolean(amenityHighlights)}
+        hasWhyThis={Boolean(whyThis)}
+        hasPrice={true}
+        hasPrimaryAction={true}
+        hasTrust={Boolean(h.availabilityConfidence || h.freshness)}
       >
-        <div class="grid gap-0 lg:grid-cols-[220px_1fr]">
-          <div class="bg-[color:var(--color-neutral-50)]">
-            <img
-              class="h-44 w-full object-cover lg:h-full"
-              src={h.image}
-              alt={h.name}
-              loading="lazy"
-              width={640}
-              height={352}
-            />
-          </div>
+        <a q:slot="media" class="block h-full" href={href}>
+          <img
+            class="h-48 w-full object-cover md:h-full"
+            src={h.image}
+            alt={h.name}
+            loading="lazy"
+            width={640}
+            height={352}
+          />
+        </a>
 
-          <div class="p-5">
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <div class="text-base font-semibold text-[color:var(--color-text-strong)]">
-                  {h.name}
-                </div>
-                <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                  {h.neighborhood} · {h.stars}★ · {h.rating.toFixed(1)} ★ (
-                  {h.reviewCount.toLocaleString("en-US")})
-                </div>
-
-                <div class="mt-3 flex flex-wrap gap-2">
-                  {h.refundable ? (
-                    <span class="t-badge t-badge--deal">Free cancellation</span>
-                  ) : (
-                    <span class="t-badge">Non-refundable</span>
-                  )}
-                  {h.badges.slice(0, 2).map((b) => (
-                    <span key={b} class="t-badge">
-                      {b}
-                    </span>
-                  ))}
-                </div>
-
-                <div class="mt-4 text-sm text-[color:var(--color-text-muted)]">
-                  <span class="font-medium text-[color:var(--color-text)]">
-                    Top amenities:
-                  </span>{" "}
-                  {h.amenities.slice(0, 4).join(" · ")}
-                </div>
-              </div>
-
-              <div class="text-right">
-                <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                  {display.baseLabel}{" "}
-                  {formatMoney(display.baseAmount, h.currency)}
-                  <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">
-                    {formatPriceQualifier(display.baseQualifier)}
-                  </span>
-                </div>
-
-                {display.baseTotalAmount != null ? (
-                  <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                    {display.baseTotalLabel}:{" "}
-                    <span class="font-medium text-[color:var(--color-text)]">
-                      {formatMoney(display.baseTotalAmount, h.currency)}
-                    </span>
-                    {display.unitCountLabel ? (
-                      <span class="ml-1">({display.unitCountLabel})</span>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {display.totalAmount != null &&
-                display.estimatedFeesAmount != null ? (
-                  <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                    {display.totalLabel}:{" "}
-                    <span class="font-medium text-[color:var(--color-text)]">
-                      {formatMoney(display.totalAmount, h.currency)}
-                    </span>
-                    <span class="ml-1">
-                      incl.{" "}
-                      {formatMoney(display.estimatedFeesAmount, h.currency)}{" "}
-                      est.
-                    </span>
-                  </div>
-                ) : (
-                  <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                    Add dates to see totals
-                  </div>
-                )}
-
-                {display.supportText ? (
-                  <div class="mt-1 max-w-[220px] text-xs text-[color:var(--color-text-muted)]">
-                    {display.supportText}
-                  </div>
-                ) : null}
-
-                {display.delta &&
-                display.delta.status !== "unchanged" &&
-                display.delta.status !== "unavailable" ? (
-                  <div
-                    class={[
-                      "mt-1 text-xs font-medium",
-                      display.delta.status === "increased"
-                        ? "text-[color:var(--color-error,#b91c1c)]"
-                        : "text-[color:var(--color-success,#0f766e)]",
-                    ]}
-                  >
-                    {formatPriceChange(display.delta, h.currency)}
-                  </div>
-                ) : null}
-
-                <div class="mt-4">
-                  <span class="t-btn-primary inline-block px-5 text-center">
-                    View →
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-4 flex flex-col gap-3 border-t border-[color:var(--color-divider)] pt-4 text-xs text-[color:var(--color-text-muted)] sm:flex-row sm:items-start sm:justify-between">
-              <AvailabilityConfidence confidence={h.availabilityConfidence} />
-              <div class="sm:text-right">
-                Score: {h.score.toFixed(2)} · Balanced for price, rating,
-                location, cancellation
-              </div>
-            </div>
-          </div>
+        <div q:slot="identity">
+          <a
+            class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
+            href={href}
+          >
+            {h.name}
+          </a>
+          <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+            {h.neighborhood}
+          </p>
         </div>
-      </a>
+
+        <ResultFactList
+          q:slot="facts"
+          columnsFrom="xl"
+          items={[
+            {
+              label: "Guest rating",
+              value: `${h.rating.toFixed(1)}/10`,
+              detail: `${h.reviewCount.toLocaleString("en-US")} reviews`,
+            },
+            {
+              label: "Stay type",
+              value: `${h.stars}-star stay`,
+              detail: null,
+            },
+            {
+              label: "Policies",
+              value: h.refundable ? "Free cancellation" : "Non-refundable",
+              detail: h.badges.some(
+                (badge) => badge.toLowerCase() === "pay later",
+              )
+                ? "Pay later available"
+                : null,
+            },
+          ]}
+        />
+
+        {amenityHighlights ? (
+          <p
+            q:slot="details"
+            class="text-sm leading-5 text-[color:var(--color-text-muted)]"
+          >
+            <span class="font-medium text-[color:var(--color-text)]">
+              Top amenities:
+            </span>{" "}
+            {amenityHighlights}
+          </p>
+        ) : null}
+
+        {whyThis ? (
+          <ResultReasonCallout q:slot="why-this" text={whyThis} />
+        ) : null}
+
+        <ResultPricePanel
+          q:slot="price"
+          display={display}
+          currency={h.currency}
+          align="right"
+        />
+
+        <a
+          q:slot="primary-action"
+          class="t-btn-primary block w-full px-4 py-2.5 text-center text-sm font-semibold"
+          href={href}
+        >
+          View stay
+        </a>
+
+        <ResultTrustBar
+          q:slot="trust"
+          confidence={h.availabilityConfidence}
+          freshness={h.freshness}
+        />
+      </ResultCardScaffold>
     );
   },
 );

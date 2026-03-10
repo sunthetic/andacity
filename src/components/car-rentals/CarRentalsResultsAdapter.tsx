@@ -232,7 +232,9 @@ export const CarRentalsResultsAdapter = component$(
         dateParamKeys: props.urlOptions?.dateParamKeys,
       });
 
-    const preservedFilterKeys = Object.keys(props.searchState.filters || {}).filter(
+    const preservedFilterKeys = Object.keys(
+      props.searchState.filters || {},
+    ).filter(
       (key) =>
         !CAR_RESULTS_FILTER_KEYS.includes(
           key as (typeof CAR_RESULTS_FILTER_KEYS)[number],
@@ -532,15 +534,11 @@ export const CarRentalsResultsAdapter = component$(
           totalPages: props.totalPages,
           prevHref:
             props.page > 1
-              ? toHref(
-                  withSearchStatePage(props.searchState, props.page - 1),
-                )
+              ? toHref(withSearchStatePage(props.searchState, props.page - 1))
               : undefined,
           nextHref:
             props.page < props.totalPages
-              ? toHref(
-                  withSearchStatePage(props.searchState, props.page + 1),
-                )
+              ? toHref(withSearchStatePage(props.searchState, props.page + 1))
               : undefined,
           pageLinks: buildPageLinks(
             props.page,
@@ -601,6 +599,7 @@ export const CarRentalsResultsAdapter = component$(
                 key={result.id}
                 result={result}
                 priceDisplay={priceDisplay}
+                activeSort={props.activeSort}
                 savedItem={savedItem}
                 isSaved={isItemSaved(savedItems.value, savedItem.id)}
                 onToggleSave$={onToggleSave$}

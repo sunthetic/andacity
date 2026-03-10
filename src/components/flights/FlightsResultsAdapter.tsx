@@ -183,7 +183,9 @@ export const FlightsResultsAdapter = component$(
         dateParamKeys: { checkIn: "depart", checkOut: "return" },
       });
 
-    const preservedFilterKeys = Object.keys(props.searchState.filters || {}).filter(
+    const preservedFilterKeys = Object.keys(
+      props.searchState.filters || {},
+    ).filter(
       (key) =>
         !FLIGHT_RESULTS_FILTER_KEYS.includes(
           key as (typeof FLIGHT_RESULTS_FILTER_KEYS)[number],
@@ -540,15 +542,11 @@ export const FlightsResultsAdapter = component$(
           totalPages: props.totalPages,
           prevHref:
             props.page > 1
-              ? toHref(
-                  withSearchStatePage(props.searchState, props.page - 1),
-                )
+              ? toHref(withSearchStatePage(props.searchState, props.page - 1))
               : undefined,
           nextHref:
             props.page < props.totalPages
-              ? toHref(
-                  withSearchStatePage(props.searchState, props.page + 1),
-                )
+              ? toHref(withSearchStatePage(props.searchState, props.page + 1))
               : undefined,
           pageLinks: buildPageLinks(
             props.page,
@@ -605,6 +603,7 @@ export const FlightsResultsAdapter = component$(
                 key={result.id}
                 result={result}
                 priceDisplay={priceDisplay}
+                activeSort={props.activeSort}
                 ctaHref={props.flightCtaHref}
                 savedItem={savedItem}
                 isSaved={isItemSaved(savedItems.value, savedItem.id)}

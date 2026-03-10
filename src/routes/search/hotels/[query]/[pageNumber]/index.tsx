@@ -571,6 +571,7 @@ export default component$(() => {
                       key={hotel.id}
                       h={hotel}
                       nights={nights}
+                      activeSort={data.sort}
                       priceDisplay={{
                         ...buildHotelPriceDisplay({
                           currencyCode: hotel.currency,
