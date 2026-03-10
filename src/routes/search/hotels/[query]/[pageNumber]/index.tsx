@@ -29,11 +29,15 @@ import { SearchResultsSummary } from "~/components/search/SearchResultsSummary";
 import { SearchEmptyState } from "~/components/search/SearchEmptyState";
 import { computeNights } from "~/lib/search/hotels/dates";
 import { FiltersPanel } from "~/components/search/filters/FiltersPanel";
+import { ResultsControlBar } from "~/components/results/ResultsControlBar";
+import {
+  buildResultsFilterChips,
+  type ResultsFilterGroup,
+} from "~/components/results/ResultsFilterGroups";
 import type {
   FilterSectionConfig,
   FilterValues,
 } from "~/components/search/filters/types";
-import { ResultsToolbar } from "~/components/search/results/ResultsToolbar";
 import { ResultsPagination } from "~/components/results/ResultsPagination";
 import { ResultsLoading } from "~/components/results/ResultsLoading";
 import {
@@ -41,6 +45,10 @@ import {
   summarizeAvailabilitySignals,
   type BookingAsyncState,
 } from "~/lib/async/booking-async-state";
+import {
+  HOTEL_SORT_OPTIONS,
+  normalizeHotelSort,
+} from "~/lib/search/hotels/hotel-sort-options";
 
 const HOTEL_FILTER_SECTIONS: FilterSectionConfig[] = [
   {
@@ -87,12 +95,6 @@ const HOTEL_FILTER_SECTIONS: FilterSectionConfig[] = [
   },
 ];
 
-const HOTEL_SORT_OPTIONS = [
-  { label: "Recommended", value: "recommended" },
-  { label: "Price", value: "price" },
-  { label: "Rating", value: "rating" },
-];
-
 const parseMultiValue = (url: URL, key: string) => {
   const values = url.searchParams
     .getAll(key)
@@ -104,12 +106,7 @@ const parseMultiValue = (url: URL, key: string) => {
 };
 
 const parseSort = (url: URL) => {
-  const value = String(url.searchParams.get("sort") || "")
-    .trim()
-    .toLowerCase();
-  if (value === "price" || value === "rating" || value === "price-desc")
-    return value;
-  return "recommended";
+  return normalizeHotelSort(url.searchParams.get("sort"));
 };
 
 const toPageHref = (
@@ -139,6 +136,35 @@ const buildPageLinks = (
   }
 
   return links;
+};
+
+const toggleCheckboxFilterHref = (
+  basePath: string,
+  searchParams: URLSearchParams,
+  sectionId: string,
+  optionValue: string,
+) => {
+  const params = new URLSearchParams(searchParams);
+  const current = new Set(
+    String(params.get(sectionId) || "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  );
+
+  if (current.has(optionValue)) {
+    current.delete(optionValue);
+  } else {
+    current.add(optionValue);
+  }
+
+  if (!current.size) {
+    params.delete(sectionId);
+  } else {
+    params.set(sectionId, Array.from(current).join(","));
+  }
+
+  return toPageHref(basePath, 1, params);
 };
 
 export const useSearchHotelsPage = routeLoader$(async ({ params, url }) => {
@@ -203,6 +229,7 @@ export default component$(() => {
 
   const pathBase = `/search/hotels/${encodeURIComponent(data.query)}`;
   const mobileFiltersOpen = useSignal(false);
+  const desktopFiltersOpen = useSignal(true);
 
   const nights = computeNights(
     location.url.searchParams.get("checkIn"),
@@ -218,28 +245,14 @@ export default component$(() => {
 
   const onCheckboxToggle$ = $(
     async (sectionId: string, optionValue: string) => {
-      const params = new URLSearchParams(location.url.searchParams);
-      const key = sectionId;
-      const current = new Set(
-        String(params.get(key) || "")
-          .split(",")
-          .map((value) => value.trim().toLowerCase())
-          .filter(Boolean),
+      await navigate(
+        toggleCheckboxFilterHref(
+          pathBase,
+          location.url.searchParams,
+          sectionId,
+          optionValue,
+        ),
       );
-
-      if (current.has(optionValue)) {
-        current.delete(optionValue);
-      } else {
-        current.add(optionValue);
-      }
-
-      if (!current.size) {
-        params.delete(key);
-      } else {
-        params.set(key, Array.from(current).join(","));
-      }
-
-      await navigate(toPageHref(pathBase, 1, params));
     },
   );
 
@@ -255,26 +268,15 @@ export default component$(() => {
     params.delete("starRating");
     params.delete("guestRating");
     params.delete("amenities");
-    params.delete("sort");
-    await navigate(toPageHref(pathBase, 1, params));
-  });
-
-  const onSortChange$ = $(async (value: string) => {
-    const params = new URLSearchParams(location.url.searchParams);
-    if (value === "recommended") {
-      params.delete("sort");
-    } else if (
-      value === "price" ||
-      value === "rating" ||
-      value === "price-desc"
-    ) {
-      params.set("sort", value);
-    }
-
     await navigate(toPageHref(pathBase, 1, params));
   });
 
   const onToggleFilters$ = $(() => {
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      desktopFiltersOpen.value = !desktopFiltersOpen.value;
+      return;
+    }
+
     mobileFiltersOpen.value = !mobileFiltersOpen.value;
   });
 
@@ -333,6 +335,54 @@ export default component$(() => {
   const detailParams = new URLSearchParams();
   if (checkIn) detailParams.set("checkIn", checkIn);
   if (checkOut) detailParams.set("checkOut", checkOut);
+  const sortOptions = HOTEL_SORT_OPTIONS.map((option) => {
+    const params = new URLSearchParams(location.url.searchParams);
+    if (option.value === "recommended") {
+      params.delete("sort");
+    } else {
+      params.set("sort", option.value);
+    }
+
+    return {
+      label: option.label,
+      value: option.value,
+      active: data.sort === option.value,
+      href: toPageHref(pathBase, 1, params),
+    };
+  });
+  const activeFilterGroups: ResultsFilterGroup[] = HOTEL_FILTER_SECTIONS.map(
+    (section) => ({
+      title: section.title,
+      options:
+        section.type === "checkbox"
+          ? section.options
+              .filter((option) =>
+                Array.isArray(activeFilters[section.id])
+                  ? activeFilters[section.id].includes(option.value)
+                  : false,
+              )
+              .map((option) => ({
+                label: option.label,
+                href: toggleCheckboxFilterHref(
+                  pathBase,
+                  location.url.searchParams,
+                  section.id,
+                  option.value,
+                ),
+                active: true,
+              }))
+          : [],
+    }),
+  ).filter((group) => group.options.length > 0);
+  const activeFilterChips = buildResultsFilterChips(activeFilterGroups);
+  const clearAllHref = (() => {
+    const params = new URLSearchParams(location.url.searchParams);
+    params.delete("priceRange");
+    params.delete("starRating");
+    params.delete("guestRating");
+    params.delete("amenities");
+    return toPageHref(pathBase, 1, params);
+  })();
 
   // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(() => {
@@ -419,14 +469,15 @@ export default component$(() => {
         />
       </div>
 
-      <ResultsToolbar
-        sortId="hotel-results-sort"
+      <ResultsControlBar
+        class="mt-4"
+        sortId="hotel-search-results-sort"
         resultCountLabel={`${data.totalCount.toLocaleString("en-US")} hotels found`}
-        sortValue={data.sort}
-        sortOptions={HOTEL_SORT_OPTIONS}
-        mobileFiltersOpen={mobileFiltersOpen.value}
-        onSortChange$={onSortChange$}
+        sortOptions={sortOptions}
+        activeFilterChips={activeFilterChips}
+        clearAllHref={clearAllHref}
         onToggleFilters$={onToggleFilters$}
+        busy={location.isNavigating}
         disabled={controlsDisabled}
       />
 
@@ -444,17 +495,26 @@ export default component$(() => {
         ) : null}
       </div>
 
-      <div class="mt-6 grid gap-6 lg:grid-cols-[300px_1fr] lg:items-start">
-        <FiltersPanel
-          title="Filters"
-          class="hidden lg:block"
-          sections={HOTEL_FILTER_SECTIONS}
-          values={activeFilters}
-          onCheckboxToggle$={onCheckboxToggle$}
-          onSelectChange$={onSelectChange$}
-          onReset$={onReset$}
-          disabled={controlsDisabled}
-        />
+      <div
+        class={[
+          "mt-6 grid gap-6 lg:items-start",
+          desktopFiltersOpen.value
+            ? "lg:grid-cols-[300px_1fr]"
+            : "lg:grid-cols-[1fr]",
+        ]}
+      >
+        {desktopFiltersOpen.value ? (
+          <FiltersPanel
+            title="Filters"
+            class="hidden lg:block"
+            sections={HOTEL_FILTER_SECTIONS}
+            values={activeFilters}
+            onCheckboxToggle$={onCheckboxToggle$}
+            onSelectChange$={onSelectChange$}
+            onReset$={onReset$}
+            disabled={controlsDisabled}
+          />
+        ) : null}
 
         <main>
           <SearchMapCard />

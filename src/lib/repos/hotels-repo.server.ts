@@ -12,7 +12,7 @@ import {
   regions,
 } from '~/lib/db/schema'
 
-export type HotelSort = 'recommended' | 'price-asc' | 'price-desc' | 'rating-desc'
+export type HotelSort = 'recommended' | 'price-asc' | 'rating-desc' | 'value'
 export type HotelPriceRange = 'under-150' | '150-300' | '300-500' | '500-plus'
 
 export type SearchHotelsInput = {
@@ -174,16 +174,26 @@ const toCheckInWeekday = (checkIn?: string) => {
 }
 
 const getSortOrder = (sort: HotelSort | undefined) => {
+  const ratingSql = sql<number>`(${hotels.rating})::numeric`
+  const valueSql = sql<number>`
+    (
+      ((${ratingSql}) * 100.0) +
+      (${hotels.stars} * 22.0) +
+      (case when ${hotels.freeCancellation} then 18.0 else 0.0 end) +
+      (case when ${hotels.payLater} then 12.0 else 0.0 end)
+    ) / greatest(${hotels.fromNightlyCents}, 1)
+  `
+
   if (sort === 'price-asc') {
     return [asc(hotels.fromNightlyCents), desc(hotels.rating)] as const
   }
 
-  if (sort === 'price-desc') {
-    return [desc(hotels.fromNightlyCents), desc(hotels.rating)] as const
-  }
-
   if (sort === 'rating-desc') {
     return [desc(hotels.rating), desc(hotels.reviewCount)] as const
+  }
+
+  if (sort === 'value') {
+    return [desc(valueSql), desc(hotels.rating), asc(hotels.fromNightlyCents)] as const
   }
 
   return [desc(hotels.rating), desc(hotels.reviewCount), asc(hotels.fromNightlyCents)] as const

@@ -3,6 +3,7 @@ import { useLocation } from "@builder.io/qwik-city";
 import { FlightCard } from "~/components/flights/FlightCard";
 import { FlightFilters } from "~/components/flights/FlightFilters";
 import type { FlightFilterGroup } from "~/components/flights/FlightFilters";
+import { buildResultsFilterChips } from "~/components/results/ResultsFilterGroups";
 import { ResultsShell } from "~/components/results/ResultsShell";
 import { CompareDrawer } from "~/components/save-compare/CompareDrawer";
 import { CompareTray } from "~/components/save-compare/CompareTray";
@@ -46,11 +47,32 @@ import {
   summarizeAvailabilitySignals,
   type BookingAsyncState,
 } from "~/lib/async/booking-async-state";
+import {
+  clearSearchStateFilters,
+  withSearchStateArrayToggle,
+  withSearchStateFilters,
+  withSearchStatePage,
+  withSearchStateSingleToggle,
+  withSearchStateSort,
+} from "~/lib/search/state-controls";
 import type { FlightResult } from "~/types/flights/search";
 import type { SavedItem } from "~/types/save-compare/saved-item";
 import type { SearchState } from "~/types/search/state";
 
 const FLIGHTS_VERTICAL = "flights" as const;
+const FLIGHT_RESULTS_FILTER_KEYS = [
+  "nonstop",
+  "stops",
+  "maxStops",
+  "departureWindow",
+  "departWindow",
+  "arrivalWindow",
+  "cabin",
+  "cabinClass",
+  "priceBand",
+  "price",
+  "priceRange",
+] as const;
 
 const normalizeToken = (value: string) =>
   String(value || "")
@@ -100,70 +122,11 @@ const buildQuerySummary = (
   return parts.join(" · ");
 };
 
-const withFilters = (
-  state: SearchState,
-  updater: (filters: Record<string, unknown>) => Record<string, unknown>,
-): SearchState => {
-  const nextFilters = updater({ ...(state.filters || {}) });
-  return {
-    ...state,
-    page: 1,
-    filters: Object.keys(nextFilters).length ? nextFilters : undefined,
-  };
-};
-
-const withSingleToggle = (
-  state: SearchState,
-  key: string,
-  value: string,
-): SearchState => {
-  return withFilters(state, (filters) => {
-    const current = normalizeToken(String(filters[key] || ""));
-    if (current === normalizeToken(value)) {
-      delete filters[key];
-    } else {
-      filters[key] = value;
-    }
-    return filters;
-  });
-};
-
-const withArrayToggle = (
-  state: SearchState,
-  key: string,
-  value: string,
-): SearchState => {
-  return withFilters(state, (filters) => {
-    const currentRaw = filters[key];
-    const current = Array.isArray(currentRaw)
-      ? currentRaw
-          .map((item) => normalizeToken(String(item || "")))
-          .filter(Boolean)
-      : String(currentRaw || "")
-          .split(",")
-          .map((item) => normalizeToken(item))
-          .filter(Boolean);
-
-    const has = current.includes(value);
-    const next = has
-      ? current.filter((item) => item !== value)
-      : [...current, value];
-
-    if (next.length) {
-      filters[key] = next;
-    } else {
-      delete filters[key];
-    }
-
-    return filters;
-  });
-};
-
 const withMaxStopsToggle = (
   state: SearchState,
   value: "0" | "1" | "2",
 ): SearchState => {
-  return withFilters(state, (filters) => {
+  return withSearchStateFilters(state, (filters) => {
     delete filters.nonstop;
     delete filters.stops;
 
@@ -177,17 +140,6 @@ const withMaxStopsToggle = (
     return filters;
   });
 };
-
-const withSort = (state: SearchState, sort: string): SearchState => ({
-  ...state,
-  sort,
-  page: 1,
-});
-
-const withPage = (state: SearchState, page: number): SearchState => ({
-  ...state,
-  page,
-});
 
 const buildPageLinks = (
   page: number,
@@ -231,9 +183,17 @@ export const FlightsResultsAdapter = component$(
         dateParamKeys: { checkIn: "depart", checkOut: "return" },
       });
 
+    const preservedFilterKeys = Object.keys(props.searchState.filters || {}).filter(
+      (key) =>
+        !FLIGHT_RESULTS_FILTER_KEYS.includes(
+          key as (typeof FLIGHT_RESULTS_FILTER_KEYS)[number],
+        ),
+    );
     const pageItems = props.results;
     const travelers = toTravelerCount(props.searchState.filters?.travelers);
-    const refreshHref = toHref(withPage(props.searchState, props.page));
+    const refreshHref = toHref(
+      withSearchStatePage(props.searchState, props.page),
+    );
     const refreshSnapshotId = `flight-results:${refreshHref}`;
     const visibleInventoryIds = pageItems.flatMap((result) =>
       result.itineraryId != null ? [result.itineraryId] : [],
@@ -428,7 +388,7 @@ export const FlightsResultsAdapter = component$(
         label: option.label,
         value: option.value,
         active: props.activeSort === option.value,
-        href: toHref(withSort(props.searchState, option.value)),
+        href: toHref(withSearchStateSort(props.searchState, option.value)),
       }),
     );
 
@@ -444,7 +404,12 @@ export const FlightsResultsAdapter = component$(
       (window) => ({
         label: titleCase(window),
         href: toHref(
-          withArrayToggle(props.searchState, "departureWindow", window),
+          withSearchStateArrayToggle(
+            props.searchState,
+            "departureWindow",
+            window,
+            normalizeToken,
+          ),
         ),
         active: props.selectedFilters.departureWindows.includes(window),
       }),
@@ -452,13 +417,27 @@ export const FlightsResultsAdapter = component$(
 
     const arrivalFilters = props.filterFacets.arrivalWindows.map((window) => ({
       label: titleCase(window),
-      href: toHref(withArrayToggle(props.searchState, "arrivalWindow", window)),
+      href: toHref(
+        withSearchStateArrayToggle(
+          props.searchState,
+          "arrivalWindow",
+          window,
+          normalizeToken,
+        ),
+      ),
       active: props.selectedFilters.arrivalWindows.includes(window),
     }));
 
     const cabinFilters = props.filterFacets.cabinClasses.map((value) => ({
       label: titleCase(value),
-      href: toHref(withSingleToggle(props.searchState, "cabin", value)),
+      href: toHref(
+        withSearchStateSingleToggle(
+          props.searchState,
+          "cabin",
+          value,
+          normalizeToken,
+        ),
+      ),
       active: props.selectedFilters.cabinClass === value,
     }));
 
@@ -475,7 +454,12 @@ export const FlightsResultsAdapter = component$(
     const priceFilters = priceBands.map((option) => ({
       label: option.label,
       href: toHref(
-        withSingleToggle(props.searchState, "priceBand", option.value),
+        withSearchStateSingleToggle(
+          props.searchState,
+          "priceBand",
+          option.value,
+          normalizeToken,
+        ),
       ),
       active: props.selectedFilters.priceBand === option.value,
     }));
@@ -487,6 +471,10 @@ export const FlightsResultsAdapter = component$(
       { title: "Cabin class", options: cabinFilters },
       { title: "Price band", options: priceFilters },
     ].filter((group) => group.options.length > 0);
+    const activeFilterChips = buildResultsFilterChips(filterGroups);
+    const clearAllFiltersHref = toHref(
+      clearSearchStateFilters(props.searchState, preservedFilterKeys),
+    );
 
     return (
       <ResultsShell
@@ -543,22 +531,30 @@ export const FlightsResultsAdapter = component$(
         refreshingOverlayLabel="Updating flights"
         controlsDisabled={controlsDisabled}
         resultCountLabel={`${props.totalCount.toLocaleString("en-US")} flights`}
+        sortId="flight-results-sort"
         sortOptions={sortOptions}
+        activeFilterChips={activeFilterChips}
+        clearAllFiltersHref={clearAllFiltersHref}
         pagination={{
           page: props.page,
           totalPages: props.totalPages,
           prevHref:
             props.page > 1
-              ? toHref(withPage(props.searchState, props.page - 1))
+              ? toHref(
+                  withSearchStatePage(props.searchState, props.page - 1),
+                )
               : undefined,
           nextHref:
             props.page < props.totalPages
-              ? toHref(withPage(props.searchState, props.page + 1))
+              ? toHref(
+                  withSearchStatePage(props.searchState, props.page + 1),
+                )
               : undefined,
           pageLinks: buildPageLinks(
             props.page,
             props.totalPages,
-            (pageNumber) => toHref(withPage(props.searchState, pageNumber)),
+            (pageNumber) =>
+              toHref(withSearchStatePage(props.searchState, pageNumber)),
           ),
         }}
         empty={

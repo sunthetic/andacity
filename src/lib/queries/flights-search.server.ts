@@ -71,7 +71,6 @@ const toPriceBandBounds = (band: FlightPriceBand | '') => {
 
 const toRepoSort = (sort: ReturnType<typeof normalizeFlightSort>): FlightSort => {
   if (sort === 'price-asc') return 'price-asc'
-  if (sort === 'price-desc') return 'price-desc'
   if (sort === 'duration') return 'duration'
   if (sort === 'departure-asc') return 'departure-asc'
   return 'recommended'

@@ -4,7 +4,10 @@ import {
   searchCarRentalsPage,
 } from '~/lib/repos/car-rentals-repo.server'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
-import { isCarRentalsSortKey, type CarRentalsSortKey } from '~/lib/search/car-rentals/car-sort-options'
+import {
+  normalizeCarRentalsSortValue,
+  type CarRentalsSortKey,
+} from '~/lib/search/car-rentals/car-sort-options'
 import type {
   CarRentalsPriceBand,
   CarRentalsPickupType,
@@ -128,8 +131,7 @@ const parseVehicleClasses = (filters: Record<string, unknown>) => {
 }
 
 export const normalizeCarRentalsSort = (value: string | null | undefined): CarRentalsSortKey => {
-  const token = String(value || '').trim()
-  return isCarRentalsSortKey(token) ? token : 'recommended'
+  return normalizeCarRentalsSortValue(value)
 }
 
 export const parseCarRentalsSelectedFilters = (

@@ -3,6 +3,7 @@ import { useLocation } from "@builder.io/qwik-city";
 import { HotelCard } from "~/components/hotels/HotelCard";
 import { HotelFilters } from "~/components/hotels/HotelFilters";
 import type { HotelFilterGroup } from "~/components/hotels/HotelFilters";
+import { buildResultsFilterChips } from "~/components/results/ResultsFilterGroups";
 import { ResultsShell } from "~/components/results/ResultsShell";
 import { CompareDrawer } from "~/components/save-compare/CompareDrawer";
 import { CompareTray } from "~/components/save-compare/CompareTray";
@@ -42,15 +43,26 @@ import {
 } from "~/lib/async/booking-async-state";
 import type { SavedItem } from "~/types/save-compare/saved-item";
 import type { SearchState } from "~/types/search/state";
+import {
+  clearSearchStateFilters,
+  withSearchStateArrayToggle,
+  withSearchStatePage,
+  withSearchStateSingleToggle,
+  withSearchStateSort,
+} from "~/lib/search/state-controls";
+import {
+  HOTEL_SORT_OPTIONS,
+  normalizeHotelSort,
+} from "~/lib/search/hotels/hotel-sort-options";
 
 const PAGE_SIZE = 6;
 const HOTELS_VERTICAL = "hotels" as const;
-
-const HOTEL_SORTS = [
-  { label: "Recommended", value: "relevance" },
-  { label: "Price: low to high", value: "price-asc" },
-  { label: "Price: high to low", value: "price-desc" },
-  { label: "Rating", value: "rating-desc" },
+const HOTEL_RESULTS_FILTER_KEYS = [
+  "starsMin",
+  "price",
+  "amenities",
+  "neighborhoods",
+  "propertyTypes",
 ] as const;
 
 const toStringArray = (value: unknown): string[] => {
@@ -101,6 +113,18 @@ const hotelPriceTier = (hotel: Hotel): HotelPriceTier => {
   return "luxury";
 };
 
+const hotelValueScore = (hotel: Hotel) => {
+  const policyBonus =
+    (hotel.policies.freeCancellation ? 18 : 0) +
+    (hotel.policies.payLater ? 12 : 0);
+
+  return (
+    hotel.rating * 100 +
+    hotel.stars * 22 +
+    policyBonus
+  ) / Math.max(hotel.fromNightly, 1);
+};
+
 const matchesPropertyType = (hotel: Hotel, propertyType: string) => {
   const haystack = `${hotel.name} ${hotel.summary}`.toLowerCase();
   const type = normalizeToken(propertyType);
@@ -119,67 +143,6 @@ const clampPage = (page: number, totalPages: number) => {
   if (page > totalPages) return totalPages;
   return page;
 };
-
-const withFilters = (
-  state: SearchState,
-  updater: (filters: Record<string, unknown>) => Record<string, unknown>,
-): SearchState => {
-  const nextFilters = updater({ ...(state.filters || {}) });
-  return {
-    ...state,
-    page: 1,
-    filters: Object.keys(nextFilters).length ? nextFilters : undefined,
-  };
-};
-
-const withArrayToggle = (
-  state: SearchState,
-  key: string,
-  value: string,
-): SearchState => {
-  return withFilters(state, (filters) => {
-    const current = toStringArray(filters[key]).map(normalizeToken);
-    const has = current.includes(value);
-    const next = has
-      ? current.filter((item) => item !== value)
-      : [...current, value];
-
-    if (next.length) {
-      filters[key] = next;
-    } else {
-      delete filters[key];
-    }
-
-    return filters;
-  });
-};
-
-const withSingleToggle = (
-  state: SearchState,
-  key: string,
-  value: string,
-): SearchState => {
-  return withFilters(state, (filters) => {
-    const current = normalizeToken(String(filters[key] || ""));
-    if (current === value) {
-      delete filters[key];
-    } else {
-      filters[key] = value;
-    }
-    return filters;
-  });
-};
-
-const withSort = (state: SearchState, sort: string): SearchState => ({
-  ...state,
-  sort,
-  page: 1,
-});
-
-const withPage = (state: SearchState, page: number): SearchState => ({
-  ...state,
-  page,
-});
 
 const formatDate = (isoDate: string | undefined) => {
   if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return "";
@@ -336,11 +299,7 @@ export const HotelsResultsAdapter = component$(
         includeLocationParams: false,
       });
 
-    const activeSort = HOTEL_SORTS.some(
-      (option) => option.value === props.searchState.sort,
-    )
-      ? String(props.searchState.sort)
-      : "relevance";
+    const activeSort = normalizeHotelSort(props.searchState.sort);
 
     const requestedPage =
       props.searchState.page && props.searchState.page > 0
@@ -348,6 +307,9 @@ export const HotelsResultsAdapter = component$(
         : 1;
 
     const rawFilters = props.searchState.filters || {};
+    const preservedFilterKeys = Object.keys(rawFilters).filter(
+      (key) => !HOTEL_RESULTS_FILTER_KEYS.includes(key as (typeof HOTEL_RESULTS_FILTER_KEYS)[number]),
+    );
     const selectedStarMin = toMaybeNumber(rawFilters.starsMin);
     const selectedPriceTier = normalizeToken(String(rawFilters.price || "")) as
       | HotelPriceTier
@@ -394,10 +356,15 @@ export const HotelsResultsAdapter = component$(
 
     const sortedHotels = [...filteredHotels].sort((a, b) => {
       if (activeSort === "price-asc") return a.fromNightly - b.fromNightly;
-      if (activeSort === "price-desc") return b.fromNightly - a.fromNightly;
       if (activeSort === "rating-desc") {
         if (b.rating !== a.rating) return b.rating - a.rating;
         return b.reviewCount - a.reviewCount;
+      }
+      if (activeSort === "value") {
+        const valueDelta = hotelValueScore(b) - hotelValueScore(a);
+        if (valueDelta !== 0) return valueDelta;
+        if (b.rating !== a.rating) return b.rating - a.rating;
+        return a.fromNightly - b.fromNightly;
       }
 
       if (b.rating !== a.rating) return b.rating - a.rating;
@@ -413,7 +380,7 @@ export const HotelsResultsAdapter = component$(
       props.searchState.dates?.checkIn || null,
       props.searchState.dates?.checkOut || null,
     );
-    const refreshHref = toHref(withPage(props.searchState, page));
+    const refreshHref = toHref(withSearchStatePage(props.searchState, page));
     const refreshSnapshotId = `hotel-results:${refreshHref}`;
     const visibleInventoryIds = pageItems.flatMap((hotel) =>
       hotel.inventoryId != null ? [hotel.inventoryId] : [],
@@ -534,17 +501,22 @@ export const HotelsResultsAdapter = component$(
 
     const canCompare = canOpenCompare(savedItems.value.length);
 
-    const sortOptions: ResultsSortOption[] = HOTEL_SORTS.map((option) => ({
+    const sortOptions: ResultsSortOption[] = HOTEL_SORT_OPTIONS.map((option) => ({
       label: option.label,
       value: option.value,
       active: activeSort === option.value,
-      href: toHref(withSort(props.searchState, option.value)),
+      href: toHref(withSearchStateSort(props.searchState, option.value)),
     }));
 
     const starFilterOptions = [3, 4, 5].map((stars) => ({
       label: `${stars}+ stars`,
       href: toHref(
-        withSingleToggle(props.searchState, "starsMin", String(stars)),
+        withSearchStateSingleToggle(
+          props.searchState,
+          "starsMin",
+          String(stars),
+          normalizeToken,
+        ),
       ),
       active: selectedStarMin === stars,
     }));
@@ -562,7 +534,14 @@ export const HotelsResultsAdapter = component$(
         const value = normalizeAmenity(amenity.name);
         return {
           label: amenity.name,
-          href: toHref(withArrayToggle(props.searchState, "amenities", value)),
+          href: toHref(
+            withSearchStateArrayToggle(
+              props.searchState,
+              "amenities",
+              value,
+              normalizeAmenity,
+            ),
+          ),
           active: selectedAmenities.includes(value),
         };
       });
@@ -574,7 +553,12 @@ export const HotelsResultsAdapter = component$(
         return {
           label: neighborhood.name,
           href: toHref(
-            withArrayToggle(props.searchState, "neighborhoods", value),
+            withSearchStateArrayToggle(
+              props.searchState,
+              "neighborhoods",
+              value,
+              normalizeToken,
+            ),
           ),
           active: selectedNeighborhoods.includes(value),
         };
@@ -582,16 +566,46 @@ export const HotelsResultsAdapter = component$(
 
     const priceOptions = priceFilterOptions.map((option) => ({
       label: option.label,
-      href: toHref(withSingleToggle(props.searchState, "price", option.value)),
+      href: toHref(
+        withSearchStateSingleToggle(
+          props.searchState,
+          "price",
+          option.value,
+          normalizeToken,
+        ),
+      ),
       active: selectedPriceTier === option.value,
     }));
 
+    const propertyTypeOptions = ["Hotel", "Resort", "Lodge", "Aparthotel"].map(
+      (label) => {
+        const value = normalizeToken(label);
+        return {
+          label,
+          href: toHref(
+            withSearchStateArrayToggle(
+              props.searchState,
+              "propertyTypes",
+              value,
+              normalizeToken,
+            ),
+          ),
+          active: selectedPropertyTypes.includes(value),
+        };
+      },
+    );
+
     const filterGroups: HotelFilterGroup[] = [
       { title: "Star rating", options: starFilterOptions },
-      { title: "Price tier", options: priceOptions },
+      { title: "Price", options: priceOptions },
+      { title: "Stay type", options: propertyTypeOptions },
       { title: "Amenities", options: amenityFilterOptions },
       { title: "Neighborhoods", options: neighborhoodFilterOptions },
-    ];
+    ].filter((group) => group.options.length > 0);
+    const activeFilterChips = buildResultsFilterChips(filterGroups);
+    const clearAllFiltersHref = toHref(
+      clearSearchStateFilters(props.searchState, preservedFilterKeys),
+    );
 
     return (
       <ResultsShell
@@ -633,20 +647,23 @@ export const HotelsResultsAdapter = component$(
         refreshingOverlayLabel="Updating stays"
         controlsDisabled={controlsDisabled}
         resultCountLabel={`${sortedHotels.length.toLocaleString("en-US")} stays`}
+        sortId="hotel-city-results-sort"
         sortOptions={sortOptions}
+        activeFilterChips={activeFilterChips}
+        clearAllFiltersHref={clearAllFiltersHref}
         pagination={{
           page,
           totalPages,
           prevHref:
             page > 1
-              ? toHref(withPage(props.searchState, page - 1))
+              ? toHref(withSearchStatePage(props.searchState, page - 1))
               : undefined,
           nextHref:
             page < totalPages
-              ? toHref(withPage(props.searchState, page + 1))
+              ? toHref(withSearchStatePage(props.searchState, page + 1))
               : undefined,
           pageLinks: buildPageLinks(page, totalPages, (pageNumber) =>
-            toHref(withPage(props.searchState, pageNumber)),
+            toHref(withSearchStatePage(props.searchState, pageNumber)),
           ),
         }}
         empty={

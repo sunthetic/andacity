@@ -3,6 +3,7 @@ import { useLocation } from "@builder.io/qwik-city";
 import { CarRentalCard } from "~/components/car-rentals/CarRentalCard";
 import { CarRentalFilters } from "~/components/car-rentals/CarRentalFilters";
 import type { CarRentalFilterGroup } from "~/components/car-rentals/CarRentalFilters";
+import { buildResultsFilterChips } from "~/components/results/ResultsFilterGroups";
 import { ResultsShell } from "~/components/results/ResultsShell";
 import { CompareDrawer } from "~/components/save-compare/CompareDrawer";
 import { CompareTray } from "~/components/save-compare/CompareTray";
@@ -46,11 +47,30 @@ import {
   summarizeAvailabilitySignals,
   type BookingAsyncState,
 } from "~/lib/async/booking-async-state";
+import {
+  clearSearchStateFilters,
+  withSearchStateArrayToggle,
+  withSearchStatePage,
+  withSearchStateSingleToggle,
+  withSearchStateSort,
+} from "~/lib/search/state-controls";
 import type { CarRentalResult } from "~/types/car-rentals/search";
 import type { SavedItem } from "~/types/save-compare/saved-item";
 import type { SearchState } from "~/types/search/state";
 
 const CARS_VERTICAL = "cars" as const;
+const CAR_RESULTS_FILTER_KEYS = [
+  "class",
+  "vehicleClass",
+  "pickup",
+  "pickupType",
+  "transmission",
+  "seats",
+  "seatsMin",
+  "priceBand",
+  "price",
+  "priceRange",
+] as const;
 
 const normalizeToken = (value: string) =>
   String(value || "")
@@ -83,76 +103,6 @@ const buildQuerySummary = (
   }
   return parts.join(" · ");
 };
-
-const withFilters = (
-  state: SearchState,
-  updater: (filters: Record<string, unknown>) => Record<string, unknown>,
-): SearchState => {
-  const nextFilters = updater({ ...(state.filters || {}) });
-  return {
-    ...state,
-    page: 1,
-    filters: Object.keys(nextFilters).length ? nextFilters : undefined,
-  };
-};
-
-const withArrayToggle = (
-  state: SearchState,
-  key: string,
-  value: string,
-): SearchState => {
-  return withFilters(state, (filters) => {
-    const currentRaw = filters[key];
-    const current = Array.isArray(currentRaw)
-      ? currentRaw
-          .map((item) => normalizeToken(String(item || "")))
-          .filter(Boolean)
-      : String(currentRaw || "")
-          .split(",")
-          .map((item) => normalizeToken(item))
-          .filter(Boolean);
-
-    const has = current.includes(value);
-    const next = has
-      ? current.filter((item) => item !== value)
-      : [...current, value];
-
-    if (next.length) {
-      filters[key] = next;
-    } else {
-      delete filters[key];
-    }
-
-    return filters;
-  });
-};
-
-const withSingleToggle = (
-  state: SearchState,
-  key: string,
-  value: string,
-): SearchState => {
-  return withFilters(state, (filters) => {
-    const current = normalizeToken(String(filters[key] || ""));
-    if (current === normalizeToken(value)) {
-      delete filters[key];
-    } else {
-      filters[key] = value;
-    }
-    return filters;
-  });
-};
-
-const withSort = (state: SearchState, sort: string): SearchState => ({
-  ...state,
-  sort,
-  page: 1,
-});
-
-const withPage = (state: SearchState, page: number): SearchState => ({
-  ...state,
-  page,
-});
 
 const buildPageLinks = (
   page: number,
@@ -282,12 +232,20 @@ export const CarRentalsResultsAdapter = component$(
         dateParamKeys: props.urlOptions?.dateParamKeys,
       });
 
+    const preservedFilterKeys = Object.keys(props.searchState.filters || {}).filter(
+      (key) =>
+        !CAR_RESULTS_FILTER_KEYS.includes(
+          key as (typeof CAR_RESULTS_FILTER_KEYS)[number],
+        ),
+    );
     const pageItems = props.results;
     const days = computeDays(
       props.searchState.dates?.checkIn || null,
       props.searchState.dates?.checkOut || null,
     );
-    const refreshHref = toHref(withPage(props.searchState, props.page));
+    const refreshHref = toHref(
+      withSearchStatePage(props.searchState, props.page),
+    );
     const refreshSnapshotId = `car-results:${refreshHref}`;
     const visibleInventoryIds = pageItems.flatMap((result) =>
       result.inventoryId != null ? [result.inventoryId] : [],
@@ -414,20 +372,34 @@ export const CarRentalsResultsAdapter = component$(
         label: option.label,
         value: option.value,
         active: props.activeSort === option.value,
-        href: toHref(withSort(props.searchState, option.value)),
+        href: toHref(withSearchStateSort(props.searchState, option.value)),
       }),
     );
 
     const classOptions = props.filterFacets.vehicleClasses.map((item) => ({
       label: item.label,
-      href: toHref(withArrayToggle(props.searchState, "class", item.value)),
+      href: toHref(
+        withSearchStateArrayToggle(
+          props.searchState,
+          "class",
+          item.value,
+          normalizeToken,
+        ),
+      ),
       active: props.selectedFilters.vehicleClasses.includes(item.value),
     }));
 
     const pickupTypeOptions = props.filterFacets.pickupTypes.map(
       (pickupType) => ({
         label: pickupType === "airport" ? "Airport pickup" : "City pickup",
-        href: toHref(withSingleToggle(props.searchState, "pickup", pickupType)),
+        href: toHref(
+          withSearchStateSingleToggle(
+            props.searchState,
+            "pickup",
+            pickupType,
+            normalizeToken,
+          ),
+        ),
         active: props.selectedFilters.pickupType === pickupType,
       }),
     );
@@ -435,14 +407,28 @@ export const CarRentalsResultsAdapter = component$(
     const transmissionOptions = props.filterFacets.transmissions.map(
       (kind) => ({
         label: kind === "automatic" ? "Automatic" : "Manual",
-        href: toHref(withSingleToggle(props.searchState, "transmission", kind)),
+        href: toHref(
+          withSearchStateSingleToggle(
+            props.searchState,
+            "transmission",
+            kind,
+            normalizeToken,
+          ),
+        ),
         active: props.selectedFilters.transmission === kind,
       }),
     );
 
     const seatOptions = props.filterFacets.seats.map((seats) => ({
       label: `${seats}+ seats`,
-      href: toHref(withSingleToggle(props.searchState, "seats", String(seats))),
+      href: toHref(
+        withSearchStateSingleToggle(
+          props.searchState,
+          "seats",
+          String(seats),
+          normalizeToken,
+        ),
+      ),
       active: props.selectedFilters.seatsMin === seats,
     }));
 
@@ -459,7 +445,12 @@ export const CarRentalsResultsAdapter = component$(
     const priceOptions = priceBandOptions.map((option) => ({
       label: option.label,
       href: toHref(
-        withSingleToggle(props.searchState, "priceBand", option.value),
+        withSearchStateSingleToggle(
+          props.searchState,
+          "priceBand",
+          option.value,
+          normalizeToken,
+        ),
       ),
       active: props.selectedFilters.priceBand === option.value,
     }));
@@ -471,6 +462,10 @@ export const CarRentalsResultsAdapter = component$(
       { title: "Seats", options: seatOptions },
       { title: "Price band", options: priceOptions },
     ].filter((group) => group.options.length > 0);
+    const activeFilterChips = buildResultsFilterChips(filterGroups);
+    const clearAllFiltersHref = toHref(
+      clearSearchStateFilters(props.searchState, preservedFilterKeys),
+    );
 
     return (
       <ResultsShell
@@ -528,22 +523,30 @@ export const CarRentalsResultsAdapter = component$(
         refreshingOverlayLabel="Updating rentals"
         controlsDisabled={controlsDisabled}
         resultCountLabel={`${props.totalCount.toLocaleString("en-US")} rentals`}
+        sortId="car-results-sort"
         sortOptions={sortOptions}
+        activeFilterChips={activeFilterChips}
+        clearAllFiltersHref={clearAllFiltersHref}
         pagination={{
           page: props.page,
           totalPages: props.totalPages,
           prevHref:
             props.page > 1
-              ? toHref(withPage(props.searchState, props.page - 1))
+              ? toHref(
+                  withSearchStatePage(props.searchState, props.page - 1),
+                )
               : undefined,
           nextHref:
             props.page < props.totalPages
-              ? toHref(withPage(props.searchState, props.page + 1))
+              ? toHref(
+                  withSearchStatePage(props.searchState, props.page + 1),
+                )
               : undefined,
           pageLinks: buildPageLinks(
             props.page,
             props.totalPages,
-            (pageNumber) => toHref(withPage(props.searchState, pageNumber)),
+            (pageNumber) =>
+              toHref(withSearchStatePage(props.searchState, pageNumber)),
           ),
         }}
         empty={

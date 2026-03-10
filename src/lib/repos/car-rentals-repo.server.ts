@@ -230,29 +230,29 @@ const buildOfferFiltersSql = (input: SearchCarRentalsPageInput['filters']) => {
 const getCarRentalSortOrder = (
   sort: CarRentalsSortKey | undefined,
   bestOfferPriceSql: SQL<number | null>,
-  bestOfferCategorySql: SQL<string | null>,
 ) => {
   const scoreSql = sql<number>`coalesce((${carInventory.score})::numeric, 0)`
   const ratingSql = sql<number>`(${carInventory.rating})::numeric`
   const pickupConvenienceSql =
     sql<number>`case when ${carLocations.locationType} = 'city' then 2 else 1 end`
   const bestPriceSql = sql<number>`coalesce(${bestOfferPriceSql}, ${carInventory.fromDailyCents})`
-  const bestCategorySafeSql = sql<string>`coalesce(${bestOfferCategorySql}, '')`
+  const valueSql =
+    sql<number>`coalesce(((${scoreSql}) * 10000.0) / nullif(${bestPriceSql}, 0), 0)`
 
   if (sort === 'price-asc') {
     return [asc(bestPriceSql), desc(scoreSql), asc(carInventory.id)] as const
   }
 
-  if (sort === 'price-desc') {
-    return [desc(bestPriceSql), desc(scoreSql), asc(carInventory.id)] as const
-  }
-
-  if (sort === 'vehicle-class') {
-    return [asc(bestCategorySafeSql), asc(bestPriceSql), desc(scoreSql), asc(carInventory.id)] as const
+  if (sort === 'value') {
+    return [desc(valueSql), desc(scoreSql), asc(bestPriceSql), asc(carInventory.id)] as const
   }
 
   if (sort === 'pickup-convenience') {
     return [desc(pickupConvenienceSql), asc(bestPriceSql), desc(scoreSql), asc(carInventory.id)] as const
+  }
+
+  if (sort === 'rating-desc') {
+    return [desc(ratingSql), desc(scoreSql), asc(bestPriceSql), asc(carInventory.id)] as const
   }
 
   return [desc(scoreSql), desc(ratingSql), asc(bestPriceSql), asc(carInventory.id)] as const
@@ -491,7 +491,7 @@ export async function searchCarRentalsPage(
       ),
     )
     .where(and(...conditions))
-    .orderBy(...getCarRentalSortOrder(input.sort, bestOfferPriceSql, bestOfferCategorySql))
+    .orderBy(...getCarRentalSortOrder(input.sort, bestOfferPriceSql))
     .limit(input.limit ?? DEFAULT_LIMIT)
     .offset(input.offset ?? 0)
 

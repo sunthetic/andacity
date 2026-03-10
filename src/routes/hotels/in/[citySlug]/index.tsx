@@ -4,6 +4,7 @@ import type { DocumentHead } from '@builder.io/qwik-city'
 import { HotelsResultsAdapter } from '~/components/hotels/HotelsResultsAdapter'
 import { Page } from '~/components/site/Page'
 import { HotelCitySearchCard } from '~/components/hotels/HotelCitySearchCard'
+import { normalizeHotelSort } from '~/lib/search/hotels/hotel-sort-options'
 import { searchStateFromUrl } from '~/lib/search/url-to-state'
 import { loadHotelCityBySlugFromDb, loadHotelsForCityFromDb } from '~/lib/queries/hotels-pages.server'
 
@@ -25,7 +26,7 @@ export const useHotelCityPage = routeLoader$(async ({ params, url, error }) => {
       checkIn: active.checkIn || undefined,
       checkOut: active.checkOut || undefined,
     },
-    sort: 'relevance',
+    sort: 'recommended',
     page: 1,
   })
   searchState.query = city.city
@@ -33,6 +34,7 @@ export const useHotelCityPage = routeLoader$(async ({ params, url, error }) => {
     ...(searchState.location || {}),
     city: city.city,
   }
+  searchState.sort = normalizeHotelSort(searchState.sort)
 
   const searchHref = buildSearchHotelsHref({
     query: city.query,

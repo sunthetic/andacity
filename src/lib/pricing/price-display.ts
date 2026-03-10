@@ -350,7 +350,7 @@ export const buildFlightPriceDisplay = (input: {
     totalLabel: null,
     supportText:
       toNullableLabel(input.supportText) ||
-      'Per-traveler fare shown first. Bags, seats, and supplier fees can change the final amount.',
+      'Bags, seats, and supplier fees can change the final amount.',
     delta: buildPriceChange({
       label: 'Base fare',
       previousAmount: input.previousFare,

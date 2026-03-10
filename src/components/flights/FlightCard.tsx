@@ -62,12 +62,13 @@ export const FlightCard = component$((props: FlightCardProps) => {
           ) : null}
 
           <div class="text-right">
-            <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-              {props.priceDisplay.baseLabel}{" "}
+            <p class="text-lg font-semibold text-[color:var(--color-text-strong)]">
               {formatMoney(props.priceDisplay.baseAmount, flight.currency)}
-              <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">
-                {formatPriceQualifier(props.priceDisplay.baseQualifier)}
-              </span>
+              {props.priceDisplay.baseQualifier ? (
+                <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">
+                  {formatPriceQualifier(props.priceDisplay.baseQualifier)}
+                </span>
+              ) : null}
             </p>
 
             {props.priceDisplay.baseTotalAmount != null ? (
@@ -88,7 +89,7 @@ export const FlightCard = component$((props: FlightCardProps) => {
             ) : null}
 
             {props.priceDisplay.supportText ? (
-              <p class="mt-1 max-w-[220px] text-xs text-[color:var(--color-text-muted)]">
+              <p class="mt-2 ml-auto max-w-[165px] text-[11px] leading-4 text-[color:var(--color-text-subtle)]">
                 {props.priceDisplay.supportText}
               </p>
             ) : null}

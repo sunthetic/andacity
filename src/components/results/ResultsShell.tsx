@@ -1,17 +1,18 @@
-import { Slot, component$ } from "@builder.io/qwik";
+import { $, Slot, component$, useSignal } from "@builder.io/qwik";
 import { AsyncInlineSpinner } from "~/components/async/AsyncInlineSpinner";
 import { AsyncStateNotice } from "~/components/async/AsyncStateNotice";
 import {
   InventoryRefreshControl,
   type InventoryRefreshControlProps,
 } from "~/components/inventory/InventoryRefreshControl";
+import { ResultsControlBar } from "~/components/results/ResultsControlBar";
 import { ResultsEmpty } from "~/components/results/ResultsEmpty";
 import { ResultsFilters } from "~/components/results/ResultsFilters";
+import type { ResultsFilterChip } from "~/components/results/ResultsFilterGroups";
 import { ResultsHeader } from "~/components/results/ResultsHeader";
 import { ResultsLoading } from "~/components/results/ResultsLoading";
 import { ResultsPagination } from "~/components/results/ResultsPagination";
 import type { ResultsPaginationLink } from "~/components/results/ResultsPagination";
-import { ResultsSort } from "~/components/results/ResultsSort";
 import type { ResultsSortOption } from "~/components/results/ResultsSort";
 import type { BookingAsyncState } from "~/lib/async/booking-async-state";
 
@@ -21,6 +22,17 @@ export const ResultsShell = component$((props: ResultsShellProps) => {
     asyncState === "refreshing" ||
     asyncState === "partial" ||
     asyncState === "stale";
+  const mobileFiltersOpen = useSignal(false);
+  const desktopFiltersOpen = useSignal(true);
+
+  const onToggleFilters$ = $(() => {
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      desktopFiltersOpen.value = !desktopFiltersOpen.value;
+      return;
+    }
+
+    mobileFiltersOpen.value = !mobileFiltersOpen.value;
+  });
 
   return (
     <section class={props.class}>
@@ -35,31 +47,44 @@ export const ResultsShell = component$((props: ResultsShellProps) => {
         </div>
       ) : null}
 
-      <ResultsFilters
-        mode="mobile"
-        title={props.filtersTitle || "Filters"}
+      <ResultsControlBar
         class="mt-4"
-      >
-        <Slot name="filters-mobile" />
-      </ResultsFilters>
+        sortId={props.sortId || "results-sort"}
+        resultCountLabel={props.resultCountLabel}
+        sortOptions={props.sortOptions}
+        activeFilterChips={props.activeFilterChips}
+        clearAllHref={props.clearAllFiltersHref}
+        onToggleFilters$={onToggleFilters$}
+        busy={asyncState === "refreshing" || asyncState === "initial_loading"}
+        disabled={props.controlsDisabled}
+      />
 
-      <div class="mt-6 grid gap-6 lg:grid-cols-[280px_1fr] lg:items-start">
-        <aside class="hidden lg:block">
-          <ResultsFilters title={props.filtersTitle || "Filters"}>
-            <Slot name="filters-desktop" />
-          </ResultsFilters>
-        </aside>
+      {mobileFiltersOpen.value ? (
+        <ResultsFilters title={props.filtersTitle || "Filters"} class="mt-4 lg:hidden">
+          <Slot name="filters-mobile" />
+        </ResultsFilters>
+      ) : null}
+
+      <div
+        class={[
+          "mt-6 grid gap-6 lg:items-start",
+          desktopFiltersOpen.value
+            ? "lg:grid-cols-[280px_1fr]"
+            : "lg:grid-cols-[1fr]",
+        ]}
+      >
+        {desktopFiltersOpen.value ? (
+          <aside class="hidden lg:block">
+            <ResultsFilters title={props.filtersTitle || "Filters"}>
+              <Slot name="filters-desktop" />
+            </ResultsFilters>
+          </aside>
+        ) : null}
 
         <div>
-          <ResultsSort
-            resultCountLabel={props.resultCountLabel}
-            options={props.sortOptions}
-            disabled={props.controlsDisabled}
-          />
-
           {showNotice && props.statusNotice ? (
             <AsyncStateNotice
-              class="mt-4"
+              class="mt-1"
               state={asyncState}
               title={props.statusNotice.title}
               message={props.statusNotice.message}
@@ -136,6 +161,9 @@ type ResultsShellProps = {
   querySummary: string;
   resultCountLabel: string;
   sortOptions: ResultsSortOption[];
+  sortId?: string;
+  activeFilterChips?: ResultsFilterChip[];
+  clearAllFiltersHref?: string;
   pagination?: {
     page: number;
     totalPages: number;
