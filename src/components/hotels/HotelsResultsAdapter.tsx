@@ -1,4 +1,5 @@
 import { $, component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
+import { useLocation } from "@builder.io/qwik-city";
 import { HotelCard } from "~/components/hotels/HotelCard";
 import { HotelFilters } from "~/components/hotels/HotelFilters";
 import type { HotelFilterGroup } from "~/components/hotels/HotelFilters";
@@ -34,6 +35,11 @@ import { SAVE_COMPARE_STORAGE_KEY } from "~/lib/save-compare/storage";
 import { computeNights } from "~/lib/search/hotels/dates";
 import { searchStateToUrl } from "~/lib/search/state-to-url";
 import { formatMoney } from "~/lib/formatMoney";
+import {
+  resolveAvailabilityAsyncState,
+  summarizeAvailabilitySignals,
+  type BookingAsyncState,
+} from "~/lib/async/booking-async-state";
 import type { SavedItem } from "~/types/save-compare/saved-item";
 import type { SearchState } from "~/types/search/state";
 
@@ -322,6 +328,7 @@ const buildPageLinks = (
 
 export const HotelsResultsAdapter = component$(
   (props: HotelsResultsAdapterProps) => {
+    const location = useLocation();
     const basePath = `/hotels/in/${encodeURIComponent(props.citySlug)}`;
     const toHref = (nextState: SearchState) =>
       searchStateToUrl(basePath, nextState, {
@@ -422,6 +429,18 @@ export const HotelsResultsAdapter = component$(
     const compareOpen = useSignal(false);
     const refreshPriceChanges = useSignal<Record<string, PriceChange>>({});
     const refreshPriceSummary = useSignal<string | null>(null);
+    const availabilitySignals = summarizeAvailabilitySignals(pageItems);
+    const asyncState = resolveAvailabilityAsyncState({
+      itemCount: sortedHotels.length,
+      isRefreshing: location.isNavigating,
+      signals: availabilitySignals,
+    });
+    const controlsDisabled = location.isNavigating;
+    const statusNotice = buildHotelResultsStatusNotice(asyncState, {
+      partialCount: availabilitySignals.partialCount,
+      staleCount: availabilitySignals.staleCount,
+      failedCount: availabilitySignals.failedCount,
+    });
 
     // eslint-disable-next-line qwik/no-use-visible-task
     useVisibleTask$(({ cleanup }) => {
@@ -604,8 +623,15 @@ export const HotelsResultsAdapter = component$(
             "Visible hotel availability was refreshed. Any nightly-rate changes are highlighted below.",
           failureMessage:
             "Failed to refresh visible hotel availability signals.",
+          disabled: controlsDisabled,
         }}
         filtersTitle="Hotel filters"
+        asyncState={asyncState}
+        statusNotice={statusNotice}
+        loadingVariant="card"
+        loadingCount={6}
+        refreshingOverlayLabel="Updating stays"
+        controlsDisabled={controlsDisabled}
         resultCountLabel={`${sortedHotels.length.toLocaleString("en-US")} stays`}
         sortOptions={sortOptions}
         pagination={{
@@ -638,8 +664,16 @@ export const HotelsResultsAdapter = component$(
               }
         }
       >
-        <HotelFilters q:slot="filters-desktop" groups={filterGroups} />
-        <HotelFilters q:slot="filters-mobile" groups={filterGroups} />
+        <HotelFilters
+          q:slot="filters-desktop"
+          groups={filterGroups}
+          disabled={controlsDisabled}
+        />
+        <HotelFilters
+          q:slot="filters-mobile"
+          groups={filterGroups}
+          disabled={controlsDisabled}
+        />
 
         {refreshPriceSummary.value ? (
           <div class="mb-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
@@ -708,3 +742,37 @@ type HotelsResultsAdapterProps = {
 };
 
 type HotelPriceTier = "budget" | "mid" | "upscale" | "luxury";
+
+const buildHotelResultsStatusNotice = (
+  state: BookingAsyncState,
+  input: {
+    partialCount: number;
+    staleCount: number;
+    failedCount: number;
+  },
+) => {
+  if (state === "refreshing") {
+    return {
+      title: "Refreshing hotel results",
+      message:
+        "Updated rates and filters are loading. Current stays stay visible until the next result set is ready.",
+    };
+  }
+
+  if (state === "partial") {
+    return {
+      title: "Some stays only partially match",
+      message: `${input.partialCount.toLocaleString("en-US")} visible hotel result${input.partialCount === 1 ? "" : "s"} only partially match the current stay request. Refresh availability or adjust dates to compare cleaner matches.`,
+    };
+  }
+
+  if (state === "stale") {
+    const affected = input.staleCount + input.failedCount;
+    return {
+      title: "Some stays need recheck",
+      message: `${affected.toLocaleString("en-US")} visible hotel result${affected === 1 ? "" : "s"} rely on stale or failed availability signals. Refresh visible availability before trusting these nightly rates.`,
+    };
+  }
+
+  return undefined;
+};

@@ -1,9 +1,16 @@
 import { $, component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import { routeLoader$, useLocation } from "@builder.io/qwik-city";
 import type { DocumentHead } from "@builder.io/qwik-city";
+import { AsyncRetryControl } from "~/components/async/AsyncRetryControl";
+import { AsyncStateNotice } from "~/components/async/AsyncStateNotice";
 import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import { InventoryRefreshControl } from "~/components/inventory/InventoryRefreshControl";
 import { Page } from "~/components/site/Page";
+import {
+  resolveAvailabilityAsyncState,
+  summarizeAvailabilitySignals,
+  type BookingAsyncState,
+} from "~/lib/async/booking-async-state";
 import { revalidateInventoryApi } from "~/lib/inventory/inventory-api";
 import {
   buildAvailabilityConfidence,
@@ -29,11 +36,26 @@ export const useCarRental = routeLoader$(async ({ params, url, error }) => {
   const slug = String(params.slug || "")
     .trim()
     .toLowerCase();
-  const rental = await loadCarRentalBySlugFromDb(slug);
+  const active = parseRentalParams(url.searchParams);
+  const rental = await loadCarRentalBySlugFromDb(slug).catch((cause) => {
+    const message =
+      cause instanceof Error
+        ? cause.message
+        : "Failed to load car rental details.";
+
+    return {
+      slug,
+      active,
+      loadError: message,
+    };
+  });
+
+  if (rental && typeof rental === "object" && "loadError" in rental) {
+    return rental;
+  }
 
   if (!rental) throw error(404, "Not found");
 
-  const active = parseRentalParams(url.searchParams);
   const availabilityAssessment = evaluateCarAvailabilityContext({
     availability: rental.availability || null,
     pickupDate: active.pickupDate,
@@ -47,12 +69,41 @@ export const useCarRental = routeLoader$(async ({ params, url, error }) => {
       freshness: rental.freshness,
       ...availabilityAssessment,
     }),
+    loadError: null as string | null,
   };
 });
 
 export default component$(() => {
-  const rental = useCarRental().value;
+  const data = useCarRental().value;
   const location = useLocation();
+
+  if (data.loadError) {
+    return (
+      <Page
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "Car Rentals", href: "/car-rentals" },
+          { label: "Car rental details" },
+        ]}
+      >
+        <div class="mt-6 rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-6 shadow-[var(--shadow-sm)]">
+          <AsyncStateNotice
+            state="failed"
+            title="Car rental details could not be loaded"
+            message={data.loadError}
+          />
+          <AsyncRetryControl
+            class="mt-4"
+            message="Retry this page or return to car rental search."
+            label="Retry car rental details"
+            href={location.url.pathname + location.url.search}
+          />
+        </div>
+      </Page>
+    );
+  }
+
+  const rental = data as Exclude<typeof data, { loadError: string }>;
 
   const heroImg = rental.images[0] || "/img/demo/car-1.jpg";
   const priceFrom = Math.min(...rental.offers.map((o) => o.priceFrom));
@@ -60,6 +111,19 @@ export default component$(() => {
   const refreshSnapshotId = `car-detail:${refreshHref}`;
   const refreshPriceChange = useSignal<PriceChange | null>(null);
   const refreshPriceSummary = useSignal<string | null>(null);
+  const availabilitySignals = summarizeAvailabilitySignals([
+    { availabilityConfidence: rental.availabilityConfidence },
+  ]);
+  const asyncState = resolveAvailabilityAsyncState({
+    itemCount: 1,
+    isRefreshing: location.isNavigating,
+    signals: availabilitySignals,
+  });
+  const statusNotice = buildCarDetailStatusNotice(asyncState, {
+    partialCount: availabilitySignals.partialCount,
+    staleCount: availabilitySignals.staleCount,
+    failedCount: availabilitySignals.failedCount,
+  });
   const rentalDays = computeDays(
     rental.active.pickupDate || null,
     rental.active.dropoffDate || null,
@@ -133,6 +197,14 @@ export default component$(() => {
       ]}
     >
       <div class="flex flex-col gap-6">
+        {statusNotice ? (
+          <AsyncStateNotice
+            state={asyncState}
+            title={statusNotice.title}
+            message={statusNotice.message}
+          />
+        ) : null}
+
         {/* Header */}
         <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div class="min-w-0">
@@ -199,6 +271,7 @@ export default component$(() => {
                   successMessage="Car rental availability was refreshed. Any daily-rate changes are highlighted below."
                   failureMessage="Failed to refresh this car rental's availability signals."
                   align="right"
+                  disabled={location.isNavigating}
                 />
               </div>
             </div>
@@ -560,18 +633,34 @@ export default component$(() => {
 
 export const head: DocumentHead = ({ resolveValue, params, url }) => {
   const rental = resolveValue(useCarRental);
+  if (rental.loadError) {
+    return {
+      title: "Car rental details | Andacity Travel",
+      meta: [
+        {
+          name: "description",
+          content: "Retry car rental details or return to search results.",
+        },
+      ],
+      links: [
+        { rel: "canonical", href: new URL(url.pathname, url.origin).href },
+      ],
+    };
+  }
 
-  const title = `${rental.name} | Car Rentals | Andacity Travel`;
-  const description = rental.summary;
+  const detail = rental as Exclude<typeof rental, { loadError: string }>;
+
+  const title = `${detail.name} | Car Rentals | Andacity Travel`;
+  const description = detail.summary;
 
   const canonicalHref = new URL(
     buildCarRentalDetailHref(params.slug),
     url.origin,
   ).href;
 
-  const priceFrom = rental.offers.length
-    ? Math.min(...rental.offers.map((o) => o.priceFrom))
-    : rental.fromDaily;
+  const priceFrom = detail.offers.length
+    ? Math.min(...detail.offers.map((o) => o.priceFrom))
+    : detail.fromDaily;
 
   const jsonLd = JSON.stringify({
     "@context": "https://schema.org",
@@ -588,25 +677,25 @@ export const head: DocumentHead = ({ resolveValue, params, url }) => {
           {
             "@type": "ListItem",
             position: 2,
-            name: rental.name,
+            name: detail.name,
             item: canonicalHref,
           },
         ],
       },
       {
         "@type": "Product",
-        name: rental.name,
-        description: rental.summary,
-        image: rental.images.map((src) => new URL(src, url.origin).href),
+        name: detail.name,
+        description: detail.summary,
+        image: detail.images.map((src) => new URL(src, url.origin).href),
         brand: { "@type": "Brand", name: "Andacity" },
         aggregateRating: {
           "@type": "AggregateRating",
-          ratingValue: rental.rating,
-          reviewCount: rental.reviewCount,
+          ratingValue: detail.rating,
+          reviewCount: detail.reviewCount,
         },
         offers: {
           "@type": "Offer",
-          priceCurrency: rental.currency,
+          priceCurrency: detail.currency,
           price: priceFrom,
           availability: "https://schema.org/InStock",
           url: canonicalHref,
@@ -636,6 +725,40 @@ export const head: DocumentHead = ({ resolveValue, params, url }) => {
       },
     ],
   };
+};
+
+const buildCarDetailStatusNotice = (
+  state: BookingAsyncState,
+  input: {
+    partialCount: number;
+    staleCount: number;
+    failedCount: number;
+  },
+) => {
+  if (state === "refreshing") {
+    return {
+      title: "Refreshing car rental details",
+      message:
+        "Updated availability and pricing are loading. Current rental details stay visible until the refresh completes.",
+    };
+  }
+
+  if (state === "partial") {
+    return {
+      title: "This rental only partially matches",
+      message: `${input.partialCount.toLocaleString("en-US")} availability signal indicates the requested pickup or dropoff dates only partially match this rental. Refresh availability before relying on this price.`,
+    };
+  }
+
+  if (state === "stale") {
+    const affected = input.staleCount + input.failedCount;
+    return {
+      title: "Availability needs recheck",
+      message: `${affected.toLocaleString("en-US")} availability signal${affected === 1 ? "" : "s"} for this rental are stale or failed. Refresh availability before treating this rental as current.`,
+    };
+  }
+
+  return undefined;
 };
 
 const buildCarRentalsHref = () => {

@@ -1,4 +1,5 @@
 import { component$, type QRL } from "@builder.io/qwik";
+import { AsyncPendingButton } from "~/components/async/AsyncPendingButton";
 import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import {
   buildPriceDisplayFromMetadata,
@@ -14,6 +15,7 @@ export const TripSuggestionCard = component$(
   (props: {
     suggestion: TripBundlingSuggestion;
     loading: boolean;
+    disabled?: boolean;
     onAdd$: QRL<(candidate: TripItemCandidate) => Promise<void>>;
   }) => {
     const { suggestion } = props;
@@ -43,14 +45,15 @@ export const TripSuggestionCard = component$(
             </p>
           </div>
 
-          <button
-            type="button"
+          <AsyncPendingButton
             class="t-btn-primary px-3 py-2 text-sm"
-            disabled={props.loading}
+            pending={props.loading}
+            pendingLabel="Adding..."
+            disabled={props.disabled && !props.loading}
             onClick$={() => props.onAdd$(suggestion.tripCandidate)}
           >
-            {props.loading ? "Adding..." : suggestion.ctaLabel}
-          </button>
+            {suggestion.ctaLabel}
+          </AsyncPendingButton>
         </div>
 
         <div class="mt-3 grid gap-3 rounded-xl border border-[color:var(--color-border)] px-3 py-3 md:grid-cols-[1fr_auto] md:items-start">

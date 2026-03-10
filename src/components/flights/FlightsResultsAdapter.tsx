@@ -1,4 +1,5 @@
 import { $, component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
+import { useLocation } from "@builder.io/qwik-city";
 import { FlightCard } from "~/components/flights/FlightCard";
 import { FlightFilters } from "~/components/flights/FlightFilters";
 import type { FlightFilterGroup } from "~/components/flights/FlightFilters";
@@ -40,6 +41,11 @@ import {
   toggleSavedItem,
 } from "~/lib/save-compare/saved-state";
 import { SAVE_COMPARE_STORAGE_KEY } from "~/lib/save-compare/storage";
+import {
+  resolveAvailabilityAsyncState,
+  summarizeAvailabilitySignals,
+  type BookingAsyncState,
+} from "~/lib/async/booking-async-state";
 import type { FlightResult } from "~/types/flights/search";
 import type { SavedItem } from "~/types/save-compare/saved-item";
 import type { SearchState } from "~/types/search/state";
@@ -217,6 +223,7 @@ const toTravelerCount = (value: unknown) => {
 
 export const FlightsResultsAdapter = component$(
   (props: FlightsResultsAdapterProps) => {
+    const location = useLocation();
     const toHref = (nextState: SearchState) =>
       searchStateToUrl(props.basePath, nextState, {
         includeQueryParam: false,
@@ -242,6 +249,19 @@ export const FlightsResultsAdapter = component$(
     const compareOpen = useSignal(false);
     const refreshPriceChanges = useSignal<Record<string, PriceChange>>({});
     const refreshPriceSummary = useSignal<string | null>(null);
+    const availabilitySignals = summarizeAvailabilitySignals(pageItems);
+    const asyncState = resolveAvailabilityAsyncState({
+      itemCount: props.totalCount,
+      isRefreshing: location.isNavigating,
+      isFailed: Boolean(props.loadError),
+      signals: availabilitySignals,
+    });
+    const controlsDisabled = location.isNavigating || asyncState === "failed";
+    const statusNotice = buildFlightResultsStatusNotice(asyncState, {
+      partialCount: availabilitySignals.partialCount,
+      staleCount: availabilitySignals.staleCount,
+      failedCount: availabilitySignals.failedCount,
+    });
 
     const toSavedFlightItem = (
       result: FlightResult,
@@ -497,8 +517,31 @@ export const FlightsResultsAdapter = component$(
             "Visible flight availability was refreshed. Any fare changes are highlighted below.",
           failureMessage:
             "Failed to refresh visible flight availability signals.",
+          disabled: controlsDisabled,
         }}
         filtersTitle="Flight filters"
+        asyncState={asyncState}
+        statusNotice={statusNotice}
+        failed={
+          props.loadError
+            ? {
+                title: "Flight results could not be updated",
+                description: props.loadError,
+                primaryAction: {
+                  label: "Retry flight search",
+                  href: location.url.pathname + location.url.search,
+                },
+                secondaryAction: props.emptySecondaryAction || {
+                  label: "Search flights again",
+                  href: props.editSearchHref || "/flights",
+                },
+              }
+            : undefined
+        }
+        loadingVariant="list"
+        loadingCount={3}
+        refreshingOverlayLabel="Updating flights"
+        controlsDisabled={controlsDisabled}
         resultCountLabel={`${props.totalCount.toLocaleString("en-US")} flights`}
         sortOptions={sortOptions}
         pagination={{
@@ -536,8 +579,16 @@ export const FlightsResultsAdapter = component$(
               }
         }
       >
-        <FlightFilters q:slot="filters-desktop" groups={filterGroups} />
-        <FlightFilters q:slot="filters-mobile" groups={filterGroups} />
+        <FlightFilters
+          q:slot="filters-desktop"
+          groups={filterGroups}
+          disabled={controlsDisabled}
+        />
+        <FlightFilters
+          q:slot="filters-mobile"
+          groups={filterGroups}
+          disabled={controlsDisabled}
+        />
 
         {refreshPriceSummary.value ? (
           <div class="mb-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
@@ -614,4 +665,39 @@ type FlightsResultsAdapterProps = {
     label: string;
     href: string;
   };
+  loadError?: string | null;
+};
+
+const buildFlightResultsStatusNotice = (
+  state: BookingAsyncState,
+  input: {
+    partialCount: number;
+    staleCount: number;
+    failedCount: number;
+  },
+) => {
+  if (state === "refreshing") {
+    return {
+      title: "Refreshing flight results",
+      message:
+        "Updated fares and filters are loading. Current flight options stay visible until the next result set is ready.",
+    };
+  }
+
+  if (state === "partial") {
+    return {
+      title: "Some itineraries only partially match",
+      message: `${input.partialCount.toLocaleString("en-US")} visible flight result${input.partialCount === 1 ? "" : "s"} no longer exactly match the requested travel date. Refresh availability or broaden the route to compare fresh options.`,
+    };
+  }
+
+  if (state === "stale") {
+    const affected = input.staleCount + input.failedCount;
+    return {
+      title: "Some fares need recheck",
+      message: `${affected.toLocaleString("en-US")} visible flight result${affected === 1 ? "" : "s"} rely on stale or failed availability signals. Refresh visible availability before treating these fares as current.`,
+    };
+  }
+
+  return undefined;
 };

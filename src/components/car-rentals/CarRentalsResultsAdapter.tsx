@@ -1,4 +1,5 @@
 import { $, component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
+import { useLocation } from "@builder.io/qwik-city";
 import { CarRentalCard } from "~/components/car-rentals/CarRentalCard";
 import { CarRentalFilters } from "~/components/car-rentals/CarRentalFilters";
 import type { CarRentalFilterGroup } from "~/components/car-rentals/CarRentalFilters";
@@ -40,6 +41,11 @@ import type {
   CarRentalsSelectedFilters,
 } from "~/lib/search/car-rentals/filter-types";
 import { searchStateToUrl } from "~/lib/search/state-to-url";
+import {
+  resolveAvailabilityAsyncState,
+  summarizeAvailabilitySignals,
+  type BookingAsyncState,
+} from "~/lib/async/booking-async-state";
 import type { CarRentalResult } from "~/types/car-rentals/search";
 import type { SavedItem } from "~/types/save-compare/saved-item";
 import type { SearchState } from "~/types/search/state";
@@ -268,6 +274,7 @@ const toSavedCarItem = (
 
 export const CarRentalsResultsAdapter = component$(
   (props: CarRentalsResultsAdapterProps) => {
+    const location = useLocation();
     const toHref = (nextState: SearchState) =>
       searchStateToUrl(props.basePath, nextState, {
         includeQueryParam: props.urlOptions?.includeQueryParam,
@@ -296,6 +303,19 @@ export const CarRentalsResultsAdapter = component$(
     const compareOpen = useSignal(false);
     const refreshPriceChanges = useSignal<Record<string, PriceChange>>({});
     const refreshPriceSummary = useSignal<string | null>(null);
+    const availabilitySignals = summarizeAvailabilitySignals(pageItems);
+    const asyncState = resolveAvailabilityAsyncState({
+      itemCount: props.totalCount,
+      isRefreshing: location.isNavigating,
+      isFailed: Boolean(props.loadError),
+      signals: availabilitySignals,
+    });
+    const controlsDisabled = location.isNavigating || asyncState === "failed";
+    const statusNotice = buildCarResultsStatusNotice(asyncState, {
+      partialCount: availabilitySignals.partialCount,
+      staleCount: availabilitySignals.staleCount,
+      failedCount: availabilitySignals.failedCount,
+    });
 
     // eslint-disable-next-line qwik/no-use-visible-task
     useVisibleTask$(({ cleanup }) => {
@@ -482,8 +502,31 @@ export const CarRentalsResultsAdapter = component$(
             "Visible car rental availability was refreshed. Any daily-rate changes are highlighted below.",
           failureMessage:
             "Failed to refresh visible car rental availability signals.",
+          disabled: controlsDisabled,
         }}
         filtersTitle="Car rental filters"
+        asyncState={asyncState}
+        statusNotice={statusNotice}
+        failed={
+          props.loadError
+            ? {
+                title: "Car rental results could not be updated",
+                description: props.loadError,
+                primaryAction: {
+                  label: "Retry car rental search",
+                  href: location.url.pathname + location.url.search,
+                },
+                secondaryAction: props.emptyPrimaryAction || {
+                  label: "Search car rentals again",
+                  href: "/car-rentals",
+                },
+              }
+            : undefined
+        }
+        loadingVariant="list"
+        loadingCount={3}
+        refreshingOverlayLabel="Updating rentals"
+        controlsDisabled={controlsDisabled}
         resultCountLabel={`${props.totalCount.toLocaleString("en-US")} rentals`}
         sortOptions={sortOptions}
         pagination={{
@@ -521,8 +564,16 @@ export const CarRentalsResultsAdapter = component$(
               }
         }
       >
-        <CarRentalFilters q:slot="filters-desktop" groups={filterGroups} />
-        <CarRentalFilters q:slot="filters-mobile" groups={filterGroups} />
+        <CarRentalFilters
+          q:slot="filters-desktop"
+          groups={filterGroups}
+          disabled={controlsDisabled}
+        />
+        <CarRentalFilters
+          q:slot="filters-mobile"
+          groups={filterGroups}
+          disabled={controlsDisabled}
+        />
 
         {refreshPriceSummary.value ? (
           <div class="mb-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
@@ -604,6 +655,7 @@ type CarRentalsResultsAdapterProps = {
     label: string;
     href: string;
   };
+  loadError?: string | null;
   urlOptions?: {
     includeQueryParam?: boolean;
     includeLocationParams?: boolean;
@@ -612,4 +664,38 @@ type CarRentalsResultsAdapterProps = {
       checkOut?: string;
     };
   };
+};
+
+const buildCarResultsStatusNotice = (
+  state: BookingAsyncState,
+  input: {
+    partialCount: number;
+    staleCount: number;
+    failedCount: number;
+  },
+) => {
+  if (state === "refreshing") {
+    return {
+      title: "Refreshing car rental results",
+      message:
+        "Updated daily rates and filters are loading. Current rentals stay visible until the next result set is ready.",
+    };
+  }
+
+  if (state === "partial") {
+    return {
+      title: "Some rentals only partially match",
+      message: `${input.partialCount.toLocaleString("en-US")} visible car rental result${input.partialCount === 1 ? "" : "s"} only partially match the requested pickup or dropoff dates. Refresh availability or widen the criteria to compare cleaner matches.`,
+    };
+  }
+
+  if (state === "stale") {
+    const affected = input.staleCount + input.failedCount;
+    return {
+      title: "Some rentals need recheck",
+      message: `${affected.toLocaleString("en-US")} visible car rental result${affected === 1 ? "" : "s"} rely on stale or failed availability signals. Refresh visible availability before trusting these daily rates.`,
+    };
+  }
+
+  return undefined;
 };

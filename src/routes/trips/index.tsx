@@ -1,9 +1,18 @@
 import { $, component$, useSignal, type QRL } from "@builder.io/qwik";
 import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
+import { AsyncInlineSpinner } from "~/components/async/AsyncInlineSpinner";
+import { AsyncPendingButton } from "~/components/async/AsyncPendingButton";
+import { AsyncRetryControl } from "~/components/async/AsyncRetryControl";
+import { AsyncStateNotice } from "~/components/async/AsyncStateNotice";
+import { DetailSkeleton } from "~/components/async/AsyncSurfaceSkeleton";
 import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import { InventoryRefreshControl } from "~/components/inventory/InventoryRefreshControl";
 import { Page } from "~/components/site/Page";
 import { TripSuggestionCard } from "~/components/trips/TripSuggestionCard";
+import {
+  resolveBookingAsyncState,
+  type BookingAsyncState,
+} from "~/lib/async/booking-async-state";
 import {
   buildPriceDisplayFromMetadata,
   formatMoneyFromCents,
@@ -74,7 +83,9 @@ export default component$(() => {
   const trips = useSignal<TripListItem[]>(data.trips);
   const activeTripId = useSignal<number | null>(data.activeTripId);
   const activeTrip = useSignal<TripDetails | null>(data.activeTrip);
+  const setupError = useSignal<string | null>(data.setupError);
   const loading = useSignal(false);
+  const activeAction = useSignal<string | null>(null);
   const error = useSignal<string | null>(null);
   const createTripName = useSignal("");
   const editingName = useSignal(data.activeTrip?.name || "");
@@ -108,7 +119,9 @@ export default component$(() => {
 
   const loadTrip$ = $(
     async (tripId: number, options?: { refreshList?: boolean }) => {
+      if (loading.value) return;
       loading.value = true;
+      activeAction.value = `load-trip:${tripId}`;
       error.value = null;
 
       try {
@@ -128,13 +141,17 @@ export default component$(() => {
         error.value = message;
       } finally {
         loading.value = false;
+        activeAction.value = null;
       }
     },
   );
 
   const onCreateTrip$ = $(async () => {
+    if (loading.value) return;
     loading.value = true;
+    activeAction.value = "create-trip";
     error.value = null;
+    setupError.value = null;
 
     try {
       const trip = await createTripApi({
@@ -153,12 +170,14 @@ export default component$(() => {
       error.value = message;
     } finally {
       loading.value = false;
+      activeAction.value = null;
     }
   });
 
   const onUpdateTripMetadata$ = $(async () => {
-    if (!activeTrip.value) return;
+    if (!activeTrip.value || loading.value) return;
     loading.value = true;
+    activeAction.value = "update-trip";
     error.value = null;
 
     try {
@@ -178,12 +197,14 @@ export default component$(() => {
       error.value = message;
     } finally {
       loading.value = false;
+      activeAction.value = null;
     }
   });
 
   const onRevalidateTrip$ = $(async () => {
-    if (!activeTrip.value) return;
+    if (!activeTrip.value || loading.value) return;
     loading.value = true;
+    activeAction.value = "revalidate-trip";
     error.value = null;
 
     try {
@@ -201,12 +222,14 @@ export default component$(() => {
       throw new Error(message);
     } finally {
       loading.value = false;
+      activeAction.value = null;
     }
   });
 
   const onRemoveItem$ = $(async (itemId: number) => {
-    if (!activeTrip.value) return;
+    if (!activeTrip.value || loading.value) return;
     loading.value = true;
+    activeAction.value = `remove-item:${itemId}`;
     error.value = null;
 
     try {
@@ -221,11 +244,12 @@ export default component$(() => {
       error.value = message;
     } finally {
       loading.value = false;
+      activeAction.value = null;
     }
   });
 
   const onMoveItem$ = $(async (itemId: number, direction: -1 | 1) => {
-    if (!activeTrip.value) return;
+    if (!activeTrip.value || loading.value) return;
     const currentItems = [...activeTrip.value.items].sort(
       (a, b) => a.position - b.position,
     );
@@ -240,6 +264,7 @@ export default component$(() => {
     const orderedItemIds = currentItems.map((item) => item.id);
 
     loading.value = true;
+    activeAction.value = `move-item:${itemId}`;
     error.value = null;
     try {
       const trip = await reorderTripItemsApi(
@@ -256,13 +281,15 @@ export default component$(() => {
       error.value = message;
     } finally {
       loading.value = false;
+      activeAction.value = null;
     }
   });
 
   const onAddSuggestedItem$ = $(async (candidate: TripItemCandidate) => {
-    if (!activeTrip.value) return;
+    if (!activeTrip.value || loading.value) return;
 
     loading.value = true;
+    activeAction.value = `add-suggestion:${candidate.inventoryId}`;
     error.value = null;
 
     try {
@@ -277,8 +304,68 @@ export default component$(() => {
       error.value = message;
     } finally {
       loading.value = false;
+      activeAction.value = null;
     }
   });
+
+  const retrySetup$ = $(async () => {
+    if (loading.value) return;
+    loading.value = true;
+    activeAction.value = "setup-retry";
+    error.value = null;
+
+    try {
+      await refreshTrips$(activeTripId.value, true);
+      setupError.value = null;
+
+      const nextTripId = activeTripId.value ?? trips.value[0]?.id ?? null;
+      if (!nextTripId) {
+        activeTrip.value = null;
+        editingName.value = "";
+        editingStatus.value = "draft";
+        return;
+      }
+
+      const trip = await getTripDetailsApi(nextTripId);
+      activeTripId.value = trip.id;
+      activeTrip.value = trip;
+      editingName.value = trip.name || "";
+      editingStatus.value = trip.status || "draft";
+    } catch (cause) {
+      const message =
+        cause instanceof TripApiError
+          ? cause.message
+          : "Failed to reload trips.";
+      setupError.value = message;
+      error.value = message;
+    } finally {
+      loading.value = false;
+      activeAction.value = null;
+    }
+  });
+
+  const tripSurfaceState = resolveBookingAsyncState({
+    isFailed:
+      Boolean(setupError.value) &&
+      !trips.value.length &&
+      activeTrip.value == null &&
+      !loading.value,
+    isLoading: loading.value && !trips.value.length && activeTrip.value == null,
+    isRefreshing:
+      loading.value && (trips.value.length > 0 || activeTrip.value != null),
+    isEmpty:
+      !setupError.value &&
+      !loading.value &&
+      !trips.value.length &&
+      activeTrip.value == null,
+    isPartial: Boolean(activeTrip.value?.pricing.hasPartialPricing),
+    isStale: Boolean(activeTrip.value?.intelligence.itemStatusCounts.stale),
+  });
+  const tripStatusNotice = buildTripStatusNotice(
+    tripSurfaceState,
+    activeTrip.value,
+    activeAction.value,
+  );
 
   return (
     <Page
@@ -297,6 +384,40 @@ export default component$(() => {
         </p>
       </div>
 
+      {tripStatusNotice ? (
+        <AsyncStateNotice
+          class="mt-4"
+          state={tripSurfaceState}
+          title={tripStatusNotice.title}
+          message={tripStatusNotice.message}
+        />
+      ) : null}
+
+      {setupError.value && tripSurfaceState === "failed" ? (
+        <div class="mt-4 rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-4 shadow-[var(--shadow-sm)]">
+          <AsyncStateNotice
+            state="failed"
+            title="Trips could not be loaded"
+            message={setupError.value}
+          />
+          <AsyncRetryControl
+            class="mt-4"
+            message="Retry loading your trips without leaving the builder."
+            label="Retry trips"
+            onRetry$={retrySetup$}
+          />
+        </div>
+      ) : null}
+
+      {error.value && tripSurfaceState !== "failed" ? (
+        <AsyncStateNotice
+          class="mt-4"
+          state="failed"
+          title="Trip update failed"
+          message={error.value}
+        />
+      ) : null}
+
       <section class="mt-6 grid gap-6 lg:grid-cols-[320px_1fr]">
         <aside class="t-card p-4">
           <h2 class="text-sm font-semibold text-[color:var(--color-text-strong)]">
@@ -314,14 +435,15 @@ export default component$(() => {
               placeholder="Trip name"
               class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm"
             />
-            <button
-              type="button"
+            <AsyncPendingButton
               class="t-btn-primary px-3 py-2 text-sm"
-              disabled={loading.value}
+              pending={activeAction.value === "create-trip"}
+              pendingLabel="Creating trip..."
+              disabled={loading.value && activeAction.value !== "create-trip"}
               onClick$={onCreateTrip$}
             >
               Create trip
-            </button>
+            </AsyncPendingButton>
           </div>
 
           <div class="mt-4 grid gap-2">
@@ -336,10 +458,17 @@ export default component$(() => {
                     activeTripId.value === trip.id
                       ? "border-[color:var(--color-action)] bg-[color:var(--color-primary-50)]"
                       : "border-[color:var(--color-border)]",
+                    loading.value ? "cursor-not-allowed opacity-75" : null,
                   ]}
+                  disabled={loading.value}
                 >
-                  <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                    {trip.name}
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                      {trip.name}
+                    </div>
+                    {activeAction.value === `load-trip:${trip.id}` ? (
+                      <AsyncInlineSpinner compact={true} />
+                    ) : null}
                   </div>
                   <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
                     {trip.itemCount} items
@@ -358,7 +487,11 @@ export default component$(() => {
         </aside>
 
         <main class="grid gap-4">
-          {activeTrip.value ? (
+          {tripSurfaceState === "initial_loading" ? (
+            <section class="t-card p-6">
+              <DetailSkeleton />
+            </section>
+          ) : activeTrip.value ? (
             <>
               <section class="t-card p-4">
                 <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -550,14 +683,17 @@ export default component$(() => {
                     <option value="archived">Archived</option>
                   </select>
 
-                  <button
-                    type="button"
+                  <AsyncPendingButton
                     onClick$={onUpdateTripMetadata$}
-                    disabled={loading.value}
+                    pending={activeAction.value === "update-trip"}
+                    pendingLabel="Saving trip..."
+                    disabled={
+                      loading.value && activeAction.value !== "update-trip"
+                    }
                     class="t-btn-ghost px-3 py-2 text-sm"
                   >
                     Update
-                  </button>
+                  </AsyncPendingButton>
                 </div>
               </section>
 
@@ -581,7 +717,11 @@ export default component$(() => {
                           <TripSuggestionCard
                             key={suggestion.id}
                             suggestion={suggestion}
-                            loading={loading.value}
+                            loading={
+                              activeAction.value ===
+                              `add-suggestion:${suggestion.tripCandidate.inventoryId}`
+                            }
+                            disabled={loading.value}
                             onAdd$={onAddSuggestedItem$}
                           />
                         ),
@@ -613,6 +753,7 @@ export default component$(() => {
                           index={index}
                           total={activeTrip.value?.items.length || 0}
                           loading={loading.value}
+                          pendingActionId={activeAction.value}
                           onRemove$={onRemoveItem$}
                           onMove$={onMoveItem$}
                         />
@@ -626,6 +767,59 @@ export default component$(() => {
                 )}
               </section>
             </>
+          ) : tripSurfaceState === "failed" ? (
+            <section class="t-card p-6">
+              <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
+                Trips are unavailable right now
+              </h2>
+              <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
+                Retry loading your trips or start from a fresh search once the
+                trip APIs respond again.
+              </p>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <AsyncPendingButton
+                  class="t-btn-primary px-4 py-2 text-sm"
+                  pending={activeAction.value === "setup-retry"}
+                  pendingLabel="Reloading trips..."
+                  disabled={
+                    loading.value && activeAction.value !== "setup-retry"
+                  }
+                  onClick$={retrySetup$}
+                >
+                  Retry trips
+                </AsyncPendingButton>
+                <a class="t-btn-ghost px-4 py-2 text-sm" href="/search/hotels">
+                  Search hotels
+                </a>
+              </div>
+            </section>
+          ) : tripSurfaceState === "empty" ? (
+            <section class="t-card p-6">
+              <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
+                Start your first trip
+              </h2>
+              <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
+                Create a trip from the left panel, or jump into hotel, flight,
+                or car search and add items directly from results.
+              </p>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <a
+                  class="t-btn-primary px-4 py-2 text-sm"
+                  href="/search/hotels"
+                >
+                  Search hotels
+                </a>
+                <a class="t-btn-ghost px-4 py-2 text-sm" href="/search/flights">
+                  Search flights
+                </a>
+                <a
+                  class="t-btn-ghost px-4 py-2 text-sm"
+                  href="/search/car-rentals"
+                >
+                  Search car rentals
+                </a>
+              </div>
+            </section>
           ) : (
             <section class="t-card p-6">
               <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
@@ -639,23 +833,98 @@ export default component$(() => {
           )}
         </main>
       </section>
-
-      {data.setupError ? (
-        <div class="mt-4 rounded-xl border border-[color:var(--color-warning,#b45309)] bg-[color:var(--color-warning-soft,#fffbeb)] px-4 py-3">
-          <p class="text-sm text-[color:var(--color-warning,#92400e)]">
-            {data.setupError}
-          </p>
-        </div>
-      ) : null}
-
-      {error.value ? (
-        <p class="mt-4 text-sm text-[color:var(--color-error,#b91c1c)]">
-          {error.value}
-        </p>
-      ) : null}
     </Page>
   );
 });
+
+const buildTripStatusNotice = (
+  state: BookingAsyncState,
+  trip: TripDetails | null,
+  actionId: string | null,
+) => {
+  if (state === "refreshing") {
+    if (actionId === "create-trip") {
+      return {
+        title: "Creating trip",
+        message:
+          "Your new trip is being created. Existing trip details stay on screen until the save finishes.",
+      };
+    }
+
+    if (actionId?.startsWith("load-trip:")) {
+      return {
+        title: "Loading trip details",
+        message:
+          "The selected itinerary is loading. Current trip details stay visible until the next trip is ready.",
+      };
+    }
+
+    if (actionId === "update-trip") {
+      return {
+        title: "Saving trip updates",
+        message:
+          "Trip metadata changes are being saved. Current bundle pricing stays visible until the update completes.",
+      };
+    }
+
+    if (actionId === "revalidate-trip") {
+      return {
+        title: "Revalidating trip",
+        message:
+          "Fresh availability and bundle signals are loading. Current pricing stays visible until revalidation completes.",
+      };
+    }
+
+    if (actionId?.startsWith("remove-item:")) {
+      return {
+        title: "Removing trip item",
+        message:
+          "The selected trip item is being removed. Current trip totals stay visible until the update completes.",
+      };
+    }
+
+    if (actionId?.startsWith("move-item:")) {
+      return {
+        title: "Reordering trip items",
+        message:
+          "Your itinerary order is updating. Current trip details stay visible until the new order is saved.",
+      };
+    }
+
+    if (actionId?.startsWith("add-suggestion:")) {
+      return {
+        title: "Adding suggested item",
+        message:
+          "The suggested inventory is being added. Current trip details stay visible until the update completes.",
+      };
+    }
+
+    if (actionId === "setup-retry") {
+      return {
+        title: "Reloading trips",
+        message:
+          "Trip builder data is being reloaded. Existing trip details stay visible until the retry finishes.",
+      };
+    }
+  }
+
+  if (state === "partial" && trip) {
+    return {
+      title: "Bundle pricing is partial",
+      message: formatTripPricingSupport(trip),
+    };
+  }
+
+  if (state === "stale" && trip) {
+    const staleCount = trip.intelligence.itemStatusCounts.stale;
+    return {
+      title: "Some trip items need recheck",
+      message: `${staleCount.toLocaleString("en-US")} item${staleCount === 1 ? "" : "s"} in this itinerary need refreshed availability. Revalidate the trip before trusting bundle totals.`,
+    };
+  }
+
+  return undefined;
+};
 
 const SummaryBlock = component$((props: { label: string; value: string }) => {
   return (
@@ -726,6 +995,7 @@ const TripItemRow = component$(
     index: number;
     total: number;
     loading: boolean;
+    pendingActionId: string | null;
     onRemove$: QRL<(itemId: number) => Promise<void>>;
     onMove$: QRL<(itemId: number, direction: -1 | 1) => Promise<void>>;
   }) => {
@@ -856,30 +1126,46 @@ const TripItemRow = component$(
               {formatItemDrift(props.item)}
             </p>
             <div class="mt-3 flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
+              <AsyncPendingButton
                 class="rounded-lg border border-[color:var(--color-border)] px-2 py-1 text-xs"
-                disabled={props.loading || props.index === 0}
+                pending={props.pendingActionId === `move-item:${props.item.id}`}
+                pendingLabel="Moving..."
+                disabled={
+                  (props.loading &&
+                    props.pendingActionId !== `move-item:${props.item.id}`) ||
+                  props.index === 0
+                }
                 onClick$={() => props.onMove$(props.item.id, -1)}
               >
                 Up
-              </button>
-              <button
-                type="button"
+              </AsyncPendingButton>
+              <AsyncPendingButton
                 class="rounded-lg border border-[color:var(--color-border)] px-2 py-1 text-xs"
-                disabled={props.loading || props.index >= props.total - 1}
+                pending={props.pendingActionId === `move-item:${props.item.id}`}
+                pendingLabel="Moving..."
+                disabled={
+                  (props.loading &&
+                    props.pendingActionId !== `move-item:${props.item.id}`) ||
+                  props.index >= props.total - 1
+                }
                 onClick$={() => props.onMove$(props.item.id, 1)}
               >
                 Down
-              </button>
-              <button
-                type="button"
+              </AsyncPendingButton>
+              <AsyncPendingButton
                 class="rounded-lg border border-[color:var(--color-border)] px-2 py-1 text-xs text-[color:var(--color-error,#b91c1c)]"
-                disabled={props.loading}
+                pending={
+                  props.pendingActionId === `remove-item:${props.item.id}`
+                }
+                pendingLabel="Removing..."
+                disabled={
+                  props.loading &&
+                  props.pendingActionId !== `remove-item:${props.item.id}`
+                }
                 onClick$={() => props.onRemove$(props.item.id)}
               >
                 Remove
-              </button>
+              </AsyncPendingButton>
             </div>
           </div>
         </div>

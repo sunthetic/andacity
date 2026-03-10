@@ -2,6 +2,8 @@ import { $, component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import { routeLoader$, useLocation, useNavigate } from "@builder.io/qwik-city";
 import type { DocumentHead } from "@builder.io/qwik-city";
 import { revalidateInventoryApi } from "~/lib/inventory/inventory-api";
+import { AsyncRetryControl } from "~/components/async/AsyncRetryControl";
+import { AsyncStateNotice } from "~/components/async/AsyncStateNotice";
 import { Page } from "~/components/site/Page";
 import { HotelResultCard } from "~/components/hotels/search/HotelResultCard";
 import { InventoryRefreshControl } from "~/components/inventory/InventoryRefreshControl";
@@ -33,6 +35,12 @@ import type {
 } from "~/components/search/filters/types";
 import { ResultsToolbar } from "~/components/search/results/ResultsToolbar";
 import { ResultsPagination } from "~/components/results/ResultsPagination";
+import { ResultsLoading } from "~/components/results/ResultsLoading";
+import {
+  resolveAvailabilityAsyncState,
+  summarizeAvailabilitySignals,
+  type BookingAsyncState,
+} from "~/lib/async/booking-async-state";
 
 const HOTEL_FILTER_SECTIONS: FilterSectionConfig[] = [
   {
@@ -149,6 +157,8 @@ export const useSearchHotelsPage = routeLoader$(async ({ params, url }) => {
 
   const sort = parseSort(url);
 
+  let loadError: string | null = null;
+
   const source = await loadHotelResultsFromDb({
     query,
     checkIn,
@@ -157,6 +167,17 @@ export const useSearchHotelsPage = routeLoader$(async ({ params, url }) => {
     page,
     pageSize: 24,
     filters,
+  }).catch((error) => {
+    loadError =
+      error instanceof Error ? error.message : "Failed to load hotel results.";
+
+    return {
+      matchedCity: null,
+      page,
+      results: [],
+      totalCount: 0,
+      totalPages: 1,
+    };
   });
 
   const qHuman =
@@ -171,6 +192,7 @@ export const useSearchHotelsPage = routeLoader$(async ({ params, url }) => {
     totalPages: source.totalPages,
     sort,
     filters,
+    loadError,
   };
 });
 
@@ -295,6 +317,19 @@ export default component$(() => {
   );
   const refreshPriceChanges = useSignal<Record<string, PriceChange>>({});
   const refreshPriceSummary = useSignal<string | null>(null);
+  const availabilitySignals = summarizeAvailabilitySignals(data.results);
+  const asyncState = resolveAvailabilityAsyncState({
+    itemCount: data.totalCount,
+    isRefreshing: location.isNavigating,
+    isFailed: Boolean(data.loadError),
+    signals: availabilitySignals,
+  });
+  const controlsDisabled = location.isNavigating || asyncState === "failed";
+  const statusNotice = buildHotelSearchStatusNotice(asyncState, {
+    partialCount: availabilitySignals.partialCount,
+    staleCount: availabilitySignals.staleCount,
+    failedCount: availabilitySignals.failedCount,
+  });
   const detailParams = new URLSearchParams();
   if (checkIn) detailParams.set("checkIn", checkIn);
   if (checkOut) detailParams.set("checkOut", checkOut);
@@ -380,6 +415,7 @@ export default component$(() => {
           successMessage="Visible hotel availability was refreshed. Any nightly-rate changes are highlighted below."
           failureMessage="Failed to refresh visible hotel availability signals."
           align="right"
+          disabled={controlsDisabled}
         />
       </div>
 
@@ -391,6 +427,7 @@ export default component$(() => {
         mobileFiltersOpen={mobileFiltersOpen.value}
         onSortChange$={onSortChange$}
         onToggleFilters$={onToggleFilters$}
+        disabled={controlsDisabled}
       />
 
       <div class="mt-4 lg:hidden">
@@ -402,6 +439,7 @@ export default component$(() => {
             onCheckboxToggle$={onCheckboxToggle$}
             onSelectChange$={onSelectChange$}
             onReset$={onReset$}
+            disabled={controlsDisabled}
           />
         ) : null}
       </div>
@@ -415,6 +453,7 @@ export default component$(() => {
           onCheckboxToggle$={onCheckboxToggle$}
           onSelectChange$={onSelectChange$}
           onReset$={onReset$}
+          disabled={controlsDisabled}
         />
 
         <main>
@@ -428,34 +467,66 @@ export default component$(() => {
               totalPages={data.totalPages}
             />
 
+            {statusNotice ? (
+              <AsyncStateNotice
+                class="mt-4"
+                state={asyncState}
+                title={statusNotice.title}
+                message={statusNotice.message}
+              />
+            ) : null}
+
             {refreshPriceSummary.value ? (
               <div class="mt-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
                 {refreshPriceSummary.value}
               </div>
             ) : null}
 
-            <div class="mt-4 grid gap-3">
-              {data.results.length ? (
-                data.results.map((hotel: HotelResult) => (
-                  <HotelResultCard
-                    key={hotel.id}
-                    h={hotel}
-                    nights={nights}
-                    priceDisplay={{
-                      ...buildHotelPriceDisplay({
-                        currencyCode: hotel.currency,
-                        nightlyRate: hotel.priceFrom,
-                        nights,
-                      }),
-                      delta: refreshPriceChanges.value[hotel.id] || null,
-                    }}
-                    detailHref={
-                      detailParams.size
-                        ? `/hotels/${encodeURIComponent(hotel.slug)}?${detailParams.toString()}`
-                        : `/hotels/${encodeURIComponent(hotel.slug)}`
-                    }
+            <div class="mt-4">
+              {asyncState === "failed" ? (
+                <div class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-6 shadow-[var(--shadow-sm)]">
+                  <AsyncStateNotice
+                    state="failed"
+                    title="Hotel results could not be updated"
+                    message={data.loadError || "Failed to load hotel results."}
                   />
-                ))
+                  <AsyncRetryControl
+                    class="mt-4"
+                    message="Retry this search or go back to the hotel search form."
+                    label="Retry hotel search"
+                    href={location.url.pathname + location.url.search}
+                  />
+                </div>
+              ) : asyncState === "initial_loading" ? (
+                <ResultsLoading variant="list" count={3} />
+              ) : data.results.length ? (
+                <div
+                  class={[
+                    "grid gap-3",
+                    asyncState === "refreshing" ? "opacity-70" : null,
+                  ]}
+                >
+                  {data.results.map((hotel: HotelResult) => (
+                    <HotelResultCard
+                      key={hotel.id}
+                      h={hotel}
+                      nights={nights}
+                      priceDisplay={{
+                        ...buildHotelPriceDisplay({
+                          currencyCode: hotel.currency,
+                          nightlyRate: hotel.priceFrom,
+                          nights,
+                        }),
+                        delta: refreshPriceChanges.value[hotel.id] || null,
+                      }}
+                      detailHref={
+                        detailParams.size
+                          ? `/hotels/${encodeURIComponent(hotel.slug)}?${detailParams.toString()}`
+                          : `/hotels/${encodeURIComponent(hotel.slug)}`
+                      }
+                    />
+                  ))}
+                </div>
               ) : (
                 <SearchEmptyState
                   title="No hotels matched this search"
@@ -486,6 +557,7 @@ export default component$(() => {
                 data.totalPages,
                 makePageHref,
               )}
+              disabled={controlsDisabled}
             />
           </section>
         </main>
@@ -517,4 +589,38 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
     ],
     links: [{ rel: "canonical", href: canonicalHref }],
   };
+};
+
+const buildHotelSearchStatusNotice = (
+  state: BookingAsyncState,
+  input: {
+    partialCount: number;
+    staleCount: number;
+    failedCount: number;
+  },
+) => {
+  if (state === "refreshing") {
+    return {
+      title: "Refreshing hotel results",
+      message:
+        "Updated rates and filter changes are loading. Current stays stay visible until the next result set is ready.",
+    };
+  }
+
+  if (state === "partial") {
+    return {
+      title: "Some stays only partially match",
+      message: `${input.partialCount.toLocaleString("en-US")} visible hotel result${input.partialCount === 1 ? "" : "s"} only partially match the current stay request. Refresh availability or adjust dates to compare cleaner matches.`,
+    };
+  }
+
+  if (state === "stale") {
+    const affected = input.staleCount + input.failedCount;
+    return {
+      title: "Some stays need recheck",
+      message: `${affected.toLocaleString("en-US")} visible hotel result${affected === 1 ? "" : "s"} rely on stale or failed availability signals. Refresh visible availability before trusting these nightly rates.`,
+    };
+  }
+
+  return undefined;
 };

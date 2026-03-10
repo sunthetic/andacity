@@ -1,8 +1,15 @@
 import { $, component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import { routeLoader$, useLocation } from "@builder.io/qwik-city";
 import type { DocumentHead } from "@builder.io/qwik-city";
+import { AsyncRetryControl } from "~/components/async/AsyncRetryControl";
+import { AsyncStateNotice } from "~/components/async/AsyncStateNotice";
 import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import { InventoryRefreshControl } from "~/components/inventory/InventoryRefreshControl";
+import {
+  resolveAvailabilityAsyncState,
+  summarizeAvailabilitySignals,
+  type BookingAsyncState,
+} from "~/lib/async/booking-async-state";
 import { revalidateInventoryApi } from "~/lib/inventory/inventory-api";
 import {
   buildAvailabilityConfidence,
@@ -32,12 +39,39 @@ export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
     .trim();
   if (!slug) throw error(404, "Not found");
 
-  const hotel = await loadHotelBySlugFromDb(slug);
-  if (!hotel) throw error(404, "Not found");
-
   const active = parseHotelStayParams(url.searchParams);
   const nights = computeNights(active.checkIn, active.checkOut);
   const partyLabel = buildPartyLabel(active.adults, active.rooms);
+  let ogImage = new URL(`/og/hotel/${encodeURIComponent(slug)}.png`, url.origin)
+    .href;
+  const fallbackState = {
+    slug,
+    hotel: null as Hotel | null,
+    active,
+    nights,
+    partyLabel,
+    pricing: { subtotal: null, taxes: null, total: null },
+    searchHref: "/hotels",
+    ogImage,
+    loadError: null as string | null,
+  };
+
+  const hotel = await loadHotelBySlugFromDb(slug).catch((cause) => {
+    const message =
+      cause instanceof Error ? cause.message : "Failed to load hotel details.";
+
+    return {
+      ...fallbackState,
+      loadError: message,
+    };
+  });
+
+  if (hotel && typeof hotel === "object" && "loadError" in hotel) {
+    return hotel;
+  }
+
+  if (!hotel) throw error(404, "Not found");
+
   const availabilityAssessment = evaluateHotelAvailabilityContext({
     availability: hotel.availability || null,
     checkIn: active.checkIn,
@@ -63,9 +97,6 @@ export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
     rooms: active.rooms,
   });
 
-  let ogImage = new URL(`/og/hotel/${encodeURIComponent(slug)}.png`, url.origin)
-    .href;
-
   const secret = getOgSecret();
   if (secret) {
     const p = encodeOgPayload({
@@ -88,6 +119,7 @@ export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
     pricing,
     searchHref,
     ogImage,
+    loadError: null as string | null,
   };
 });
 
@@ -99,6 +131,46 @@ export default component$(() => {
   const refreshSnapshotId = `hotel-detail:${refreshHref}`;
   const refreshPriceChange = useSignal<PriceChange | null>(null);
   const refreshPriceSummary = useSignal<string | null>(null);
+  const availabilitySignals = summarizeAvailabilitySignals(
+    h ? [{ availabilityConfidence: h.availabilityConfidence }] : [],
+  );
+  const asyncState = resolveAvailabilityAsyncState({
+    itemCount: h ? 1 : 0,
+    isRefreshing: location.isNavigating,
+    isFailed: Boolean(data.loadError),
+    signals: availabilitySignals,
+  });
+  const statusNotice = buildHotelDetailStatusNotice(asyncState, {
+    partialCount: availabilitySignals.partialCount,
+    staleCount: availabilitySignals.staleCount,
+    failedCount: availabilitySignals.failedCount,
+  });
+
+  if (!h) {
+    return (
+      <Page
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "Hotels", href: "/hotels" },
+          { label: "Hotel details" },
+        ]}
+      >
+        <div class="mt-6 rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-6 shadow-[var(--shadow-sm)]">
+          <AsyncStateNotice
+            state="failed"
+            title="Hotel details could not be loaded"
+            message={data.loadError || "Failed to load hotel details."}
+          />
+          <AsyncRetryControl
+            class="mt-4"
+            message="Retry this page or return to hotel search."
+            label="Retry hotel details"
+            href={location.url.pathname + location.url.search}
+          />
+        </div>
+      </Page>
+    );
+  }
 
   const onRevalidateHotel$ = $(async () => {
     if (h.inventoryId == null) {
@@ -168,6 +240,15 @@ export default component$(() => {
         { label: h.name },
       ]}
     >
+      {statusNotice ? (
+        <AsyncStateNotice
+          class="mb-5"
+          state={asyncState}
+          title={statusNotice.title}
+          message={statusNotice.message}
+        />
+      ) : null}
+
       {/* Hero: hotel name + trust row */}
       <div class="grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
         <div>
@@ -242,6 +323,7 @@ export default component$(() => {
                 successMessage="Hotel availability was refreshed. Any nightly-rate changes are highlighted below."
                 failureMessage="Failed to refresh this hotel's availability signals."
                 align="right"
+                disabled={location.isNavigating}
               />
             </div>
           </div>
@@ -643,6 +725,20 @@ export default component$(() => {
 
 export const head: DocumentHead = ({ resolveValue, url }) => {
   const data = resolveValue(useHotelPage);
+  if (!data.hotel) {
+    return {
+      title: "Hotel details | Andacity Travel",
+      meta: [
+        {
+          name: "description",
+          content: "Retry hotel details or return to hotel search.",
+        },
+      ],
+      links: [
+        { rel: "canonical", href: new URL(url.pathname, url.origin).href },
+      ],
+    };
+  }
 
   const title = `${data.hotel.name} | Andacity Travel`;
   const description = `Browse ${data.hotel.name}. Compare totals and policies with clarity.`;
@@ -680,6 +776,40 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
     ],
     links: [{ rel: "canonical", href: canonicalHref }],
   };
+};
+
+const buildHotelDetailStatusNotice = (
+  state: BookingAsyncState,
+  input: {
+    partialCount: number;
+    staleCount: number;
+    failedCount: number;
+  },
+) => {
+  if (state === "refreshing") {
+    return {
+      title: "Refreshing hotel details",
+      message:
+        "Updated availability and pricing are loading. Current hotel details stay visible until the refresh completes.",
+    };
+  }
+
+  if (state === "partial") {
+    return {
+      title: "This stay only partially matches",
+      message: `${input.partialCount.toLocaleString("en-US")} availability signal indicates the selected stay only partially matches the current request. Refresh availability before relying on this price.`,
+    };
+  }
+
+  if (state === "stale") {
+    const affected = input.staleCount + input.failedCount;
+    return {
+      title: "Availability needs recheck",
+      message: `${affected.toLocaleString("en-US")} availability signal${affected === 1 ? "" : "s"} for this property are stale or failed. Refresh availability before treating this stay as current.`,
+    };
+  }
+
+  return undefined;
 };
 
 const RoomCard = component$(

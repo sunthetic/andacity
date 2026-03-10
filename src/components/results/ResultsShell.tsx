@@ -1,5 +1,10 @@
 import { Slot, component$ } from "@builder.io/qwik";
-import { InventoryRefreshControl, type InventoryRefreshControlProps } from "~/components/inventory/InventoryRefreshControl";
+import { AsyncInlineSpinner } from "~/components/async/AsyncInlineSpinner";
+import { AsyncStateNotice } from "~/components/async/AsyncStateNotice";
+import {
+  InventoryRefreshControl,
+  type InventoryRefreshControlProps,
+} from "~/components/inventory/InventoryRefreshControl";
 import { ResultsEmpty } from "~/components/results/ResultsEmpty";
 import { ResultsFilters } from "~/components/results/ResultsFilters";
 import { ResultsHeader } from "~/components/results/ResultsHeader";
@@ -8,8 +13,15 @@ import { ResultsPagination } from "~/components/results/ResultsPagination";
 import type { ResultsPaginationLink } from "~/components/results/ResultsPagination";
 import { ResultsSort } from "~/components/results/ResultsSort";
 import type { ResultsSortOption } from "~/components/results/ResultsSort";
+import type { BookingAsyncState } from "~/lib/async/booking-async-state";
 
 export const ResultsShell = component$((props: ResultsShellProps) => {
+  const asyncState = props.asyncState || "loaded";
+  const showNotice =
+    asyncState === "refreshing" ||
+    asyncState === "partial" ||
+    asyncState === "stale";
+
   return (
     <section class={props.class}>
       <ResultsHeader
@@ -42,12 +54,35 @@ export const ResultsShell = component$((props: ResultsShellProps) => {
           <ResultsSort
             resultCountLabel={props.resultCountLabel}
             options={props.sortOptions}
+            disabled={props.controlsDisabled}
           />
 
+          {showNotice && props.statusNotice ? (
+            <AsyncStateNotice
+              class="mt-4"
+              state={asyncState}
+              title={props.statusNotice.title}
+              message={props.statusNotice.message}
+              retryLabel={props.statusNotice.retryLabel}
+              retryHref={props.statusNotice.retryHref}
+              onRetry$={props.statusNotice.onRetry$}
+            />
+          ) : null}
+
           <div class="mt-4">
-            {props.loading ? (
-              <ResultsLoading />
-            ) : props.empty ? (
+            {asyncState === "initial_loading" ? (
+              <ResultsLoading
+                variant={props.loadingVariant}
+                count={props.loadingCount}
+              />
+            ) : asyncState === "failed" && props.failed ? (
+              <ResultsEmpty
+                title={props.failed.title}
+                description={props.failed.description}
+                primaryAction={props.failed.primaryAction}
+                secondaryAction={props.failed.secondaryAction}
+              />
+            ) : asyncState === "empty" && props.empty ? (
               <ResultsEmpty
                 title={props.empty.title}
                 description={props.empty.description}
@@ -55,17 +90,38 @@ export const ResultsShell = component$((props: ResultsShellProps) => {
                 secondaryAction={props.empty.secondaryAction}
               />
             ) : (
-              <Slot />
+              <div class="relative">
+                {asyncState === "refreshing" ? (
+                  <div class="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
+                    <div class="rounded-full border border-[color:var(--color-border)] bg-[color:rgba(255,255,255,0.92)] px-3 py-1 shadow-[var(--shadow-sm)]">
+                      <AsyncInlineSpinner
+                        compact={true}
+                        label={
+                          props.refreshingOverlayLabel || "Updating results"
+                        }
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                <div class={asyncState === "refreshing" ? "opacity-70" : null}>
+                  <Slot />
+                </div>
+              </div>
             )}
           </div>
 
-          {!props.loading && !props.empty && props.pagination ? (
+          {asyncState !== "initial_loading" &&
+          asyncState !== "failed" &&
+          asyncState !== "empty" &&
+          props.pagination ? (
             <ResultsPagination
               page={props.pagination.page}
               totalPages={props.pagination.totalPages}
               prevHref={props.pagination.prevHref}
               nextHref={props.pagination.nextHref}
               pageLinks={props.pagination.pageLinks}
+              disabled={props.controlsDisabled}
             />
           ) : null}
         </div>
@@ -89,7 +145,30 @@ type ResultsShellProps = {
   };
   editSearchHref?: string;
   filtersTitle?: string;
-  loading?: boolean;
+  asyncState?: BookingAsyncState;
+  statusNotice?: {
+    title: string;
+    message: string;
+    retryLabel?: string;
+    retryHref?: string;
+    onRetry$?: InventoryRefreshControlProps["onRefresh$"];
+  };
+  failed?: {
+    title: string;
+    description: string;
+    primaryAction?: {
+      label: string;
+      href: string;
+    };
+    secondaryAction?: {
+      label: string;
+      href: string;
+    };
+  };
+  loadingVariant?: "card" | "list";
+  loadingCount?: number;
+  refreshingOverlayLabel?: string;
+  controlsDisabled?: boolean;
   refreshControl?: InventoryRefreshControlProps;
   empty?: {
     title: string;
