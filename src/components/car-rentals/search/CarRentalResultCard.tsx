@@ -1,4 +1,5 @@
 import { component$ } from '@builder.io/qwik'
+import { InventoryFreshness } from '~/components/inventory/InventoryFreshness'
 import type { CarRentalResult } from '~/types/car-rentals/search'
 
 export const CarRentalResultCard = component$(({ r, days }: CarRentalResultCardProps) => {
@@ -77,8 +78,11 @@ export const CarRentalResultCard = component$(({ r, days }: CarRentalResultCardP
             </div>
           </div>
 
-          <div class="mt-4 border-t border-[color:var(--color-divider)] pt-4 text-xs text-[color:var(--color-text-muted)]">
-            Score: {r.score.toFixed(2)} · Balanced for price, rating, policies
+          <div class="mt-4 flex flex-col gap-3 border-t border-[color:var(--color-divider)] pt-4 text-xs text-[color:var(--color-text-muted)] sm:flex-row sm:items-start sm:justify-between">
+            <InventoryFreshness freshness={r.freshness} />
+            <div class="sm:text-right">
+              Score: {r.score.toFixed(2)} · Balanced for price, rating, policies
+            </div>
           </div>
         </div>
       </div>

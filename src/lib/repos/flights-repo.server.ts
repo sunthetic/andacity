@@ -58,6 +58,7 @@ export type FlightSearchRow = {
   priceCents: number
   currencyCode: string
   seatsRemaining: number
+  freshnessTimestamp: Date | string | null
 }
 
 export type SearchFlightsResult = {
@@ -110,6 +111,8 @@ const normalizePriceCents = (value: number | undefined) => {
 const flightPriceSql = sql<number>`coalesce(${flightFares.priceCents}, ${flightItineraries.basePriceCents})`
 const flightCurrencySql = sql<string>`coalesce(${flightFares.currencyCode}, ${flightItineraries.currencyCode})`
 const flightSeatsSql = sql<number>`coalesce(${flightFares.seatsRemaining}, ${flightItineraries.seatsRemaining})`
+const flightFreshnessSql =
+  sql<Date | null>`coalesce(${flightFares.updatedAt}, ${flightItineraries.updatedAt})`
 
 const buildBaseConditions = (
   input: SearchFlightsInput,
@@ -219,6 +222,7 @@ export async function searchFlightsPage(input: SearchFlightsInput): Promise<Sear
       priceCents: flightPriceSql,
       currencyCode: flightCurrencySql,
       seatsRemaining: flightSeatsSql,
+      freshnessTimestamp: flightFreshnessSql,
     })
     .from(flightItineraries)
     .innerJoin(flightRoutes, eq(flightItineraries.routeId, flightRoutes.id))

@@ -1,5 +1,7 @@
 import { $, component$, useSignal, type QRL } from "@builder.io/qwik";
 import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
+import { InventoryFreshness } from "~/components/inventory/InventoryFreshness";
+import { InventoryRefreshControl } from "~/components/inventory/InventoryRefreshControl";
 import { Page } from "~/components/site/Page";
 import { TripSuggestionCard } from "~/components/trips/TripSuggestionCard";
 import {
@@ -191,6 +193,7 @@ export default component$(() => {
           ? cause.message
           : "Failed to revalidate trip.";
       error.value = message;
+      throw new Error(message);
     } finally {
       loading.value = false;
     }
@@ -425,16 +428,25 @@ export default component$(() => {
                           activeTrip.value.intelligence,
                         )}
                       </p>
+                      <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                        Revalidate here to refresh trip item and bundle inventory
+                        freshness.
+                      </p>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick$={onRevalidateTrip$}
+                    <InventoryRefreshControl
+                      id={`trip:${activeTrip.value.id}`}
+                      mode="action"
+                      onRefresh$={onRevalidateTrip$}
+                      label="Revalidate trip"
+                      refreshingLabel="Revalidating..."
+                      refreshedLabel="Trip revalidated"
+                      failedLabel="Retry revalidation"
+                      successMessage="Trip availability was revalidated."
+                      failureMessage="Failed to revalidate trip."
+                      align="right"
                       disabled={loading.value}
-                      class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm"
-                    >
-                      {loading.value ? "Revalidating..." : "Revalidate trip"}
-                    </button>
+                    />
                   </div>
 
                   <div class="mt-4 grid gap-3 md:grid-cols-3">
@@ -728,11 +740,9 @@ const TripItemRow = component$(
             <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
               Snapshotted {formatDateTime(props.item.snapshotTimestamp)}
             </p>
-            {props.item.availabilityCheckedAt ? (
-              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                Revalidated {formatDateTime(props.item.availabilityCheckedAt)}
-              </p>
-            ) : null}
+            <div class="mt-2">
+              <InventoryFreshness freshness={props.item.freshness} compact={false} />
+            </div>
             {props.item.issues.length ? (
               <div class="mt-2 grid gap-1">
                 {props.item.issues.slice(0, 2).map((issue) => (

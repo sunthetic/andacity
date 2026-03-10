@@ -2,6 +2,7 @@ import {
   listCarRentalSearchFacets,
   searchCarRentalsPage,
 } from '~/lib/repos/car-rentals-repo.server'
+import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import { isCarRentalsSortKey, type CarRentalsSortKey } from '~/lib/search/car-rentals/car-sort-options'
 import type {
   CarRentalsPriceBand,
@@ -303,6 +304,10 @@ export async function loadCarRentalResultsPageFromDb(
           priceFrom,
           freeCancellation: row.freeCancellation,
           payAtCounter: row.payAtCounter,
+        }),
+        freshness: buildInventoryFreshness({
+          checkedAt: row.freshnessTimestamp,
+          profile: 'inventory_snapshot',
         }),
       }
     }),

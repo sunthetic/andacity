@@ -1,4 +1,5 @@
 import { searchHotels, type HotelPriceRange, type HotelSort } from '~/lib/repos/hotels-repo.server'
+import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import { findTopTravelCity } from '~/seed/cities/top-100.js'
 import type { HotelResult } from '~/types/hotels/search'
 
@@ -171,6 +172,10 @@ export async function loadHotelResultsFromDb(
           q && row.citySlug.includes(q) ? 'Great match' : 'Popular',
         ].slice(0, 3),
         score,
+        freshness: buildInventoryFreshness({
+          checkedAt: row.freshnessTimestamp,
+          profile: 'inventory_snapshot',
+        }),
       }
     }),
   }

@@ -46,6 +46,7 @@ export type HotelSearchRow = {
   payLater: boolean
   imageUrl: string | null
   amenities: string[]
+  freshnessTimestamp: Date | string | null
 }
 
 export type HotelListRow = {
@@ -75,6 +76,7 @@ export type HotelListRow = {
   feesBlurb: string | null
   imageUrl: string | null
   amenities: string[]
+  freshnessTimestamp: Date | string | null
 }
 
 export type HotelOfferRow = {
@@ -127,6 +129,7 @@ export type HotelDetailRow = {
   amenities: string[]
   offers: HotelOfferRow[]
   availability: HotelAvailabilityRow | null
+  freshnessTimestamp: Date | string | null
 }
 
 export type HotelCitySummaryRow = {
@@ -320,6 +323,7 @@ export async function searchHotels(input: SearchHotelsInput): Promise<SearchHote
       freeCancellation: hotels.freeCancellation,
       payLater: hotels.payLater,
       imageUrl: hotelImages.url,
+      freshnessTimestamp: hotelAvailabilitySnapshots.snapshotAt,
     })
     .from(hotels)
     .innerJoin(cities, eq(hotels.cityId, cities.id))
@@ -451,11 +455,19 @@ export async function listHotelsByCitySlug(
       paymentBlurb: hotels.paymentBlurb,
       feesBlurb: hotels.feesBlurb,
       imageUrl: hotelImages.url,
+      freshnessTimestamp: hotelAvailabilitySnapshots.snapshotAt,
     })
     .from(hotels)
     .innerJoin(cities, eq(hotels.cityId, cities.id))
     .leftJoin(regions, eq(cities.regionId, regions.id))
     .innerJoin(countries, eq(cities.countryId, countries.id))
+    .leftJoin(
+      hotelAvailabilitySnapshots,
+      and(
+        eq(hotelAvailabilitySnapshots.hotelId, hotels.id),
+        eq(hotelAvailabilitySnapshots.snapshotSource, 'seed'),
+      ),
+    )
     .leftJoin(
       hotelImages,
       and(eq(hotelImages.hotelId, hotels.id), eq(hotelImages.sortOrder, 0)),
@@ -523,11 +535,19 @@ export async function getHotelDetailBySlug(slug: string): Promise<HotelDetailRow
       cancellationBlurb: hotels.cancellationBlurb,
       paymentBlurb: hotels.paymentBlurb,
       feesBlurb: hotels.feesBlurb,
+      freshnessTimestamp: hotelAvailabilitySnapshots.snapshotAt,
     })
     .from(hotels)
     .innerJoin(cities, eq(hotels.cityId, cities.id))
     .leftJoin(regions, eq(cities.regionId, regions.id))
     .innerJoin(countries, eq(cities.countryId, countries.id))
+    .leftJoin(
+      hotelAvailabilitySnapshots,
+      and(
+        eq(hotelAvailabilitySnapshots.hotelId, hotels.id),
+        eq(hotelAvailabilitySnapshots.snapshotSource, 'seed'),
+      ),
+    )
     .where(eq(hotels.slug, slug))
     .limit(1)
 
@@ -591,6 +611,7 @@ export async function getHotelDetailBySlug(slug: string): Promise<HotelDetailRow
     amenities: amenityRows.map((row) => row.label),
     offers: offerRows,
     availability: availabilityRows[0] || null,
+    freshnessTimestamp: hotel.freshnessTimestamp,
   }
 }
 

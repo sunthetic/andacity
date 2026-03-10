@@ -1,4 +1,5 @@
 import { component$ } from '@builder.io/qwik'
+import { InventoryFreshness } from '~/components/inventory/InventoryFreshness'
 import type { FlightResult } from '~/types/flights/search'
 
 export const FlightResultCard = component$(({ flight }: FlightResultCardProps) => {
@@ -25,6 +26,10 @@ export const FlightResultCard = component$(({ flight }: FlightResultCardProps) =
             <span class="t-btn-primary inline-block px-5 text-center">Select →</span>
           </div>
         </div>
+      </div>
+
+      <div class="mt-4 border-t border-[color:var(--color-divider)] pt-4">
+        <InventoryFreshness freshness={flight.freshness} />
       </div>
     </article>
   )

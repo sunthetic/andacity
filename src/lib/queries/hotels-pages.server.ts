@@ -1,5 +1,6 @@
 import type { HotelCity } from '~/data/hotel-cities'
 import type { Hotel, Room } from '~/data/hotels'
+import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import {
   countHotels,
   getHotelCitySummaryBySlug,
@@ -106,6 +107,10 @@ const mapCityHotelRowToHotel = (row: HotelListRow): Hotel => {
     }),
     rooms: [],
     faq: defaultHotelFaq(row.name, row.cityName),
+    freshness: buildInventoryFreshness({
+      checkedAt: row.freshnessTimestamp,
+      profile: 'inventory_snapshot',
+    }),
   }
 }
 
@@ -127,6 +132,7 @@ export async function loadHotelBySlugFromDb(slug: string): Promise<Hotel | null>
   }))
 
   return {
+    inventoryId: row.id,
     slug: row.slug,
     name: row.name,
     city: row.cityName,
@@ -157,6 +163,10 @@ export async function loadHotelBySlugFromDb(slug: string): Promise<Hotel | null>
     }),
     rooms,
     faq: defaultHotelFaq(row.name, row.cityName),
+    freshness: buildInventoryFreshness({
+      checkedAt: row.freshnessTimestamp,
+      profile: 'inventory_snapshot',
+    }),
     availability: row.availability
       ? {
           checkInStart: row.availability.checkInStart,
@@ -216,6 +226,7 @@ export type DestinationTopStay = {
   currency: string
   image: string
   badges: string[]
+  freshness?: import('~/lib/inventory/freshness').InventoryFreshnessModel
 }
 
 export async function loadTopDestinationStaysFromDb(
@@ -238,6 +249,10 @@ export async function loadTopDestinationStaysFromDb(
       row.freeCancellation ? 'Free cancellation' : 'Flexible terms',
       row.payLater ? 'Pay later' : 'Book now',
     ],
+    freshness: buildInventoryFreshness({
+      checkedAt: row.freshnessTimestamp,
+      profile: 'inventory_snapshot',
+    }),
   }))
 }
 

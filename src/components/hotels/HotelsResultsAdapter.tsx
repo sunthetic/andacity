@@ -8,6 +8,7 @@ import { CompareTray } from "~/components/save-compare/CompareTray";
 import type { ResultsSortOption } from "~/components/results/ResultsSort";
 import type { HotelCity } from "~/data/hotel-cities";
 import type { Hotel } from "~/data/hotels";
+import { revalidateInventoryApi } from "~/lib/inventory/inventory-api";
 import { canOpenCompare } from "~/lib/save-compare/compare-state";
 import {
   clearSavedCollection,
@@ -336,6 +337,10 @@ export const HotelsResultsAdapter = component$(
     const page = clampPage(requestedPage, totalPages);
     const offset = (page - 1) * PAGE_SIZE;
     const pageItems = sortedHotels.slice(offset, offset + PAGE_SIZE);
+    const refreshHref = toHref(withPage(props.searchState, page));
+    const visibleInventoryIds = pageItems.flatMap((hotel) =>
+      hotel.inventoryId != null ? [hotel.inventoryId] : [],
+    );
     const savedItems = useSignal<SavedItem[]>([]);
     const compareOpen = useSignal(false);
 
@@ -382,6 +387,17 @@ export const HotelsResultsAdapter = component$(
 
     const onCloseCompare$ = $(() => {
       compareOpen.value = false;
+    });
+
+    const onRevalidateVisibleResults$ = $(async () => {
+      if (!visibleInventoryIds.length) {
+        throw new Error("No visible hotel inventory can be revalidated.");
+      }
+
+      await revalidateInventoryApi({
+        itemType: "hotel",
+        inventoryIds: visibleInventoryIds,
+      });
     });
 
     const canCompare = canOpenCompare(savedItems.value.length);
@@ -456,6 +472,24 @@ export const HotelsResultsAdapter = component$(
           props.city.city,
           props.searchState.dates,
         )}
+        refreshControl={{
+          id: `hotel-results:${refreshHref}`,
+          mode: visibleInventoryIds.length ? "action" : "unsupported",
+          onRefresh$: visibleInventoryIds.length
+            ? onRevalidateVisibleResults$
+            : undefined,
+          reloadHref: refreshHref,
+          reloadOnSuccess: true,
+          label: "Revalidate visible results",
+          refreshingLabel: "Revalidating...",
+          refreshedLabel: "Results revalidated",
+          failedLabel: "Retry revalidation",
+          unsupportedLabel: "Revalidate unavailable",
+          unsupportedMessage: "No visible hotel inventory can be revalidated.",
+          successMessage:
+            "Visible hotel results were revalidated. Freshness labels were updated.",
+          failureMessage: "Failed to revalidate visible hotel results.",
+        }}
         filtersTitle="Hotel filters"
         resultCountLabel={`${sortedHotels.length.toLocaleString("en-US")} stays`}
         sortOptions={sortOptions}

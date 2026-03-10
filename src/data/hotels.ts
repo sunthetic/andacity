@@ -1,3 +1,4 @@
+import type { InventoryFreshnessModel } from '~/lib/inventory/freshness'
 import { generateHotelsInventory } from "~/seed/generators/generate-hotels.js";
 
 export const HOTELS: Hotel[] = (generateHotelsInventory() as Hotel[]).map(
@@ -85,6 +86,7 @@ export type Hotel = {
   rooms: Room[];
   faq: FAQ[];
   availability?: HotelAvailability;
+  freshness?: InventoryFreshnessModel;
   seedMeta?: {
     id: string;
   };

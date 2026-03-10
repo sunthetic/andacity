@@ -1,7 +1,10 @@
-import { component$ } from '@builder.io/qwik'
-import { routeLoader$ } from '@builder.io/qwik-city'
+import { $, component$ } from '@builder.io/qwik'
+import { routeLoader$, useLocation } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { InventoryFreshness } from '~/components/inventory/InventoryFreshness'
+import { InventoryRefreshControl } from '~/components/inventory/InventoryRefreshControl'
 import { Page } from '~/components/site/Page'
+import { revalidateInventoryApi } from '~/lib/inventory/inventory-api'
 import { loadCarRentalBySlugFromDb } from '~/lib/queries/car-rentals-pages.server'
 
 export const useCarRental = routeLoader$(async ({ params, error }) => {
@@ -15,9 +18,22 @@ export const useCarRental = routeLoader$(async ({ params, error }) => {
 
 export default component$(() => {
   const rental = useCarRental().value
+  const location = useLocation()
 
   const heroImg = rental.images[0] || '/img/demo/car-1.jpg'
   const priceFrom = Math.min(...rental.offers.map((o) => o.priceFrom))
+  const refreshHref = `${location.url.pathname}${location.url.search}`
+
+  const onRevalidateRental$ = $(async () => {
+    if (rental.inventoryId == null) {
+      throw new Error('This car rental cannot be revalidated right now.')
+    }
+
+    await revalidateInventoryApi({
+      itemType: 'car',
+      inventoryIds: [rental.inventoryId],
+    })
+  })
 
   return (
     <Page breadcrumbs={[
@@ -57,6 +73,38 @@ export default component$(() => {
             <p class="mt-4 max-w-[80ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
               {rental.summary}
             </p>
+
+            <div class="mt-5 rounded-xl border border-[color:var(--color-border)] px-4 py-4">
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                    Inventory freshness
+                  </p>
+                  <div class="mt-2">
+                    <InventoryFreshness freshness={rental.freshness} compact={false} />
+                  </div>
+                </div>
+
+                <InventoryRefreshControl
+                  id={`car-detail:${refreshHref}`}
+                  mode={rental.inventoryId != null ? 'action' : 'unsupported'}
+                  onRefresh$={
+                    rental.inventoryId != null ? onRevalidateRental$ : undefined
+                  }
+                  reloadHref={refreshHref}
+                  reloadOnSuccess={true}
+                  label="Revalidate inventory"
+                  refreshingLabel="Revalidating..."
+                  refreshedLabel="Inventory revalidated"
+                  failedLabel="Retry revalidation"
+                  unsupportedLabel="Revalidate unavailable"
+                  unsupportedMessage="This car rental cannot be revalidated right now."
+                  successMessage="Car rental inventory was revalidated. Freshness labels were updated."
+                  failureMessage="Failed to revalidate this car rental."
+                  align="right"
+                />
+              </div>
+            </div>
 
             <div class="mt-4 flex flex-wrap gap-2">
               <a class="t-btn-primary px-4 text-center" href={buildSearchHref(rental.cityQuery, 1)}>

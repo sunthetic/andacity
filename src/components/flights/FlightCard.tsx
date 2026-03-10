@@ -1,4 +1,5 @@
 import { component$, type QRL } from "@builder.io/qwik";
+import { InventoryFreshness } from "~/components/inventory/InventoryFreshness";
 import { formatMoney } from "~/lib/formatMoney";
 import { SaveButton } from "~/components/save-compare/SaveButton";
 import { AddToTripButton } from "~/components/trips/AddToTripButton";
@@ -27,6 +28,10 @@ export const FlightCard = component$((props: FlightCardProps) => {
             {flight.cabinClass ? (
               <span class="t-badge">{formatCabinClass(flight.cabinClass)}</span>
             ) : null}
+          </div>
+
+          <div class="mt-3">
+            <InventoryFreshness freshness={flight.freshness} />
           </div>
         </div>
 

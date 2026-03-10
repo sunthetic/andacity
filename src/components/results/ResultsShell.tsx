@@ -1,4 +1,5 @@
 import { Slot, component$ } from "@builder.io/qwik";
+import { InventoryRefreshControl, type InventoryRefreshControlProps } from "~/components/inventory/InventoryRefreshControl";
 import { ResultsEmpty } from "~/components/results/ResultsEmpty";
 import { ResultsFilters } from "~/components/results/ResultsFilters";
 import { ResultsHeader } from "~/components/results/ResultsHeader";
@@ -15,6 +16,12 @@ export const ResultsShell = component$((props: ResultsShellProps) => {
         querySummary={props.querySummary}
         editSearchHref={props.editSearchHref}
       />
+
+      {props.refreshControl ? (
+        <div class="mt-3 flex justify-end">
+          <InventoryRefreshControl {...props.refreshControl} align="right" />
+        </div>
+      ) : null}
 
       <ResultsFilters
         mode="mobile"
@@ -83,6 +90,7 @@ type ResultsShellProps = {
   editSearchHref?: string;
   filtersTitle?: string;
   loading?: boolean;
+  refreshControl?: InventoryRefreshControlProps;
   empty?: {
     title: string;
     description: string;

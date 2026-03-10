@@ -70,6 +70,7 @@ export type CarRentalSearchRow = {
   transmission: 'automatic' | 'manual' | null
   seats: number | null
   bagsLabel: string | null
+  freshnessTimestamp: Date | string | null
 }
 
 export type CarRentalCityRow = {
@@ -140,6 +141,7 @@ export type CarRentalDetailRow = {
   score: string | null
   images: string[]
   offers: CarRentalOfferRow[]
+  freshnessTimestamp: Date | string | null
 }
 
 const DEFAULT_LIMIT = 48
@@ -280,6 +282,7 @@ export async function searchCarRentals(
       inclusions: carInventory.inclusions,
       imageUrl: carInventoryImages.url,
       score: carInventory.score,
+      freshnessTimestamp: carInventory.updatedAt,
     })
     .from(carInventory)
     .innerJoin(cities, eq(carInventory.cityId, cities.id))
@@ -348,6 +351,7 @@ export async function searchCarRentals(
       transmission: offer?.transmission || null,
       seats: offer?.seats ?? null,
       bagsLabel: offer?.bagsLabel || null,
+      freshnessTimestamp: row.freshnessTimestamp,
     }
   })
 }
@@ -473,6 +477,7 @@ export async function searchCarRentalsPage(
       transmission: bestOfferTransmissionSql,
       seats: bestOfferSeatsSql,
       bagsLabel: bestOfferBagsLabelSql,
+      freshnessTimestamp: carInventory.updatedAt,
     })
     .from(carInventory)
     .innerJoin(cities, eq(carInventory.cityId, cities.id))
@@ -672,6 +677,7 @@ export async function getCarRentalDetailBySlug(slug: string): Promise<CarRentalD
       maxDays: carInventory.maxDays,
       blockedWeekdays: carInventory.blockedWeekdays,
       score: carInventory.score,
+      freshnessTimestamp: carInventory.updatedAt,
     })
     .from(carInventory)
     .innerJoin(carProviders, eq(carInventory.providerId, carProviders.id))
@@ -719,5 +725,6 @@ export async function getCarRentalDetailBySlug(slug: string): Promise<CarRentalD
     ...rental,
     images: imageRows.map((row) => row.url),
     offers: offerRows,
+    freshnessTimestamp: rental.freshnessTimestamp,
   }
 }

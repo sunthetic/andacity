@@ -1,4 +1,5 @@
 import { component$, type QRL } from "@builder.io/qwik";
+import { InventoryFreshness } from "~/components/inventory/InventoryFreshness";
 import type {
   TripBundlingSuggestion,
   TripItemCandidate,
@@ -77,6 +78,12 @@ export const TripSuggestionCard = component$(
               {formatDateRange(suggestion.startDate, suggestion.endDate)}
               {suggestion.cityName ? ` · ${suggestion.cityName}` : ""}
             </p>
+            <div class="mt-3">
+              <InventoryFreshness
+                freshness={suggestion.inventory.freshness}
+                align="right"
+              />
+            </div>
             {suggestion.inventory.href ? (
               <a
                 href={suggestion.inventory.href}

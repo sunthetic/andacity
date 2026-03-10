@@ -1,6 +1,9 @@
-import { component$ } from '@builder.io/qwik'
-import { routeLoader$ } from '@builder.io/qwik-city'
+import { $, component$ } from '@builder.io/qwik'
+import { routeLoader$, useLocation } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { InventoryFreshness } from '~/components/inventory/InventoryFreshness'
+import { InventoryRefreshControl } from '~/components/inventory/InventoryRefreshControl'
+import { revalidateInventoryApi } from '~/lib/inventory/inventory-api'
 import { getOgSecret, encodeOgPayload, signOgPayload } from '~/lib/seo/og-sign'
 import type { Hotel } from '~/data/hotels'
 import { loadHotelBySlugFromDb } from '~/lib/queries/hotels-pages.server'
@@ -59,6 +62,19 @@ export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
 export default component$(() => {
   const data = useHotelPage().value
   const h = data.hotel
+  const location = useLocation()
+  const refreshHref = `${location.url.pathname}${location.url.search}`
+
+  const onRevalidateHotel$ = $(async () => {
+    if (h.inventoryId == null) {
+      throw new Error('This hotel cannot be revalidated right now.')
+    }
+
+    await revalidateInventoryApi({
+      itemType: 'hotel',
+      inventoryIds: [h.inventoryId],
+    })
+  })
 
   return (
     <Page breadcrumbs={[
@@ -106,6 +122,36 @@ export default component$(() => {
                 <span class="t-badge">Fees may apply</span>
               )}
               <span class="t-badge">Transparent totals</span>
+            </div>
+
+            <div class="mt-5 rounded-xl border border-[color:var(--color-border)] px-4 py-4">
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                    Inventory freshness
+                  </p>
+                  <div class="mt-2">
+                    <InventoryFreshness freshness={h.freshness} compact={false} />
+                  </div>
+                </div>
+
+                <InventoryRefreshControl
+                  id={`hotel-detail:${refreshHref}`}
+                  mode={h.inventoryId != null ? 'action' : 'unsupported'}
+                  onRefresh$={h.inventoryId != null ? onRevalidateHotel$ : undefined}
+                  reloadHref={refreshHref}
+                  reloadOnSuccess={true}
+                  label="Revalidate inventory"
+                  refreshingLabel="Revalidating..."
+                  refreshedLabel="Inventory revalidated"
+                  failedLabel="Retry revalidation"
+                  unsupportedLabel="Revalidate unavailable"
+                  unsupportedMessage="This hotel cannot be revalidated right now."
+                  successMessage="Hotel inventory was revalidated. Freshness labels were updated."
+                  failureMessage="Failed to revalidate this hotel."
+                  align="right"
+                />
+              </div>
             </div>
 
             {/* Gallery */}

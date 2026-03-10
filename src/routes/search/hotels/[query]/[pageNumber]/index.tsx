@@ -1,8 +1,10 @@
 import { $, component$, useSignal } from '@builder.io/qwik'
 import { routeLoader$, useLocation, useNavigate } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import { revalidateInventoryApi } from '~/lib/inventory/inventory-api'
 import { Page } from '~/components/site/Page'
 import { HotelResultCard } from '~/components/hotels/search/HotelResultCard'
+import { InventoryRefreshControl } from '~/components/inventory/InventoryRefreshControl'
 import type { HotelResult } from '~/types/hotels/search'
 import { loadHotelResultsFromDb } from '~/lib/queries/hotels-search.server'
 import {
@@ -261,6 +263,21 @@ export default component$(() => {
 
   const makePageHref = (pageNumber: number) =>
     toPageHref(pathBase, pageNumber, location.url.searchParams)
+  const refreshHref = `${location.url.pathname}${location.url.search}`
+  const visibleInventoryIds = data.results.flatMap((hotel) =>
+    hotel.inventoryId != null ? [hotel.inventoryId] : [],
+  )
+
+  const onRevalidateVisibleResults$ = $(async () => {
+    if (!visibleInventoryIds.length) {
+      throw new Error('No visible hotel inventory can be revalidated.')
+    }
+
+    await revalidateInventoryApi({
+      itemType: 'hotel',
+      inventoryIds: visibleInventoryIds,
+    })
+  })
 
   return (
     <Page
@@ -278,6 +295,27 @@ export default component$(() => {
         <p class="mt-2 max-w-[80ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
           {contextParts.join(' · ')}
         </p>
+      </div>
+
+      <div class="mt-4 flex justify-end">
+        <InventoryRefreshControl
+          id={`hotel-search:${refreshHref}`}
+          mode={visibleInventoryIds.length ? 'action' : 'unsupported'}
+          onRefresh$={
+            visibleInventoryIds.length ? onRevalidateVisibleResults$ : undefined
+          }
+          reloadHref={refreshHref}
+          reloadOnSuccess={true}
+          label="Revalidate visible results"
+          refreshingLabel="Revalidating..."
+          refreshedLabel="Results revalidated"
+          failedLabel="Retry revalidation"
+          unsupportedLabel="Revalidate unavailable"
+          unsupportedMessage="No visible hotel inventory can be revalidated."
+          successMessage="Visible hotel results were revalidated. Freshness labels were updated."
+          failureMessage="Failed to revalidate visible hotel results."
+          align="right"
+        />
       </div>
 
       <ResultsToolbar

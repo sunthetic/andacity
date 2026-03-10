@@ -1,3 +1,5 @@
+import type { InventoryFreshnessModel } from '~/lib/inventory/freshness'
+
 export const TRIP_STATUSES = [
   "draft",
   "planning",
@@ -135,6 +137,7 @@ export type TripItem = {
   currentCurrencyCode: string | null;
   priceDriftStatus: TripPriceDriftStatus;
   priceDriftCents: number | null;
+  freshness?: InventoryFreshnessModel;
   availabilityStatus: TripItemValidityStatus;
   availabilityCheckedAt: string | null;
   availabilityExpiresAt: string | null;
@@ -190,6 +193,7 @@ export type TripBundlingInventoryReference = {
   currencyCode: string;
   meta: string[];
   href: string | null;
+  freshness?: InventoryFreshnessModel;
 };
 
 export type TripBundlingSuggestion = {

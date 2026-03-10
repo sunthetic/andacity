@@ -3,6 +3,7 @@ import {
   searchFlightsPage,
   type FlightSort,
 } from '~/lib/repos/flights-repo.server'
+import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import {
   EMPTY_FLIGHT_SEARCH_FACETS,
   normalizeFlightSort,
@@ -236,6 +237,10 @@ export async function loadFlightResultsPageFromDb(
         cabinClass: row.cabinClass,
         price: toPriceAmount(row.priceCents),
         currency: row.currencyCode,
+        freshness: buildInventoryFreshness({
+          checkedAt: row.freshnessTimestamp,
+          profile: 'inventory_snapshot',
+        }),
       }
     }),
   }

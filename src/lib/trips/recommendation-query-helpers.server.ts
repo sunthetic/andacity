@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { computeDays } from '~/lib/search/car-rentals/dates'
+import { buildInventoryFreshness, type InventoryFreshnessModel } from '~/lib/inventory/freshness'
 import { buildFlightsSearchPath, slugifyLocation } from '~/lib/search/flights/routing'
 import { computeNights } from '~/lib/search/hotels/dates'
 import { addDays, toUtcDate } from '~/lib/trips/date-utils'
@@ -30,6 +31,7 @@ type RecommendationInventoryMatch = {
   currencyCode: string
   meta: string[]
   href: string | null
+  freshness: InventoryFreshnessModel
   serviceDate?: string | null
 }
 
@@ -153,6 +155,7 @@ const findHotelRecommendation = async (
       freeCancellation: hotels.freeCancellation,
       payLater: hotels.payLater,
       imageUrl: hotelImage.url,
+      freshnessTimestamp: hotelAvailabilitySnapshots.snapshotAt,
     })
     .from(hotels)
     .innerJoin(cities, eq(hotels.cityId, cities.id))
@@ -183,6 +186,10 @@ const findHotelRecommendation = async (
       ...(row.payLater ? ['Pay later'] : []),
     ],
     href: `/hotels/${encodeURIComponent(row.slug)}`,
+    freshness: buildInventoryFreshness({
+      checkedAt: row.freshnessTimestamp,
+      profile: 'inventory_snapshot',
+    }),
   }
 }
 
@@ -225,6 +232,7 @@ const readCarRecommendation = async (
       freeCancellation: carInventory.freeCancellation,
       payAtCounter: carInventory.payAtCounter,
       imageUrl: inventoryImage.url,
+      freshnessTimestamp: carInventory.updatedAt,
     })
     .from(carInventory)
     .innerJoin(cities, eq(carInventory.cityId, cities.id))
@@ -257,6 +265,10 @@ const readCarRecommendation = async (
       ...(row.payAtCounter ? ['Pay at counter'] : []),
     ],
     href: `/car-rentals/${encodeURIComponent(row.slug)}`,
+    freshness: buildInventoryFreshness({
+      checkedAt: row.freshnessTimestamp,
+      profile: 'inventory_snapshot',
+    }),
   } satisfies RecommendationInventoryMatch
 }
 
@@ -282,6 +294,7 @@ const readFlightRecommendationForDate = async (
   const standardFare = alias(flightFares, 'trip_bundle_standard_fare')
   const priceSql = sql<number>`coalesce(${standardFare.priceCents}, ${flightItineraries.basePriceCents})`
   const currencySql = sql<string>`coalesce(${standardFare.currencyCode}, ${flightItineraries.currencyCode})`
+  const freshnessSql = sql<Date | null>`coalesce(${standardFare.updatedAt}, ${flightItineraries.updatedAt})`
   const oneWayRankSql = sql<number>`case when ${flightItineraries.itineraryType} = 'one-way' then 0 else 1 end`
   const db = getDb()
 
@@ -301,6 +314,7 @@ const readFlightRecommendationForDate = async (
       cabinClass: flightItineraries.cabinClass,
       priceCents: priceSql,
       currencyCode: currencySql,
+      freshnessTimestamp: freshnessSql,
     })
     .from(flightItineraries)
     .innerJoin(flightRoutes, eq(flightItineraries.routeId, flightRoutes.id))
@@ -348,6 +362,10 @@ const readFlightRecommendationForDate = async (
       titleCaseToken(row.cabinClass),
     ],
     href: buildFlightHref(row.originCityName, row.destinationCityName, row.serviceDate),
+    freshness: buildInventoryFreshness({
+      checkedAt: row.freshnessTimestamp,
+      profile: 'inventory_snapshot',
+    }),
     serviceDate: row.serviceDate,
   } satisfies RecommendationInventoryMatch
 }

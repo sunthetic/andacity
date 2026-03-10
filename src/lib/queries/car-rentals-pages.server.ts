@@ -1,5 +1,6 @@
 import type { CarRentalCity } from '~/data/car-rental-cities'
 import type { CarOffer, CarRental } from '~/data/car-rentals'
+import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import {
   getCarRentalCityBySlug,
   getCarRentalDetailBySlug,
@@ -97,6 +98,10 @@ const toResult = (
       freeCancellation: row.freeCancellation,
       payAtCounter: row.payAtCounter,
     }),
+    freshness: buildInventoryFreshness({
+      checkedAt: row.freshnessTimestamp,
+      profile: 'inventory_snapshot',
+    }),
   }
 }
 
@@ -123,6 +128,7 @@ export async function loadCarRentalBySlugFromDb(slug: string): Promise<CarRental
   const score = Number(row.score)
 
   return {
+    inventoryId: row.id,
     slug: row.slug,
     name: row.providerName,
     city: row.cityName,
@@ -165,6 +171,10 @@ export async function loadCarRentalBySlugFromDb(slug: string): Promise<CarRental
     },
     offers,
     faq: defaultFaq(row.providerName, row.cityName),
+    freshness: buildInventoryFreshness({
+      checkedAt: row.freshnessTimestamp,
+      profile: 'inventory_snapshot',
+    }),
     availability: {
       pickupStart: row.availabilityStart,
       pickupEnd: row.availabilityEnd,

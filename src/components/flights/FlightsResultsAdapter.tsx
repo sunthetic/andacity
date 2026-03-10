@@ -7,6 +7,7 @@ import { CompareDrawer } from '~/components/save-compare/CompareDrawer'
 import { CompareTray } from '~/components/save-compare/CompareTray'
 import type { ResultsSortOption } from '~/components/results/ResultsSort'
 import { formatMoney } from '~/lib/formatMoney'
+import { revalidateInventoryApi } from '~/lib/inventory/inventory-api'
 import {
   FLIGHT_SORT_OPTIONS,
   type FlightSortKey,
@@ -206,6 +207,10 @@ export const FlightsResultsAdapter = component$(
       })
 
     const pageItems = props.results
+    const refreshHref = toHref(withPage(props.searchState, props.page))
+    const visibleInventoryIds = pageItems.flatMap((result) =>
+      result.itineraryId != null ? [result.itineraryId] : [],
+    )
     const savedItems = useSignal<SavedItem[]>([])
     const compareOpen = useSignal(false)
 
@@ -290,6 +295,17 @@ export const FlightsResultsAdapter = component$(
       compareOpen.value = false
     })
 
+    const onRevalidateVisibleResults$ = $(async () => {
+      if (!visibleInventoryIds.length) {
+        throw new Error('No visible flight inventory can be revalidated.')
+      }
+
+      await revalidateInventoryApi({
+        itemType: 'flight',
+        inventoryIds: visibleInventoryIds,
+      })
+    })
+
     const canCompare = canOpenCompare(savedItems.value.length)
 
     const sortOptions: ResultsSortOption[] = FLIGHT_SORT_OPTIONS.map((option) => ({
@@ -357,6 +373,24 @@ export const FlightsResultsAdapter = component$(
           props.searchState.dates?.checkOut,
         )}
         editSearchHref={props.editSearchHref}
+        refreshControl={{
+          id: `flight-results:${refreshHref}`,
+          mode: visibleInventoryIds.length ? 'action' : 'unsupported',
+          onRefresh$: visibleInventoryIds.length
+            ? onRevalidateVisibleResults$
+            : undefined,
+          reloadHref: refreshHref,
+          reloadOnSuccess: true,
+          label: 'Revalidate visible results',
+          refreshingLabel: 'Revalidating...',
+          refreshedLabel: 'Results revalidated',
+          failedLabel: 'Retry revalidation',
+          unsupportedLabel: 'Revalidate unavailable',
+          unsupportedMessage: 'No visible flight inventory can be revalidated.',
+          successMessage:
+            'Visible flight results were revalidated. Freshness labels were updated.',
+          failureMessage: 'Failed to revalidate visible flight results.',
+        }}
         filtersTitle="Flight filters"
         resultCountLabel={`${props.totalCount.toLocaleString('en-US')} flights`}
         sortOptions={sortOptions}

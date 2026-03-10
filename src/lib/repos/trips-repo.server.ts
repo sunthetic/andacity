@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { getDb } from '~/lib/db/client.server'
+import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import {
   airlines,
   carInventory,
@@ -1290,6 +1291,10 @@ const toTripItem = (
     currentCurrencyCode: item.currentCurrencyCode,
     priceDriftStatus: item.priceDriftStatus,
     priceDriftCents: item.priceDriftCents,
+    freshness: buildInventoryFreshness({
+      checkedAt: resolvedAvailability.checkedAt || item.snapshotTimestamp,
+      profile: 'availability_revalidation',
+    }),
     availabilityStatus,
     availabilityCheckedAt: resolvedAvailability.checkedAt,
     availabilityExpiresAt: resolvedAvailability.expiresAt,

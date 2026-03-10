@@ -1,4 +1,5 @@
 import { component$, type QRL } from "@builder.io/qwik";
+import { InventoryFreshness } from "~/components/inventory/InventoryFreshness";
 import { SaveButton } from "~/components/save-compare/SaveButton";
 import { AddToTripButton } from "~/components/trips/AddToTripButton";
 import type { Hotel } from "~/data/hotels";
@@ -73,6 +74,10 @@ export const HotelCard = component$((props: HotelCardProps) => {
           ) : (
             <span class="t-badge">Prepay</span>
           )}
+        </div>
+
+        <div class="mt-3">
+          <InventoryFreshness freshness={h.freshness} />
         </div>
       </div>
     </article>

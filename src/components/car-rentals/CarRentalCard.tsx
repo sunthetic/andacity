@@ -1,5 +1,6 @@
 import { component$, type QRL } from "@builder.io/qwik";
 import type { CarRentalResult } from "~/types/car-rentals/search";
+import { InventoryFreshness } from "~/components/inventory/InventoryFreshness";
 import { formatMoney } from "~/lib/formatMoney";
 import { SaveButton } from "~/components/save-compare/SaveButton";
 import { AddToTripButton } from "~/components/trips/AddToTripButton";
@@ -87,6 +88,10 @@ export const CarRentalCard = component$((props: CarRentalCardProps) => {
           <p class="mt-3 text-xs text-[color:var(--color-text-muted)]">
             {r.pickupArea}
           </p>
+
+          <div class="mt-3">
+            <InventoryFreshness freshness={r.freshness} />
+          </div>
 
           <div class="mt-4">
             <a

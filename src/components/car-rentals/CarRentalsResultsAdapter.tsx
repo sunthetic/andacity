@@ -7,6 +7,7 @@ import { CompareDrawer } from "~/components/save-compare/CompareDrawer";
 import { CompareTray } from "~/components/save-compare/CompareTray";
 import type { ResultsSortOption } from "~/components/results/ResultsSort";
 import { formatMoney } from "~/lib/formatMoney";
+import { revalidateInventoryApi } from "~/lib/inventory/inventory-api";
 import { canOpenCompare } from "~/lib/save-compare/compare-state";
 import {
   clearSavedCollection,
@@ -218,6 +219,10 @@ export const CarRentalsResultsAdapter = component$(
       });
 
     const pageItems = props.results;
+    const refreshHref = toHref(withPage(props.searchState, props.page));
+    const visibleInventoryIds = pageItems.flatMap((result) =>
+      result.inventoryId != null ? [result.inventoryId] : [],
+    );
     const savedItems = useSignal<SavedItem[]>([]);
     const compareOpen = useSignal(false);
 
@@ -264,6 +269,17 @@ export const CarRentalsResultsAdapter = component$(
 
     const onCloseCompare$ = $(() => {
       compareOpen.value = false;
+    });
+
+    const onRevalidateVisibleResults$ = $(async () => {
+      if (!visibleInventoryIds.length) {
+        throw new Error("No visible car rental inventory can be revalidated.");
+      }
+
+      await revalidateInventoryApi({
+        itemType: "car",
+        inventoryIds: visibleInventoryIds,
+      });
     });
 
     const canCompare = canOpenCompare(savedItems.value.length);
@@ -343,6 +359,25 @@ export const CarRentalsResultsAdapter = component$(
           props.editSearchHref ||
           buildEditSearchHref(props.searchState, props.queryLabel)
         }
+        refreshControl={{
+          id: `car-results:${refreshHref}`,
+          mode: visibleInventoryIds.length ? "action" : "unsupported",
+          onRefresh$: visibleInventoryIds.length
+            ? onRevalidateVisibleResults$
+            : undefined,
+          reloadHref: refreshHref,
+          reloadOnSuccess: true,
+          label: "Revalidate visible results",
+          refreshingLabel: "Revalidating...",
+          refreshedLabel: "Results revalidated",
+          failedLabel: "Retry revalidation",
+          unsupportedLabel: "Revalidate unavailable",
+          unsupportedMessage:
+            "No visible car rental inventory can be revalidated.",
+          successMessage:
+            "Visible car rental results were revalidated. Freshness labels were updated.",
+          failureMessage: "Failed to revalidate visible car rental results.",
+        }}
         filtersTitle="Car rental filters"
         resultCountLabel={`${props.totalCount.toLocaleString("en-US")} rentals`}
         sortOptions={sortOptions}
