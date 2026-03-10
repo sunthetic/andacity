@@ -9,6 +9,7 @@ const sendJson = (
   body: unknown,
 ) => {
   headers.set('content-type', 'application/json; charset=utf-8')
+  headers.set('cache-control', 'no-store')
   send(status, JSON.stringify(body))
 }
 

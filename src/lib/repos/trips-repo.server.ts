@@ -1,13 +1,24 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { getDb } from '~/lib/db/client.server'
-import { buildAvailabilityConfidence } from '~/lib/inventory/availability-confidence'
+import {
+  buildAvailabilityConfidence,
+  evaluateCarAvailabilityContext,
+  evaluateFlightAvailabilityContext,
+  evaluateHotelAvailabilityContext,
+} from '~/lib/inventory/availability-confidence'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import {
+  buildCarPriceDisplay,
+  buildFlightPriceDisplay,
+  buildHotelPriceDisplay,
+  mergePriceDisplayMetadata,
   readStoredPriceDisplayMetadata,
   resolveComparablePriceCents,
   formatMoneyFromCents,
 } from '~/lib/pricing/price-display'
+import { computeDays } from '~/lib/search/car-rentals/dates'
+import { computeNights } from '~/lib/search/hotels/dates'
 import {
   airlines,
   carInventory,
@@ -37,12 +48,18 @@ import {
   validateTripItineraryCoherence,
   type TripItineraryValidationItem,
 } from '~/lib/trips/itinerary-coherence'
-import { bundlingSuggestionService } from '~/lib/trips/bundling-suggestion-service.server'
+import {
+  buildSuggestionExplanation,
+  bundlingSuggestionService,
+} from '~/lib/trips/bundling-suggestion-service.server'
+import { readTripBundlingState } from '~/lib/trips/bundle-explainability'
+import { buildTripEditBundleImpact } from '~/lib/trips/bundle-swap-impact'
 import { buildTripIntelligenceSummary } from '~/lib/trips/status-aggregation'
 import type { TripGapAnalyzerItem } from '~/lib/trips/trip-gap-analyzer'
 import {
   TRIP_ITEM_TYPES,
   type TripAppliedChange,
+  type TripBundlingGap,
   type TripBundlingSummary,
   type TripChangeSummary,
   type TripEditPreview,
@@ -1090,6 +1107,7 @@ const readLatestHotelAvailabilitySnapshots = async (hotelIds: number[]) => {
         minNights: number
         maxNights: number
         blockedWeekdays: number[]
+        snapshotAt: string
       }
     >()
   }
@@ -1111,13 +1129,14 @@ const readLatestHotelAvailabilitySnapshots = async (hotelIds: number[]) => {
 
   const snapshots = new Map<
     number,
-    {
-      checkInStart: string
-      checkInEnd: string
-      minNights: number
-      maxNights: number
-      blockedWeekdays: number[]
-    }
+      {
+        checkInStart: string
+        checkInEnd: string
+        minNights: number
+        maxNights: number
+        blockedWeekdays: number[]
+        snapshotAt: string
+      }
   >()
 
   for (const row of rows) {
@@ -1129,6 +1148,7 @@ const readLatestHotelAvailabilitySnapshots = async (hotelIds: number[]) => {
       minNights: row.minNights,
       maxNights: row.maxNights,
       blockedWeekdays: toIntList(row.blockedWeekdays),
+      snapshotAt: toIsoTimestamp(row.snapshotAt),
     })
   }
 
@@ -1778,6 +1798,191 @@ const readCandidatePreviewLocationType = (value: unknown): 'airport' | 'city' | 
   return value === 'airport' || value === 'city' ? value : null
 }
 
+const resolveReplacementInventoryId = (
+  item: Pick<TripItemRecord, 'itemType' | 'hotelId' | 'flightItineraryId' | 'carInventoryId'>,
+) => {
+  if (item.itemType === 'hotel') return item.hotelId
+  if (item.itemType === 'flight') return item.flightItineraryId
+  return item.carInventoryId
+}
+
+const getBundlingPriorityFromGapType = (
+  gapType: TripBundlingGap['gapType'] | null,
+): TripBundlingGap['priority'] => {
+  if (gapType === 'missing_return_flight' || gapType === 'missing_lodging') {
+    return 'high'
+  }
+  if (
+    gapType === 'arrival_ground_transport' ||
+    gapType === 'missing_car_rental' ||
+    gapType === 'intercity_transfer_gap'
+  ) {
+    return 'medium'
+  }
+  return 'low'
+}
+
+const buildReplacementBundleGap = (
+  item: TripItemRecord,
+): TripBundlingGap | null => {
+  const bundleState = readTripBundlingState(item.metadata)
+  if (!bundleState) return null
+
+  const context = bundleState.context
+  const gapType =
+    bundleState.gapType ||
+    (item.itemType === 'hotel'
+      ? 'missing_lodging'
+      : item.itemType === 'car'
+        ? 'missing_car_rental'
+        : 'intercity_transfer_gap')
+
+  return {
+    id: bundleState.gapId || `bundle-override:${item.id}`,
+    gapType,
+    priority: context?.priority || getBundlingPriorityFromGapType(gapType),
+    targetItemType: item.itemType,
+    title:
+      context?.title ||
+      (item.itemType === 'hotel'
+        ? 'Swap bundled hotel'
+        : item.itemType === 'car'
+          ? 'Swap bundled car'
+          : 'Swap bundled flight'),
+    description:
+      context?.description ||
+      (item.itemType === 'hotel'
+        ? `Keep lodging coverage in ${item.startCityName || item.endCityName || 'this city'} without rebuilding the rest of the trip.`
+        : item.itemType === 'car'
+          ? `Keep ground transport coverage in ${item.startCityName || item.endCityName || 'this city'} without rebuilding the bundle.`
+          : `Keep this travel leg between ${item.startCityName || 'the current city'} and ${item.endCityName || 'the next city'} without rebuilding the bundle.`),
+    startDate: context?.startDate || item.startDate,
+    endDate: context?.endDate || item.endDate,
+    cityId: context?.cityId ?? item.startCityId ?? item.endCityId,
+    cityName: context?.cityName || item.startCityName || item.endCityName,
+    originCityId: context?.originCityId ?? item.startCityId,
+    originCityName: context?.originCityName || item.startCityName,
+    destinationCityId: context?.destinationCityId ?? item.endCityId,
+    destinationCityName: context?.destinationCityName || item.endCityName,
+    relatedItemIds: bundleState.relatedItemIds,
+  }
+}
+
+const resolveReplacementPriceDisplay = (input: {
+  itemType: TripItemType
+  priceCents: number
+  currencyCode: string
+  startDate: string | null
+  endDate: string | null
+}) => {
+  if (input.itemType === 'hotel') {
+    return buildHotelPriceDisplay({
+      currencyCode: input.currencyCode,
+      nightlyRate: input.priceCents / 100,
+      nights: computeNights(input.startDate, input.endDate),
+    })
+  }
+
+  if (input.itemType === 'car') {
+    return buildCarPriceDisplay({
+      currencyCode: input.currencyCode,
+      dailyRate: input.priceCents / 100,
+      days:
+        input.startDate && input.endDate
+          ? computeDays(input.startDate, input.endDate)
+          : null,
+    })
+  }
+
+  return buildFlightPriceDisplay({
+    currencyCode: input.currencyCode,
+    fare: input.priceCents / 100,
+    travelers: 1,
+  })
+}
+
+const resolveDisplayedReplacementBaseCents = (
+  input: ReturnType<typeof resolveReplacementPriceDisplay>,
+  fallbackPriceCents: number,
+) =>
+  Math.round((input.baseTotalAmount ?? input.baseAmount ?? 0) * 100) ||
+  Math.max(0, Math.round(fallbackPriceCents))
+
+const buildReplacementCandidateMetadata = (input: {
+  item: TripItemRecord
+  inventoryId: number
+  previewMetadata: Record<string, unknown>
+  currencyCode: string
+  startDate: string | null
+  endDate: string | null
+  displayedBaseCents: number
+  priceDisplay: ReturnType<typeof resolveReplacementPriceDisplay>
+  availabilityConfidence: ReturnType<typeof buildAvailabilityConfidence>
+  explainability: {
+    cheapestExactMatchPriceCents: number | null
+    preferredLocationType: 'airport' | 'city' | null
+    selectedLocationType: 'airport' | 'city' | null
+  }
+}) => {
+  const baseMetadata = mergePriceDisplayMetadata(
+    input.previewMetadata,
+    input.item.itemType,
+    input.priceDisplay,
+  )
+  const gap = buildReplacementBundleGap(input.item)
+  if (!gap) return baseMetadata
+
+  const existingBundleState = readTripBundlingState(input.item.metadata)
+  const explanation = buildSuggestionExplanation({
+    gap,
+    itemType: input.item.itemType,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    cityName: gap.cityName,
+    tripPricing: null,
+    inventory: {
+      currencyCode: input.currencyCode,
+      serviceDate:
+        input.item.itemType === 'flight' ? input.startDate || input.endDate : null,
+      availabilityConfidence: input.availabilityConfidence,
+      explainability: input.explainability,
+    },
+    displayedBaseCents: input.displayedBaseCents,
+  })
+
+  return {
+    ...baseMetadata,
+    smartBundling: {
+      generatedAt: new Date().toISOString(),
+      gapId: existingBundleState?.gapId || gap.id,
+      gapType: gap.gapType,
+      relatedItemIds: gap.relatedItemIds,
+      suggestionType: existingBundleState?.suggestionType || null,
+      selectionMode: 'manual_override',
+      manualOverride: true,
+      originalInventoryId:
+        existingBundleState?.originalInventoryId ||
+        resolveReplacementInventoryId(input.item),
+      currentInventoryId: input.inventoryId,
+      context: {
+        priority: gap.priority,
+        itemType: gap.targetItemType,
+        title: gap.title,
+        description: gap.description,
+        startDate: gap.startDate,
+        endDate: gap.endDate,
+        cityId: gap.cityId,
+        cityName: gap.cityName,
+        originCityId: gap.originCityId,
+        originCityName: gap.originCityName,
+        destinationCityId: gap.destinationCityId,
+        destinationCityName: gap.destinationCityName,
+      },
+      explanation,
+    },
+  }
+}
+
 const buildReplacementTripItemRecord = async (
   tx: any,
   existingItem: TripItemRecord,
@@ -1942,11 +2147,63 @@ const buildHotelReplacementOptions = async (item: TripItemRecord): Promise<TripI
     .innerJoin(cities, eq(hotels.cityId, cities.id))
     .where(and(...conditions))
     .orderBy(desc(hotels.rating), asc(hotels.fromNightlyCents), asc(hotels.id))
-    .limit(4)
+    .limit(12)
 
   const imageByHotelId = await readPrimaryHotelImages(rows.map((row) => row.id))
+  const availabilityByHotelId = await readLatestHotelAvailabilitySnapshots(
+    rows.map((row) => row.id),
+  )
+  const nights = computeNights(item.startDate, item.endDate)
+  const exactMatchPriceCents = rows
+    .flatMap((row) => {
+      const availability = availabilityByHotelId.get(row.id) || null
+      const assessment = evaluateHotelAvailabilityContext({
+        availability: availability
+          ? {
+              checkInStart: availability.checkInStart,
+              checkInEnd: availability.checkInEnd,
+              minNights: availability.minNights,
+              maxNights: availability.maxNights,
+              blockedWeekdays: availability.blockedWeekdays,
+            }
+          : null,
+        checkIn: item.startDate,
+        checkOut: item.endDate,
+      })
 
-  return rows.map((row) => {
+      return assessment.match === 'exact' && assessment.unavailable !== true
+        ? [row.priceCents]
+        : []
+    })
+    .sort((left, right) => left - right)[0] ?? null
+
+  return rows.flatMap((row) => {
+    const availability = availabilityByHotelId.get(row.id) || null
+    const freshness = availability
+      ? buildInventoryFreshness({
+          checkedAt: availability.snapshotAt,
+          profile: 'inventory_snapshot',
+        })
+      : null
+    const assessment = evaluateHotelAvailabilityContext({
+      availability: availability
+        ? {
+            checkInStart: availability.checkInStart,
+            checkInEnd: availability.checkInEnd,
+            minNights: availability.minNights,
+            maxNights: availability.maxNights,
+            blockedWeekdays: availability.blockedWeekdays,
+          }
+        : null,
+      checkIn: item.startDate,
+      checkOut: item.endDate,
+    })
+    if (assessment.unavailable) return []
+
+    const availabilityConfidence = buildAvailabilityConfidence({
+      freshness,
+      ...assessment,
+    })
     const meta = [
       `${row.stars}-star stay`,
       `Rated ${row.rating}`,
@@ -1954,10 +2211,49 @@ const buildHotelReplacementOptions = async (item: TripItemRecord): Promise<TripI
       row.payLater ? 'Pay later' : null,
     ].filter((entry): entry is string => Boolean(entry))
     const imageUrl = imageByHotelId.get(row.id) || null
-
-    return {
-      inventoryId: row.id,
+    const priceDisplay = resolveReplacementPriceDisplay({
       itemType: 'hotel',
+      priceCents: row.priceCents,
+      currencyCode: row.currencyCode,
+      startDate: item.startDate,
+      endDate: item.endDate,
+    })
+    const displayedBaseCents = resolveDisplayedReplacementBaseCents(
+      priceDisplay,
+      row.priceCents,
+    )
+    const previewMetadata = {
+      previewCurrentPriceCents: row.priceCents,
+      previewCurrentCurrencyCode: row.currencyCode,
+    }
+    const metadata = buildReplacementCandidateMetadata({
+      item,
+      inventoryId: row.id,
+      previewMetadata,
+      currencyCode: row.currencyCode,
+      startDate: item.startDate,
+      endDate: item.endDate,
+      displayedBaseCents,
+      priceDisplay,
+      availabilityConfidence,
+      explainability: {
+        cheapestExactMatchPriceCents: exactMatchPriceCents,
+        preferredLocationType: null,
+        selectedLocationType: null,
+      },
+    })
+    const reasons = [
+      'Same city',
+      item.startDate && item.endDate
+        ? 'Keeps current stay dates'
+        : 'Dates can stay unchanged',
+      nights != null ? `${nights} night${nights === 1 ? '' : 's'}` : null,
+      availabilityConfidence.degraded ? availabilityConfidence.supportText : null,
+    ].filter((entry): entry is string => Boolean(entry))
+
+    return [{
+      inventoryId: row.id,
+      itemType: 'hotel' as const,
       title: row.name,
       subtitle: `${row.neighborhood} · ${row.cityName}`,
       imageUrl,
@@ -1967,33 +2263,31 @@ const buildHotelReplacementOptions = async (item: TripItemRecord): Promise<TripI
       startDate: item.startDate,
       endDate: item.endDate,
       candidate: {
-        itemType: 'hotel',
+        itemType: 'hotel' as const,
         inventoryId: row.id,
         startDate: item.startDate || undefined,
         endDate: item.endDate || undefined,
-        priceCents: row.priceCents,
+        priceCents: displayedBaseCents,
         currencyCode: row.currencyCode,
         title: row.name,
         subtitle: `${row.neighborhood} · ${row.cityName}`,
         imageUrl: imageUrl || undefined,
         meta,
-        metadata: {
-          previewCurrentPriceCents: row.priceCents,
-          previewCurrentCurrencyCode: row.currencyCode,
-        },
+        metadata,
       },
-      reasons: ['Same city', item.startDate && item.endDate ? 'Keeps current stay dates' : 'Dates can stay unchanged'],
-    }
-  })
+      reasons,
+    }]
+  }).slice(0, 4)
 }
 
 const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripItemReplacementOption[]> => {
   if (!item.startCityId) return []
 
   const db = getDb()
+  const preferredLocationType = item.liveCarLocationType
   const pickupTypeRankSql =
-    item.liveCarLocationType === 'airport' || item.liveCarLocationType === 'city'
-      ? sql<number>`case when ${carLocations.locationType} = ${item.liveCarLocationType} then 0 else 1 end`
+    preferredLocationType === 'airport' || preferredLocationType === 'city'
+      ? sql<number>`case when ${carLocations.locationType} = ${preferredLocationType} then 0 else 1 end`
       : sql<number>`0`
   const conditions = [eq(carInventory.cityId, item.startCityId)]
   if (item.carInventoryId) {
@@ -2017,6 +2311,7 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
       maxDays: carInventory.maxDays,
       blockedWeekdays: carInventory.blockedWeekdays,
       rating: carInventory.rating,
+      updatedAt: carInventory.updatedAt,
     })
     .from(carInventory)
     .innerJoin(cities, eq(carInventory.cityId, cities.id))
@@ -2024,11 +2319,55 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
     .innerJoin(carLocations, eq(carInventory.locationId, carLocations.id))
     .where(and(...conditions))
     .orderBy(pickupTypeRankSql, desc(carInventory.rating), asc(carInventory.fromDailyCents), asc(carInventory.id))
-    .limit(4)
+    .limit(12)
 
   const imageByInventoryId = await readPrimaryCarImages(rows.map((row) => row.id))
+  const exactMatchPriceCents =
+    rows
+      .flatMap((row) => {
+        const assessment = evaluateCarAvailabilityContext({
+          availability: {
+            pickupStart: row.availabilityStart,
+            pickupEnd: row.availabilityEnd,
+            minDays: row.minDays,
+            maxDays: row.maxDays,
+            blockedWeekdays: toIntList(row.blockedWeekdays),
+          },
+          pickupDate: item.startDate,
+          dropoffDate: item.endDate,
+        })
 
-  return rows.map((row) => {
+        if (assessment.unavailable) return []
+        if (preferredLocationType && row.locationType !== preferredLocationType) {
+          return []
+        }
+
+        return assessment.match === 'exact' ? [row.priceCents] : []
+      })
+      .sort((left, right) => left - right)[0] ?? null
+
+  return rows.flatMap((row) => {
+    const assessment = evaluateCarAvailabilityContext({
+      availability: {
+        pickupStart: row.availabilityStart,
+        pickupEnd: row.availabilityEnd,
+        minDays: row.minDays,
+        maxDays: row.maxDays,
+        blockedWeekdays: toIntList(row.blockedWeekdays),
+      },
+      pickupDate: item.startDate,
+      dropoffDate: item.endDate,
+    })
+    if (assessment.unavailable) return []
+
+    const freshness = buildInventoryFreshness({
+      checkedAt: row.updatedAt,
+      profile: 'inventory_snapshot',
+    })
+    const availabilityConfidence = buildAvailabilityConfidence({
+      freshness,
+      ...assessment,
+    })
     const pickupLabel = row.locationType === 'airport' ? 'Airport pickup' : 'City pickup'
     const imageUrl = imageByInventoryId.get(row.id) || null
     const meta = [
@@ -2037,10 +2376,56 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
       row.freeCancellation ? 'Free cancellation' : null,
       row.payAtCounter ? 'Pay at counter' : null,
     ].filter((entry): entry is string => Boolean(entry))
-
-    return {
-      inventoryId: row.id,
+    const priceDisplay = resolveReplacementPriceDisplay({
       itemType: 'car',
+      priceCents: row.priceCents,
+      currencyCode: row.currencyCode,
+      startDate: item.startDate,
+      endDate: item.endDate,
+    })
+    const displayedBaseCents = resolveDisplayedReplacementBaseCents(
+      priceDisplay,
+      row.priceCents,
+    )
+    const previewMetadata = {
+      previewAvailabilityStart: row.availabilityStart,
+      previewAvailabilityEnd: row.availabilityEnd,
+      previewBlockedWeekdays: toIntList(row.blockedWeekdays),
+      previewCurrentPriceCents: row.priceCents,
+      previewCurrentCurrencyCode: row.currencyCode,
+      previewLocationName: row.locationName,
+      previewLocationType: row.locationType,
+      previewMaxDays: row.maxDays,
+      previewMinDays: row.minDays,
+    }
+    const metadata = buildReplacementCandidateMetadata({
+      item,
+      inventoryId: row.id,
+      previewMetadata,
+      currencyCode: row.currencyCode,
+      startDate: item.startDate,
+      endDate: item.endDate,
+      displayedBaseCents,
+      priceDisplay,
+      availabilityConfidence,
+      explainability: {
+        cheapestExactMatchPriceCents: exactMatchPriceCents,
+        preferredLocationType,
+        selectedLocationType: row.locationType,
+      },
+    })
+    const reasons = [
+      'Same city',
+      pickupLabel,
+      preferredLocationType && row.locationType === preferredLocationType
+        ? 'Matches current pickup style'
+        : null,
+      availabilityConfidence.degraded ? availabilityConfidence.supportText : null,
+    ].filter((entry): entry is string => Boolean(entry))
+
+    return [{
+      inventoryId: row.id,
+      itemType: 'car' as const,
       title: row.providerName,
       subtitle: `${row.locationName} · ${row.cityName}`,
       imageUrl,
@@ -2050,31 +2435,21 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
       startDate: item.startDate,
       endDate: item.endDate,
       candidate: {
-        itemType: 'car',
+        itemType: 'car' as const,
         inventoryId: row.id,
         startDate: item.startDate || undefined,
         endDate: item.endDate || undefined,
-        priceCents: row.priceCents,
+        priceCents: displayedBaseCents,
         currencyCode: row.currencyCode,
         title: row.providerName,
         subtitle: `${row.locationName} · ${row.cityName}`,
         imageUrl: imageUrl || undefined,
         meta,
-        metadata: {
-          previewAvailabilityStart: row.availabilityStart,
-          previewAvailabilityEnd: row.availabilityEnd,
-          previewBlockedWeekdays: toIntList(row.blockedWeekdays),
-          previewCurrentPriceCents: row.priceCents,
-          previewCurrentCurrencyCode: row.currencyCode,
-          previewLocationName: row.locationName,
-          previewLocationType: row.locationType,
-          previewMaxDays: row.maxDays,
-          previewMinDays: row.minDays,
-        },
+        metadata,
       },
-      reasons: ['Same city', pickupLabel],
-    }
-  })
+      reasons,
+    }]
+  }).slice(0, 4)
 }
 
 const buildFlightReplacementOptions = async (item: TripItemRecord): Promise<TripItemReplacementOption[]> => {
@@ -2084,6 +2459,8 @@ const buildFlightReplacementOptions = async (item: TripItemRecord): Promise<Trip
   const standardFare = alias(flightFares, 'trip_replace_standard_fare')
   const originCity = alias(cities, 'trip_replace_origin_city')
   const destinationCity = alias(cities, 'trip_replace_destination_city')
+  const freshnessSql =
+    sql<Date | string | null>`coalesce(${standardFare.updatedAt}, ${flightItineraries.updatedAt})`
   const conditions = [
     eq(flightRoutes.originCityId, item.startCityId),
     eq(flightRoutes.destinationCityId, item.endCityId),
@@ -2114,6 +2491,7 @@ const buildFlightReplacementOptions = async (item: TripItemRecord): Promise<Trip
       priceCents: sql<number>`coalesce(${standardFare.priceCents}, ${flightItineraries.basePriceCents})`,
       currencyCode: sql<string>`coalesce(${standardFare.currencyCode}, ${flightItineraries.currencyCode})`,
       seatsRemaining: sql<number | null>`coalesce(${standardFare.seatsRemaining}, ${flightItineraries.seatsRemaining})`,
+      freshnessTimestamp: freshnessSql,
     })
     .from(flightItineraries)
     .innerJoin(flightRoutes, eq(flightItineraries.routeId, flightRoutes.id))
@@ -2130,15 +2508,89 @@ const buildFlightReplacementOptions = async (item: TripItemRecord): Promise<Trip
     )
     .where(and(...conditions))
     .orderBy(asc(sql<number>`coalesce(${standardFare.priceCents}, ${flightItineraries.basePriceCents})`), asc(flightItineraries.departureAtUtc))
-    .limit(4)
+    .limit(8)
 
-  return rows.map((row) => {
+  const exactMatchPriceCents =
+    rows
+      .flatMap((row) => {
+        const assessment = evaluateFlightAvailabilityContext({
+          requestedServiceDate: serviceDate,
+          actualServiceDate: row.serviceDate,
+        })
+        if (assessment.unavailable || (row.seatsRemaining != null && row.seatsRemaining < 1)) {
+          return []
+        }
+
+        return assessment.match === 'exact' ? [row.priceCents] : []
+      })
+      .sort((left, right) => left - right)[0] ?? null
+
+  return rows.flatMap((row) => {
+    const assessment = evaluateFlightAvailabilityContext({
+      requestedServiceDate: serviceDate,
+      actualServiceDate: row.serviceDate,
+    })
+    if (assessment.unavailable || (row.seatsRemaining != null && row.seatsRemaining < 1)) {
+      return []
+    }
+
+    const freshness = row.freshnessTimestamp
+      ? buildInventoryFreshness({
+          checkedAt: row.freshnessTimestamp,
+          profile: 'inventory_snapshot',
+        })
+      : null
+    const availabilityConfidence = buildAvailabilityConfidence({
+      freshness,
+      ...assessment,
+    })
     const subtitle = `${row.originCityName} → ${row.destinationCityName}`
     const meta = [row.stopsLabel, titleCaseToken(row.cabinClass)].filter(Boolean)
-
-    return {
-      inventoryId: row.id,
+    const priceDisplay = resolveReplacementPriceDisplay({
       itemType: 'flight',
+      priceCents: row.priceCents,
+      currencyCode: row.currencyCode,
+      startDate: row.serviceDate,
+      endDate: row.serviceDate,
+    })
+    const displayedBaseCents = resolveDisplayedReplacementBaseCents(
+      priceDisplay,
+      row.priceCents,
+    )
+    const metadata = buildReplacementCandidateMetadata({
+      item,
+      inventoryId: row.id,
+      previewMetadata: {
+        previewCurrentPriceCents: row.priceCents,
+        previewCurrentCurrencyCode: row.currencyCode,
+        previewFlightArrivalAt: toIsoTimestamp(row.arrivalAtUtc),
+        previewFlightDepartureAt: toIsoTimestamp(row.departureAtUtc),
+        previewFlightItineraryType: row.itineraryType,
+        previewFlightSeatsRemaining: row.seatsRemaining,
+        previewFlightServiceDate: row.serviceDate,
+      },
+      currencyCode: row.currencyCode,
+      startDate: row.serviceDate,
+      endDate: row.serviceDate,
+      displayedBaseCents,
+      priceDisplay,
+      availabilityConfidence,
+      explainability: {
+        cheapestExactMatchPriceCents: exactMatchPriceCents,
+        preferredLocationType: null,
+        selectedLocationType: null,
+      },
+    })
+    const reasons = [
+      'Same route',
+      serviceDate ? 'Same travel date' : 'Closest matching schedule',
+      row.seatsRemaining != null ? `${row.seatsRemaining} seats remaining` : null,
+      availabilityConfidence.degraded ? availabilityConfidence.supportText : null,
+    ].filter((entry): entry is string => Boolean(entry))
+
+    return [{
+      inventoryId: row.id,
+      itemType: 'flight' as const,
       title: row.airlineName,
       subtitle,
       imageUrl: null,
@@ -2148,28 +2600,20 @@ const buildFlightReplacementOptions = async (item: TripItemRecord): Promise<Trip
       startDate: row.serviceDate,
       endDate: row.serviceDate,
       candidate: {
-        itemType: 'flight',
+        itemType: 'flight' as const,
         inventoryId: row.id,
         startDate: row.serviceDate,
         endDate: row.serviceDate,
-        priceCents: row.priceCents,
+        priceCents: displayedBaseCents,
         currencyCode: row.currencyCode,
         title: row.airlineName,
         subtitle,
         meta,
-        metadata: {
-          previewCurrentPriceCents: row.priceCents,
-          previewCurrentCurrencyCode: row.currencyCode,
-          previewFlightArrivalAt: toIsoTimestamp(row.arrivalAtUtc),
-          previewFlightDepartureAt: toIsoTimestamp(row.departureAtUtc),
-          previewFlightItineraryType: row.itineraryType,
-          previewFlightSeatsRemaining: row.seatsRemaining,
-          previewFlightServiceDate: row.serviceDate,
-        },
+        metadata,
       },
-      reasons: ['Same route', serviceDate ? 'Same travel date' : 'Closest matching schedule'],
-    }
-  })
+      reasons,
+    }]
+  }).slice(0, 4)
 }
 
 const requireTripItemRecord = (items: TripItemRecord[], tripId: number, itemId: number) => {
@@ -2365,7 +2809,11 @@ const buildTripEditChangeSummary = (
   focusItem: TripItem,
   preview: Pick<
     TripEditPreview,
-    'autoRebalanced' | 'priceImpact' | 'timingImpact' | 'coherenceImpact'
+    | 'autoRebalanced'
+    | 'bundleImpact'
+    | 'priceImpact'
+    | 'timingImpact'
+    | 'coherenceImpact'
   >,
 ): TripChangeSummary => {
   const impactParts = [preview.timingImpact.summary]
@@ -2379,6 +2827,10 @@ const buildTripEditChangeSummary = (
     preview.priceImpact.snapshotDeltaCents !== 0
   ) {
     impactParts.push(preview.priceImpact.summary)
+  }
+
+  if (preview.bundleImpact) {
+    impactParts.push(preview.bundleImpact.strengthSummary)
   }
 
   const safetyLevel: TripChangeSummary['safetyLevel'] =
@@ -2418,13 +2870,21 @@ const buildTripEditChangeSummary = (
   return {
     safetyLevel,
     headline:
-      safetyLevel === 'major'
-        ? 'Review major itinerary replacement'
-        : 'Review itinerary replacement',
-    whatChanged: `${focusItem.title} will be replaced with a different itinerary option.`,
+      preview.bundleImpact
+        ? safetyLevel === 'major'
+          ? 'Review major bundle swap'
+          : 'Review bundle swap'
+        : safetyLevel === 'major'
+          ? 'Review major itinerary replacement'
+          : 'Review itinerary replacement',
+    whatChanged: preview.bundleImpact
+      ? `${focusItem.title} will be swapped while keeping the current bundle context where possible.`
+      : `${focusItem.title} will be replaced with a different itinerary option.`,
     whyChanged: preview.autoRebalanced
       ? 'Auto-rebalance is enabled, so unlocked items may move around locked anchors when this replacement lands.'
-      : 'Replacing one inventory option can change price, timing, or itinerary coherence, so the impact is previewed first.',
+      : preview.bundleImpact
+        ? 'Swapping one bundle component can shift price, timing, coherence, and recommendation strength, so those signals are recalculated before apply.'
+        : 'Replacing one inventory option can change price, timing, or itinerary coherence, so the impact is previewed first.',
     impactSummary: impactParts.join(' '),
   }
 }
@@ -2439,6 +2899,16 @@ const buildTripEditPreviewResult = (
   const priceImpact = buildPriceImpact(currentTrip, nextTrip)
   const timingImpact = buildTimingImpact(currentTrip, nextTrip, actionType)
   const coherenceImpact = buildCoherenceImpact(currentTrip, nextTrip)
+  const nextFocusItem = nextTrip.items.find((item) => item.id === focusItem.id) || null
+  const bundleImpact =
+    actionType === 'replace' && nextFocusItem
+      ? buildTripEditBundleImpact({
+          currentMetadata: focusItem.metadata,
+          nextMetadata: nextFocusItem.metadata,
+          focusItemId: focusItem.id,
+          nextTripItemIds: nextTrip.items.map((item) => item.id),
+        })
+      : null
   const preview: TripEditPreview = {
     actionType,
     trip: nextTrip,
@@ -2448,6 +2918,7 @@ const buildTripEditPreviewResult = (
     priceImpact,
     timingImpact,
     coherenceImpact,
+    bundleImpact,
     changeSummary: {
       safetyLevel: 'minor',
       headline: '',
@@ -2935,6 +3406,8 @@ export async function updateTripItem(
         .select({
           id: tripItems.id,
           itemType: tripItems.itemType,
+          position: tripItems.position,
+          createdAt: tripItems.createdAt,
           metadata: tripItems.metadata,
         })
         .from(tripItems)
@@ -2962,10 +3435,17 @@ export async function updateTripItem(
           )
         }
 
+        // Snapshot columns are intentionally immutable via DB trigger, so a
+        // replacement swap needs to recreate the row instead of updating it.
         await tx
-          .update(tripItems)
-          .set({
+          .delete(tripItems)
+          .where(and(eq(tripItems.tripId, tripId), eq(tripItems.id, itemId)))
+
+        await tx.insert(tripItems).values({
+            id: itemId,
+            tripId,
             itemType: snapshot.itemType,
+            position: existingItem.position,
             hotelId: snapshot.hotelId,
             flightItineraryId: snapshot.flightItineraryId,
             carInventoryId: snapshot.carInventoryId,
@@ -2981,9 +3461,9 @@ export async function updateTripItem(
             imageUrl: snapshot.imageUrl,
             meta: snapshot.meta,
             metadata: writeTripItemLocked(snapshot.metadata, locked),
+            createdAt: existingItem.createdAt,
             updatedAt: new Date(),
           })
-          .where(and(eq(tripItems.tripId, tripId), eq(tripItems.id, itemId)))
 
         shouldAutoRebalance = readTripAutoRebalance((await tx
           .select({ metadata: trips.metadata })

@@ -376,6 +376,17 @@ export type TripEditTimingImpact = {
   changedItems: TripEditTimingChange[];
 };
 
+export type TripEditBundleImpact = {
+  selectionMode: "recommended" | "manual_override";
+  summary: string;
+  preservedRelatedItemIds: number[];
+  strengthSummary: string;
+  savingsDeltaCents: number | null;
+  savingsSummary: string;
+  explanation: TripBundlingExplanation | null;
+  limitations: string[];
+};
+
 export type TripEditPreview = {
   actionType: TripEditPreviewActionType;
   trip: TripDetails;
@@ -386,6 +397,7 @@ export type TripEditPreview = {
   priceImpact: TripEditPriceImpact;
   timingImpact: TripEditTimingImpact;
   coherenceImpact: TripEditCoherenceImpact;
+  bundleImpact: TripEditBundleImpact | null;
 };
 
 export type TripAppliedChange = {

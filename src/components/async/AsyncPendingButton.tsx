@@ -7,7 +7,7 @@ export const AsyncPendingButton = component$(
       <button
         type={props.type || "button"}
         class={[
-          "inline-flex items-center justify-center gap-2",
+          "inline-grid items-center justify-center",
           props.pending ? "opacity-90" : null,
           props.class,
         ]}
@@ -15,14 +15,23 @@ export const AsyncPendingButton = component$(
         aria-busy={props.pending}
         onClick$={props.onClick$}
       >
-        {props.pending ? (
-          <>
-            <AsyncInlineSpinner compact={true} />
-            <span>{props.pendingLabel || "Working..."}</span>
-          </>
-        ) : (
+        <span
+          class={[
+            "col-start-1 row-start-1 inline-flex items-center justify-center gap-2",
+            props.pending ? "invisible" : null,
+          ]}
+        >
           <Slot />
-        )}
+        </span>
+        <span
+          class={[
+            "col-start-1 row-start-1 inline-flex items-center justify-center gap-2",
+            props.pending ? null : "sr-only",
+          ]}
+        >
+          <AsyncInlineSpinner compact={true} />
+          <span>{props.pendingLabel || "Working..."}</span>
+        </span>
       </button>
     );
   },

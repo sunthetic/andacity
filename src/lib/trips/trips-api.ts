@@ -20,8 +20,10 @@ export class TripApiError extends Error {
 }
 
 const requestJson = async <T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> => {
+  const method = String(init?.method || 'GET').toUpperCase()
   const response = await fetch(input, {
     ...init,
+    cache: init?.cache ?? (method === 'GET' || method === 'HEAD' ? 'no-store' : undefined),
     headers: {
       'content-type': 'application/json',
       ...(init?.headers || {}),

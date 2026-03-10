@@ -1,4 +1,10 @@
-import { $, component$, useSignal, type QRL } from "@builder.io/qwik";
+import {
+  $,
+  component$,
+  useSignal,
+  useVisibleTask$,
+  type QRL,
+} from "@builder.io/qwik";
 import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
 import { AsyncInlineSpinner } from "~/components/async/AsyncInlineSpinner";
 import { AsyncPendingButton } from "~/components/async/AsyncPendingButton";
@@ -39,7 +45,10 @@ import {
   updateTripItemApi,
   updateTripMetadataApi,
 } from "~/lib/trips/trips-api";
-import { readTripBundlingExplanation } from "~/lib/trips/bundle-explainability";
+import {
+  readTripBundlingExplanation,
+  readTripBundlingState,
+} from "~/lib/trips/bundle-explainability";
 import { compareIsoDate, differenceInDays } from "~/lib/trips/date-utils";
 import type {
   TripAppliedChange,
@@ -131,6 +140,10 @@ export default component$(() => {
     data.activeTrip?.status || "draft",
   );
   const actionFeedback = useSignal<TripActionFeedback | null>(null);
+  const replacementPanelError = useSignal<{
+    itemId: number;
+    message: string;
+  } | null>(null);
   const editPreview = useSignal<TripEditPreview | null>(null);
   const editDraft = useSignal<TripEditDraft | null>(null);
   const previewItemId = useSignal<number | null>(null);
@@ -139,6 +152,41 @@ export default component$(() => {
   const replacementOptions = useSignal<
     Record<number, TripItemReplacementOption[]>
   >({});
+  const lastPreviewScrollKey = useSignal<string | null>(null);
+
+  useVisibleTask$(({ track, cleanup }) => {
+    const previewKey = track(() => {
+      const itemId = previewItemId.value;
+      const actionType = editPreview.value?.actionType || null;
+      return itemId != null && actionType ? `${actionType}:${itemId}` : null;
+    });
+
+    if (!previewKey) {
+      lastPreviewScrollKey.value = null;
+      return;
+    }
+
+    if (lastPreviewScrollKey.value === previewKey) return;
+
+    const itemId = previewItemId.value;
+    if (itemId == null) return;
+
+    const timer = window.setTimeout(() => {
+      const element = document.getElementById(`trip-edit-preview-${itemId}`);
+      if (!(element instanceof HTMLElement)) return;
+
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      element.focus({ preventScroll: true });
+      lastPreviewScrollKey.value = previewKey;
+    }, 80);
+
+    cleanup(() => {
+      window.clearTimeout(timer);
+    });
+  });
 
   const refreshTrips$ = $(
     async (nextActiveTripId?: number | null, preserveCurrentActive = false) => {
@@ -166,6 +214,7 @@ export default component$(() => {
 
   const resetEditingSurface$ = $(() => {
     actionFeedback.value = null;
+    replacementPanelError.value = null;
     editPreview.value = null;
     editDraft.value = null;
     previewItemId.value = null;
@@ -385,12 +434,18 @@ export default component$(() => {
 
     if (replacementPanelItemId.value === itemId) {
       replacementPanelItemId.value = null;
+      if (replacementPanelError.value?.itemId === itemId) {
+        replacementPanelError.value = null;
+      }
       return;
     }
 
     const cached = replacementOptions.value[itemId];
     if (cached?.length) {
       replacementPanelItemId.value = itemId;
+      if (replacementPanelError.value?.itemId === itemId) {
+        replacementPanelError.value = null;
+      }
       return;
     }
 
@@ -398,6 +453,7 @@ export default component$(() => {
     activeAction.value = `load-replacements:${itemId}`;
     error.value = null;
     actionFeedback.value = null;
+    replacementPanelError.value = null;
 
     try {
       const options = await listTripItemReplacementOptionsApi(
@@ -429,6 +485,7 @@ export default component$(() => {
       activeAction.value = `preview-replace:${itemId}:${option.inventoryId}`;
       error.value = null;
       actionFeedback.value = null;
+      replacementPanelError.value = null;
 
       try {
         const preview = await previewTripItemEditApi(
@@ -453,6 +510,10 @@ export default component$(() => {
             ? cause.message
             : "Failed to preview trip item replacement.";
         error.value = message;
+        replacementPanelError.value = {
+          itemId,
+          message,
+        };
       } finally {
         loading.value = false;
         activeAction.value = null;
@@ -464,12 +525,14 @@ export default component$(() => {
     editDraft.value = null;
     editPreview.value = null;
     previewItemId.value = null;
+    lastPreviewScrollKey.value = null;
   });
 
   const onApplyEditPreview$ = $(async () => {
     if (!activeTrip.value || !editDraft.value || loading.value) return;
 
     const draft = editDraft.value;
+    const preview = editPreview.value;
     loading.value = true;
     activeAction.value = `apply-edit:${draft.actionType}:${draft.itemId}`;
     error.value = null;
@@ -490,7 +553,7 @@ export default component$(() => {
                 actionType: "replace",
                 candidate: draft.candidate,
               });
-      const trip = result.trip;
+      const trip = await getTripDetailsApi(result.trip.id);
 
       activeTrip.value = trip;
       await refreshTrips$(trip.id, true);
@@ -498,6 +561,7 @@ export default component$(() => {
       editPreview.value = null;
       previewItemId.value = null;
       replacementPanelItemId.value = null;
+      replacementPanelError.value = null;
       appliedTripChange.value = result.appliedChange
         ? {
             tripId: trip.id,
@@ -505,12 +569,19 @@ export default component$(() => {
           }
         : null;
       actionFeedback.value = result.appliedChange
-        ? {
-            tone: "success",
-            title: "Major itinerary change applied",
-            message:
-              "Review the change summary and use rollback if the recomputed trip feels off.",
-          }
+        ? preview?.bundleImpact
+          ? {
+              tone: "success",
+              title: "Major bundle swap applied",
+              message:
+                "Review the recalculated bundle fit and use rollback if the override does not hold up.",
+            }
+          : {
+              tone: "success",
+              title: "Major itinerary change applied",
+              message:
+                "Review the change summary and use rollback if the recomputed trip feels off.",
+            }
         : draft.actionType === "reorder"
           ? {
               tone: "success",
@@ -523,6 +594,15 @@ export default component$(() => {
                 title: "Item removed",
                 message: `${draft.removedTitle} was removed from the itinerary.`,
               }
+            : preview?.bundleImpact
+              ? {
+                  tone: "success",
+                  title: "Bundle swap applied",
+                  message:
+                    preview.bundleImpact.selectionMode === "manual_override"
+                      ? "This component is now a manual override. Rollback restores the previous bundle pick."
+                      : `${draft.replacementTitle} replaced the current bundle component.`,
+                }
             : {
                 tone: "success",
                 title: "Item replaced",
@@ -1194,6 +1274,7 @@ export default component$(() => {
                     previewItemId={previewItemId.value}
                     replacementPanelItemId={replacementPanelItemId.value}
                     replacementOptions={replacementOptions.value}
+                    replacementPanelError={replacementPanelError.value}
                     onPreviewRemove$={onPreviewRemoveItem$}
                     onPreviewMove$={onPreviewMoveItem$}
                     onLoadReplacementOptions$={onLoadReplacementOptions$}
@@ -1521,6 +1602,24 @@ type TimelineDayGroup = {
   items: TimelineEntry[];
 };
 
+const isTripTimelineDetailActionPending = (
+  actionId: string | null,
+  itemId: number,
+) => {
+  if (!actionId) return false;
+
+  return (
+    actionId === `preview-move:${itemId}` ||
+    actionId === `preview-remove:${itemId}` ||
+    actionId === `load-replacements:${itemId}` ||
+    actionId === `toggle-lock:${itemId}` ||
+    actionId === `apply-edit:reorder:${itemId}` ||
+    actionId === `apply-edit:remove:${itemId}` ||
+    actionId === `apply-edit:replace:${itemId}` ||
+    actionId.startsWith(`preview-replace:${itemId}:`)
+  );
+};
+
 const TripTimeline = component$(
   (props: {
     trip: TripDetails;
@@ -1530,6 +1629,7 @@ const TripTimeline = component$(
     previewItemId: number | null;
     replacementPanelItemId: number | null;
     replacementOptions: Record<number, TripItemReplacementOption[]>;
+    replacementPanelError: { itemId: number; message: string } | null;
     onPreviewRemove$: QRL<(item: TripItem) => Promise<void>>;
     onPreviewMove$: QRL<(itemId: number, direction: -1 | 1) => Promise<void>>;
     onLoadReplacementOptions$: QRL<(itemId: number) => Promise<void>>;
@@ -1643,6 +1743,11 @@ const TripTimeline = component$(
                         replacementOptions={
                           props.replacementOptions[entry.item.id] || []
                         }
+                        replacementPanelError={
+                          props.replacementPanelError?.itemId === entry.item.id
+                            ? props.replacementPanelError.message
+                            : null
+                        }
                         replacementPanelOpen={
                           props.replacementPanelItemId === entry.item.id
                         }
@@ -1681,6 +1786,7 @@ const TripTimelineItemCard = component$(
     pendingActionId: string | null;
     preview: TripEditPreview | null;
     replacementOptions: TripItemReplacementOption[];
+    replacementPanelError: string | null;
     replacementPanelOpen: boolean;
     onPreviewRemove$: QRL<(item: TripItem) => Promise<void>>;
     onPreviewMove$: QRL<(itemId: number, direction: -1 | 1) => Promise<void>>;
@@ -1697,8 +1803,36 @@ const TripTimelineItemCard = component$(
       props.item.metadata,
       props.item.snapshotCurrencyCode,
     );
-    const bundleExplanation = readTripBundlingExplanation(props.item.metadata);
+    const bundleState = readTripBundlingState(props.item.metadata);
+    const bundleExplanation = bundleState?.explanation || null;
     const detailSummary = buildTimelineDisclosureSummary(props.item);
+    const isBlockingItem = props.item.issues.some(
+      (issue) => issue.severity === "blocking",
+    );
+    const detailsOpen = useSignal(
+      isBlockingItem ||
+        props.replacementPanelOpen ||
+        Boolean(props.preview) ||
+        isTripTimelineDetailActionPending(props.pendingActionId, props.item.id),
+    );
+
+    useVisibleTask$(({ track }) => {
+      const replacementPanelOpen = track(() => props.replacementPanelOpen);
+      const hasPreview = track(() => Boolean(props.preview));
+      const pendingActionId = track(() => props.pendingActionId);
+      const blockingIssue = track(() =>
+        props.item.issues.some((issue) => issue.severity === "blocking"),
+      );
+
+      if (
+        replacementPanelOpen ||
+        hasPreview ||
+        blockingIssue ||
+        isTripTimelineDetailActionPending(pendingActionId, props.item.id)
+      ) {
+        detailsOpen.value = true;
+      }
+    });
 
     return (
       <article
@@ -1718,6 +1852,13 @@ const TripTimelineItemCard = component$(
               </span>
               {props.item.locked ? (
                 <span class={timelineCountBadgeClass("neutral")}>Locked</span>
+              ) : null}
+              {bundleState ? (
+                <span class={bundleSelectionBadgeClass(bundleState.selectionMode)}>
+                  {bundleState.selectionMode === "manual_override"
+                    ? "Manual override"
+                    : "Bundle-backed"}
+                </span>
               ) : null}
               {formatTimelineContextBadge(props.item) ? (
                 <span class={timelineCountBadgeClass("neutral")}>
@@ -1796,15 +1937,16 @@ const TripTimelineItemCard = component$(
 
         <details
           class="mt-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)]"
-          open={props.item.issues.some(
-            (issue) => issue.severity === "blocking",
-          )}
+          open={detailsOpen.value}
+          onToggle$={(_, currentTarget) => {
+            detailsOpen.value = (currentTarget as HTMLDetailsElement).open;
+          }}
         >
           <summary class="cursor-pointer list-none px-3 py-2 text-sm font-medium text-[color:var(--color-text-strong)] [&::-webkit-details-marker]:hidden">
             <span class="flex flex-wrap items-center justify-between gap-2">
               <span>{detailSummary}</span>
               <span class="text-xs text-[color:var(--color-text-muted)]">
-                Expand or collapse
+                {detailsOpen.value ? "Collapse details" : "Expand details"}
               </span>
             </span>
           </summary>
@@ -1950,7 +2092,9 @@ const TripTimelineItemCard = component$(
                   >
                     {props.replacementPanelOpen
                       ? "Hide replacements"
-                      : "Replace item"}
+                      : bundleState
+                        ? "Swap component"
+                        : "Replace item"}
                   </AsyncPendingButton>
                   <AsyncPendingButton
                     class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
@@ -1988,21 +2132,19 @@ const TripTimelineItemCard = component$(
 
             {bundleExplanation ? (
               <div class="mt-3">
+                {bundleState?.selectionMode === "manual_override" ? (
+                  <div class="mb-3 rounded-xl border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-3 py-2">
+                    <p class="text-xs font-medium text-[color:var(--color-warning,#92400e)]">
+                      Manual override is active. Preview another swap or use
+                      rollback after apply to restore the previous bundle pick.
+                    </p>
+                  </div>
+                ) : null}
                 <TripBundleExplanation
                   explanation={bundleExplanation}
                   dense={false}
                 />
               </div>
-            ) : null}
-
-            {props.replacementPanelOpen ? (
-              <TripReplacementOptionsPanel
-                item={props.item}
-                options={props.replacementOptions}
-                loading={props.loading}
-                pendingActionId={props.pendingActionId}
-                onPreviewReplacement$={props.onPreviewReplacement$}
-              />
             ) : null}
 
             {props.preview ? (
@@ -2013,6 +2155,17 @@ const TripTimelineItemCard = component$(
                 pendingActionId={props.pendingActionId}
                 onApplyPreview$={props.onApplyPreview$}
                 onCancelPreview$={props.onCancelPreview$}
+              />
+            ) : null}
+
+            {props.replacementPanelOpen ? (
+              <TripReplacementOptionsPanel
+                item={props.item}
+                options={props.replacementOptions}
+                errorMessage={props.replacementPanelError}
+                loading={props.loading}
+                pendingActionId={props.pendingActionId}
+                onPreviewReplacement$={props.onPreviewReplacement$}
               />
             ) : null}
           </div>
@@ -2026,88 +2179,127 @@ const TripReplacementOptionsPanel = component$(
   (props: {
     item: TripItem;
     options: TripItemReplacementOption[];
+    errorMessage: string | null;
     loading: boolean;
     pendingActionId: string | null;
     onPreviewReplacement$: QRL<
       (itemId: number, option: TripItemReplacementOption) => Promise<void>
     >;
   }) => {
+    const bundleState = readTripBundlingState(props.item.metadata);
     return (
       <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
         <div class="flex flex-wrap items-start justify-between gap-2">
           <div>
             <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-              Replace item
+              {bundleState ? "Swap component" : "Replace item"}
             </p>
             <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-              Alternatives keep this itinerary controlled by previewing impact
-              before saving.
+              {bundleState
+                ? "Preview price, timing, coherence, and updated bundle strength before saving a manual override."
+                : "Alternatives keep this itinerary controlled by previewing impact before saving."}
             </p>
           </div>
         </div>
 
+        {props.errorMessage ? (
+          <AsyncStateNotice
+            class="mt-3"
+            state="failed"
+            title="Swap preview failed"
+            message={props.errorMessage}
+          />
+        ) : null}
+
         {props.options.length ? (
           <div class="mt-3 grid gap-3">
-            {props.options.map((option) => (
-              <div
-                key={`${props.item.id}-${option.inventoryId}`}
-                class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] px-3 py-3"
-              >
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                  <div class="min-w-0 flex-1">
-                    <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                      {option.title}
-                    </p>
-                    {option.subtitle ? (
-                      <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                        {option.subtitle}
+            {props.options.map((option) => {
+              const optionBundleState = readTripBundlingState(
+                option.candidate.metadata,
+              );
+
+              return (
+                <div
+                  key={`${props.item.id}-${option.inventoryId}`}
+                  class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] px-3 py-3"
+                >
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                          {option.title}
+                        </p>
+                        {optionBundleState ? (
+                          <span
+                            class={bundleStrengthBadgeClass(
+                              optionBundleState.explanation.strength.level,
+                            )}
+                          >
+                            {optionBundleState.explanation.strength.label}
+                          </span>
+                        ) : null}
+                      </div>
+                      {option.subtitle ? (
+                        <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                          {option.subtitle}
+                        </p>
+                      ) : null}
+                      {option.meta.length ? (
+                        <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                          {option.meta.join(" · ")}
+                        </p>
+                      ) : null}
+                      {option.reasons.length ? (
+                        <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+                          {option.reasons.join(" · ")}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div class="text-right">
+                      <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                        {formatMoneyFromCents(
+                          option.priceCents,
+                          option.currencyCode,
+                        )}
                       </p>
-                    ) : null}
-                    {option.meta.length ? (
-                      <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                        {option.meta.join(" · ")}
-                      </p>
-                    ) : null}
-                    {option.reasons.length ? (
-                      <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                        {option.reasons.join(" · ")}
-                      </p>
-                    ) : null}
+                      <AsyncPendingButton
+                        class="mt-2 rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
+                        pending={
+                          props.pendingActionId ===
+                          `preview-replace:${props.item.id}:${option.inventoryId}`
+                        }
+                        pendingLabel="Previewing..."
+                        disabled={
+                          props.loading &&
+                          props.pendingActionId !==
+                            `preview-replace:${props.item.id}:${option.inventoryId}`
+                        }
+                        onClick$={() =>
+                          props.onPreviewReplacement$(props.item.id, option)
+                        }
+                      >
+                        Preview swap
+                      </AsyncPendingButton>
+                    </div>
                   </div>
 
-                  <div class="text-right">
-                    <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                      {formatMoneyFromCents(
-                        option.priceCents,
-                        option.currencyCode,
-                      )}
-                    </p>
-                    <AsyncPendingButton
-                      class="mt-2 rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
-                      pending={
-                        props.pendingActionId ===
-                        `preview-replace:${props.item.id}:${option.inventoryId}`
-                      }
-                      pendingLabel="Previewing..."
-                      disabled={
-                        props.loading &&
-                        props.pendingActionId !==
-                          `preview-replace:${props.item.id}:${option.inventoryId}`
-                      }
-                      onClick$={() =>
-                        props.onPreviewReplacement$(props.item.id, option)
-                      }
-                    >
-                      Preview swap
-                    </AsyncPendingButton>
-                  </div>
+                  {optionBundleState ? (
+                    <div class="mt-3">
+                      <TripBundleExplanation
+                        explanation={optionBundleState.explanation}
+                      />
+                    </div>
+                  ) : null}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <p class="mt-3 text-sm text-[color:var(--color-text-muted)]">
-            No close alternatives are available for this item right now.
+            {bundleState
+              ? "No coherent swap options are available for this component right now."
+              : "No close alternatives are available for this item right now."}
           </p>
         )}
       </div>
@@ -2125,7 +2317,11 @@ const TripEditPreviewPanel = component$(
     onCancelPreview$: QRL<() => void>;
   }) => {
     return (
-      <div class="mt-3 rounded-xl border border-[color:var(--color-primary-150)] bg-[color:var(--color-primary-25)] px-3 py-3">
+      <div
+        id={`trip-edit-preview-${props.item.id}`}
+        tabIndex={-1}
+        class="mt-3 rounded-xl border border-[color:var(--color-primary-150)] bg-[color:var(--color-primary-25)] px-3 py-3 outline-none"
+      >
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
@@ -2162,9 +2358,13 @@ const TripEditPreviewPanel = component$(
               }
               onClick$={props.onApplyPreview$}
             >
-              {props.preview.changeSummary.safetyLevel === "major"
-                ? "Apply major change"
-                : "Apply change"}
+              {props.preview.bundleImpact?.selectionMode === "manual_override"
+                ? props.preview.changeSummary.safetyLevel === "major"
+                  ? "Apply override"
+                  : "Apply override"
+                : props.preview.changeSummary.safetyLevel === "major"
+                  ? "Apply major change"
+                  : "Apply change"}
             </AsyncPendingButton>
             <button
               type="button"
@@ -2176,7 +2376,12 @@ const TripEditPreviewPanel = component$(
           </div>
         </div>
 
-        <div class="mt-3 grid gap-3 md:grid-cols-3">
+        <div
+          class={[
+            "mt-3 grid gap-3",
+            props.preview.bundleImpact ? "md:grid-cols-4" : "md:grid-cols-3",
+          ]}
+        >
           <PreviewStatCard
             label="Why"
             summary={props.preview.changeSummary.whyChanged}
@@ -2189,6 +2394,12 @@ const TripEditPreviewPanel = component$(
             label="Timing"
             summary={props.preview.timingImpact.summary}
           />
+          {props.preview.bundleImpact ? (
+            <PreviewStatCard
+              label="Bundle fit"
+              summary={props.preview.bundleImpact.strengthSummary}
+            />
+          ) : null}
         </div>
 
         <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
@@ -2202,6 +2413,40 @@ const TripEditPreviewPanel = component$(
             {props.preview.coherenceImpact.summary}
           </p>
         </div>
+
+        {props.preview.bundleImpact ? (
+          <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
+            <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+              Bundle override
+            </p>
+            <p class="mt-2 text-sm text-[color:var(--color-text-strong)]">
+              {props.preview.bundleImpact.summary}
+            </p>
+            <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+              {props.preview.bundleImpact.savingsSummary}
+            </p>
+            {props.preview.bundleImpact.explanation ? (
+              <div class="mt-3">
+                <TripBundleExplanation
+                  explanation={props.preview.bundleImpact.explanation}
+                  dense={false}
+                />
+              </div>
+            ) : null}
+            {props.preview.bundleImpact.limitations.length ? (
+              <div class="mt-3 grid gap-2">
+                {props.preview.bundleImpact.limitations.map((entry) => (
+                  <p
+                    key={entry}
+                    class="text-xs text-[color:var(--color-warning,#92400e)]"
+                  >
+                    {entry}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {props.preview.timingImpact.changedItems.length ? (
           <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
@@ -2654,6 +2899,30 @@ const availabilityBadgeClass = (status: TripItem["availabilityStatus"]) => {
     return timelineCountBadgeClass("warning");
   }
   return timelineCountBadgeClass("neutral");
+};
+
+const bundleSelectionBadgeClass = (
+  selectionMode: "recommended" | "manual_override",
+) => {
+  if (selectionMode === "manual_override") {
+    return "rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning,#92400e)]";
+  }
+
+  return "rounded-full border border-[color:var(--color-success,#0f766e)] bg-[color:rgba(15,118,110,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-success,#0f766e)]";
+};
+
+const bundleStrengthBadgeClass = (
+  level: "strong" | "moderate" | "tentative",
+) => {
+  if (level === "strong") {
+    return "rounded-full border border-[color:var(--color-success,#0f766e)] bg-[color:rgba(15,118,110,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-success,#0f766e)]";
+  }
+
+  if (level === "moderate") {
+    return "rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning,#92400e)]";
+  }
+
+  return "rounded-full border border-[color:var(--color-text-muted)] bg-[color:rgba(100,116,139,0.12)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-text-muted)]";
 };
 
 const formatAvailabilityBadge = (status: TripItem["availabilityStatus"]) => {
