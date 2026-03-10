@@ -3,7 +3,6 @@ import { routeLoader$, useLocation } from "@builder.io/qwik-city";
 import type { DocumentHead } from "@builder.io/qwik-city";
 import { AsyncRetryControl } from "~/components/async/AsyncRetryControl";
 import { AsyncStateNotice } from "~/components/async/AsyncStateNotice";
-import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import { InventoryRefreshControl } from "~/components/inventory/InventoryRefreshControl";
 import { CompareButton } from "~/components/save-compare/CompareButton";
 import {
@@ -41,6 +40,10 @@ import {
 import { buildCarDetailSavedItem } from "~/lib/save-compare/item-builders";
 import { loadCarRentalBySlugFromDb } from "~/lib/queries/car-rentals-pages.server";
 import { computeDays } from "~/lib/search/car-rentals/dates";
+import {
+  DetailTrustPanel,
+  type DetailTrustPanelRow,
+} from "~/components/trust/DetailTrustPanel";
 
 export const useCarRental = routeLoader$(async ({ params, url, error }) => {
   const slug = String(params.slug || "")
@@ -280,51 +283,6 @@ export default component$(() => {
               {rental.summary}
             </p>
 
-            <div class="mt-5 rounded-xl border border-[color:var(--color-border)] px-4 py-4">
-              <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-                    Availability confidence
-                  </p>
-                  <div class="mt-2">
-                    <AvailabilityConfidence
-                      confidence={rental.availabilityConfidence}
-                      compact={false}
-                      showSupport={Boolean(
-                        rental.availabilityConfidence?.supportText,
-                      )}
-                    />
-                  </div>
-                </div>
-
-                <InventoryRefreshControl
-                  id={refreshSnapshotId}
-                  mode={rental.inventoryId != null ? "action" : "unsupported"}
-                  onRefresh$={
-                    rental.inventoryId != null ? onRevalidateRental$ : undefined
-                  }
-                  reloadHref={refreshHref}
-                  reloadOnSuccess={true}
-                  label="Refresh availability"
-                  refreshingLabel="Refreshing..."
-                  refreshedLabel="Availability refreshed"
-                  failedLabel="Retry refresh"
-                  unsupportedLabel="Refresh unavailable"
-                  unsupportedMessage="This car rental cannot refresh availability right now."
-                  successMessage="Car rental availability was refreshed. Any daily-rate changes are highlighted below."
-                  failureMessage="Failed to refresh this car rental's availability signals."
-                  align="right"
-                  disabled={location.isNavigating}
-                />
-              </div>
-            </div>
-
-            {refreshPriceSummary.value ? (
-              <div class="mt-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
-                {refreshPriceSummary.value}
-              </div>
-            ) : null}
-
             <div class="mt-4 flex flex-wrap gap-2">
               <a
                 class="t-btn-primary px-4 text-center"
@@ -373,90 +331,44 @@ export default component$(() => {
                 </div>
               </div>
 
-              <div class="mt-1 text-2xl font-semibold text-[color:var(--color-text-strong)]">
-                {headlinePriceDisplay.baseLabel}{" "}
-                {formatMoney(headlinePriceDisplay.baseAmount, rental.currency)}
-                <span class="ml-1 text-base font-normal text-[color:var(--color-text-muted)]">
-                  {formatPriceQualifier(headlinePriceDisplay.baseQualifier)}
-                </span>
-              </div>
-
-              {headlinePriceDisplay.baseTotalAmount != null ? (
-                <div class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-                  {headlinePriceDisplay.baseTotalLabel}:{" "}
-                  <span class="font-medium text-[color:var(--color-text)]">
-                    {formatMoney(
-                      headlinePriceDisplay.baseTotalAmount,
-                      rental.currency,
-                    )}
-                  </span>
-                  {headlinePriceDisplay.unitCountLabel ? (
-                    <span class="ml-1">
-                      ({headlinePriceDisplay.unitCountLabel})
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {headlinePriceDisplay.delta &&
-              headlinePriceDisplay.delta.status !== "unchanged" &&
-              headlinePriceDisplay.delta.status !== "unavailable" ? (
-                <div
-                  class={[
-                    "mt-2 text-xs font-medium",
-                    headlinePriceDisplay.delta.status === "increased"
-                      ? "text-[color:var(--color-error,#b91c1c)]"
-                      : "text-[color:var(--color-success,#0f766e)]",
-                  ]}
+              <div class="mt-1">
+                <DetailTrustPanel
+                  eyebrow="Decision support"
+                  title="Rental trust summary"
+                  freshness={rental.freshness}
+                  confidence={rental.availabilityConfidence}
+                  rows={buildCarTrustRows(rental, headlinePriceDisplay)}
+                  note={buildCarTrustNote(rental)}
                 >
-                  {formatPriceChange(
-                    headlinePriceDisplay.delta,
-                    rental.currency,
-                  )}
-                </div>
-              ) : null}
+                  <InventoryRefreshControl
+                    q:slot="actions"
+                    id={refreshSnapshotId}
+                    mode={rental.inventoryId != null ? "action" : "unsupported"}
+                    onRefresh$={
+                      rental.inventoryId != null
+                        ? onRevalidateRental$
+                        : undefined
+                    }
+                    reloadHref={refreshHref}
+                    reloadOnSuccess={true}
+                    label="Refresh availability"
+                    refreshingLabel="Refreshing..."
+                    refreshedLabel="Availability refreshed"
+                    failedLabel="Retry refresh"
+                    unsupportedLabel="Refresh unavailable"
+                    unsupportedMessage="This car rental cannot refresh availability right now."
+                    successMessage="Car rental availability was refreshed. Any daily-rate changes are highlighted below."
+                    failureMessage="Failed to refresh this car rental's availability signals."
+                    align="right"
+                    disabled={location.isNavigating}
+                  />
+                </DetailTrustPanel>
 
-              <div class="mt-4 grid gap-2 text-sm">
-                <div class="flex items-center justify-between gap-3">
-                  <span class="text-[color:var(--color-text-muted)]">
-                    Free cancellation
-                  </span>
-                  <span class="text-[color:var(--color-text-strong)]">
-                    {rental.policies.freeCancellation ? "Often" : "Varies"}
-                  </span>
-                </div>
-
-                <div class="flex items-center justify-between gap-3">
-                  <span class="text-[color:var(--color-text-muted)]">
-                    Payment
-                  </span>
-                  <span class="text-[color:var(--color-text-strong)]">
-                    {rental.policies.payAtCounter ? "Pay at counter" : "Prepay"}
-                  </span>
-                </div>
-
-                <div class="flex items-center justify-between gap-3">
-                  <span class="text-[color:var(--color-text-muted)]">
-                    Minimum age
-                  </span>
-                  <span class="text-[color:var(--color-text-strong)]">
-                    {rental.policies.minDriverAge}+
-                  </span>
-                </div>
-
-                <div class="flex items-center justify-between gap-3">
-                  <span class="text-[color:var(--color-text-muted)]">
-                    Fuel policy
-                  </span>
-                  <span class="text-[color:var(--color-text-strong)]">
-                    {rental.policies.fuelPolicy}
-                  </span>
-                </div>
-              </div>
-
-              <div class="mt-4 text-xs text-[color:var(--color-text-muted)]">
-                {headlinePriceDisplay.supportText} Exact totals are confirmed
-                before checkout.
+                {refreshPriceSummary.value ? (
+                  <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
+                    {refreshPriceSummary.value}
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -844,6 +756,111 @@ const buildCarDetailStatusNotice = (
   return undefined;
 };
 
+const buildCarTrustRows = (
+  rental: Exclude<
+    ReturnType<typeof useCarRental>["value"],
+    { loadError: string }
+  >,
+  priceDisplay: ReturnType<typeof buildCarPriceDisplay>,
+): DetailTrustPanelRow[] => {
+  const priceDetail = [
+    priceDisplay.baseTotalAmount != null
+      ? `${priceDisplay.baseTotalLabel || "Base rental total"} ${formatMoney(
+          priceDisplay.baseTotalAmount,
+          rental.currency,
+        )}${priceDisplay.unitCountLabel ? ` for ${priceDisplay.unitCountLabel}` : ""}`
+      : "Add pickup and dropoff dates to estimate the trip total.",
+    priceDisplay.supportText || null,
+    priceDisplay.delta &&
+    priceDisplay.delta.status !== "unchanged" &&
+    priceDisplay.delta.status !== "unavailable"
+      ? formatPriceChange(priceDisplay.delta, rental.currency)
+      : null,
+  ]
+    .filter(Boolean)
+    .join(". ");
+
+  return [
+    {
+      label: "Price summary",
+      value: `From ${formatMoney(rental.fromDaily, rental.currency)}${formatPriceQualifier(
+        priceDisplay.baseQualifier,
+      )}`,
+      detail: priceDetail,
+    },
+    {
+      label: "Cancellation",
+      value: rental.policies.freeCancellation
+        ? "Free cancellation on select offers"
+        : "Cancellation varies by offer",
+      detail: rental.policies.cancellationBlurb,
+      tone: rental.policies.freeCancellation ? "positive" : "default",
+    },
+    {
+      label: "Payment",
+      value: rental.policies.payAtCounter
+        ? "Pay at counter"
+        : "Prepay before pickup",
+      detail: rental.policies.paymentBlurb,
+    },
+    {
+      label: "Important constraints",
+      value: buildCarConstraintSummary(rental),
+      detail: buildCarConstraintDetail(rental),
+      tone: rental.availabilityConfidence?.degraded ? "warning" : "default",
+    },
+    {
+      label: "Counter facts",
+      value: rental.policies.securityDepositRequired
+        ? "Deposit required at pickup"
+        : "Deposit varies by vehicle class",
+      detail: `${rental.policies.depositBlurb} Fuel policy: ${rental.policies.fuelPolicy}.`,
+    },
+  ];
+};
+
+const buildCarTrustNote = (
+  rental: Exclude<
+    ReturnType<typeof useCarRental>["value"],
+    { loadError: string }
+  >,
+) => {
+  return `Minimum driver age ${rental.policies.minDriverAge}+. Exact taxes and extras are confirmed before checkout.`;
+};
+
+const buildCarConstraintSummary = (
+  rental: Exclude<
+    ReturnType<typeof useCarRental>["value"],
+    { loadError: string }
+  >,
+) => {
+  if (!rental.availability) {
+    return `Driver age ${rental.policies.minDriverAge}+ · live rental window unavailable`;
+  }
+
+  const blockedLabel =
+    rental.availability.blockedWeekdays.length > 0
+      ? "some pickup days blocked"
+      : "no blocked weekdays posted";
+
+  return `${rental.availability.minDays}-${rental.availability.maxDays} day rentals · ${blockedLabel}`;
+};
+
+const buildCarConstraintDetail = (
+  rental: Exclude<
+    ReturnType<typeof useCarRental>["value"],
+    { loadError: string }
+  >,
+) => {
+  if (!rental.availability) {
+    return "Refresh availability after adding dates to confirm pickup and dropoff rules.";
+  }
+
+  return `Pickup window ${formatCalendarDate(
+    rental.availability.pickupStart,
+  )} to ${formatCalendarDate(rental.availability.pickupEnd)}.`;
+};
+
 const buildCarRentalsHref = () => {
   return "/car-rentals";
 };
@@ -908,4 +925,20 @@ const clampMaybeInt = (raw: string | null, min: number, max: number) => {
   if (value < min) return min;
   if (value > max) return max;
   return value;
+};
+
+const formatCalendarDate = (value: string | null | undefined) => {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    return value || "date unavailable";
+  const [year, month, day] = value
+    .split("-")
+    .map((part) => Number.parseInt(part, 10));
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
 };

@@ -55,9 +55,13 @@ export type FlightSearchRow = {
   stops: number
   durationMinutes: number
   cabinClass: (typeof flightCabinClassValues)[number]
+  fareCode: string | null
   priceCents: number
   currencyCode: string
-  seatsRemaining: number
+  refundable: boolean | null
+  changeable: boolean | null
+  checkedBagsIncluded: number | null
+  seatsRemaining: number | null
   freshnessTimestamp: Date | string | null
 }
 
@@ -110,7 +114,7 @@ const normalizePriceCents = (value: number | undefined) => {
 
 const flightPriceSql = sql<number>`coalesce(${flightFares.priceCents}, ${flightItineraries.basePriceCents})`
 const flightCurrencySql = sql<string>`coalesce(${flightFares.currencyCode}, ${flightItineraries.currencyCode})`
-const flightSeatsSql = sql<number>`coalesce(${flightFares.seatsRemaining}, ${flightItineraries.seatsRemaining})`
+const flightSeatsSql = sql<number | null>`coalesce(${flightFares.seatsRemaining}, ${flightItineraries.seatsRemaining})`
 const flightFreshnessSql =
   sql<Date | null>`coalesce(${flightFares.updatedAt}, ${flightItineraries.updatedAt})`
 
@@ -219,8 +223,12 @@ export async function searchFlightsPage(input: SearchFlightsInput): Promise<Sear
       stops: flightItineraries.stops,
       durationMinutes: flightItineraries.durationMinutes,
       cabinClass: flightItineraries.cabinClass,
+      fareCode: flightFares.fareCode,
       priceCents: flightPriceSql,
       currencyCode: flightCurrencySql,
+      refundable: flightFares.refundable,
+      changeable: flightFares.changeable,
+      checkedBagsIncluded: flightFares.checkedBagsIncluded,
       seatsRemaining: flightSeatsSql,
       freshnessTimestamp: flightFreshnessSql,
     })

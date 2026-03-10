@@ -248,8 +248,13 @@ export async function loadFlightResultsPageFromDb(
         stopsLabel: toStopsLabel(stops),
         duration: formatDuration(row.durationMinutes),
         cabinClass: row.cabinClass,
+        fareCode: row.fareCode,
         price: toPriceAmount(row.priceCents),
         currency: row.currencyCode,
+        refundable: row.refundable,
+        changeable: row.changeable,
+        checkedBagsIncluded: row.checkedBagsIncluded,
+        seatsRemaining: row.seatsRemaining,
         availabilityConfidence: buildAvailabilityConfidence({
           freshness,
           ...flightAssessment,

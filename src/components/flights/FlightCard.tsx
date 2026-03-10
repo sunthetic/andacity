@@ -4,7 +4,6 @@ import {
   ResultFactGrid,
   ResultPricePanel,
   ResultReasonCallout,
-  ResultTrustBar,
 } from "~/components/results/ResultCardScaffold";
 import { buildFlightWhyThis } from "~/components/results/result-card-copy";
 import { CompareButton } from "~/components/save-compare/CompareButton";
@@ -35,7 +34,7 @@ export const FlightCard = component$((props: FlightCardProps) => {
       hasSecondaryActions={Boolean(props.savedItem)}
       hasPrice={true}
       hasPrimaryAction={true}
-      hasTrust={Boolean(flight.availabilityConfidence || flight.freshness)}
+      hasTrust={true}
     >
       <div q:slot="identity">
         <div class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)]">
@@ -130,11 +129,29 @@ export const FlightCard = component$((props: FlightCardProps) => {
         Select flight
       </a>
 
-      <ResultTrustBar
+      <div
         q:slot="trust"
-        confidence={flight.availabilityConfidence}
-        freshness={flight.freshness}
-      />
+        class="grid gap-x-5 gap-y-3 sm:grid-cols-2 xl:grid-cols-4"
+      >
+        {buildFlightTrustBandItems(flight).map((item) => (
+          <div
+            key={`${item.label}:${item.value}:${item.detail || ""}`}
+            class="min-w-0 sm:even:border-l sm:even:border-[color:var(--color-divider)] sm:even:pl-4 xl:border-l xl:border-[color:var(--color-divider)] xl:pl-4 xl:first:border-l-0 xl:first:pl-0"
+          >
+            <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+              {item.label}
+            </p>
+            <p class="mt-1 text-sm font-semibold leading-5 text-[color:var(--color-text-strong)]">
+              {item.value}
+            </p>
+            {item.detail ? (
+              <p class="mt-1 text-[11px] leading-4 text-[color:var(--color-text-muted)]">
+                {item.detail}
+              </p>
+            ) : null}
+          </div>
+        ))}
+      </div>
     </ResultCardScaffold>
   );
 });
@@ -175,6 +192,96 @@ const formatFlightDate = (value: string | undefined) => {
     year: "numeric",
     timeZone: "UTC",
   }).format(date);
+};
+
+const buildFlightTrustBandItems = (
+  flight: FlightResult,
+): FlightTrustBandItem[] => {
+  return [
+    {
+      label: "Availability",
+      value: flight.availabilityConfidence?.label || "Check availability",
+      detail: buildFlightAvailabilityDetail(flight),
+    },
+    {
+      label: "Freshness",
+      value: flight.freshness?.label || "Check time unavailable",
+      detail: buildFlightFreshnessDetail(flight),
+    },
+    {
+      label: "Fare rules",
+      value:
+        flight.refundable == null && flight.changeable == null
+          ? "Rules unavailable"
+          : [
+              flight.refundable ? "Refundable" : "Nonrefundable",
+              flight.changeable ? "changes allowed" : "changes restricted",
+            ].join(" · "),
+      detail: flight.fareCode
+        ? `${formatFareCode(flight.fareCode)} fare rules apply.`
+        : "Review airline fare rules before checkout.",
+    },
+    {
+      label: "Bags and seats",
+      value: formatCheckedBagSummary(flight.checkedBagsIncluded),
+      detail: `${formatSeatsRemaining(flight.seatsRemaining)}. Carry-on and seat fees can vary.`,
+    },
+  ];
+};
+
+const buildFlightAvailabilityDetail = (flight: FlightResult) => {
+  if (flight.availabilityConfidence?.supportText) {
+    return flight.availabilityConfidence.supportText;
+  }
+
+  if (
+    flight.requestedServiceDate &&
+    flight.serviceDate &&
+    flight.requestedServiceDate !== flight.serviceDate
+  ) {
+    return `Requested ${formatFlightDate(flight.requestedServiceDate)}; showing ${formatFlightDate(
+      flight.serviceDate,
+    )}.`;
+  }
+
+  if (flight.serviceDate) {
+    return `Travel date ${formatFlightDate(flight.serviceDate)}.`;
+  }
+
+  return flight.availabilityConfidence?.detailLabel || null;
+};
+
+const buildFlightFreshnessDetail = (flight: FlightResult) => {
+  if (!flight.freshness) return null;
+  return `${flight.freshness.checkedLabel} · ${flight.freshness.relativeLabel}`;
+};
+
+const formatFareCode = (value: string) => {
+  return String(value || "")
+    .trim()
+    .split("-")
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+};
+
+const formatCheckedBagSummary = (count: number | null | undefined) => {
+  if (count == null) return "Baggage rules unavailable";
+  if (count <= 0) return "No checked bag included";
+  if (count === 1) return "1 checked bag included";
+  return `${count} checked bags included`;
+};
+
+const formatSeatsRemaining = (count: number | null | undefined) => {
+  if (count == null) return "Seat inventory unavailable";
+  if (count <= 3) return `${count} seats left at this fare`;
+  if (count >= 9) return "9+ seats left at this fare";
+  return `${count} seats left at this fare`;
+};
+
+type FlightTrustBandItem = {
+  label: string;
+  value: string;
+  detail?: string | null;
 };
 
 type FlightCardProps = {

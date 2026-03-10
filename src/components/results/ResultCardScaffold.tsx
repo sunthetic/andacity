@@ -101,6 +101,11 @@ export const ResultFactGrid = component$((props: ResultFactGridProps) => {
   );
   if (!items.length) return null;
 
+  const surfaceClass =
+    props.surface === "soft"
+      ? "bg-[color:var(--color-surface-3)]"
+      : "bg-[color:var(--color-panel)]";
+
   return (
     <div
       class={[
@@ -113,7 +118,10 @@ export const ResultFactGrid = component$((props: ResultFactGridProps) => {
       {items.map((item) => (
         <div
           key={`${item.label}:${item.value}`}
-          class="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-panel)] px-3 py-2.5"
+          class={[
+            "rounded-xl border border-[color:var(--color-divider)] px-3 py-2.5",
+            surfaceClass,
+          ]}
         >
           <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             {item.label}
@@ -344,6 +352,7 @@ type ResultCardScaffoldProps = {
 
 type ResultFactGridProps = {
   items: ResultFactItem[];
+  surface?: "panel" | "soft";
 };
 
 type ResultFactListProps = {
