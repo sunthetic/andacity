@@ -1,3 +1,4 @@
+import type { AvailabilityConfidenceModel } from '~/lib/inventory/availability-confidence'
 import type { InventoryFreshnessModel } from '~/lib/inventory/freshness'
 
 export type SortKey = 'relevance' | 'price-asc' | 'price-desc' | 'rating-desc' | 'reviewcount-desc'
@@ -33,12 +34,14 @@ export type HotelResult = {
   image: string
   badges: string[]
   score: number
+  availabilityConfidence?: AvailabilityConfidenceModel
   freshness?: InventoryFreshnessModel
 }
 
 export type HotelResultCardProps = {
   h: HotelResult
   nights: number | null
+  detailHref?: string
 }
 
 export type MobileDrawerProps = {

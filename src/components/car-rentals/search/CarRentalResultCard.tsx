@@ -1,12 +1,15 @@
 import { component$ } from '@builder.io/qwik'
-import { InventoryFreshness } from '~/components/inventory/InventoryFreshness'
+import { AvailabilityConfidence } from '~/components/inventory/AvailabilityConfidence'
 import type { CarRentalResult } from '~/types/car-rentals/search'
 
-export const CarRentalResultCard = component$(({ r, days }: CarRentalResultCardProps) => {
+export const CarRentalResultCard = component$(({ r, days, detailHref }: CarRentalResultCardProps) => {
   const total = days ? r.priceFrom * days : null
 
   return (
-    <a class="t-card block overflow-hidden hover:bg-white" href={`/car-rentals/${encodeURIComponent(r.slug)}`}>
+    <a
+      class="t-card block overflow-hidden hover:bg-white"
+      href={detailHref || `/car-rentals/${encodeURIComponent(r.slug)}`}
+    >
       <div class="grid gap-0 lg:grid-cols-[220px_1fr]">
         <div class="bg-[color:var(--color-neutral-50)]">
           <img
@@ -79,7 +82,7 @@ export const CarRentalResultCard = component$(({ r, days }: CarRentalResultCardP
           </div>
 
           <div class="mt-4 flex flex-col gap-3 border-t border-[color:var(--color-divider)] pt-4 text-xs text-[color:var(--color-text-muted)] sm:flex-row sm:items-start sm:justify-between">
-            <InventoryFreshness freshness={r.freshness} />
+            <AvailabilityConfidence confidence={r.availabilityConfidence} />
             <div class="sm:text-right">
               Score: {r.score.toFixed(2)} · Balanced for price, rating, policies
             </div>
@@ -109,4 +112,5 @@ const formatMoney = (amount: number, currency: string) => {
 type CarRentalResultCardProps = {
   r: CarRentalResult
   days: number | null
+  detailHref?: string
 }

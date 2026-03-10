@@ -1,9 +1,13 @@
 import { $, component$ } from '@builder.io/qwik'
 import { routeLoader$, useLocation } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
-import { InventoryFreshness } from '~/components/inventory/InventoryFreshness'
+import { AvailabilityConfidence } from '~/components/inventory/AvailabilityConfidence'
 import { InventoryRefreshControl } from '~/components/inventory/InventoryRefreshControl'
 import { revalidateInventoryApi } from '~/lib/inventory/inventory-api'
+import {
+  buildAvailabilityConfidence,
+  evaluateHotelAvailabilityContext,
+} from '~/lib/inventory/availability-confidence'
 import { getOgSecret, encodeOgPayload, signOgPayload } from '~/lib/seo/og-sign'
 import type { Hotel } from '~/data/hotels'
 import { loadHotelBySlugFromDb } from '~/lib/queries/hotels-pages.server'
@@ -19,8 +23,20 @@ export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
   const active = parseHotelStayParams(url.searchParams)
   const nights = computeNights(active.checkIn, active.checkOut)
   const partyLabel = buildPartyLabel(active.adults, active.rooms)
+  const availabilityAssessment = evaluateHotelAvailabilityContext({
+    availability: hotel.availability || null,
+    checkIn: active.checkIn,
+    checkOut: active.checkOut,
+  })
+  const hotelWithConfidence: Hotel = {
+    ...hotel,
+    availabilityConfidence: buildAvailabilityConfidence({
+      freshness: hotel.freshness,
+      ...availabilityAssessment,
+    }),
+  }
 
-  const pricing = computePricing(hotel, nights, active.rooms)
+  const pricing = computePricing(hotelWithConfidence, nights, active.rooms)
 
   // Suggested backlinks (search is noindex, fine for conversion)
   const searchHref = buildSearchHotelsHref({
@@ -49,7 +65,7 @@ export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
 
   return {
     slug,
-    hotel,
+    hotel: hotelWithConfidence,
     active,
     nights,
     partyLabel,
@@ -128,10 +144,14 @@ export default component$(() => {
               <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-                    Inventory freshness
+                    Availability confidence
                   </p>
                   <div class="mt-2">
-                    <InventoryFreshness freshness={h.freshness} compact={false} />
+                    <AvailabilityConfidence
+                      confidence={h.availabilityConfidence}
+                      compact={false}
+                      showSupport={Boolean(h.availabilityConfidence?.supportText)}
+                    />
                   </div>
                 </div>
 
@@ -141,14 +161,14 @@ export default component$(() => {
                   onRefresh$={h.inventoryId != null ? onRevalidateHotel$ : undefined}
                   reloadHref={refreshHref}
                   reloadOnSuccess={true}
-                  label="Revalidate inventory"
-                  refreshingLabel="Revalidating..."
-                  refreshedLabel="Inventory revalidated"
-                  failedLabel="Retry revalidation"
-                  unsupportedLabel="Revalidate unavailable"
-                  unsupportedMessage="This hotel cannot be revalidated right now."
-                  successMessage="Hotel inventory was revalidated. Freshness labels were updated."
-                  failureMessage="Failed to revalidate this hotel."
+                  label="Refresh availability"
+                  refreshingLabel="Refreshing..."
+                  refreshedLabel="Availability refreshed"
+                  failedLabel="Retry refresh"
+                  unsupportedLabel="Refresh unavailable"
+                  unsupportedMessage="This hotel cannot refresh availability right now."
+                  successMessage="Hotel availability signals were refreshed from the latest stored inventory."
+                  failureMessage="Failed to refresh this hotel's availability signals."
                   align="right"
                 />
               </div>

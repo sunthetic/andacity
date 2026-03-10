@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { getDb } from '~/lib/db/client.server'
+import { buildAvailabilityConfidence } from '~/lib/inventory/availability-confidence'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import {
   airlines,
@@ -1230,6 +1231,37 @@ const getIssuesForTripItem = (
     ),
   ])
 
+const PARTIAL_AVAILABILITY_CODES = new Set(['flight_date_needs_confirmation'])
+const REVALIDATION_FAILURE_CODES = new Set([
+  'availability_snapshot_missing',
+  'availability_window_missing',
+  'flight_service_date_missing',
+])
+
+const buildTripItemConfidence = (input: {
+  availabilityStatus: TripItemValidityStatus
+  freshness: ReturnType<typeof buildInventoryFreshness>
+  issues: TripValidationIssue[]
+}) => {
+  const primaryAvailabilityIssue =
+    input.issues.find((issue) => issue.scope === 'availability') || input.issues[0] || null
+  const issueCode = primaryAvailabilityIssue?.code || ''
+
+  return buildAvailabilityConfidence({
+    freshness: input.freshness,
+    match:
+      PARTIAL_AVAILABILITY_CODES.has(issueCode)
+        ? 'partial'
+        : input.availabilityStatus === 'valid' || input.availabilityStatus === 'price_only_changed'
+          ? 'exact'
+          : 'unknown',
+    unavailable: input.availabilityStatus === 'unavailable',
+    revalidationFailed:
+      input.availabilityStatus === 'stale' && REVALIDATION_FAILURE_CODES.has(issueCode),
+    supportText: primaryAvailabilityIssue?.message || null,
+  })
+}
+
 const toTripItem = (
   item: TripItemRecord,
   availability: TripItemAvailabilityValidationResult | undefined,
@@ -1274,6 +1306,11 @@ const toTripItem = (
     resolvedAvailability.status,
     item.priceDriftStatus,
   )
+  const freshness = buildInventoryFreshness({
+    checkedAt: resolvedAvailability.checkedAt || item.snapshotTimestamp,
+    profile: 'availability_revalidation',
+  })
+  const issues = getIssuesForTripItem(item.id, resolvedAvailability.issues, itineraryIssues)
 
   return {
     id: item.id,
@@ -1291,16 +1328,18 @@ const toTripItem = (
     currentCurrencyCode: item.currentCurrencyCode,
     priceDriftStatus: item.priceDriftStatus,
     priceDriftCents: item.priceDriftCents,
-    freshness: buildInventoryFreshness({
-      checkedAt: resolvedAvailability.checkedAt || item.snapshotTimestamp,
-      profile: 'availability_revalidation',
+    availabilityConfidence: buildTripItemConfidence({
+      availabilityStatus,
+      freshness,
+      issues,
     }),
+    freshness,
     availabilityStatus,
     availabilityCheckedAt: resolvedAvailability.checkedAt,
     availabilityExpiresAt: resolvedAvailability.expiresAt,
     imageUrl: item.imageUrl,
     meta: item.meta,
-    issues: getIssuesForTripItem(item.id, resolvedAvailability.issues, itineraryIssues),
+    issues,
     startCityName: item.startCityName,
     endCityName: item.endCityName,
     hotelId: item.hotelId,

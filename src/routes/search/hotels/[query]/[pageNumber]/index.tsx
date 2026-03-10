@@ -267,6 +267,9 @@ export default component$(() => {
   const visibleInventoryIds = data.results.flatMap((hotel) =>
     hotel.inventoryId != null ? [hotel.inventoryId] : [],
   )
+  const detailParams = new URLSearchParams()
+  if (checkIn) detailParams.set('checkIn', checkIn)
+  if (checkOut) detailParams.set('checkOut', checkOut)
 
   const onRevalidateVisibleResults$ = $(async () => {
     if (!visibleInventoryIds.length) {
@@ -306,14 +309,14 @@ export default component$(() => {
           }
           reloadHref={refreshHref}
           reloadOnSuccess={true}
-          label="Revalidate visible results"
-          refreshingLabel="Revalidating..."
-          refreshedLabel="Results revalidated"
-          failedLabel="Retry revalidation"
-          unsupportedLabel="Revalidate unavailable"
-          unsupportedMessage="No visible hotel inventory can be revalidated."
-          successMessage="Visible hotel results were revalidated. Freshness labels were updated."
-          failureMessage="Failed to revalidate visible hotel results."
+          label="Refresh visible availability"
+          refreshingLabel="Refreshing..."
+          refreshedLabel="Availability refreshed"
+          failedLabel="Retry refresh"
+          unsupportedLabel="Refresh unavailable"
+          unsupportedMessage="No visible hotel inventory can refresh availability right now."
+          successMessage="Visible hotel availability signals were refreshed from the latest stored inventory."
+          failureMessage="Failed to refresh visible hotel availability signals."
           align="right"
         />
       </div>
@@ -366,7 +369,16 @@ export default component$(() => {
             <div class="mt-4 grid gap-3">
               {data.results.length ? (
                 data.results.map((hotel: HotelResult) => (
-                  <HotelResultCard key={hotel.id} h={hotel} nights={nights} />
+                  <HotelResultCard
+                    key={hotel.id}
+                    h={hotel}
+                    nights={nights}
+                    detailHref={
+                      detailParams.size
+                        ? `/hotels/${encodeURIComponent(hotel.slug)}?${detailParams.toString()}`
+                        : `/hotels/${encodeURIComponent(hotel.slug)}`
+                    }
+                  />
                 ))
               ) : (
                 <SearchEmptyState

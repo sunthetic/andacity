@@ -1,19 +1,37 @@
 import { $, component$ } from '@builder.io/qwik'
 import { routeLoader$, useLocation } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
-import { InventoryFreshness } from '~/components/inventory/InventoryFreshness'
+import { AvailabilityConfidence } from '~/components/inventory/AvailabilityConfidence'
 import { InventoryRefreshControl } from '~/components/inventory/InventoryRefreshControl'
 import { Page } from '~/components/site/Page'
 import { revalidateInventoryApi } from '~/lib/inventory/inventory-api'
+import {
+  buildAvailabilityConfidence,
+  evaluateCarAvailabilityContext,
+} from '~/lib/inventory/availability-confidence'
 import { loadCarRentalBySlugFromDb } from '~/lib/queries/car-rentals-pages.server'
 
-export const useCarRental = routeLoader$(async ({ params, error }) => {
+export const useCarRental = routeLoader$(async ({ params, url, error }) => {
   const slug = String(params.slug || '').trim().toLowerCase()
   const rental = await loadCarRentalBySlugFromDb(slug)
 
   if (!rental) throw error(404, 'Not found')
 
-  return rental
+  const active = parseRentalParams(url.searchParams)
+  const availabilityAssessment = evaluateCarAvailabilityContext({
+    availability: rental.availability || null,
+    pickupDate: active.pickupDate,
+    dropoffDate: active.dropoffDate,
+  })
+
+  return {
+    ...rental,
+    active,
+    availabilityConfidence: buildAvailabilityConfidence({
+      freshness: rental.freshness,
+      ...availabilityAssessment,
+    }),
+  }
 })
 
 export default component$(() => {
@@ -78,10 +96,14 @@ export default component$(() => {
               <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-                    Inventory freshness
+                    Availability confidence
                   </p>
                   <div class="mt-2">
-                    <InventoryFreshness freshness={rental.freshness} compact={false} />
+                    <AvailabilityConfidence
+                      confidence={rental.availabilityConfidence}
+                      compact={false}
+                      showSupport={Boolean(rental.availabilityConfidence?.supportText)}
+                    />
                   </div>
                 </div>
 
@@ -93,24 +115,30 @@ export default component$(() => {
                   }
                   reloadHref={refreshHref}
                   reloadOnSuccess={true}
-                  label="Revalidate inventory"
-                  refreshingLabel="Revalidating..."
-                  refreshedLabel="Inventory revalidated"
-                  failedLabel="Retry revalidation"
-                  unsupportedLabel="Revalidate unavailable"
-                  unsupportedMessage="This car rental cannot be revalidated right now."
-                  successMessage="Car rental inventory was revalidated. Freshness labels were updated."
-                  failureMessage="Failed to revalidate this car rental."
+                  label="Refresh availability"
+                  refreshingLabel="Refreshing..."
+                  refreshedLabel="Availability refreshed"
+                  failedLabel="Retry refresh"
+                  unsupportedLabel="Refresh unavailable"
+                  unsupportedMessage="This car rental cannot refresh availability right now."
+                  successMessage="Car rental availability signals were refreshed from the latest stored inventory."
+                  failureMessage="Failed to refresh this car rental's availability signals."
                   align="right"
                 />
               </div>
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2">
-              <a class="t-btn-primary px-4 text-center" href={buildSearchHref(rental.cityQuery, 1)}>
+              <a
+                class="t-btn-primary px-4 text-center"
+                href={buildSearchHref(rental.cityQuery, 1, rental.active.pickupDate, rental.active.dropoffDate)}
+              >
                 Search in {rental.city}
               </a>
-              <a class="t-btn-primary px-4 text-center" href={buildCityHref(rental.cityQuery)}>
+              <a
+                class="t-btn-primary px-4 text-center"
+                href={buildCityHref(rental.cityQuery, rental.active.pickupDate, rental.active.dropoffDate)}
+              >
                 Car rentals in {rental.city}
               </a>
             </div>
@@ -388,12 +416,35 @@ const buildCarRentalsHref = () => {
   return '/car-rentals'
 }
 
-const buildCityHref = (citySlug: string) => {
-  return `/car-rentals/in/${encodeURIComponent(citySlug)}`
+const buildCityHref = (
+  citySlug: string,
+  pickupDate?: string | null,
+  dropoffDate?: string | null,
+) => {
+  const base = `/car-rentals/in/${encodeURIComponent(citySlug)}`
+  const sp = new URLSearchParams()
+
+  if (pickupDate) sp.set('pickupDate', pickupDate)
+  if (dropoffDate) sp.set('dropoffDate', dropoffDate)
+
+  const query = sp.toString()
+  return query ? `${base}?${query}` : base
 }
 
-const buildSearchHref = (query: string, pageNumber: number) => {
-  return `/search/car-rentals/${encodeURIComponent(query)}/${encodeURIComponent(String(pageNumber))}`
+const buildSearchHref = (
+  query: string,
+  pageNumber: number,
+  pickupDate?: string | null,
+  dropoffDate?: string | null,
+) => {
+  const base = `/search/car-rentals/${encodeURIComponent(query)}/${encodeURIComponent(String(pageNumber))}`
+  const sp = new URLSearchParams()
+
+  if (pickupDate) sp.set('pickupDate', pickupDate)
+  if (dropoffDate) sp.set('dropoffDate', dropoffDate)
+
+  const queryString = sp.toString()
+  return queryString ? `${base}?${queryString}` : base
 }
 
 const buildCarRentalDetailHref = (rentalSlug: string) => {
@@ -410,4 +461,31 @@ const formatMoney = (amount: number, currency: string) => {
   } catch {
     return `${Math.round(amount)} ${currency}`
   }
+}
+
+const parseRentalParams = (sp: URLSearchParams) => {
+  const pickupDate = normalizeIsoDate(sp.get('pickupDate'))
+  const dropoffDate = normalizeIsoDate(sp.get('dropoffDate'))
+  const drivers = clampMaybeInt(sp.get('drivers'), 1, 6)
+
+  return {
+    pickupDate,
+    dropoffDate,
+    drivers,
+  }
+}
+
+const normalizeIsoDate = (raw: string | null) => {
+  if (!raw) return null
+  const text = String(raw).trim()
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null
+}
+
+const clampMaybeInt = (raw: string | null, min: number, max: number) => {
+  if (!raw) return null
+  const value = Number.parseInt(raw, 10)
+  if (!Number.isFinite(value)) return null
+  if (value < min) return min
+  if (value > max) return max
+  return value
 }

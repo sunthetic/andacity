@@ -1,5 +1,5 @@
 import { component$, type QRL } from "@builder.io/qwik";
-import { InventoryFreshness } from "~/components/inventory/InventoryFreshness";
+import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import { SaveButton } from "~/components/save-compare/SaveButton";
 import { AddToTripButton } from "~/components/trips/AddToTripButton";
 import type { Hotel } from "~/data/hotels";
@@ -11,7 +11,7 @@ export const HotelCard = component$((props: HotelCardProps) => {
 
   return (
     <article class="t-card overflow-hidden">
-      <a class="block" href={buildHotelDetailHref(h.slug)}>
+      <a class="block" href={props.detailHref || buildHotelDetailHref(h.slug)}>
         <div class="bg-[color:var(--color-neutral-50)]">
           <img
             class="h-40 w-full object-cover"
@@ -29,7 +29,7 @@ export const HotelCard = component$((props: HotelCardProps) => {
           <div>
             <a
               class="text-sm font-semibold text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
-              href={buildHotelDetailHref(h.slug)}
+              href={props.detailHref || buildHotelDetailHref(h.slug)}
             >
               {h.name}
             </a>
@@ -77,7 +77,7 @@ export const HotelCard = component$((props: HotelCardProps) => {
         </div>
 
         <div class="mt-3">
-          <InventoryFreshness freshness={h.freshness} />
+          <AvailabilityConfidence confidence={h.availabilityConfidence} />
         </div>
       </div>
     </article>
@@ -89,6 +89,7 @@ type HotelCardProps = {
   savedItem?: SavedItem;
   isSaved?: boolean;
   onToggleSave$?: QRL<(item: SavedItem) => void>;
+  detailHref?: string;
 };
 
 const buildHotelDetailHref = (hotelSlug: string) =>

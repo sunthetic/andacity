@@ -1,3 +1,4 @@
+import type { AvailabilityConfidenceModel } from '~/lib/inventory/availability-confidence'
 import type { InventoryFreshnessModel } from '~/lib/inventory/freshness'
 
 export const TRIP_STATUSES = [
@@ -137,6 +138,7 @@ export type TripItem = {
   currentCurrencyCode: string | null;
   priceDriftStatus: TripPriceDriftStatus;
   priceDriftCents: number | null;
+  availabilityConfidence: AvailabilityConfidenceModel;
   freshness?: InventoryFreshnessModel;
   availabilityStatus: TripItemValidityStatus;
   availabilityCheckedAt: string | null;
@@ -193,6 +195,7 @@ export type TripBundlingInventoryReference = {
   currencyCode: string;
   meta: string[];
   href: string | null;
+  availabilityConfidence: AvailabilityConfidenceModel;
   freshness?: InventoryFreshnessModel;
 };
 

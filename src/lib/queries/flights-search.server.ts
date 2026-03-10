@@ -1,4 +1,8 @@
 import {
+  buildAvailabilityConfidence,
+  evaluateFlightAvailabilityContext,
+} from '~/lib/inventory/availability-confidence'
+import {
   listFlightSearchFacets,
   searchFlightsPage,
   type FlightSort,
@@ -218,10 +222,20 @@ export async function loadFlightResultsPageFromDb(
     facets,
     results: rows.map((row, index) => {
       const stops = clampStops(Number(row.stops))
+      const freshness = buildInventoryFreshness({
+        checkedAt: row.freshnessTimestamp,
+        profile: 'inventory_snapshot',
+      })
+      const flightAssessment = evaluateFlightAvailabilityContext({
+        requestedServiceDate: input.departDate || null,
+        actualServiceDate: row.serviceDate,
+      })
+
       return {
         id: row.seedKey || `flight-${row.id}-${effectiveOffset + index}`,
         itineraryId: row.id,
         serviceDate: row.serviceDate,
+        requestedServiceDate: input.departDate || undefined,
         airline: row.airline,
         origin: `${fromCity.name} (${row.originIata})`,
         destination: `${toCity.name} (${row.destinationIata})`,
@@ -237,10 +251,11 @@ export async function loadFlightResultsPageFromDb(
         cabinClass: row.cabinClass,
         price: toPriceAmount(row.priceCents),
         currency: row.currencyCode,
-        freshness: buildInventoryFreshness({
-          checkedAt: row.freshnessTimestamp,
-          profile: 'inventory_snapshot',
+        availabilityConfidence: buildAvailabilityConfidence({
+          freshness,
+          ...flightAssessment,
         }),
+        freshness,
       }
     }),
   }

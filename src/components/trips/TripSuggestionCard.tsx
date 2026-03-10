@@ -1,5 +1,5 @@
 import { component$, type QRL } from "@builder.io/qwik";
-import { InventoryFreshness } from "~/components/inventory/InventoryFreshness";
+import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import type {
   TripBundlingSuggestion,
   TripItemCandidate,
@@ -79,8 +79,8 @@ export const TripSuggestionCard = component$(
               {suggestion.cityName ? ` · ${suggestion.cityName}` : ""}
             </p>
             <div class="mt-3">
-              <InventoryFreshness
-                freshness={suggestion.inventory.freshness}
+              <AvailabilityConfidence
+                confidence={suggestion.inventory.availabilityConfidence}
                 align="right"
               />
             </div>

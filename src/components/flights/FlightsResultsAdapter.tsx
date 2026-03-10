@@ -381,15 +381,15 @@ export const FlightsResultsAdapter = component$(
             : undefined,
           reloadHref: refreshHref,
           reloadOnSuccess: true,
-          label: 'Revalidate visible results',
-          refreshingLabel: 'Revalidating...',
-          refreshedLabel: 'Results revalidated',
-          failedLabel: 'Retry revalidation',
-          unsupportedLabel: 'Revalidate unavailable',
-          unsupportedMessage: 'No visible flight inventory can be revalidated.',
+          label: 'Refresh visible availability',
+          refreshingLabel: 'Refreshing...',
+          refreshedLabel: 'Availability refreshed',
+          failedLabel: 'Retry refresh',
+          unsupportedLabel: 'Refresh unavailable',
+          unsupportedMessage: 'No visible flight inventory can refresh availability right now.',
           successMessage:
-            'Visible flight results were revalidated. Freshness labels were updated.',
-          failureMessage: 'Failed to revalidate visible flight results.',
+            'Visible flight availability signals were refreshed from the latest stored inventory.',
+          failureMessage: 'Failed to refresh visible flight availability signals.',
         }}
         filtersTitle="Flight filters"
         resultCountLabel={`${props.totalCount.toLocaleString('en-US')} flights`}

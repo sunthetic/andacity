@@ -1,3 +1,4 @@
+import { buildAvailabilityConfidence } from '~/lib/inventory/availability-confidence'
 import {
   listCarRentalSearchFacets,
   searchCarRentalsPage,
@@ -259,6 +260,7 @@ export async function loadCarRentalResultsPageFromDb(
   }
 
   const q = normalizeToken(String(input.query || input.citySlug || ''))
+  const hasExactDates = Boolean(input.pickupDate && input.dropoffDate)
 
   return {
     totalCount,
@@ -271,6 +273,11 @@ export async function loadCarRentalResultsPageFromDb(
     results: rows.map((row, index) => {
       const priceFrom = toPriceAmount(row.fromDailyCents)
       const rating = Number(row.rating)
+
+      const freshness = buildInventoryFreshness({
+        checkedAt: row.freshnessTimestamp,
+        profile: 'inventory_snapshot',
+      })
 
       return {
         id: `car-${row.slug}-${effectiveOffset + index}`,
@@ -305,10 +312,11 @@ export async function loadCarRentalResultsPageFromDb(
           freeCancellation: row.freeCancellation,
           payAtCounter: row.payAtCounter,
         }),
-        freshness: buildInventoryFreshness({
-          checkedAt: row.freshnessTimestamp,
-          profile: 'inventory_snapshot',
+        availabilityConfidence: buildAvailabilityConfidence({
+          freshness,
+          match: hasExactDates ? 'exact' : 'unknown',
         }),
+        freshness,
       }
     }),
   }

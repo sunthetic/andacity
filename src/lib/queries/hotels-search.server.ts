@@ -1,3 +1,4 @@
+import { buildAvailabilityConfidence } from '~/lib/inventory/availability-confidence'
 import { searchHotels, type HotelPriceRange, type HotelSort } from '~/lib/repos/hotels-repo.server'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import { findTopTravelCity } from '~/seed/cities/top-100.js'
@@ -133,6 +134,7 @@ export async function loadHotelResultsFromDb(
   }
 
   const q = normalizeToken(input.query)
+  const hasExactDates = Boolean(input.checkIn && input.checkOut)
 
   return {
     matchedCity: {
@@ -175,6 +177,13 @@ export async function loadHotelResultsFromDb(
         freshness: buildInventoryFreshness({
           checkedAt: row.freshnessTimestamp,
           profile: 'inventory_snapshot',
+        }),
+        availabilityConfidence: buildAvailabilityConfidence({
+          freshness: buildInventoryFreshness({
+            checkedAt: row.freshnessTimestamp,
+            profile: 'inventory_snapshot',
+          }),
+          match: hasExactDates ? 'exact' : 'unknown',
         }),
       }
     }),

@@ -1,5 +1,5 @@
 import { component$, type QRL } from "@builder.io/qwik";
-import { InventoryFreshness } from "~/components/inventory/InventoryFreshness";
+import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import { formatMoney } from "~/lib/formatMoney";
 import { SaveButton } from "~/components/save-compare/SaveButton";
 import { AddToTripButton } from "~/components/trips/AddToTripButton";
@@ -31,7 +31,7 @@ export const FlightCard = component$((props: FlightCardProps) => {
           </div>
 
           <div class="mt-3">
-            <InventoryFreshness freshness={flight.freshness} />
+            <AvailabilityConfidence confidence={flight.availabilityConfidence} />
           </div>
         </div>
 

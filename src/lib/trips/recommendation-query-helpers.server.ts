@@ -1,6 +1,10 @@
 import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { computeDays } from '~/lib/search/car-rentals/dates'
+import {
+  buildAvailabilityConfidence,
+  evaluateFlightAvailabilityContext,
+} from '~/lib/inventory/availability-confidence'
 import { buildInventoryFreshness, type InventoryFreshnessModel } from '~/lib/inventory/freshness'
 import { buildFlightsSearchPath, slugifyLocation } from '~/lib/search/flights/routing'
 import { computeNights } from '~/lib/search/hotels/dates'
@@ -31,6 +35,7 @@ type RecommendationInventoryMatch = {
   currencyCode: string
   meta: string[]
   href: string | null
+  availabilityConfidence: import('~/lib/inventory/availability-confidence').AvailabilityConfidenceModel
   freshness: InventoryFreshnessModel
   serviceDate?: string | null
 }
@@ -171,6 +176,11 @@ const findHotelRecommendation = async (
   const row = rows[0]
   if (!row) return null
 
+  const freshness = buildInventoryFreshness({
+    checkedAt: row.freshnessTimestamp,
+    profile: 'inventory_snapshot',
+  })
+
   return {
     inventoryId: row.id,
     title: row.name,
@@ -186,10 +196,11 @@ const findHotelRecommendation = async (
       ...(row.payLater ? ['Pay later'] : []),
     ],
     href: `/hotels/${encodeURIComponent(row.slug)}`,
-    freshness: buildInventoryFreshness({
-      checkedAt: row.freshnessTimestamp,
-      profile: 'inventory_snapshot',
+    availabilityConfidence: buildAvailabilityConfidence({
+      freshness,
+      match: 'exact',
     }),
+    freshness,
   }
 }
 
@@ -252,6 +263,11 @@ const readCarRecommendation = async (
   const row = rows[0]
   if (!row) return null
 
+  const freshness = buildInventoryFreshness({
+    checkedAt: row.freshnessTimestamp,
+    profile: 'inventory_snapshot',
+  })
+
   return {
     inventoryId: row.id,
     title: row.providerName,
@@ -265,10 +281,11 @@ const readCarRecommendation = async (
       ...(row.payAtCounter ? ['Pay at counter'] : []),
     ],
     href: `/car-rentals/${encodeURIComponent(row.slug)}`,
-    freshness: buildInventoryFreshness({
-      checkedAt: row.freshnessTimestamp,
-      profile: 'inventory_snapshot',
+    availabilityConfidence: buildAvailabilityConfidence({
+      freshness,
+      match: 'exact',
     }),
+    freshness,
   } satisfies RecommendationInventoryMatch
 }
 
@@ -346,6 +363,14 @@ const readFlightRecommendationForDate = async (
 
   const departureLabel = formatFlightTime(row.departureAt)
   const arrivalLabel = formatFlightTime(row.arrivalAt)
+  const freshness = buildInventoryFreshness({
+    checkedAt: row.freshnessTimestamp,
+    profile: 'inventory_snapshot',
+  })
+  const flightAssessment = evaluateFlightAvailabilityContext({
+    requestedServiceDate: serviceDate,
+    actualServiceDate: row.serviceDate,
+  })
 
   return {
     inventoryId: row.id,
@@ -362,10 +387,11 @@ const readFlightRecommendationForDate = async (
       titleCaseToken(row.cabinClass),
     ],
     href: buildFlightHref(row.originCityName, row.destinationCityName, row.serviceDate),
-    freshness: buildInventoryFreshness({
-      checkedAt: row.freshnessTimestamp,
-      profile: 'inventory_snapshot',
+    availabilityConfidence: buildAvailabilityConfidence({
+      freshness,
+      ...flightAssessment,
     }),
+    freshness,
     serviceDate: row.serviceDate,
   } satisfies RecommendationInventoryMatch
 }

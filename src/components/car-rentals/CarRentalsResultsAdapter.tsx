@@ -170,6 +170,24 @@ const buildEditSearchHref = (state: SearchState, queryLabel: string) => {
 const buildCarRentalDetailHref = (rentalSlug: string) =>
   `/car-rentals/${encodeURIComponent(rentalSlug)}`;
 
+const buildCarRentalDetailHrefWithDates = (
+  rentalSlug: string,
+  dates: SearchState["dates"],
+  drivers: unknown,
+) => {
+  const base = buildCarRentalDetailHref(rentalSlug);
+  const sp = new URLSearchParams();
+
+  if (dates?.checkIn) sp.set("pickupDate", dates.checkIn);
+  if (dates?.checkOut) sp.set("dropoffDate", dates.checkOut);
+
+  const driverCount = String(drivers || "").trim();
+  if (driverCount) sp.set("drivers", driverCount);
+
+  const query = sp.toString();
+  return query ? `${base}?${query}` : base;
+};
+
 const toSavedCarItem = (
   result: CarRentalResult,
   dates: SearchState["dates"],
@@ -367,16 +385,16 @@ export const CarRentalsResultsAdapter = component$(
             : undefined,
           reloadHref: refreshHref,
           reloadOnSuccess: true,
-          label: "Revalidate visible results",
-          refreshingLabel: "Revalidating...",
-          refreshedLabel: "Results revalidated",
-          failedLabel: "Retry revalidation",
-          unsupportedLabel: "Revalidate unavailable",
+          label: "Refresh visible availability",
+          refreshingLabel: "Refreshing...",
+          refreshedLabel: "Availability refreshed",
+          failedLabel: "Retry refresh",
+          unsupportedLabel: "Refresh unavailable",
           unsupportedMessage:
-            "No visible car rental inventory can be revalidated.",
+            "No visible car rental inventory can refresh availability right now.",
           successMessage:
-            "Visible car rental results were revalidated. Freshness labels were updated.",
-          failureMessage: "Failed to revalidate visible car rental results.",
+            "Visible car rental availability signals were refreshed from the latest stored inventory.",
+          failureMessage: "Failed to refresh visible car rental availability signals.",
         }}
         filtersTitle="Car rental filters"
         resultCountLabel={`${props.totalCount.toLocaleString("en-US")} rentals`}
@@ -428,6 +446,11 @@ export const CarRentalsResultsAdapter = component$(
                 savedItem={savedItem}
                 isSaved={isItemSaved(savedItems.value, savedItem.id)}
                 onToggleSave$={onToggleSave$}
+                detailHref={buildCarRentalDetailHrefWithDates(
+                  result.slug,
+                  props.searchState.dates,
+                  props.searchState.filters?.drivers,
+                )}
               />
             );
           })}

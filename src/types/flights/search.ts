@@ -1,3 +1,4 @@
+import type { AvailabilityConfidenceModel } from '~/lib/inventory/availability-confidence'
 import type { InventoryFreshnessModel } from '~/lib/inventory/freshness'
 
 export type FlightCabinClass = 'economy' | 'premium-economy' | 'business' | 'first'
@@ -22,5 +23,7 @@ export type FlightResult = {
   cabinClass?: FlightCabinClass
   price: number
   currency: string
+  requestedServiceDate?: string
+  availabilityConfidence?: AvailabilityConfidenceModel
   freshness?: InventoryFreshnessModel
 }

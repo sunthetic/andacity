@@ -1,5 +1,5 @@
 import { component$ } from '@builder.io/qwik'
-import { InventoryFreshness } from '~/components/inventory/InventoryFreshness'
+import { AvailabilityConfidence } from '~/components/inventory/AvailabilityConfidence'
 import type { FlightResult } from '~/types/flights/search'
 
 export const FlightResultCard = component$(({ flight }: FlightResultCardProps) => {
@@ -29,7 +29,7 @@ export const FlightResultCard = component$(({ flight }: FlightResultCardProps) =
       </div>
 
       <div class="mt-4 border-t border-[color:var(--color-divider)] pt-4">
-        <InventoryFreshness freshness={flight.freshness} />
+        <AvailabilityConfidence confidence={flight.availabilityConfidence} />
       </div>
     </article>
   )

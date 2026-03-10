@@ -1,3 +1,4 @@
+import type { AvailabilityConfidenceModel } from '~/lib/inventory/availability-confidence'
 import type { InventoryFreshnessModel } from '~/lib/inventory/freshness'
 import { generateCarRentalsInventory } from "~/seed/generators/generate-cars.js";
 
@@ -88,6 +89,7 @@ export type CarRental = {
   offers: CarOffer[];
   faq: FAQ[];
   availability?: CarRentalAvailability;
+  availabilityConfidence?: AvailabilityConfidenceModel;
   freshness?: InventoryFreshnessModel;
   seedMeta?: {
     id: string;

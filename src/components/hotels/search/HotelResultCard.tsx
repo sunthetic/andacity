@@ -1,12 +1,15 @@
 import { component$ } from '@builder.io/qwik'
-import { InventoryFreshness } from '~/components/inventory/InventoryFreshness'
+import { AvailabilityConfidence } from '~/components/inventory/AvailabilityConfidence'
 import type { HotelResultCardProps } from '~/types/hotels/search'
 
-export const HotelResultCard = component$(({ h, nights }: HotelResultCardProps) => {
+export const HotelResultCard = component$(({ h, nights, detailHref }: HotelResultCardProps) => {
   const total = nights ? h.priceFrom * nights : null
 
   return (
-    <a class="t-card block overflow-hidden hover:bg-white" href={`/hotels/${encodeURIComponent(h.slug)}`}>
+    <a
+      class="t-card block overflow-hidden hover:bg-white"
+      href={detailHref || `/hotels/${encodeURIComponent(h.slug)}`}
+    >
       <div class="grid gap-0 lg:grid-cols-[220px_1fr]">
         <div class="bg-[color:var(--color-neutral-50)]">
           <img
@@ -69,7 +72,7 @@ export const HotelResultCard = component$(({ h, nights }: HotelResultCardProps) 
           </div>
 
           <div class="mt-4 flex flex-col gap-3 border-t border-[color:var(--color-divider)] pt-4 text-xs text-[color:var(--color-text-muted)] sm:flex-row sm:items-start sm:justify-between">
-            <InventoryFreshness freshness={h.freshness} />
+            <AvailabilityConfidence confidence={h.availabilityConfidence} />
             <div class="sm:text-right">
               Score: {h.score.toFixed(2)} · Balanced for price, rating, location, cancellation
             </div>

@@ -1,6 +1,6 @@
 import { $, component$, useSignal, type QRL } from "@builder.io/qwik";
 import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
-import { InventoryFreshness } from "~/components/inventory/InventoryFreshness";
+import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import { InventoryRefreshControl } from "~/components/inventory/InventoryRefreshControl";
 import { Page } from "~/components/site/Page";
 import { TripSuggestionCard } from "~/components/trips/TripSuggestionCard";
@@ -25,7 +25,6 @@ import type {
   TripIntelligenceSummary,
   TripItem,
   TripItemCandidate,
-  TripItemValidityStatus,
   TripListItem,
   TripPriceDriftStatus,
   TripStatus,
@@ -704,11 +703,6 @@ const TripItemRow = component$(
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <span class="t-badge">{props.item.itemType.toUpperCase()}</span>
-              <span
-                class={availabilityBadgeClass(props.item.availabilityStatus)}
-              >
-                {formatItemAvailabilityLabel(props.item.availabilityStatus)}
-              </span>
               {props.item.issues.length ? (
                 <span class={issueBadgeClass(props.item.issues)}>
                   {formatItemIssueBadge(props.item.issues)}
@@ -741,7 +735,11 @@ const TripItemRow = component$(
               Snapshotted {formatDateTime(props.item.snapshotTimestamp)}
             </p>
             <div class="mt-2">
-              <InventoryFreshness freshness={props.item.freshness} compact={false} />
+              <AvailabilityConfidence
+                confidence={props.item.availabilityConfidence}
+                compact={false}
+                showSupport={Boolean(props.item.availabilityConfidence.supportText)}
+              />
             </div>
             {props.item.issues.length ? (
               <div class="mt-2 grid gap-1">
@@ -771,14 +769,6 @@ const TripItemRow = component$(
                 props.item.snapshotPriceCents,
                 props.item.snapshotCurrencyCode,
               )}
-            </p>
-            <p
-              class={[
-                "mt-1 text-xs font-medium",
-                availabilityToneClass(props.item.availabilityStatus),
-              ]}
-            >
-              {formatItemAvailabilityStatus(props.item)}
             </p>
             <p
               class={[
@@ -898,10 +888,9 @@ const formatTripAvailabilitySummary = (
   const counts = intelligence.itemStatusCounts;
   const parts: string[] = [];
 
-  if (counts.valid) parts.push(`${counts.valid} valid`);
-  if (counts.price_only_changed)
-    parts.push(`${counts.price_only_changed} price-only changes`);
-  if (counts.stale) parts.push(`${counts.stale} stale`);
+  const availableCount = counts.valid + counts.price_only_changed;
+  if (availableCount) parts.push(`${availableCount} available`);
+  if (counts.stale) parts.push(`${counts.stale} need recheck`);
   if (counts.unavailable) parts.push(`${counts.unavailable} unavailable`);
 
   return parts.length ? parts.join(" · ") : "No items yet";
@@ -950,11 +939,6 @@ const intelligenceToneClass = (intelligence: TripIntelligenceSummary) => {
   return "text-[color:var(--color-success,#0f766e)]";
 };
 
-const formatItemAvailabilityLabel = (status: TripItemValidityStatus) => {
-  if (status === "price_only_changed") return "PRICE CHANGED";
-  return status.replace(/_/g, " ").toUpperCase();
-};
-
 const getHighestIssueSeverity = (issues: TripValidationIssue[]) => {
   return issues.some((issue) => issue.severity === "blocking")
     ? "blocking"
@@ -965,45 +949,6 @@ const issueBadgeClass = (issues: TripValidationIssue[]) => {
   return getHighestIssueSeverity(issues) === "blocking"
     ? "rounded-full border border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-error,#b91c1c)]"
     : "rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning,#92400e)]";
-};
-
-const availabilityBadgeClass = (status: TripItemValidityStatus) => {
-  if (status === "valid") {
-    return "rounded-full border border-[color:var(--color-success,#0f766e)] bg-[color:rgba(15,118,110,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-success,#0f766e)]";
-  }
-  if (status === "price_only_changed") {
-    return "rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning,#92400e)]";
-  }
-  if (status === "stale") {
-    return "rounded-full border border-[color:var(--color-text-muted)] bg-[color:rgba(15,23,42,0.05)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-text-muted)]";
-  }
-  return "rounded-full border border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-error,#b91c1c)]";
-};
-
-const availabilityToneClass = (status: TripItemValidityStatus) => {
-  if (status === "valid") return "text-[color:var(--color-success,#0f766e)]";
-  if (status === "price_only_changed")
-    return "text-[color:var(--color-warning,#92400e)]";
-  if (status === "stale") return "text-[color:var(--color-text-muted)]";
-  return "text-[color:var(--color-error,#b91c1c)]";
-};
-
-const getPrimaryAvailabilityIssue = (item: TripItem) =>
-  item.issues.find((issue) => issue.scope === "availability") ||
-  item.issues[0] ||
-  null;
-
-const formatItemAvailabilityStatus = (item: TripItem) => {
-  const primaryIssue = getPrimaryAvailabilityIssue(item);
-
-  if (item.availabilityStatus === "valid") return "Availability confirmed";
-  if (item.availabilityStatus === "price_only_changed")
-    return "Still available, but price changed";
-  if (item.availabilityStatus === "stale") {
-    return primaryIssue?.message || "Availability check incomplete";
-  }
-
-  return primaryIssue?.message || "Currently unavailable";
 };
 
 const formatItemIssueBadge = (issues: TripValidationIssue[]) => {

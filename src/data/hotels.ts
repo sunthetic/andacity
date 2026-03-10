@@ -1,3 +1,4 @@
+import type { AvailabilityConfidenceModel } from '~/lib/inventory/availability-confidence'
 import type { InventoryFreshnessModel } from '~/lib/inventory/freshness'
 import { generateHotelsInventory } from "~/seed/generators/generate-hotels.js";
 
@@ -86,6 +87,7 @@ export type Hotel = {
   rooms: Room[];
   faq: FAQ[];
   availability?: HotelAvailability;
+  availabilityConfidence?: AvailabilityConfidenceModel;
   freshness?: InventoryFreshnessModel;
   seedMeta?: {
     id: string;

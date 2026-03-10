@@ -198,6 +198,20 @@ const buildEditSearchHref = (cityName: string, dates: SearchState["dates"]) => {
 const buildHotelDetailHref = (hotelSlug: string) =>
   `/hotels/${encodeURIComponent(hotelSlug)}`;
 
+const buildHotelDetailHrefWithDates = (
+  hotelSlug: string,
+  dates: SearchState["dates"],
+) => {
+  const base = buildHotelDetailHref(hotelSlug);
+  const sp = new URLSearchParams();
+
+  if (dates?.checkIn) sp.set("checkIn", dates.checkIn);
+  if (dates?.checkOut) sp.set("checkOut", dates.checkOut);
+
+  const query = sp.toString();
+  return query ? `${base}?${query}` : base;
+};
+
 const toSavedHotelItem = (
   hotel: Hotel,
   dates: SearchState["dates"],
@@ -480,15 +494,15 @@ export const HotelsResultsAdapter = component$(
             : undefined,
           reloadHref: refreshHref,
           reloadOnSuccess: true,
-          label: "Revalidate visible results",
-          refreshingLabel: "Revalidating...",
-          refreshedLabel: "Results revalidated",
-          failedLabel: "Retry revalidation",
-          unsupportedLabel: "Revalidate unavailable",
-          unsupportedMessage: "No visible hotel inventory can be revalidated.",
+          label: "Refresh visible availability",
+          refreshingLabel: "Refreshing...",
+          refreshedLabel: "Availability refreshed",
+          failedLabel: "Retry refresh",
+          unsupportedLabel: "Refresh unavailable",
+          unsupportedMessage: "No visible hotel inventory can refresh availability right now.",
           successMessage:
-            "Visible hotel results were revalidated. Freshness labels were updated.",
-          failureMessage: "Failed to revalidate visible hotel results.",
+            "Visible hotel availability signals were refreshed from the latest stored inventory.",
+          failureMessage: "Failed to refresh visible hotel availability signals.",
         }}
         filtersTitle="Hotel filters"
         resultCountLabel={`${sortedHotels.length.toLocaleString("en-US")} stays`}
@@ -537,6 +551,10 @@ export const HotelsResultsAdapter = component$(
                 savedItem={savedItem}
                 isSaved={isItemSaved(savedItems.value, savedItem.id)}
                 onToggleSave$={onToggleSave$}
+                detailHref={buildHotelDetailHrefWithDates(
+                  hotel.slug,
+                  props.searchState.dates,
+                )}
               />
             );
           })}

@@ -1,6 +1,6 @@
 import { component$, type QRL } from "@builder.io/qwik";
 import type { CarRentalResult } from "~/types/car-rentals/search";
-import { InventoryFreshness } from "~/components/inventory/InventoryFreshness";
+import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import { formatMoney } from "~/lib/formatMoney";
 import { SaveButton } from "~/components/save-compare/SaveButton";
 import { AddToTripButton } from "~/components/trips/AddToTripButton";
@@ -17,7 +17,7 @@ export const CarRentalCard = component$((props: CarRentalCardProps) => {
       <div class="grid gap-0 md:grid-cols-[220px_1fr]">
         <a
           class="block bg-[color:var(--color-neutral-50)]"
-          href={buildCarRentalDetailHref(r.slug)}
+          href={props.detailHref || buildCarRentalDetailHref(r.slug)}
         >
           <img
             class="h-44 w-full object-cover md:h-full"
@@ -33,7 +33,7 @@ export const CarRentalCard = component$((props: CarRentalCardProps) => {
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <a
-                href={buildCarRentalDetailHref(r.slug)}
+                href={props.detailHref || buildCarRentalDetailHref(r.slug)}
                 class="text-sm font-semibold text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
               >
                 {r.name}
@@ -90,13 +90,13 @@ export const CarRentalCard = component$((props: CarRentalCardProps) => {
           </p>
 
           <div class="mt-3">
-            <InventoryFreshness freshness={r.freshness} />
+            <AvailabilityConfidence confidence={r.availabilityConfidence} />
           </div>
 
           <div class="mt-4">
             <a
               class="t-btn-primary inline-block px-4 py-2 text-sm"
-              href={buildCarRentalDetailHref(r.slug)}
+              href={props.detailHref || buildCarRentalDetailHref(r.slug)}
             >
               View deal
             </a>
@@ -112,6 +112,7 @@ type CarRentalCardProps = {
   savedItem?: SavedItem;
   isSaved?: boolean;
   onToggleSave$?: QRL<(item: SavedItem) => void>;
+  detailHref?: string;
 };
 
 const buildCarRentalDetailHref = (rentalSlug: string) =>
