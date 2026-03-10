@@ -1,4 +1,10 @@
-import { TRIP_ITEM_TYPES, TRIP_STATUSES, type TripItemCandidate, type TripStatus } from '~/types/trips/trip'
+import {
+  TRIP_ITEM_TYPES,
+  TRIP_STATUSES,
+  type TripEditPreviewActionType,
+  type TripItemCandidate,
+  type TripStatus,
+} from '~/types/trips/trip'
 
 type ParsedCreateTripInput = {
   name?: string
@@ -18,6 +24,24 @@ type ParsedUpdateTripInput = {
   endDate?: string | null
   dateSource?: 'auto' | 'manual'
 }
+
+type ParsedUpdateTripItemInput = {
+  locked?: boolean
+  candidate?: TripItemCandidate
+}
+
+type ParsedTripEditPreviewInput =
+  | {
+      actionType: Extract<TripEditPreviewActionType, 'reorder'>
+      orderedItemIds: number[]
+    }
+  | {
+      actionType: Extract<TripEditPreviewActionType, 'remove'>
+    }
+  | {
+      actionType: Extract<TripEditPreviewActionType, 'replace'>
+      candidate: TripItemCandidate
+    }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -66,6 +90,11 @@ const toMetaList = (value: unknown): string[] | undefined => {
 
 const toRecord = (value: unknown): Record<string, unknown> | undefined => {
   return isRecord(value) ? value : undefined
+}
+
+const toOptionalBoolean = (value: unknown): boolean | undefined => {
+  if (typeof value === 'boolean') return value
+  return undefined
 }
 
 export const parseTripIdParam = (value: string | undefined): number | null => {
@@ -157,4 +186,47 @@ export const parseTripReorderInput = (body: unknown): number[] | null => {
   if (!ids.length) return null
   if (new Set(ids).size !== ids.length) return null
   return ids
+}
+
+export const parseUpdateTripItemInput = (body: unknown): ParsedUpdateTripItemInput | null => {
+  const obj = isRecord(body) ? body : {}
+  const locked = toOptionalBoolean(obj.locked)
+  const candidate = obj.candidate === undefined ? undefined : parseTripItemCandidateInput(obj.candidate)
+
+  if (locked === undefined && candidate === undefined) return null
+  if (obj.candidate !== undefined && candidate == null) return null
+
+  return {
+    locked,
+    candidate: candidate || undefined,
+  }
+}
+
+export const parseTripEditPreviewInput = (body: unknown): ParsedTripEditPreviewInput | null => {
+  const obj = isRecord(body) ? body : {}
+  const actionType = toTrimmedString(obj.actionType).toLowerCase()
+
+  if (actionType === 'reorder') {
+    const orderedItemIds = parseTripReorderInput(body)
+    if (!orderedItemIds) return null
+    return {
+      actionType,
+      orderedItemIds,
+    }
+  }
+
+  if (actionType === 'remove') {
+    return { actionType }
+  }
+
+  if (actionType === 'replace') {
+    const candidate = parseTripItemCandidateInput(obj.candidate)
+    if (!candidate) return null
+    return {
+      actionType,
+      candidate,
+    }
+  }
+
+  return null
 }

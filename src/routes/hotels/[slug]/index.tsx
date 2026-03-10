@@ -530,17 +530,9 @@ export default component$(() => {
         {/* Sticky booking card (primary conversion zone) */}
         <aside class="lg:sticky lg:top-24 lg:self-start">
           <div class="t-card p-5 bg-surface" id="stay">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                  Your stay
-                </div>
-                <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                  Set dates to reveal totals. GET URLs stay shareable.
-                </div>
-              </div>
-              <div class="flex flex-wrap items-center justify-end gap-2">
-                <span class="t-badge">Hotels</span>
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <span class="t-badge">Hotels</span>
+              <div class="flex flex-wrap gap-2">
                 <SaveButton
                   saved={isShortlisted(
                     decisioning.state,
@@ -559,7 +551,7 @@ export default component$(() => {
               </div>
             </div>
 
-            <div class="mt-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-4 py-4">
+            <div class="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-4 py-4">
               <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
                 {stayPriceDisplay.baseLabel}
               </div>
@@ -589,6 +581,10 @@ export default component$(() => {
                   {stayPriceDisplay.supportText}
                 </div>
               ) : null}
+            </div>
+
+            <div class="mt-4 text-xs text-[color:var(--color-text-muted)]">
+              Set dates to reveal totals. GET URLs stay shareable.
             </div>
 
             <form method="get" class="mt-4 grid gap-3">

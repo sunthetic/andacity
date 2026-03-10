@@ -542,8 +542,8 @@ export default component$(() => {
                         {o.name}
                       </div>
                       <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                        {o.category} · {o.transmission} · {o.doors} doors ·{" "}
-                        {o.seats} seats · {o.bags}
+                        {o.transmission} · {o.doors} doors · {o.seats} seats ·{" "}
+                        {o.bags}
                         {o.ac ? " · A/C" : ""}
                       </div>
                     </div>

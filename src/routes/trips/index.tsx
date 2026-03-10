@@ -7,6 +7,7 @@ import { AsyncStateNotice } from "~/components/async/AsyncStateNotice";
 import { DetailSkeleton } from "~/components/async/AsyncSurfaceSkeleton";
 import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
 import { InventoryRefreshControl } from "~/components/inventory/InventoryRefreshControl";
+import { UndoSnackbar } from "~/components/save-compare/UndoSnackbar";
 import { Page } from "~/components/site/Page";
 import { TripSuggestionCard } from "~/components/trips/TripSuggestionCard";
 import {
@@ -28,19 +29,24 @@ import {
   addItemToTripApi,
   createTripApi,
   getTripDetailsApi,
+  listTripItemReplacementOptionsApi,
   listTripsApi,
+  previewTripItemEditApi,
   removeTripItemApi,
   revalidateTripApi,
   reorderTripItemsApi,
   TripApiError,
+  updateTripItemApi,
   updateTripMetadataApi,
 } from "~/lib/trips/trips-api";
 import { compareIsoDate, differenceInDays } from "~/lib/trips/date-utils";
 import type {
   TripDetails,
+  TripEditPreview,
   TripIntelligenceSummary,
   TripItem,
   TripItemCandidate,
+  TripItemReplacementOption,
   TripListItem,
   TripPriceDriftStatus,
   TripStatus,
@@ -79,6 +85,39 @@ export const useTripsPage = routeLoader$(async ({ url }) => {
   }
 });
 
+type TripEditDraft =
+  | {
+      actionType: "reorder";
+      itemId: number;
+      orderedItemIds: number[];
+    }
+  | {
+      actionType: "remove";
+      itemId: number;
+      removedItem: TripItemCandidate;
+      removedTitle: string;
+      originalPosition: number;
+    }
+  | {
+      actionType: "replace";
+      itemId: number;
+      candidate: TripItemCandidate;
+      replacementTitle: string;
+    };
+
+type TripActionFeedback = {
+  tone: "success" | "info";
+  title: string;
+  message: string;
+};
+
+type UndoRemovalState = {
+  tripId: number;
+  originalPosition: number;
+  candidate: TripItemCandidate;
+  message: string;
+};
+
 export default component$(() => {
   const data = useTripsPage().value;
   const trips = useSignal<TripListItem[]>(data.trips);
@@ -93,6 +132,15 @@ export default component$(() => {
   const editingStatus = useSignal<TripStatus>(
     data.activeTrip?.status || "draft",
   );
+  const actionFeedback = useSignal<TripActionFeedback | null>(null);
+  const editPreview = useSignal<TripEditPreview | null>(null);
+  const editDraft = useSignal<TripEditDraft | null>(null);
+  const previewItemId = useSignal<number | null>(null);
+  const undoRemoval = useSignal<UndoRemovalState | null>(null);
+  const replacementPanelItemId = useSignal<number | null>(null);
+  const replacementOptions = useSignal<
+    Record<number, TripItemReplacementOption[]>
+  >({});
 
   const refreshTrips$ = $(
     async (nextActiveTripId?: number | null, preserveCurrentActive = false) => {
@@ -118,6 +166,16 @@ export default component$(() => {
     },
   );
 
+  const resetEditingSurface$ = $(() => {
+    actionFeedback.value = null;
+    editPreview.value = null;
+    editDraft.value = null;
+    previewItemId.value = null;
+    undoRemoval.value = null;
+    replacementPanelItemId.value = null;
+    replacementOptions.value = {};
+  });
+
   const loadTrip$ = $(
     async (tripId: number, options?: { refreshList?: boolean }) => {
       if (loading.value) return;
@@ -130,6 +188,7 @@ export default component$(() => {
           await refreshTrips$(tripId, true);
         }
         const trip = await getTripDetailsApi(tripId);
+        await resetEditingSurface$();
         activeTripId.value = trip.id;
         activeTrip.value = trip;
         editingName.value = trip.name || "";
@@ -160,6 +219,7 @@ export default component$(() => {
       });
       createTripName.value = "";
       await refreshTrips$(trip.id);
+      await resetEditingSurface$();
       activeTrip.value = trip;
       editingName.value = trip.name || "";
       editingStatus.value = trip.status || "draft";
@@ -190,6 +250,12 @@ export default component$(() => {
       await refreshTrips$(trip.id, true);
       editingName.value = trip.name || "";
       editingStatus.value = trip.status || "draft";
+      actionFeedback.value = {
+        tone: "success",
+        title: "Trip settings saved",
+        message:
+          "Trip metadata and itinerary editing preferences were updated.",
+      };
     } catch (cause) {
       const message =
         cause instanceof TripApiError
@@ -214,6 +280,12 @@ export default component$(() => {
       await refreshTrips$(trip.id, true);
       editingName.value = trip.name || "";
       editingStatus.value = trip.status || "draft";
+      actionFeedback.value = {
+        tone: "success",
+        title: "Trip revalidated",
+        message:
+          "Fresh availability and bundle signals were applied to the current itinerary.",
+      };
     } catch (cause) {
       const message =
         cause instanceof TripApiError
@@ -227,21 +299,35 @@ export default component$(() => {
     }
   });
 
-  const onRemoveItem$ = $(async (itemId: number) => {
+  const onPreviewRemoveItem$ = $(async (item: TripItem) => {
     if (!activeTrip.value || loading.value) return;
     loading.value = true;
-    activeAction.value = `remove-item:${itemId}`;
+    activeAction.value = `preview-remove:${item.id}`;
     error.value = null;
+    actionFeedback.value = null;
 
     try {
-      const trip = await removeTripItemApi(activeTrip.value.id, itemId);
-      activeTrip.value = trip;
-      await refreshTrips$(trip.id, true);
+      const preview = await previewTripItemEditApi(
+        activeTrip.value.id,
+        item.id,
+        {
+          actionType: "remove",
+        },
+      );
+      editDraft.value = {
+        actionType: "remove",
+        itemId: item.id,
+        removedItem: toTripItemCandidate(item),
+        removedTitle: item.title,
+        originalPosition: item.position,
+      };
+      editPreview.value = preview;
+      previewItemId.value = item.id;
     } catch (cause) {
       const message =
         cause instanceof TripApiError
           ? cause.message
-          : "Failed to remove trip item.";
+          : "Failed to preview trip item removal.";
       error.value = message;
     } finally {
       loading.value = false;
@@ -249,7 +335,7 @@ export default component$(() => {
     }
   });
 
-  const onMoveItem$ = $(async (itemId: number, direction: -1 | 1) => {
+  const onPreviewMoveItem$ = $(async (itemId: number, direction: -1 | 1) => {
     if (!activeTrip.value || loading.value) return;
     const currentItems = [...activeTrip.value.items].sort(
       (a, b) => a.position - b.position,
@@ -265,20 +351,308 @@ export default component$(() => {
     const orderedItemIds = currentItems.map((item) => item.id);
 
     loading.value = true;
-    activeAction.value = `move-item:${itemId}`;
+    activeAction.value = `preview-move:${itemId}`;
     error.value = null;
+    actionFeedback.value = null;
+
     try {
-      const trip = await reorderTripItemsApi(
+      const preview = await previewTripItemEditApi(
         activeTrip.value.id,
-        orderedItemIds,
+        itemId,
+        {
+          actionType: "reorder",
+          orderedItemIds,
+        },
       );
-      activeTrip.value = trip;
-      await refreshTrips$(trip.id, true);
+      editDraft.value = {
+        actionType: "reorder",
+        itemId,
+        orderedItemIds,
+      };
+      editPreview.value = preview;
+      previewItemId.value = itemId;
     } catch (cause) {
       const message =
         cause instanceof TripApiError
           ? cause.message
-          : "Failed to reorder trip items.";
+          : "Failed to preview itinerary reorder.";
+      error.value = message;
+    } finally {
+      loading.value = false;
+      activeAction.value = null;
+    }
+  });
+
+  const onLoadReplacementOptions$ = $(async (itemId: number) => {
+    if (!activeTrip.value || loading.value) return;
+
+    if (replacementPanelItemId.value === itemId) {
+      replacementPanelItemId.value = null;
+      return;
+    }
+
+    const cached = replacementOptions.value[itemId];
+    if (cached?.length) {
+      replacementPanelItemId.value = itemId;
+      return;
+    }
+
+    loading.value = true;
+    activeAction.value = `load-replacements:${itemId}`;
+    error.value = null;
+    actionFeedback.value = null;
+
+    try {
+      const options = await listTripItemReplacementOptionsApi(
+        activeTrip.value.id,
+        itemId,
+      );
+      replacementOptions.value = {
+        ...replacementOptions.value,
+        [itemId]: options,
+      };
+      replacementPanelItemId.value = itemId;
+    } catch (cause) {
+      const message =
+        cause instanceof TripApiError
+          ? cause.message
+          : "Failed to load replacement options.";
+      error.value = message;
+    } finally {
+      loading.value = false;
+      activeAction.value = null;
+    }
+  });
+
+  const onPreviewReplacement$ = $(
+    async (itemId: number, option: TripItemReplacementOption) => {
+      if (!activeTrip.value || loading.value) return;
+
+      loading.value = true;
+      activeAction.value = `preview-replace:${itemId}:${option.inventoryId}`;
+      error.value = null;
+      actionFeedback.value = null;
+
+      try {
+        const preview = await previewTripItemEditApi(
+          activeTrip.value.id,
+          itemId,
+          {
+            actionType: "replace",
+            candidate: option.candidate,
+          },
+        );
+        editDraft.value = {
+          actionType: "replace",
+          itemId,
+          candidate: option.candidate,
+          replacementTitle: option.title,
+        };
+        editPreview.value = preview;
+        previewItemId.value = itemId;
+      } catch (cause) {
+        const message =
+          cause instanceof TripApiError
+            ? cause.message
+            : "Failed to preview trip item replacement.";
+        error.value = message;
+      } finally {
+        loading.value = false;
+        activeAction.value = null;
+      }
+    },
+  );
+
+  const onCancelEditPreview$ = $(() => {
+    editDraft.value = null;
+    editPreview.value = null;
+    previewItemId.value = null;
+  });
+
+  const onApplyEditPreview$ = $(async () => {
+    if (!activeTrip.value || !editDraft.value || loading.value) return;
+
+    const draft = editDraft.value;
+    loading.value = true;
+    activeAction.value = `apply-edit:${draft.actionType}:${draft.itemId}`;
+    error.value = null;
+    actionFeedback.value = null;
+
+    try {
+      let trip: TripDetails;
+
+      if (draft.actionType === "reorder") {
+        trip = await reorderTripItemsApi(
+          activeTrip.value.id,
+          draft.orderedItemIds,
+        );
+        actionFeedback.value = {
+          tone: "success",
+          title: "Itinerary order updated",
+          message: "The item move was applied to the trip timeline.",
+        };
+      } else if (draft.actionType === "remove") {
+        trip = await removeTripItemApi(activeTrip.value.id, draft.itemId);
+        undoRemoval.value = {
+          tripId: trip.id,
+          originalPosition: draft.originalPosition,
+          candidate: draft.removedItem,
+          message: `${draft.removedTitle} was removed from the itinerary.`,
+        };
+        actionFeedback.value = {
+          tone: "success",
+          title: "Item removed",
+          message:
+            "The item was removed from this itinerary. Undo is available below.",
+        };
+      } else {
+        trip = await updateTripItemApi(activeTrip.value.id, draft.itemId, {
+          candidate: draft.candidate,
+        });
+        actionFeedback.value = {
+          tone: "success",
+          title: "Item replaced",
+          message: `${draft.replacementTitle} is now in the itinerary.`,
+        };
+      }
+
+      activeTrip.value = trip;
+      await refreshTrips$(trip.id, true);
+      editDraft.value = null;
+      editPreview.value = null;
+      previewItemId.value = null;
+      replacementPanelItemId.value = null;
+    } catch (cause) {
+      const message =
+        cause instanceof TripApiError
+          ? cause.message
+          : "Failed to apply itinerary edit.";
+      error.value = message;
+    } finally {
+      loading.value = false;
+      activeAction.value = null;
+    }
+  });
+
+  const onToggleItemLock$ = $(async (item: TripItem) => {
+    if (!activeTrip.value || loading.value) return;
+    loading.value = true;
+    activeAction.value = `toggle-lock:${item.id}`;
+    error.value = null;
+    actionFeedback.value = null;
+
+    try {
+      const trip = await updateTripItemApi(activeTrip.value.id, item.id, {
+        locked: !item.locked,
+      });
+      activeTrip.value = trip;
+      await refreshTrips$(trip.id, true);
+      if (previewItemId.value === item.id) {
+        editDraft.value = null;
+        editPreview.value = null;
+        previewItemId.value = null;
+      }
+      actionFeedback.value = {
+        tone: "success",
+        title: item.locked ? "Item unlocked" : "Item locked",
+        message: item.locked
+          ? "Auto-rebalance can move this item again when enabled."
+          : "Smart logic will preserve this item during auto-rebalance.",
+      };
+    } catch (cause) {
+      const message =
+        cause instanceof TripApiError
+          ? cause.message
+          : "Failed to update item lock state.";
+      error.value = message;
+    } finally {
+      loading.value = false;
+      activeAction.value = null;
+    }
+  });
+
+  const onToggleAutoRebalance$ = $(async () => {
+    if (!activeTrip.value || loading.value) return;
+    loading.value = true;
+    activeAction.value = "toggle-auto-rebalance";
+    error.value = null;
+    actionFeedback.value = null;
+
+    try {
+      const trip = await updateTripMetadataApi(activeTrip.value.id, {
+        metadata: {
+          autoRebalance: !activeTrip.value.editing.autoRebalance,
+        },
+      });
+      activeTrip.value = trip;
+      await refreshTrips$(trip.id, true);
+      actionFeedback.value = {
+        tone: "success",
+        title: trip.editing.autoRebalance
+          ? "Auto-rebalance enabled"
+          : "Auto-rebalance disabled",
+        message: trip.editing.autoRebalance
+          ? "Replacement previews can reflow unlocked items around locked itinerary anchors."
+          : "Replacements will keep their current positions unless you move them explicitly.",
+      };
+    } catch (cause) {
+      const message =
+        cause instanceof TripApiError
+          ? cause.message
+          : "Failed to update auto-rebalance.";
+      error.value = message;
+    } finally {
+      loading.value = false;
+      activeAction.value = null;
+    }
+  });
+
+  const onDismissUndo$ = $(() => {
+    undoRemoval.value = null;
+  });
+
+  const onUndoRemove$ = $(async () => {
+    if (!undoRemoval.value || loading.value) return;
+
+    loading.value = true;
+    activeAction.value = "undo-remove";
+    error.value = null;
+
+    try {
+      let trip = await addItemToTripApi(
+        undoRemoval.value.tripId,
+        undoRemoval.value.candidate,
+      );
+
+      const orderedItems = [...trip.items].sort(
+        (a, b) => a.position - b.position,
+      );
+      const restoredItem = orderedItems[orderedItems.length - 1] || null;
+      const targetIndex = Math.min(
+        undoRemoval.value.originalPosition,
+        Math.max(orderedItems.length - 1, 0),
+      );
+
+      if (restoredItem && restoredItem.position !== targetIndex) {
+        const reorderedIds = orderedItems.map((item) => item.id);
+        reorderedIds.splice(restoredItem.position, 1);
+        reorderedIds.splice(targetIndex, 0, restoredItem.id);
+        trip = await reorderTripItemsApi(trip.id, reorderedIds);
+      }
+
+      activeTrip.value = trip;
+      await refreshTrips$(trip.id, true);
+      undoRemoval.value = null;
+      actionFeedback.value = {
+        tone: "success",
+        title: "Removal undone",
+        message: "The removed itinerary item was restored.",
+      };
+    } catch (cause) {
+      const message =
+        cause instanceof TripApiError
+          ? cause.message
+          : "Failed to restore removed item.";
       error.value = message;
     } finally {
       loading.value = false;
@@ -297,6 +671,11 @@ export default component$(() => {
       const trip = await addItemToTripApi(activeTrip.value.id, candidate);
       activeTrip.value = trip;
       await refreshTrips$(trip.id, true);
+      actionFeedback.value = {
+        tone: "success",
+        title: "Suggestion added",
+        message: "The suggested inventory was added to the itinerary.",
+      };
     } catch (cause) {
       const message =
         cause instanceof TripApiError
@@ -328,6 +707,7 @@ export default component$(() => {
       }
 
       const trip = await getTripDetailsApi(nextTripId);
+      await resetEditingSurface$();
       activeTripId.value = trip.id;
       activeTrip.value = trip;
       editingName.value = trip.name || "";
@@ -416,6 +796,16 @@ export default component$(() => {
           state="failed"
           title="Trip update failed"
           message={error.value}
+        />
+      ) : null}
+
+      {actionFeedback.value ? (
+        <ActionFeedbackNotice
+          class="mt-4"
+          feedback={actionFeedback.value}
+          onDismiss$={$(() => {
+            actionFeedback.value = null;
+          })}
         />
       ) : null}
 
@@ -748,6 +1138,41 @@ export default component$(() => {
                       windows, and conflict states.
                     </p>
                   </div>
+
+                  <div class="min-w-[240px] rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] px-3 py-3">
+                    <div class="flex items-start justify-between gap-3">
+                      <div>
+                        <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                          Auto-rebalance
+                        </p>
+                        <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
+                          {activeTrip.value.editing.autoRebalance
+                            ? "Enabled"
+                            : "Disabled"}
+                        </p>
+                        <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                          {activeTrip.value.editing.autoRebalance
+                            ? `${activeTrip.value.editing.lockedItemCount} locked item${activeTrip.value.editing.lockedItemCount === 1 ? "" : "s"} will stay anchored during replacement reflow.`
+                            : "Replacements stay in place unless you move them explicitly."}
+                        </p>
+                      </div>
+
+                      <AsyncPendingButton
+                        class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
+                        pending={activeAction.value === "toggle-auto-rebalance"}
+                        pendingLabel="Saving..."
+                        disabled={
+                          loading.value &&
+                          activeAction.value !== "toggle-auto-rebalance"
+                        }
+                        onClick$={onToggleAutoRebalance$}
+                      >
+                        {activeTrip.value.editing.autoRebalance
+                          ? "Turn off"
+                          : "Turn on"}
+                      </AsyncPendingButton>
+                    </div>
+                  </div>
                 </div>
 
                 {activeTrip.value.items.length ? (
@@ -755,8 +1180,17 @@ export default component$(() => {
                     trip={activeTrip.value}
                     loading={loading.value}
                     pendingActionId={activeAction.value}
-                    onRemove$={onRemoveItem$}
-                    onMove$={onMoveItem$}
+                    preview={editPreview.value}
+                    previewItemId={previewItemId.value}
+                    replacementPanelItemId={replacementPanelItemId.value}
+                    replacementOptions={replacementOptions.value}
+                    onPreviewRemove$={onPreviewRemoveItem$}
+                    onPreviewMove$={onPreviewMoveItem$}
+                    onLoadReplacementOptions$={onLoadReplacementOptions$}
+                    onPreviewReplacement$={onPreviewReplacement$}
+                    onToggleLock$={onToggleItemLock$}
+                    onApplyPreview$={onApplyEditPreview$}
+                    onCancelPreview$={onCancelEditPreview$}
                   />
                 ) : (
                   <p class="mt-3 text-sm text-[color:var(--color-text-muted)]">
@@ -832,6 +1266,12 @@ export default component$(() => {
           )}
         </main>
       </section>
+
+      <UndoSnackbar
+        message={undoRemoval.value?.message || null}
+        onUndo$={onUndoRemove$}
+        onDismiss$={onDismissUndo$}
+      />
     </Page>
   );
 });
@@ -871,6 +1311,69 @@ const buildTripStatusNotice = (
         title: "Revalidating trip",
         message:
           "Fresh availability and bundle signals are loading. Current pricing stays visible until revalidation completes.",
+      };
+    }
+
+    if (actionId?.startsWith("preview-remove:")) {
+      return {
+        title: "Previewing removal",
+        message:
+          "Trip impact is being recalculated before this item is removed.",
+      };
+    }
+
+    if (actionId?.startsWith("preview-move:")) {
+      return {
+        title: "Previewing item move",
+        message:
+          "Order, timing, and coherence changes are being previewed before the move is applied.",
+      };
+    }
+
+    if (actionId?.startsWith("preview-replace:")) {
+      return {
+        title: "Previewing replacement",
+        message:
+          "Downstream itinerary impact is being recalculated for the proposed replacement.",
+      };
+    }
+
+    if (actionId?.startsWith("apply-edit:")) {
+      return {
+        title: "Applying itinerary edit",
+        message:
+          "The selected edit is being saved. Existing itinerary details stay visible until the update completes.",
+      };
+    }
+
+    if (actionId?.startsWith("load-replacements:")) {
+      return {
+        title: "Loading replacements",
+        message:
+          "Relevant alternatives are being loaded for this itinerary item.",
+      };
+    }
+
+    if (actionId?.startsWith("toggle-lock:")) {
+      return {
+        title: "Saving item lock",
+        message: "Lock preferences are being updated for this itinerary item.",
+      };
+    }
+
+    if (actionId === "toggle-auto-rebalance") {
+      return {
+        title: "Saving auto-rebalance",
+        message:
+          "Trip editing preferences are being updated for future replacements.",
+      };
+    }
+
+    if (actionId === "undo-remove") {
+      return {
+        title: "Restoring item",
+        message:
+          "The removed itinerary item is being restored to the trip surface.",
       };
     }
 
@@ -1019,8 +1522,19 @@ const TripTimeline = component$(
     trip: TripDetails;
     loading: boolean;
     pendingActionId: string | null;
-    onRemove$: QRL<(itemId: number) => Promise<void>>;
-    onMove$: QRL<(itemId: number, direction: -1 | 1) => Promise<void>>;
+    preview: TripEditPreview | null;
+    previewItemId: number | null;
+    replacementPanelItemId: number | null;
+    replacementOptions: Record<number, TripItemReplacementOption[]>;
+    onPreviewRemove$: QRL<(item: TripItem) => Promise<void>>;
+    onPreviewMove$: QRL<(itemId: number, direction: -1 | 1) => Promise<void>>;
+    onLoadReplacementOptions$: QRL<(itemId: number) => Promise<void>>;
+    onPreviewReplacement$: QRL<
+      (itemId: number, option: TripItemReplacementOption) => Promise<void>
+    >;
+    onToggleLock$: QRL<(item: TripItem) => Promise<void>>;
+    onApplyPreview$: QRL<() => Promise<void>>;
+    onCancelPreview$: QRL<() => void>;
   }) => {
     const timeline = buildTripTimeline(props.trip);
 
@@ -1088,7 +1602,10 @@ const TripTimeline = component$(
 
               <div class="mt-4 grid gap-4">
                 {group.items.map((entry) => (
-                  <div key={entry.item.id} class="grid gap-3 md:grid-cols-[112px_1fr]">
+                  <div
+                    key={entry.item.id}
+                    class="grid gap-3 md:grid-cols-[112px_1fr]"
+                  >
                     <div class="rounded-[1.25rem] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
                       <p class="text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
                         {formatTimelineTimeEyebrow(entry.item)}
@@ -1114,8 +1631,26 @@ const TripTimeline = component$(
                         total={props.trip.items.length}
                         loading={props.loading}
                         pendingActionId={props.pendingActionId}
-                        onRemove$={props.onRemove$}
-                        onMove$={props.onMove$}
+                        preview={
+                          props.previewItemId === entry.item.id
+                            ? props.preview
+                            : null
+                        }
+                        replacementOptions={
+                          props.replacementOptions[entry.item.id] || []
+                        }
+                        replacementPanelOpen={
+                          props.replacementPanelItemId === entry.item.id
+                        }
+                        onPreviewRemove$={props.onPreviewRemove$}
+                        onPreviewMove$={props.onPreviewMove$}
+                        onLoadReplacementOptions$={
+                          props.onLoadReplacementOptions$
+                        }
+                        onPreviewReplacement$={props.onPreviewReplacement$}
+                        onToggleLock$={props.onToggleLock$}
+                        onApplyPreview$={props.onApplyPreview$}
+                        onCancelPreview$={props.onCancelPreview$}
                       />
                       {entry.transitionToNext ? (
                         <TripTimelineTransitionCard
@@ -1140,8 +1675,18 @@ const TripTimelineItemCard = component$(
     total: number;
     loading: boolean;
     pendingActionId: string | null;
-    onRemove$: QRL<(itemId: number) => Promise<void>>;
-    onMove$: QRL<(itemId: number, direction: -1 | 1) => Promise<void>>;
+    preview: TripEditPreview | null;
+    replacementOptions: TripItemReplacementOption[];
+    replacementPanelOpen: boolean;
+    onPreviewRemove$: QRL<(item: TripItem) => Promise<void>>;
+    onPreviewMove$: QRL<(itemId: number, direction: -1 | 1) => Promise<void>>;
+    onLoadReplacementOptions$: QRL<(itemId: number) => Promise<void>>;
+    onPreviewReplacement$: QRL<
+      (itemId: number, option: TripItemReplacementOption) => Promise<void>
+    >;
+    onToggleLock$: QRL<(item: TripItem) => Promise<void>>;
+    onApplyPreview$: QRL<() => Promise<void>>;
+    onCancelPreview$: QRL<() => void>;
   }) => {
     const storedPrice = readStoredPriceDisplayMetadata(props.item.metadata);
     const priceDisplay = buildPriceDisplayFromMetadata(
@@ -1161,9 +1706,14 @@ const TripTimelineItemCard = component$(
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
               <span class="t-badge">{formatTimelineItemType(props.item)}</span>
-              <span class={availabilityBadgeClass(props.item.availabilityStatus)}>
+              <span
+                class={availabilityBadgeClass(props.item.availabilityStatus)}
+              >
                 {formatAvailabilityBadge(props.item.availabilityStatus)}
               </span>
+              {props.item.locked ? (
+                <span class={timelineCountBadgeClass("neutral")}>Locked</span>
+              ) : null}
               {formatTimelineContextBadge(props.item) ? (
                 <span class={timelineCountBadgeClass("neutral")}>
                   {formatTimelineContextBadge(props.item)}
@@ -1205,7 +1755,9 @@ const TripTimelineItemCard = component$(
                 <p
                   class={[
                     "text-xs font-medium",
-                    props.item.issues.some((issue) => issue.severity === "blocking")
+                    props.item.issues.some(
+                      (issue) => issue.severity === "blocking",
+                    )
                       ? "text-[color:var(--color-error,#b91c1c)]"
                       : "text-[color:var(--color-warning,#92400e)]",
                   ]}
@@ -1239,7 +1791,9 @@ const TripTimelineItemCard = component$(
 
         <details
           class="mt-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)]"
-          open={props.item.issues.some((issue) => issue.severity === "blocking")}
+          open={props.item.issues.some(
+            (issue) => issue.severity === "blocking",
+          )}
         >
           <summary class="cursor-pointer list-none px-3 py-2 text-sm font-medium text-[color:var(--color-text-strong)] [&::-webkit-details-marker]:hidden">
             <span class="flex flex-wrap items-center justify-between gap-2">
@@ -1340,51 +1894,376 @@ const TripTimelineItemCard = component$(
                   ) : null}
                 </div>
 
-                <div class="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
+                <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
                   <AsyncPendingButton
                     class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
-                    pending={props.pendingActionId === `move-item:${props.item.id}`}
-                    pendingLabel="Moving..."
+                    pending={
+                      props.pendingActionId === `preview-move:${props.item.id}`
+                    }
+                    pendingLabel="Previewing..."
                     disabled={
                       (props.loading &&
-                        props.pendingActionId !== `move-item:${props.item.id}`) ||
+                        props.pendingActionId !==
+                          `preview-move:${props.item.id}`) ||
                       props.item.position === 0
                     }
-                    onClick$={() => props.onMove$(props.item.id, -1)}
+                    onClick$={() => props.onPreviewMove$(props.item.id, -1)}
                   >
                     Move earlier
                   </AsyncPendingButton>
                   <AsyncPendingButton
                     class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
-                    pending={props.pendingActionId === `move-item:${props.item.id}`}
-                    pendingLabel="Moving..."
+                    pending={
+                      props.pendingActionId === `preview-move:${props.item.id}`
+                    }
+                    pendingLabel="Previewing..."
                     disabled={
                       (props.loading &&
-                        props.pendingActionId !== `move-item:${props.item.id}`) ||
+                        props.pendingActionId !==
+                          `preview-move:${props.item.id}`) ||
                       props.item.position >= props.total - 1
                     }
-                    onClick$={() => props.onMove$(props.item.id, 1)}
+                    onClick$={() => props.onPreviewMove$(props.item.id, 1)}
                   >
                     Move later
                   </AsyncPendingButton>
                   <AsyncPendingButton
-                    class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs text-[color:var(--color-error,#b91c1c)]"
-                    pending={props.pendingActionId === `remove-item:${props.item.id}`}
-                    pendingLabel="Removing..."
+                    class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
+                    pending={
+                      props.pendingActionId ===
+                      `load-replacements:${props.item.id}`
+                    }
+                    pendingLabel="Loading..."
                     disabled={
                       props.loading &&
-                      props.pendingActionId !== `remove-item:${props.item.id}`
+                      props.pendingActionId !==
+                        `load-replacements:${props.item.id}`
                     }
-                    onClick$={() => props.onRemove$(props.item.id)}
+                    onClick$={() =>
+                      props.onLoadReplacementOptions$(props.item.id)
+                    }
+                  >
+                    {props.replacementPanelOpen
+                      ? "Hide replacements"
+                      : "Replace item"}
+                  </AsyncPendingButton>
+                  <AsyncPendingButton
+                    class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
+                    pending={
+                      props.pendingActionId === `toggle-lock:${props.item.id}`
+                    }
+                    pendingLabel="Saving..."
+                    disabled={
+                      props.loading &&
+                      props.pendingActionId !== `toggle-lock:${props.item.id}`
+                    }
+                    onClick$={() => props.onToggleLock$(props.item)}
+                  >
+                    {props.item.locked ? "Unlock item" : "Lock item"}
+                  </AsyncPendingButton>
+                  <AsyncPendingButton
+                    class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs text-[color:var(--color-error,#b91c1c)] sm:col-span-2 lg:col-span-1"
+                    pending={
+                      props.pendingActionId ===
+                      `preview-remove:${props.item.id}`
+                    }
+                    pendingLabel="Previewing..."
+                    disabled={
+                      props.loading &&
+                      props.pendingActionId !==
+                        `preview-remove:${props.item.id}`
+                    }
+                    onClick$={() => props.onPreviewRemove$(props.item)}
                   >
                     Remove item
                   </AsyncPendingButton>
                 </div>
               </div>
             </div>
+
+            {props.replacementPanelOpen ? (
+              <TripReplacementOptionsPanel
+                item={props.item}
+                options={props.replacementOptions}
+                loading={props.loading}
+                pendingActionId={props.pendingActionId}
+                onPreviewReplacement$={props.onPreviewReplacement$}
+              />
+            ) : null}
+
+            {props.preview ? (
+              <TripEditPreviewPanel
+                preview={props.preview}
+                item={props.item}
+                loading={props.loading}
+                pendingActionId={props.pendingActionId}
+                onApplyPreview$={props.onApplyPreview$}
+                onCancelPreview$={props.onCancelPreview$}
+              />
+            ) : null}
           </div>
         </details>
       </article>
+    );
+  },
+);
+
+const TripReplacementOptionsPanel = component$(
+  (props: {
+    item: TripItem;
+    options: TripItemReplacementOption[];
+    loading: boolean;
+    pendingActionId: string | null;
+    onPreviewReplacement$: QRL<
+      (itemId: number, option: TripItemReplacementOption) => Promise<void>
+    >;
+  }) => {
+    return (
+      <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
+        <div class="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+              Replace item
+            </p>
+            <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+              Alternatives keep this itinerary controlled by previewing impact
+              before saving.
+            </p>
+          </div>
+        </div>
+
+        {props.options.length ? (
+          <div class="mt-3 grid gap-3">
+            {props.options.map((option) => (
+              <div
+                key={`${props.item.id}-${option.inventoryId}`}
+                class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] px-3 py-3"
+              >
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                      {option.title}
+                    </p>
+                    {option.subtitle ? (
+                      <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                        {option.subtitle}
+                      </p>
+                    ) : null}
+                    {option.meta.length ? (
+                      <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                        {option.meta.join(" · ")}
+                      </p>
+                    ) : null}
+                    {option.reasons.length ? (
+                      <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+                        {option.reasons.join(" · ")}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div class="text-right">
+                    <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                      {formatMoneyFromCents(
+                        option.priceCents,
+                        option.currencyCode,
+                      )}
+                    </p>
+                    <AsyncPendingButton
+                      class="mt-2 rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
+                      pending={
+                        props.pendingActionId ===
+                        `preview-replace:${props.item.id}:${option.inventoryId}`
+                      }
+                      pendingLabel="Previewing..."
+                      disabled={
+                        props.loading &&
+                        props.pendingActionId !==
+                          `preview-replace:${props.item.id}:${option.inventoryId}`
+                      }
+                      onClick$={() =>
+                        props.onPreviewReplacement$(props.item.id, option)
+                      }
+                    >
+                      Preview swap
+                    </AsyncPendingButton>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p class="mt-3 text-sm text-[color:var(--color-text-muted)]">
+            No close alternatives are available for this item right now.
+          </p>
+        )}
+      </div>
+    );
+  },
+);
+
+const TripEditPreviewPanel = component$(
+  (props: {
+    preview: TripEditPreview;
+    item: TripItem;
+    loading: boolean;
+    pendingActionId: string | null;
+    onApplyPreview$: QRL<() => Promise<void>>;
+    onCancelPreview$: QRL<() => void>;
+  }) => {
+    return (
+      <div class="mt-3 rounded-xl border border-[color:var(--color-primary-150)] bg-[color:var(--color-primary-25)] px-3 py-3">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+              Edit preview
+            </p>
+            <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
+              {formatPreviewActionLabel(props.preview, props.item)}
+            </p>
+            {props.preview.autoRebalanced ? (
+              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                Auto-rebalance kept locked items in place while reflowing the
+                rest of the itinerary.
+              </p>
+            ) : null}
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <AsyncPendingButton
+              class="rounded-lg bg-[color:var(--color-action)] px-3 py-2 text-xs font-semibold text-white"
+              pending={
+                props.pendingActionId ===
+                `apply-edit:${props.preview.actionType}:${props.item.id}`
+              }
+              pendingLabel="Applying..."
+              disabled={
+                props.loading &&
+                props.pendingActionId !==
+                  `apply-edit:${props.preview.actionType}:${props.item.id}`
+              }
+              onClick$={props.onApplyPreview$}
+            >
+              Apply change
+            </AsyncPendingButton>
+            <button
+              type="button"
+              class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
+              onClick$={props.onCancelPreview$}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-3 grid gap-3 md:grid-cols-3">
+          <PreviewStatCard
+            label="Total price"
+            summary={props.preview.priceImpact.summary}
+          />
+          <PreviewStatCard
+            label="Timing"
+            summary={props.preview.timingImpact.summary}
+          />
+          <PreviewStatCard
+            label="Coherence"
+            summary={props.preview.coherenceImpact.summary}
+          />
+        </div>
+
+        {props.preview.timingImpact.changedItems.length ? (
+          <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
+            <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+              Timing shifts
+            </p>
+            <div class="mt-2 grid gap-2">
+              {props.preview.timingImpact.changedItems.map((change) => (
+                <div
+                  key={`${change.itemId}-${change.previousLabel}-${change.nextLabel}`}
+                  class="rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] px-3 py-2"
+                >
+                  <p class="text-sm font-medium text-[color:var(--color-text-strong)]">
+                    {change.title}
+                  </p>
+                  <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                    {change.previousLabel} → {change.nextLabel}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {props.preview.limitations.length ? (
+          <div class="mt-3 rounded-xl border border-[color:var(--color-warning,#b45309)] bg-[color:var(--color-warning-soft)] px-3 py-3">
+            <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+              Preview limits
+            </p>
+            <div class="mt-2 grid gap-2">
+              {props.preview.limitations.map((entry) => (
+                <p
+                  key={entry}
+                  class="text-xs text-[color:var(--color-warning,#92400e)]"
+                >
+                  {entry}
+                </p>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  },
+);
+
+const PreviewStatCard = component$(
+  (props: { label: string; summary: string }) => {
+    return (
+      <div class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
+        <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+          {props.label}
+        </p>
+        <p class="mt-2 text-sm text-[color:var(--color-text-strong)]">
+          {props.summary}
+        </p>
+      </div>
+    );
+  },
+);
+
+const ActionFeedbackNotice = component$(
+  (props: {
+    feedback: TripActionFeedback;
+    class?: string;
+    onDismiss$: QRL<() => void>;
+  }) => {
+    return (
+      <div
+        class={[
+          "rounded-[var(--radius-xl)] border px-4 py-3 shadow-[var(--shadow-sm)]",
+          props.feedback.tone === "success"
+            ? "border-[color:var(--color-success,#0f766e)] bg-[color:rgba(15,118,110,0.08)]"
+            : "border-[color:var(--color-primary-150)] bg-[color:var(--color-primary-25)]",
+          props.class,
+        ]}
+      >
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+              {props.feedback.title}
+            </p>
+            <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+              {props.feedback.message}
+            </p>
+          </div>
+          <button
+            type="button"
+            class="text-xs text-[color:var(--color-text-muted)]"
+            onClick$={props.onDismiss$}
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
     );
   },
 );
@@ -1422,7 +2301,11 @@ const buildTripTimeline = (trip: TripDetails): TimelineDayGroup[] => {
     if (!groups.has(dayKey)) {
       const dayIssues = dedupeTimelineIssues(
         sortedItems
-          .filter((candidate) => (resolveTimelineDayKey(candidate) || `unscheduled-${candidate.id}`) === dayKey)
+          .filter(
+            (candidate) =>
+              (resolveTimelineDayKey(candidate) ||
+                `unscheduled-${candidate.id}`) === dayKey,
+          )
           .flatMap((candidate) => candidate.issues),
       );
 
@@ -1430,7 +2313,10 @@ const buildTripTimeline = (trip: TripDetails): TimelineDayGroup[] => {
         key: dayKey,
         label: dayLabel,
         shortLabel,
-        dayNumber: resolveTimelineDayNumber(trip.startDate, resolveTimelineDayKey(item)),
+        dayNumber: resolveTimelineDayNumber(
+          trip.startDate,
+          resolveTimelineDayKey(item),
+        ),
         issueCounts: {
           blocking: dayIssues.filter((issue) => issue.severity === "blocking")
             .length,
@@ -1538,12 +2424,16 @@ const buildTimelineTransition = (
     };
   }
 
-  const currentCity = current.endCityName || current.startCityName || "this stop";
+  const currentCity =
+    current.endCityName || current.startCityName || "this stop";
   const nextCity = next.startCityName || next.endCityName || "the next stop";
   const sameCity =
     normalizeTimelineCityKey(current.endCityName || current.startCityName) ===
     normalizeTimelineCityKey(next.startCityName || next.endCityName);
-  const dayGap = differenceInDays(current.endDate || current.startDate, next.startDate || next.endDate);
+  const dayGap = differenceInDays(
+    current.endDate || current.startDate,
+    next.startDate || next.endDate,
+  );
 
   if (dayGap != null && dayGap > 0) {
     return {
@@ -1587,7 +2477,9 @@ const issueReferencesPair = (
 };
 
 const normalizeTimelineCityKey = (value: string | null) => {
-  const normalized = String(value || "").trim().toLowerCase();
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
   return normalized || null;
 };
 
@@ -1640,9 +2532,7 @@ const timelineTransitionClass = (tone: TimelineTransitionTone) => {
   return "border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] text-[color:var(--color-text-muted)]";
 };
 
-const timelineCountBadgeClass = (
-  tone: TimelineTransitionTone | "neutral",
-) => {
+const timelineCountBadgeClass = (tone: TimelineTransitionTone | "neutral") => {
   if (tone === "blocking") {
     return "rounded-full border border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.08)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-error,#b91c1c)]";
   }
@@ -1816,7 +2706,10 @@ const formatTimelineSpanBadge = (item: TripItem) => {
     item.liveFlightDepartureAt &&
     item.liveFlightArrivalAt
   ) {
-    return formatDurationBetween(item.liveFlightDepartureAt, item.liveFlightArrivalAt);
+    return formatDurationBetween(
+      item.liveFlightDepartureAt,
+      item.liveFlightArrivalAt,
+    );
   }
 
   const spanDays = differenceInDays(item.startDate, item.endDate);
@@ -1893,7 +2786,10 @@ const formatDurationBetween = (start: string, end: string) => {
   const to = new Date(end);
   if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return null;
 
-  const minutes = Math.max(0, Math.round((to.getTime() - from.getTime()) / 60000));
+  const minutes = Math.max(
+    0,
+    Math.round((to.getTime() - from.getTime()) / 60000),
+  );
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
 
@@ -2191,6 +3087,37 @@ const formatSignedMoneyFromCents = (cents: number, currency: string) => {
   if (cents > 0) return `+${absolute}`;
   if (cents < 0) return `-${absolute}`;
   return absolute;
+};
+
+const toTripItemCandidate = (item: TripItem): TripItemCandidate => {
+  return {
+    itemType: item.itemType,
+    inventoryId:
+      item.itemType === "hotel"
+        ? item.hotelId || item.id
+        : item.itemType === "flight"
+          ? item.flightItineraryId || item.id
+          : item.carInventoryId || item.id,
+    startDate: item.startDate || undefined,
+    endDate: item.endDate || undefined,
+    priceCents: item.snapshotPriceCents,
+    currencyCode: item.snapshotCurrencyCode,
+    title: item.title,
+    subtitle: item.subtitle || undefined,
+    imageUrl: item.imageUrl || undefined,
+    meta: item.meta,
+    metadata: item.metadata,
+  };
+};
+
+const formatPreviewActionLabel = (preview: TripEditPreview, item: TripItem) => {
+  if (preview.actionType === "remove") {
+    return `Remove ${item.title}`;
+  }
+  if (preview.actionType === "reorder") {
+    return `Reorder ${item.title}`;
+  }
+  return `Replace ${item.title}`;
 };
 
 const parsePositiveInt = (value: string | null) => {

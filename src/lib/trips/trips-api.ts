@@ -1,4 +1,10 @@
-import type { TripDetails, TripItemCandidate, TripListItem } from '~/types/trips/trip'
+import type {
+  TripDetails,
+  TripEditPreview,
+  TripItemCandidate,
+  TripItemReplacementOption,
+  TripListItem,
+} from '~/types/trips/trip'
 
 export class TripApiError extends Error {
   constructor(
@@ -78,6 +84,24 @@ export const removeTripItemApi = async (tripId: number, itemId: number): Promise
   return payload.trip
 }
 
+export const updateTripItemApi = async (
+  tripId: number,
+  itemId: number,
+  input: {
+    locked?: boolean
+    candidate?: TripItemCandidate
+  },
+): Promise<TripDetails> => {
+  const payload = await requestJson<{ trip: TripDetails }>(
+    `/api/trips/${tripId}/items/${itemId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input || {}),
+    },
+  )
+  return payload.trip
+}
+
 export const reorderTripItemsApi = async (
   tripId: number,
   orderedItemIds: number[],
@@ -90,6 +114,45 @@ export const reorderTripItemsApi = async (
     },
   )
   return payload.trip
+}
+
+export const previewTripItemEditApi = async (
+  tripId: number,
+  itemId: number,
+  input:
+    | {
+        actionType: 'reorder'
+        orderedItemIds: number[]
+      }
+    | {
+        actionType: 'remove'
+      }
+    | {
+        actionType: 'replace'
+        candidate: TripItemCandidate
+      },
+): Promise<TripEditPreview> => {
+  const payload = await requestJson<{ preview: TripEditPreview }>(
+    `/api/trips/${tripId}/items/${itemId}/preview`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  )
+  return payload.preview
+}
+
+export const listTripItemReplacementOptionsApi = async (
+  tripId: number,
+  itemId: number,
+): Promise<TripItemReplacementOption[]> => {
+  const payload = await requestJson<{ options: TripItemReplacementOption[] }>(
+    `/api/trips/${tripId}/items/${itemId}/replace-options`,
+    {
+      method: 'GET',
+    },
+  )
+  return payload.options || []
 }
 
 export const updateTripMetadataApi = async (

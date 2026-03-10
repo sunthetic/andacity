@@ -129,6 +129,7 @@ export type TripItem = {
   tripId: number;
   itemType: TripItemType;
   position: number;
+  locked: boolean;
   title: string;
   subtitle: string | null;
   startDate: string | null;
@@ -162,6 +163,11 @@ export type TripItem = {
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+};
+
+export type TripEditingState = {
+  autoRebalance: boolean;
+  lockedItemCount: number;
 };
 
 export type TripIntelligenceSummary = {
@@ -232,9 +238,65 @@ export type TripBundlingSummary = {
 export type TripDetails = TripListItem & {
   notes: string | null;
   metadata: Record<string, unknown>;
+  editing: TripEditingState;
   citiesInvolved: string[];
   pricing: TripPricingSummary;
   intelligence: TripIntelligenceSummary;
   bundling: TripBundlingSummary;
   items: TripItem[];
+};
+
+export type TripItemReplacementOption = {
+  inventoryId: number;
+  itemType: TripItemType;
+  title: string;
+  subtitle: string | null;
+  imageUrl: string | null;
+  meta: string[];
+  priceCents: number;
+  currencyCode: string;
+  startDate: string | null;
+  endDate: string | null;
+  candidate: TripItemCandidate;
+  reasons: string[];
+};
+
+export type TripEditPreviewActionType = "reorder" | "remove" | "replace";
+
+export type TripEditTimingChange = {
+  itemId: number;
+  title: string;
+  kind: "position" | "schedule" | "position_and_schedule";
+  previousLabel: string;
+  nextLabel: string;
+};
+
+export type TripEditPriceImpact = {
+  currencyCode: string | null;
+  snapshotDeltaCents: number | null;
+  currentDeltaCents: number | null;
+  summary: string;
+};
+
+export type TripEditCoherenceImpact = {
+  status: "improved" | "unchanged" | "riskier" | "mixed";
+  blockingDelta: number;
+  warningDelta: number;
+  summary: string;
+};
+
+export type TripEditTimingImpact = {
+  summary: string;
+  changedItems: TripEditTimingChange[];
+};
+
+export type TripEditPreview = {
+  actionType: TripEditPreviewActionType;
+  trip: TripDetails;
+  autoRebalanced: boolean;
+  lockedItemIdsPreserved: number[];
+  limitations: string[];
+  priceImpact: TripEditPriceImpact;
+  timingImpact: TripEditTimingImpact;
+  coherenceImpact: TripEditCoherenceImpact;
 };
