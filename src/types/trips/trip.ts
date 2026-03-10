@@ -150,9 +150,15 @@ export type TripItem = {
   issues: TripValidationIssue[];
   startCityName: string | null;
   endCityName: string | null;
+  liveCarLocationType: "airport" | "city" | null;
+  liveCarLocationName: string | null;
   hotelId: number | null;
   flightItineraryId: number | null;
   carInventoryId: number | null;
+  liveFlightServiceDate: string | null;
+  liveFlightDepartureAt: string | null;
+  liveFlightArrivalAt: string | null;
+  liveFlightItineraryType: "one-way" | "round-trip" | null;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

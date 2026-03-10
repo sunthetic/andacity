@@ -35,6 +35,7 @@ import {
   TripApiError,
   updateTripMetadataApi,
 } from "~/lib/trips/trips-api";
+import { compareIsoDate, differenceInDays } from "~/lib/trips/date-utils";
 import type {
   TripDetails,
   TripIntelligenceSummary,
@@ -737,28 +738,26 @@ export default component$(() => {
               ) : null}
 
               <section class="t-card p-4">
-                <h2 class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                  Trip items
-                </h2>
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                      Itinerary timeline
+                    </h2>
+                    <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                      Day-grouped scheduling with clear sequencing, transfer
+                      windows, and conflict states.
+                    </p>
+                  </div>
+                </div>
 
                 {activeTrip.value.items.length ? (
-                  <div class="mt-3 grid gap-3">
-                    {activeTrip.value.items
-                      .slice()
-                      .sort((a, b) => a.position - b.position)
-                      .map((item, index) => (
-                        <TripItemRow
-                          key={item.id}
-                          item={item}
-                          index={index}
-                          total={activeTrip.value?.items.length || 0}
-                          loading={loading.value}
-                          pendingActionId={activeAction.value}
-                          onRemove$={onRemoveItem$}
-                          onMove$={onMoveItem$}
-                        />
-                      ))}
-                  </div>
+                  <TripTimeline
+                    trip={activeTrip.value}
+                    loading={loading.value}
+                    pendingActionId={activeAction.value}
+                    onRemove$={onRemoveItem$}
+                    onMove$={onMoveItem$}
+                  />
                 ) : (
                   <p class="mt-3 text-sm text-[color:var(--color-text-muted)]">
                     This trip has no items yet. Use “Add to trip” on hotel,
@@ -989,10 +988,155 @@ const VerticalSubtotalCard = component$(
   },
 );
 
-const TripItemRow = component$(
+type TimelineTransitionTone = "neutral" | "warning" | "blocking";
+
+type TimelineTransition = {
+  id: string;
+  label: string;
+  detail: string;
+  tone: TimelineTransitionTone;
+};
+
+type TimelineEntry = {
+  item: TripItem;
+  transitionToNext: TimelineTransition | null;
+};
+
+type TimelineDayGroup = {
+  key: string;
+  label: string;
+  shortLabel: string;
+  dayNumber: number | null;
+  issueCounts: {
+    blocking: number;
+    warning: number;
+  };
+  items: TimelineEntry[];
+};
+
+const TripTimeline = component$(
+  (props: {
+    trip: TripDetails;
+    loading: boolean;
+    pendingActionId: string | null;
+    onRemove$: QRL<(itemId: number) => Promise<void>>;
+    onMove$: QRL<(itemId: number, direction: -1 | 1) => Promise<void>>;
+  }) => {
+    const timeline = buildTripTimeline(props.trip);
+
+    return (
+      <div class="mt-4">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-muted)]">
+          <span class="rounded-full bg-[color:var(--color-surface-1)] px-2.5 py-1">
+            {props.trip.items.length} item
+            {props.trip.items.length === 1 ? "" : "s"}
+          </span>
+          <span class="rounded-full bg-[color:var(--color-surface-1)] px-2.5 py-1">
+            {timeline.length} day{timeline.length === 1 ? "" : "s"} on the
+            timeline
+          </span>
+          <span class="rounded-full bg-[color:var(--color-surface-1)] px-2.5 py-1">
+            {formatTripIssueSummary(props.trip.intelligence)}
+          </span>
+        </div>
+
+        <div class="mt-4 grid gap-4">
+          {timeline.map((group) => (
+            <section
+              key={group.key}
+              aria-labelledby={`timeline-day-${group.key}`}
+              class="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)]/60 p-4"
+            >
+              <div class="flex flex-wrap items-start justify-between gap-3 border-b border-[color:var(--color-divider)] pb-3">
+                <div>
+                  <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                    {group.dayNumber != null
+                      ? `Day ${group.dayNumber}`
+                      : "Unscheduled"}
+                  </p>
+                  <h3
+                    id={`timeline-day-${group.key}`}
+                    class="mt-1 text-lg font-semibold text-[color:var(--color-text-strong)]"
+                  >
+                    {group.label}
+                  </h3>
+                  <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                    {group.items.length} scheduled item
+                    {group.items.length === 1 ? "" : "s"} for {group.shortLabel}
+                  </p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                  {group.issueCounts.blocking ? (
+                    <span class={timelineCountBadgeClass("blocking")}>
+                      {group.issueCounts.blocking} blocking
+                    </span>
+                  ) : null}
+                  {group.issueCounts.warning ? (
+                    <span class={timelineCountBadgeClass("warning")}>
+                      {group.issueCounts.warning} warning
+                      {group.issueCounts.warning === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
+                  {!group.issueCounts.blocking && !group.issueCounts.warning ? (
+                    <span class={timelineCountBadgeClass("neutral")}>
+                      No conflicts surfaced
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+
+              <div class="mt-4 grid gap-4">
+                {group.items.map((entry) => (
+                  <div key={entry.item.id} class="grid gap-3 md:grid-cols-[112px_1fr]">
+                    <div class="rounded-[1.25rem] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
+                      <p class="text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                        {formatTimelineTimeEyebrow(entry.item)}
+                      </p>
+                      <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
+                        {formatTimelinePrimaryTime(entry.item)}
+                      </p>
+                      {formatTimelineSecondaryTime(entry.item) ? (
+                        <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                          {formatTimelineSecondaryTime(entry.item)}
+                        </p>
+                      ) : null}
+                      {formatTimelineSpanBadge(entry.item) ? (
+                        <p class="mt-3 inline-flex rounded-full bg-[color:var(--color-primary-50)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-primary-700,#1d4ed8)]">
+                          {formatTimelineSpanBadge(entry.item)}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div class="grid gap-3">
+                      <TripTimelineItemCard
+                        item={entry.item}
+                        total={props.trip.items.length}
+                        loading={props.loading}
+                        pendingActionId={props.pendingActionId}
+                        onRemove$={props.onRemove$}
+                        onMove$={props.onMove$}
+                      />
+                      {entry.transitionToNext ? (
+                        <TripTimelineTransitionCard
+                          transition={entry.transitionToNext}
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
+    );
+  },
+);
+
+const TripTimelineItemCard = component$(
   (props: {
     item: TripItem;
-    index: number;
     total: number;
     loading: boolean;
     pendingActionId: string | null;
@@ -1004,175 +1148,759 @@ const TripItemRow = component$(
       props.item.metadata,
       props.item.snapshotCurrencyCode,
     );
+    const detailSummary = buildTimelineDisclosureSummary(props.item);
 
     return (
-      <article class="rounded-xl border border-[color:var(--color-border)] p-3">
+      <article
+        class={[
+          "rounded-[1.25rem] border bg-[color:var(--color-surface)] p-4 shadow-[var(--shadow-sm)]",
+          tripTimelineCardClass(props.item),
+        ]}
+      >
         <div class="flex flex-wrap items-start justify-between gap-3">
-          <div>
+          <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <span class="t-badge">{props.item.itemType.toUpperCase()}</span>
+              <span class="t-badge">{formatTimelineItemType(props.item)}</span>
+              <span class={availabilityBadgeClass(props.item.availabilityStatus)}>
+                {formatAvailabilityBadge(props.item.availabilityStatus)}
+              </span>
+              {formatTimelineContextBadge(props.item) ? (
+                <span class={timelineCountBadgeClass("neutral")}>
+                  {formatTimelineContextBadge(props.item)}
+                </span>
+              ) : null}
               {props.item.issues.length ? (
                 <span class={issueBadgeClass(props.item.issues)}>
                   {formatItemIssueBadge(props.item.issues)}
                 </span>
               ) : null}
-              <span class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                {props.item.title}
-              </span>
             </div>
-            {props.item.subtitle ? (
-              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+
+            <h3 class="mt-3 text-base font-semibold text-[color:var(--color-text-strong)]">
+              {props.item.title}
+            </h3>
+
+            <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+              {formatTimelineRouteDisplay(props.item)}
+            </p>
+
+            <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+              {formatTimelineScheduleSummary(props.item)}
+            </p>
+
+            {shouldShowTimelineSubtitle(props.item) ? (
+              <p class="mt-2 text-sm text-[color:var(--color-text)]">
                 {props.item.subtitle}
               </p>
             ) : null}
-            <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-              {formatTripDateRange(props.item.startDate, props.item.endDate)}
-              {(props.item.startCityName || props.item.endCityName) &&
-              props.item.startCityName !== props.item.endCityName
-                ? ` · ${props.item.startCityName || "Unknown"} → ${props.item.endCityName || "Unknown"}`
-                : props.item.startCityName
-                  ? ` · ${props.item.startCityName}`
-                  : ""}
-            </p>
-            {props.item.meta.length ? (
-              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                {props.item.meta.join(" · ")}
+
+            {formatTimelineMetaSummary(props.item) ? (
+              <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+                {formatTimelineMetaSummary(props.item)}
               </p>
             ) : null}
-            <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
-              Snapshotted {formatDateTime(props.item.snapshotTimestamp)}
-            </p>
-            <div class="mt-2">
-              <AvailabilityConfidence
-                confidence={props.item.availabilityConfidence}
-                compact={false}
-                showSupport={Boolean(
-                  props.item.availabilityConfidence.supportText,
-                )}
-              />
-            </div>
+
             {props.item.issues.length ? (
-              <div class="mt-2 grid gap-1">
-                {props.item.issues.slice(0, 2).map((issue) => (
-                  <p
-                    key={`${issue.code}-${issue.message}`}
-                    class={[
-                      "text-xs",
-                      issue.severity === "blocking"
-                        ? "text-[color:var(--color-error,#b91c1c)]"
-                        : "text-[color:var(--color-warning,#92400e)]",
-                    ]}
-                  >
-                    {issue.message}
-                  </p>
-                ))}
+              <div class="mt-3 rounded-xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] px-3 py-2">
+                <p
+                  class={[
+                    "text-xs font-medium",
+                    props.item.issues.some((issue) => issue.severity === "blocking")
+                      ? "text-[color:var(--color-error,#b91c1c)]"
+                      : "text-[color:var(--color-warning,#92400e)]",
+                  ]}
+                >
+                  {props.item.issues[0]?.message}
+                </p>
               </div>
             ) : null}
           </div>
 
-          <div class="min-w-[200px] text-right">
+          <div class="min-w-[200px] rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] px-3 py-3 text-left md:text-right">
             <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
               {formatTripItemSnapshotLabel(props.item)}
             </p>
-            <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
+            <p class="mt-1 text-lg font-semibold text-[color:var(--color-text-strong)]">
               {formatMoneyFromCents(
                 props.item.snapshotPriceCents,
                 props.item.snapshotCurrencyCode,
               )}
             </p>
-            {priceDisplay?.baseTotalAmount != null ? (
-              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                {priceDisplay.baseLabel}{" "}
-                <span class="font-medium text-[color:var(--color-text)]">
-                  {formatMoneyFromCents(
-                    storedPrice?.baseAmountCents,
-                    props.item.snapshotCurrencyCode,
-                  )}
-                </span>{" "}
-                {formatPriceQualifier(priceDisplay.baseQualifier)}
-              </p>
-            ) : null}
-            {priceDisplay?.totalAmount != null &&
-            priceDisplay?.estimatedFeesAmount != null ? (
-              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                {priceDisplay.totalLabel}{" "}
-                <span class="font-medium text-[color:var(--color-text)]">
-                  {formatMoneyFromCents(
-                    storedPrice?.totalAmountCents,
-                    props.item.snapshotCurrencyCode,
-                  )}
-                </span>
-                <span class="ml-1">
-                  incl.{" "}
-                  {formatMoneyFromCents(
-                    storedPrice?.estimatedFeesAmountCents,
-                    props.item.snapshotCurrencyCode,
-                  )}{" "}
-                  est.
-                </span>
-              </p>
-            ) : null}
-            {priceDisplay?.supportText ? (
-              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                {priceDisplay.supportText}
-              </p>
-            ) : null}
             <p
               class={[
-                "mt-1 text-xs font-medium",
+                "mt-2 text-xs font-medium",
                 driftToneClass(props.item.priceDriftStatus),
               ]}
             >
               {formatItemDrift(props.item)}
             </p>
-            <div class="mt-3 flex flex-wrap justify-end gap-2">
-              <AsyncPendingButton
-                class="rounded-lg border border-[color:var(--color-border)] px-2 py-1 text-xs"
-                pending={props.pendingActionId === `move-item:${props.item.id}`}
-                pendingLabel="Moving..."
-                disabled={
-                  (props.loading &&
-                    props.pendingActionId !== `move-item:${props.item.id}`) ||
-                  props.index === 0
-                }
-                onClick$={() => props.onMove$(props.item.id, -1)}
-              >
-                Up
-              </AsyncPendingButton>
-              <AsyncPendingButton
-                class="rounded-lg border border-[color:var(--color-border)] px-2 py-1 text-xs"
-                pending={props.pendingActionId === `move-item:${props.item.id}`}
-                pendingLabel="Moving..."
-                disabled={
-                  (props.loading &&
-                    props.pendingActionId !== `move-item:${props.item.id}`) ||
-                  props.index >= props.total - 1
-                }
-                onClick$={() => props.onMove$(props.item.id, 1)}
-              >
-                Down
-              </AsyncPendingButton>
-              <AsyncPendingButton
-                class="rounded-lg border border-[color:var(--color-border)] px-2 py-1 text-xs text-[color:var(--color-error,#b91c1c)]"
-                pending={
-                  props.pendingActionId === `remove-item:${props.item.id}`
-                }
-                pendingLabel="Removing..."
-                disabled={
-                  props.loading &&
-                  props.pendingActionId !== `remove-item:${props.item.id}`
-                }
-                onClick$={() => props.onRemove$(props.item.id)}
-              >
-                Remove
-              </AsyncPendingButton>
-            </div>
           </div>
         </div>
+
+        <details
+          class="mt-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)]"
+          open={props.item.issues.some((issue) => issue.severity === "blocking")}
+        >
+          <summary class="cursor-pointer list-none px-3 py-2 text-sm font-medium text-[color:var(--color-text-strong)] [&::-webkit-details-marker]:hidden">
+            <span class="flex flex-wrap items-center justify-between gap-2">
+              <span>{detailSummary}</span>
+              <span class="text-xs text-[color:var(--color-text-muted)]">
+                Expand or collapse
+              </span>
+            </span>
+          </summary>
+
+          <div class="border-t border-[color:var(--color-divider)] px-3 py-3">
+            <div class="grid gap-3 lg:grid-cols-[1fr_220px]">
+              <div>
+                <div class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
+                  <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                    Availability
+                  </p>
+                  <div class="mt-2">
+                    <AvailabilityConfidence
+                      confidence={props.item.availabilityConfidence}
+                      compact={false}
+                      showSupport={Boolean(
+                        props.item.availabilityConfidence.supportText,
+                      )}
+                    />
+                  </div>
+                  <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+                    Snapshotted {formatDateTime(props.item.snapshotTimestamp)}
+                  </p>
+                </div>
+
+                {props.item.issues.length ? (
+                  <div class="mt-3 grid gap-2">
+                    {props.item.issues.map((issue) => (
+                      <div
+                        key={`${issue.code}-${issue.message}-${issue.itemId || "trip"}`}
+                        class={[
+                          "rounded-xl border px-3 py-2 text-sm",
+                          issue.severity === "blocking"
+                            ? "border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.06)] text-[color:var(--color-error,#b91c1c)]"
+                            : "border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] text-[color:var(--color-warning,#92400e)]",
+                        ]}
+                      >
+                        {issue.message}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              <div class="grid gap-3">
+                <div class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
+                  <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                    Price detail
+                  </p>
+                  <p class="mt-2 text-sm font-semibold text-[color:var(--color-text-strong)]">
+                    {formatMoneyFromCents(
+                      props.item.snapshotPriceCents,
+                      props.item.snapshotCurrencyCode,
+                    )}
+                  </p>
+                  {priceDisplay?.baseTotalAmount != null ? (
+                    <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+                      {priceDisplay.baseLabel}{" "}
+                      <span class="font-medium text-[color:var(--color-text)]">
+                        {formatMoneyFromCents(
+                          storedPrice?.baseAmountCents,
+                          props.item.snapshotCurrencyCode,
+                        )}
+                      </span>{" "}
+                      {formatPriceQualifier(priceDisplay.baseQualifier)}
+                    </p>
+                  ) : null}
+                  {priceDisplay?.totalAmount != null &&
+                  priceDisplay?.estimatedFeesAmount != null ? (
+                    <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                      {priceDisplay.totalLabel}{" "}
+                      <span class="font-medium text-[color:var(--color-text)]">
+                        {formatMoneyFromCents(
+                          storedPrice?.totalAmountCents,
+                          props.item.snapshotCurrencyCode,
+                        )}
+                      </span>
+                      <span class="ml-1">
+                        incl.{" "}
+                        {formatMoneyFromCents(
+                          storedPrice?.estimatedFeesAmountCents,
+                          props.item.snapshotCurrencyCode,
+                        )}{" "}
+                        est.
+                      </span>
+                    </p>
+                  ) : null}
+                  {priceDisplay?.supportText ? (
+                    <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+                      {priceDisplay.supportText}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div class="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
+                  <AsyncPendingButton
+                    class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
+                    pending={props.pendingActionId === `move-item:${props.item.id}`}
+                    pendingLabel="Moving..."
+                    disabled={
+                      (props.loading &&
+                        props.pendingActionId !== `move-item:${props.item.id}`) ||
+                      props.item.position === 0
+                    }
+                    onClick$={() => props.onMove$(props.item.id, -1)}
+                  >
+                    Move earlier
+                  </AsyncPendingButton>
+                  <AsyncPendingButton
+                    class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
+                    pending={props.pendingActionId === `move-item:${props.item.id}`}
+                    pendingLabel="Moving..."
+                    disabled={
+                      (props.loading &&
+                        props.pendingActionId !== `move-item:${props.item.id}`) ||
+                      props.item.position >= props.total - 1
+                    }
+                    onClick$={() => props.onMove$(props.item.id, 1)}
+                  >
+                    Move later
+                  </AsyncPendingButton>
+                  <AsyncPendingButton
+                    class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs text-[color:var(--color-error,#b91c1c)]"
+                    pending={props.pendingActionId === `remove-item:${props.item.id}`}
+                    pendingLabel="Removing..."
+                    disabled={
+                      props.loading &&
+                      props.pendingActionId !== `remove-item:${props.item.id}`
+                    }
+                    onClick$={() => props.onRemove$(props.item.id)}
+                  >
+                    Remove item
+                  </AsyncPendingButton>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
       </article>
     );
   },
 );
+
+const TripTimelineTransitionCard = component$(
+  (props: { transition: TimelineTransition }) => {
+    return (
+      <div
+        class={[
+          "rounded-xl border px-3 py-2 text-sm",
+          timelineTransitionClass(props.transition.tone),
+        ]}
+      >
+        <p class="font-medium">{props.transition.label}</p>
+        <p class="mt-1 text-xs opacity-80">{props.transition.detail}</p>
+      </div>
+    );
+  },
+);
+
+const buildTripTimeline = (trip: TripDetails): TimelineDayGroup[] => {
+  const sortedItems = trip.items.slice().sort(compareTimelineItems);
+  const groups = new Map<string, TimelineDayGroup>();
+
+  for (const [index, item] of sortedItems.entries()) {
+    const next = sortedItems[index + 1] || null;
+    const dayKey = resolveTimelineDayKey(item) || `unscheduled-${item.id}`;
+    const dayLabel = resolveTimelineDayKey(item)
+      ? formatTimelineDayLabel(dayKey)
+      : "Unscheduled item";
+    const shortLabel = resolveTimelineDayKey(item)
+      ? formatTimelineDayShortLabel(dayKey)
+      : "no assigned day";
+
+    if (!groups.has(dayKey)) {
+      const dayIssues = dedupeTimelineIssues(
+        sortedItems
+          .filter((candidate) => (resolveTimelineDayKey(candidate) || `unscheduled-${candidate.id}`) === dayKey)
+          .flatMap((candidate) => candidate.issues),
+      );
+
+      groups.set(dayKey, {
+        key: dayKey,
+        label: dayLabel,
+        shortLabel,
+        dayNumber: resolveTimelineDayNumber(trip.startDate, resolveTimelineDayKey(item)),
+        issueCounts: {
+          blocking: dayIssues.filter((issue) => issue.severity === "blocking")
+            .length,
+          warning: dayIssues.filter((issue) => issue.severity === "warning")
+            .length,
+        },
+        items: [],
+      });
+    }
+
+    groups.get(dayKey)?.items.push({
+      item,
+      transitionToNext: next ? buildTimelineTransition(item, next) : null,
+    });
+  }
+
+  return [...groups.values()];
+};
+
+const compareTimelineItems = (left: TripItem, right: TripItem) => {
+  const dayOrder = compareIsoDate(
+    resolveTimelineDayKey(left),
+    resolveTimelineDayKey(right),
+  );
+  if (dayOrder != null) return dayOrder;
+
+  const leftStart = resolveTimelineSortTimestamp(left);
+  const rightStart = resolveTimelineSortTimestamp(right);
+  if (leftStart && rightStart && leftStart !== rightStart) {
+    return leftStart < rightStart ? -1 : 1;
+  }
+
+  return left.position - right.position || left.id - right.id;
+};
+
+const resolveTimelineDayKey = (item: TripItem) => {
+  return item.liveFlightServiceDate || item.startDate || item.endDate || null;
+};
+
+const resolveTimelineSortTimestamp = (item: TripItem) => {
+  if (item.itemType === "flight") {
+    return (
+      item.liveFlightDepartureAt ||
+      item.liveFlightArrivalAt ||
+      (item.liveFlightServiceDate
+        ? `${item.liveFlightServiceDate}T00:00:00.000Z`
+        : null)
+    );
+  }
+
+  return item.startDate ? `${item.startDate}T00:00:00.000Z` : null;
+};
+
+const resolveTimelineDayNumber = (
+  tripStartDate: string | null,
+  dayKey: string | null,
+) => {
+  const offset = differenceInDays(tripStartDate, dayKey);
+  return offset == null || offset < 0 ? null : offset + 1;
+};
+
+const dedupeTimelineIssues = (issues: TripValidationIssue[]) => {
+  const seen = new Set<string>();
+  const next: TripValidationIssue[] = [];
+
+  for (const issue of issues) {
+    const key = [
+      issue.code,
+      issue.severity,
+      issue.message,
+      issue.itemId || "",
+      (issue.relatedItemIds || []).join(","),
+    ].join("|");
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    next.push(issue);
+  }
+
+  return next;
+};
+
+const buildTimelineTransition = (
+  current: TripItem,
+  next: TripItem,
+): TimelineTransition => {
+  const pairIssues = dedupeTimelineIssues(
+    [...current.issues, ...next.issues].filter((issue) =>
+      issueReferencesPair(issue, current.id, next.id),
+    ),
+  );
+  const primaryIssue = pairIssues[0] || null;
+  const tone: TimelineTransitionTone = primaryIssue
+    ? primaryIssue.severity === "blocking"
+      ? "blocking"
+      : "warning"
+    : "neutral";
+
+  if (primaryIssue) {
+    return {
+      id: `${current.id}-${next.id}-${primaryIssue.code}`,
+      label: formatTimelineIssueLabel(primaryIssue.code),
+      detail: primaryIssue.message,
+      tone,
+    };
+  }
+
+  const currentCity = current.endCityName || current.startCityName || "this stop";
+  const nextCity = next.startCityName || next.endCityName || "the next stop";
+  const sameCity =
+    normalizeTimelineCityKey(current.endCityName || current.startCityName) ===
+    normalizeTimelineCityKey(next.startCityName || next.endCityName);
+  const dayGap = differenceInDays(current.endDate || current.startDate, next.startDate || next.endDate);
+
+  if (dayGap != null && dayGap > 0) {
+    return {
+      id: `${current.id}-${next.id}-gap`,
+      label: sameCity
+        ? `${formatTimelineGap(dayGap)} buffer`
+        : `${formatTimelineGap(dayGap)} to change cities`,
+      detail: sameCity
+        ? `${current.title} ends before ${next.title} begins in ${nextCity}.`
+        : `${currentCity} → ${nextCity} before ${next.title}.`,
+      tone,
+    };
+  }
+
+  if (!sameCity) {
+    return {
+      id: `${current.id}-${next.id}-transfer`,
+      label: "City transfer",
+      detail: `${currentCity} → ${nextCity}`,
+      tone,
+    };
+  }
+
+  return {
+    id: `${current.id}-${next.id}-handoff`,
+    label: "Same-day handoff",
+    detail: `${next.title} continues in ${nextCity}.`,
+    tone,
+  };
+};
+
+const issueReferencesPair = (
+  issue: TripValidationIssue,
+  currentId: number,
+  nextId: number,
+) => {
+  return (
+    (issue.itemId === currentId && issue.relatedItemIds?.includes(nextId)) ||
+    (issue.itemId === nextId && issue.relatedItemIds?.includes(currentId))
+  );
+};
+
+const normalizeTimelineCityKey = (value: string | null) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized || null;
+};
+
+const formatTimelineIssueLabel = (code: string) => {
+  if (code === "overlapping_hotels" || code === "overlapping_cars") {
+    return "Overlap detected";
+  }
+  if (
+    code === "arrival_city_hotel_mismatch" ||
+    code === "arrival_city_car_mismatch"
+  ) {
+    return "Arrival city mismatch";
+  }
+  if (code === "car_pickup_before_arrival") {
+    return "Pickup starts before arrival";
+  }
+  if (code === "tight_same_day_car_pickup") {
+    return "Tight transfer window";
+  }
+  if (code === "same_day_city_transition") {
+    return "Missing transfer segment";
+  }
+  if (code === "flight_hotel_timing_conflict") {
+    return "Timing conflict";
+  }
+  return "Timing needs review";
+};
+
+const formatTimelineGap = (days: number) => {
+  return `${days}-day`;
+};
+
+const tripTimelineCardClass = (item: TripItem) => {
+  if (item.issues.some((issue) => issue.severity === "blocking")) {
+    return "border-[color:var(--color-error,#b91c1c)]";
+  }
+  if (item.issues.length) {
+    return "border-[color:var(--color-warning,#b45309)]";
+  }
+  return "border-[color:var(--color-border)]";
+};
+
+const timelineTransitionClass = (tone: TimelineTransitionTone) => {
+  if (tone === "blocking") {
+    return "border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.06)] text-[color:var(--color-error,#b91c1c)]";
+  }
+  if (tone === "warning") {
+    return "border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] text-[color:var(--color-warning,#92400e)]";
+  }
+  return "border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] text-[color:var(--color-text-muted)]";
+};
+
+const timelineCountBadgeClass = (
+  tone: TimelineTransitionTone | "neutral",
+) => {
+  if (tone === "blocking") {
+    return "rounded-full border border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.08)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-error,#b91c1c)]";
+  }
+  if (tone === "warning") {
+    return "rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-warning,#92400e)]";
+  }
+  return "rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]";
+};
+
+const availabilityBadgeClass = (status: TripItem["availabilityStatus"]) => {
+  if (status === "unavailable") {
+    return timelineCountBadgeClass("blocking");
+  }
+  if (status === "stale") {
+    return timelineCountBadgeClass("warning");
+  }
+  return timelineCountBadgeClass("neutral");
+};
+
+const formatAvailabilityBadge = (status: TripItem["availabilityStatus"]) => {
+  if (status === "unavailable") return "Unavailable";
+  if (status === "stale") return "Needs recheck";
+  if (status === "price_only_changed") return "Price changed";
+  return "Available";
+};
+
+const formatTimelineItemType = (item: TripItem) => {
+  if (item.itemType === "hotel") return "HOTEL";
+  if (item.itemType === "flight") return "FLIGHT";
+  return "CAR";
+};
+
+const formatTimelineContextBadge = (item: TripItem) => {
+  if (item.itemType === "flight" && item.liveFlightItineraryType) {
+    return item.liveFlightItineraryType === "round-trip"
+      ? "Round trip fare"
+      : "One-way fare";
+  }
+  if (item.itemType === "car" && item.liveCarLocationType) {
+    return item.liveCarLocationType === "airport"
+      ? "Airport pickup"
+      : "City pickup";
+  }
+  return null;
+};
+
+const readFlightAirportRoute = (item: TripItem) => {
+  if (item.itemType !== "flight" || !item.subtitle) return null;
+  const normalized = item.subtitle.replace(/\s*->\s*/g, " → ").trim();
+  return /\([A-Z]{3}\)/.test(normalized) && normalized.includes("→")
+    ? normalized
+    : null;
+};
+
+const formatTimelineRoute = (item: TripItem) => {
+  const start = item.startCityName || "Unknown";
+  const end = item.endCityName || item.startCityName || "Unknown";
+  if (start === end) return start;
+  return `${start} → ${end}`;
+};
+
+const formatTimelineRouteDisplay = (item: TripItem) => {
+  return readFlightAirportRoute(item) || formatTimelineRoute(item);
+};
+
+const extractFlightStopLabel = (item: TripItem) => {
+  return (
+    item.meta.find((entry) => {
+      const normalized = entry.trim().toLowerCase();
+      return normalized === "nonstop" || normalized.includes("stop");
+    }) || null
+  );
+};
+
+const formatTimelineScheduleSummary = (item: TripItem) => {
+  if (
+    item.itemType === "flight" &&
+    item.liveFlightDepartureAt &&
+    item.liveFlightArrivalAt
+  ) {
+    const arrivalDay = item.liveFlightArrivalAt.slice(0, 10);
+    const crossesDay =
+      item.liveFlightServiceDate && arrivalDay !== item.liveFlightServiceDate;
+    const stopLabel = extractFlightStopLabel(item);
+
+    return [
+      `${formatTimeUtcCompact(item.liveFlightDepartureAt)} → ${formatTimeUtcCompact(item.liveFlightArrivalAt)} UTC`,
+      formatDurationBetween(
+        item.liveFlightDepartureAt,
+        item.liveFlightArrivalAt,
+      ),
+      stopLabel,
+      crossesDay ? `arrives ${formatDate(arrivalDay)}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
+  if (item.itemType === "hotel") {
+    return `${formatTripDateRange(item.startDate, item.endDate)} stay`;
+  }
+
+  if (item.itemType === "car") {
+    return `${formatTripDateRange(item.startDate, item.endDate)} rental`;
+  }
+
+  return formatTripDateRange(item.startDate, item.endDate);
+};
+
+const shouldShowTimelineSubtitle = (item: TripItem) => {
+  if (!item.subtitle) return false;
+  if (item.itemType === "flight" && readFlightAirportRoute(item)) return false;
+  return item.subtitle.trim() !== formatTimelineRoute(item);
+};
+
+const formatTimelineMetaSummary = (item: TripItem) => {
+  if (item.itemType === "flight") {
+    const freshnessParts = [
+      formatAvailabilityBadge(item.availabilityStatus),
+      item.freshness?.checkedLabel || null,
+      item.freshness?.relativeLabel || null,
+    ].filter(Boolean);
+
+    if (freshnessParts.length) {
+      return freshnessParts.join(" · ");
+    }
+  }
+
+  if (!item.meta.length) return null;
+
+  if (item.itemType === "flight") {
+    const stopLabel = extractFlightStopLabel(item);
+    const filtered = item.meta.filter((entry) => entry !== stopLabel);
+    return filtered.length ? filtered.join(" · ") : null;
+  }
+
+  return item.meta.join(" · ");
+};
+
+const formatTimelineTimeEyebrow = (item: TripItem) => {
+  if (item.itemType === "flight") return "Departure";
+  if (item.itemType === "hotel") return "Stay";
+  return "Pickup";
+};
+
+const formatTimelinePrimaryTime = (item: TripItem) => {
+  if (item.itemType === "flight" && item.liveFlightDepartureAt) {
+    return formatTimeUtc(item.liveFlightDepartureAt);
+  }
+  return "Date only";
+};
+
+const formatTimelineSecondaryTime = (item: TripItem) => {
+  if (item.itemType === "flight" && item.liveFlightArrivalAt) {
+    const arrivalDay = item.liveFlightArrivalAt.slice(0, 10);
+    const arrivalLabel = formatTimeUtc(item.liveFlightArrivalAt);
+    const crossesDay =
+      item.liveFlightServiceDate && arrivalDay !== item.liveFlightServiceDate;
+    return crossesDay
+      ? `Arrives ${arrivalLabel} on ${formatDate(arrivalDay)}`
+      : `Arrives ${arrivalLabel}`;
+  }
+  if (item.itemType === "hotel") return "Check-in and checkout dates only";
+  if (item.itemType === "car") return "Pickup and drop-off dates only";
+  return null;
+};
+
+const formatTimelineSpanBadge = (item: TripItem) => {
+  if (
+    item.itemType === "flight" &&
+    item.liveFlightDepartureAt &&
+    item.liveFlightArrivalAt
+  ) {
+    return formatDurationBetween(item.liveFlightDepartureAt, item.liveFlightArrivalAt);
+  }
+
+  const spanDays = differenceInDays(item.startDate, item.endDate);
+  if (spanDays == null || spanDays <= 0) return null;
+
+  if (item.itemType === "hotel") {
+    return `${spanDays} night${spanDays === 1 ? "" : "s"}`;
+  }
+  if (item.itemType === "car") {
+    return `${spanDays} day${spanDays === 1 ? "" : "s"}`;
+  }
+
+  return null;
+};
+
+const buildTimelineDisclosureSummary = (item: TripItem) => {
+  if (item.issues.length) {
+    return "Pricing, availability, conflicts, and controls";
+  }
+  return "Pricing, availability, and controls";
+};
+
+const formatTimelineDayLabel = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const [year, month, day] = value
+    .split("-")
+    .map((part) => Number.parseInt(part, 10));
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+};
+
+const formatTimelineDayShortLabel = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const [year, month, day] = value
+    .split("-")
+    .map((part) => Number.parseInt(part, 10));
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+};
+
+const formatTimeUtc = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return `${new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+  }).format(date)} UTC`;
+};
+
+const formatTimeUtcCompact = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).format(date);
+};
+
+const formatDurationBetween = (start: string, end: string) => {
+  const from = new Date(start);
+  const to = new Date(end);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return null;
+
+  const minutes = Math.max(0, Math.round((to.getTime() - from.getTime()) / 60000));
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+
+  if (!hours) return `${remainder}m travel`;
+  if (!remainder) return `${hours}h travel`;
+  return `${hours}h ${remainder}m travel`;
+};
 
 const formatTripDateRange = (
   startDate: string | null,
