@@ -78,6 +78,7 @@
     "seed:generate:120": "node scripts/seed/generate.mjs --vertical all --horizon-days 120",
     "seed:generate:180": "node scripts/seed/generate.mjs --vertical all --horizon-days 180",
     "seed:regenerate": "node scripts/seed/generate.mjs --vertical all",
+    "qa:guided-booking": "node scripts/validate/guided-booking-qa.mjs",
     "smoke:trips": "node scripts/validate/trip-pricing-smoke.mjs",
     "start": "vite --open --mode ssr",
     "qwik": "qwik"
