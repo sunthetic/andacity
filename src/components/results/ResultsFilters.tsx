@@ -1,4 +1,4 @@
-import { Slot, component$ } from "@builder.io/qwik";
+import { Slot, component$, type QRL } from "@builder.io/qwik";
 
 export const ResultsFilters = component$((props: ResultsFiltersProps) => {
   return (
@@ -8,9 +8,37 @@ export const ResultsFilters = component$((props: ResultsFiltersProps) => {
         props.class,
       ]}
     >
-      <h3 class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-        {props.title || "Filters"}
-      </h3>
+      <div class="flex items-center justify-between gap-3">
+        <h3 class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+          {props.title || "Filters"}
+        </h3>
+        {props.actionLabel ? (
+          props.actionHref ? (
+            <a
+              href={props.actionHref}
+              aria-disabled={props.actionDisabled || undefined}
+              tabIndex={props.actionDisabled ? -1 : undefined}
+              class={[
+                "text-xs font-medium text-[color:var(--color-action)] hover:underline",
+                props.actionDisabled
+                  ? "pointer-events-none opacity-60"
+                  : null,
+              ]}
+            >
+              {props.actionLabel}
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled={props.actionDisabled}
+              class="text-xs font-medium text-[color:var(--color-action)] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+              onClick$={props.onAction$}
+            >
+              {props.actionLabel}
+            </button>
+          )
+        ) : null}
+      </div>
       <div class="mt-3">
         <Slot />
       </div>
@@ -21,4 +49,8 @@ export const ResultsFilters = component$((props: ResultsFiltersProps) => {
 type ResultsFiltersProps = {
   title?: string;
   class?: string;
+  actionLabel?: string;
+  actionHref?: string;
+  actionDisabled?: boolean;
+  onAction$?: QRL<() => void>;
 };

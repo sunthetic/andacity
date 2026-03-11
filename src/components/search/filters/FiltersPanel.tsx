@@ -1,27 +1,18 @@
 import { component$ } from "@builder.io/qwik";
 import type { QRL } from "@builder.io/qwik";
+import { ResultsFilters } from "~/components/results/ResultsFilters";
 import { FilterSection } from "./FilterSection";
 import type { FilterSectionConfig, FilterValues } from "./types";
 
 export const FiltersPanel = component$((props: FiltersPanelProps) => {
   return (
-    <aside
-      class={["t-panel p-4 md:p-5", props.class].filter(Boolean).join(" ")}
+    <ResultsFilters
+      title={props.title ?? "Filters"}
+      class={props.class}
+      actionLabel="Clear"
+      actionDisabled={props.disabled}
+      onAction$={props.onReset$}
     >
-      <div class="mb-4 flex items-center justify-between gap-3">
-        <h3 class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-          {props.title ?? "Filters"}
-        </h3>
-        <button
-          type="button"
-          class="text-xs font-medium text-[color:var(--color-action)] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={props.disabled}
-          onClick$={props.onReset$}
-        >
-          Clear
-        </button>
-      </div>
-
       <div class="grid gap-4">
         {props.sections.map((section) => (
           <FilterSection
@@ -34,7 +25,7 @@ export const FiltersPanel = component$((props: FiltersPanelProps) => {
           />
         ))}
       </div>
-    </aside>
+    </ResultsFilters>
   );
 });
 

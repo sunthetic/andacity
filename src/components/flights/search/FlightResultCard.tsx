@@ -1,51 +1,80 @@
 import { component$ } from '@builder.io/qwik'
-import { AvailabilityConfidence } from '~/components/inventory/AvailabilityConfidence'
+import {
+  ResultCardScaffold,
+  ResultFactGrid,
+  ResultPricePanel,
+  ResultTrustBar,
+} from '~/components/results/ResultCardScaffold'
+import { buildFlightPriceDisplay } from '~/lib/pricing/price-display'
 import type { FlightResult } from '~/types/flights/search'
 
 export const FlightResultCard = component$(({ flight }: FlightResultCardProps) => {
+  const priceDisplay = buildFlightPriceDisplay({
+    currencyCode: flight.currency,
+    fare: flight.price,
+    travelers: 1,
+  })
+
   return (
-    <article class="t-card overflow-hidden p-5 hover:bg-white">
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <div class="text-base font-semibold text-[color:var(--color-text-strong)]">{flight.airline}</div>
-          <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-            {flight.origin} → {flight.destination} · {flight.stopsLabel}
-          </div>
-
-          <div class="mt-3 flex flex-wrap gap-2">
-            <span class="t-badge">Depart {flight.departureTime}</span>
-            <span class="t-badge">Arrive {flight.arrivalTime}</span>
-            <span class="t-badge">{flight.duration}</span>
-          </div>
+    <ResultCardScaffold
+      hasFacts={true}
+      hasPrice={true}
+      hasPrimaryAction={true}
+      hasTrust={Boolean(flight.availabilityConfidence || flight.freshness)}
+    >
+      <div q:slot="identity">
+        <div class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)]">
+          {flight.airline}
         </div>
-
-        <div class="text-right">
-          <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">{formatMoney(flight.price, flight.currency)}</div>
-          <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">per traveler</div>
-          <div class="mt-4">
-            <span class="t-btn-primary inline-block px-5 text-center">Select →</span>
-          </div>
-        </div>
+        <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+          {flight.origin} to {flight.destination}
+        </p>
       </div>
 
-      <div class="mt-4 border-t border-[color:var(--color-divider)] pt-4">
-        <AvailabilityConfidence confidence={flight.availabilityConfidence} />
-      </div>
-    </article>
+      <ResultFactGrid
+        q:slot="facts"
+        items={[
+          {
+            label: 'Schedule',
+            value: `${flight.departureTime} → ${flight.arrivalTime}`,
+            detail: null,
+          },
+          {
+            label: 'Trip time',
+            value: flight.duration,
+            detail: null,
+          },
+          {
+            label: 'Stops',
+            value: flight.stopsLabel,
+            detail: null,
+          },
+        ]}
+      />
+
+      <ResultPricePanel
+        q:slot="price"
+        display={priceDisplay}
+        currency={flight.currency}
+        align="right"
+      />
+
+      <a
+        q:slot="primary-action"
+        class="t-btn-primary block w-full px-4 py-2.5 text-center text-sm font-semibold"
+        href="/flights"
+      >
+        Select flight
+      </a>
+
+      <ResultTrustBar
+        q:slot="trust"
+        confidence={flight.availabilityConfidence}
+        freshness={flight.freshness}
+      />
+    </ResultCardScaffold>
   )
 })
-
-const formatMoney = (amount: number, currency: string) => {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  } catch {
-    return `${Math.round(amount)} ${currency}`
-  }
-}
 
 type FlightResultCardProps = {
   flight: FlightResult
