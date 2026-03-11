@@ -1,17 +1,22 @@
 import { component$ } from "@builder.io/qwik";
 import type { QRL } from "@builder.io/qwik";
+import { useNavigate } from "@builder.io/qwik-city";
 import { AsyncInlineSpinner } from "~/components/async/AsyncInlineSpinner";
 import type { ResultsSortOption } from "~/components/results/ResultsSort";
 import type { ResultsFilterChip } from "~/components/results/ResultsFilterGroups";
 
 export const ResultsControlBar = component$((props: ResultsControlBarProps) => {
+  const navigate = useNavigate();
   const activeFilterChips = props.activeFilterChips || [];
   const activeSort = props.sortOptions.find((option) => option.active);
   const activeSortValue = activeSort?.value || props.sortOptions[0]?.value || "";
   const activeFilterCount = activeFilterChips.length;
 
   return (
-    <section class={["sticky top-20 z-20", props.class]}>
+    <section
+      class={["sticky z-20", props.class]}
+      style={{ top: "var(--sticky-top-offset)" }}
+    >
       <div class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:rgba(255,255,255,0.92)] shadow-[var(--shadow-sm)] backdrop-blur">
         <div class="flex flex-col gap-3 p-3 md:p-4">
           <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -73,7 +78,14 @@ export const ResultsControlBar = component$((props: ResultsControlBarProps) => {
                   );
 
                   if (nextOption) {
-                    window.location.href = nextOption.href;
+                    const currentHref =
+                      window.location.pathname + window.location.search;
+                    if (nextOption.href === currentHref) return;
+
+                    void navigate(nextOption.href, {
+                      replaceState: false,
+                      scroll: false,
+                    });
                   }
                 }}
               >

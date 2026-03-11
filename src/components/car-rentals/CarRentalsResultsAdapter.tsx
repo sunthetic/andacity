@@ -467,12 +467,6 @@ export const CarRentalsResultsAdapter = component$(
           </div>
         ) : null}
 
-        <RecentlyViewedModule
-          vertical={CARS_VERTICAL}
-          excludeIds={pageItems.map((result) => result.slug)}
-          class="mb-4"
-        />
-
         <div class="grid gap-3">
           {pageItems.map((result, index) => {
             const priceDisplay = {
@@ -523,6 +517,12 @@ export const CarRentalsResultsAdapter = component$(
             );
           })}
         </div>
+
+        <RecentlyViewedModule
+          vertical={CARS_VERTICAL}
+          excludeIds={pageItems.map((result) => result.slug)}
+          class="mt-4"
+        />
 
         {comparedItems.length ? (
           <CompareTray

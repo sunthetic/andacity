@@ -115,7 +115,10 @@ export default component$(() => {
           </div>
         </div>
 
-        <aside class="lg:sticky lg:top-24 lg:self-start">
+        <aside
+          class="lg:sticky lg:self-start"
+          style={{ top: "var(--sticky-top-offset)" }}
+        >
           <HotelCitySearchCard
             title={`Search hotels in ${c.city}`}
             action={buildHotelsInCityHref(data.slug)}

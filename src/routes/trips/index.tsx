@@ -46,7 +46,6 @@ import {
   updateTripMetadataApi,
 } from "~/lib/trips/trips-api";
 import {
-  readTripBundlingExplanation,
   readTripBundlingState,
 } from "~/lib/trips/bundle-explainability";
 import { compareIsoDate, differenceInDays } from "~/lib/trips/date-utils";
@@ -171,20 +170,32 @@ export default component$(() => {
     const itemId = previewItemId.value;
     if (itemId == null) return;
 
-    const timer = window.setTimeout(() => {
+    const frameId = window.requestAnimationFrame(() => {
       const element = document.getElementById(`trip-edit-preview-${itemId}`);
       if (!(element instanceof HTMLElement)) return;
 
-      element.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      const stickyOffset = Number.parseFloat(
+        window
+          .getComputedStyle(document.documentElement)
+          .getPropertyValue("--sticky-top-offset"),
+      );
+      const topBoundary = (Number.isFinite(stickyOffset) ? stickyOffset : 80) + 12;
+      const bottomBoundary = window.innerHeight - 24;
+      const rect = element.getBoundingClientRect();
+
+      if (rect.top < topBoundary || rect.bottom > bottomBoundary) {
+        element.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+        });
+      }
+
       element.focus({ preventScroll: true });
       lastPreviewScrollKey.value = previewKey;
-    }, 80);
+    });
 
     cleanup(() => {
-      window.clearTimeout(timer);
+      window.cancelAnimationFrame(frameId);
     });
   });
 
@@ -2320,6 +2331,7 @@ const TripEditPreviewPanel = component$(
       <div
         id={`trip-edit-preview-${props.item.id}`}
         tabIndex={-1}
+        style={{ scrollMarginTop: "calc(var(--sticky-top-offset) + 12px)" }}
         class="mt-3 rounded-xl border border-[color:var(--color-primary-150)] bg-[color:var(--color-primary-25)] px-3 py-3 outline-none"
       >
         <div class="flex flex-wrap items-start justify-between gap-3">

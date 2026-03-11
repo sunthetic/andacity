@@ -2,6 +2,7 @@ import { $, component$, useSignal, type QRL } from "@builder.io/qwik";
 import { AsyncPendingButton } from "~/components/async/AsyncPendingButton";
 import { AsyncRetryControl } from "~/components/async/AsyncRetryControl";
 import { ListSkeleton } from "~/components/async/AsyncSurfaceSkeleton";
+import { useOverlayBehavior } from "~/lib/ui/overlay";
 import {
   addItemToTripApi,
   createTripApi,
@@ -21,6 +22,13 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
   const trips = useSignal<TripListItem[]>([]);
   const selectedTripId = useSignal<number | null>(null);
   const newTripName = useSignal("");
+  const onClose$ = $(() => {
+    open.value = false;
+  });
+  const { overlayRef, initialFocusRef } = useOverlayBehavior({
+    open,
+    onClose$,
+  });
 
   const canAdd = Boolean(props.item.tripCandidate);
 
@@ -52,10 +60,6 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
     if (!canAdd || loading.value || saving.value) return;
     open.value = true;
     await refreshTrips$();
-  });
-
-  const onClose$ = $(() => {
-    open.value = false;
   });
 
   const onAddToSelected$ = $(async () => {
@@ -131,11 +135,13 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
   });
 
   return (
-    <>
+    <div class="inline-grid min-w-0 gap-1 align-top">
       <button
         type="button"
         onClick$={onOpen$}
         disabled={!canAdd}
+        aria-haspopup="dialog"
+        aria-expanded={open.value ? "true" : "false"}
         class={[
           props.class ||
             "rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-action)] hover:border-[color:var(--color-action)] disabled:cursor-not-allowed disabled:opacity-50",
@@ -145,10 +151,16 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
       </button>
 
       {success.value ? (
-        <p class="mt-1 text-xs text-[color:var(--color-success,#0f766e)]">
+        <p
+          class="min-h-4 text-[11px] leading-4 text-[color:var(--color-success,#0f766e)]"
+          role="status"
+          aria-live="polite"
+        >
           {success.value}
         </p>
-      ) : null}
+      ) : (
+        <span class="min-h-4" aria-hidden="true" />
+      )}
 
       {open.value ? (
         <div class="fixed inset-0 z-[95]">
@@ -159,7 +171,14 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
             onClick$={onClose$}
           />
 
-          <section class="absolute inset-x-3 top-1/2 max-h-[90vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-4 shadow-[var(--shadow-e3)] sm:inset-x-auto sm:left-1/2 sm:w-[560px] sm:-translate-x-1/2">
+          <section
+            ref={overlayRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add to trip"
+            tabIndex={-1}
+            class="absolute inset-x-3 top-1/2 max-h-[90vh] -translate-y-1/2 overflow-y-auto rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-4 shadow-[var(--shadow-e3)] outline-none sm:inset-x-auto sm:left-1/2 sm:w-[560px] sm:-translate-x-1/2"
+          >
             <header class="flex items-start justify-between gap-3">
               <div>
                 <h3 class="text-sm font-semibold text-[color:var(--color-text-strong)]">
@@ -170,6 +189,7 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
                 </p>
               </div>
               <button
+                ref={initialFocusRef}
                 type="button"
                 class="rounded-lg border border-[color:var(--color-border)] px-2 py-1 text-xs text-[color:var(--color-text-muted)]"
                 onClick$={onClose$}
@@ -296,7 +316,7 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
           </section>
         </div>
       ) : null}
-    </>
+    </div>
   );
 });
 

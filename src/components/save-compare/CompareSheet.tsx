@@ -1,16 +1,23 @@
-import { component$ } from '@builder.io/qwik'
+import { component$, useSignal } from '@builder.io/qwik'
 import { compareFieldDefinitions, COMPARE_MISMATCH_LOG_PREFIX, verticalCompareTitle } from '~/lib/save-compare/compare-state'
 import { useDecisioning } from '~/components/save-compare/DecisioningProvider'
 import { SaveButton } from '~/components/save-compare/SaveButton'
 import { AddToTripButton } from '~/components/trips/AddToTripButton'
+import { useOverlayBehavior } from '~/lib/ui/overlay'
 import type { SavedItem, SavedVertical } from '~/types/save-compare/saved-item'
 
 const loggedMismatchKeys = new Set<string>()
 
 export const CompareSheet = component$((props: CompareSheetProps) => {
+  const decisioning = useDecisioning()
+  const openSignal = useSignal(props.open)
+  openSignal.value = props.open
+  const { overlayRef, initialFocusRef } = useOverlayBehavior({
+    open: openSignal,
+    onClose$: decisioning.closeCompare$,
+  })
   if (!props.open) return null
 
-  const decisioning = useDecisioning()
   const fields = compareFieldDefinitions[props.vertical]
   const gridTemplateColumns = `minmax(160px, 200px) repeat(${props.items.length}, minmax(220px, 1fr))`
 
@@ -25,7 +32,14 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
         onClick$={decisioning.closeCompare$}
       />
 
-      <section class="absolute inset-0 bg-[color:var(--color-surface)]">
+      <section
+        ref={overlayRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={verticalCompareTitle(props.vertical)}
+        tabIndex={-1}
+        class="absolute inset-0 bg-[color:var(--color-surface)] outline-none"
+      >
         <header class="sticky top-0 z-20 border-b border-[color:var(--color-divider)] bg-[color:rgba(255,255,255,0.95)] backdrop-blur">
           <div class="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-4 py-4 lg:px-6">
             <div>
@@ -46,6 +60,7 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
                 Clear all
               </button>
               <button
+                ref={initialFocusRef}
                 type="button"
                 onClick$={decisioning.closeCompare$}
                 class="t-btn-primary px-4 py-2 text-xs font-semibold"

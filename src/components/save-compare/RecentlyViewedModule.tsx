@@ -10,6 +10,8 @@ import type { SavedVertical } from '~/types/save-compare/saved-item'
 
 export const RecentlyViewedModule = component$((props: RecentlyViewedModuleProps) => {
   const decisioning = useDecisioning()
+  if (!decisioning.state.ready) return null
+
   const excludeIds = new Set(props.excludeIds || [])
   const items = decisioning.state.recentlyViewed[props.vertical]
     .filter((item) => !excludeIds.has(item.id))

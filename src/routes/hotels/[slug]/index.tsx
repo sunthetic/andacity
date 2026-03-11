@@ -528,7 +528,10 @@ export default component$(() => {
         </div>
 
         {/* Sticky booking card (primary conversion zone) */}
-        <aside class="lg:sticky lg:top-24 lg:self-start">
+        <aside
+          class="lg:sticky lg:self-start"
+          style={{ top: "var(--sticky-top-offset)" }}
+        >
           <div class="t-card p-5 bg-surface" id="stay">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
               <span class="t-badge">Hotels</span>

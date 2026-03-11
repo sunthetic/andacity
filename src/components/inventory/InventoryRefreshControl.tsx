@@ -8,6 +8,22 @@ import {
 import { AsyncPendingButton } from "~/components/async/AsyncPendingButton";
 import type { InventoryRefreshState } from "~/lib/inventory/freshness";
 
+const reloadDocument = (href: string) => {
+  const nextUrl = new URL(href, window.location.href);
+  const currentUrl = new URL(window.location.href);
+  const sameDocument =
+    nextUrl.pathname === currentUrl.pathname &&
+    nextUrl.search === currentUrl.search &&
+    nextUrl.hash === currentUrl.hash;
+
+  if (sameDocument) {
+    window.location.reload();
+    return;
+  }
+
+  window.location.assign(nextUrl.href);
+};
+
 export const InventoryRefreshControl = component$(
   (props: InventoryRefreshControlProps) => {
     const state = useSignal<InventoryRefreshState>("idle");
@@ -63,7 +79,7 @@ export const InventoryRefreshControl = component$(
           }
 
           window.sessionStorage.setItem(storageKey, new Date().toISOString());
-          window.location.assign(href);
+          reloadDocument(href);
           return;
         }
 
@@ -78,7 +94,7 @@ export const InventoryRefreshControl = component$(
         if (props.reloadOnSuccess) {
           const href = props.reloadHref || window.location.href;
           window.sessionStorage.setItem(storageKey, new Date().toISOString());
-          window.location.assign(href);
+          reloadDocument(href);
           return;
         }
 

@@ -3,6 +3,9 @@
 
 @layer base {
   :root {
+    --app-header-height: 64px;
+    --sticky-top-offset: 80px;
+    --sticky-bottom-offset: 12px;
     --system-font-family: system-ui,
       -apple-system,
       BlinkMacSystemFont,
@@ -18,6 +21,11 @@
     background: var(--color-bg);
     color: var(--color-text);
     font-family: "Poppins", var(--system-font-family);
+  }
+
+  html {
+    scrollbar-gutter: stable both-edges;
+    scroll-padding-top: var(--sticky-top-offset);
   }
 
   ::selection {

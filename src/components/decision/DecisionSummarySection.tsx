@@ -1,4 +1,5 @@
 import { $, component$, useSignal } from "@builder.io/qwik";
+import { useOverlayBehavior } from "~/lib/ui/overlay";
 
 export const DecisionSummarySection = component$(
   (props: DecisionSummarySectionProps) => {
@@ -22,6 +23,10 @@ export const DecisionSummarySection = component$(
     });
     const onClose$ = $(() => {
       open.value = false;
+    });
+    const { overlayRef, initialFocusRef } = useOverlayBehavior({
+      open,
+      onClose$,
     });
 
     return (
@@ -124,9 +129,12 @@ export const DecisionSummarySection = component$(
               onClick$={onClose$}
             />
             <aside
+              ref={overlayRef}
               role="dialog"
               aria-modal="true"
-              class="absolute inset-x-0 bottom-0 max-h-[84vh] overflow-hidden rounded-t-3xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] shadow-[var(--shadow-e3)] lg:inset-y-0 lg:left-auto lg:w-[min(560px,100vw)] lg:max-h-none lg:rounded-none lg:rounded-l-3xl"
+              aria-label={props.detailTitle || props.title || "Decision details"}
+              tabIndex={-1}
+              class="absolute inset-x-0 bottom-0 max-h-[84vh] overflow-hidden rounded-t-3xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] shadow-[var(--shadow-e3)] outline-none lg:inset-y-0 lg:left-auto lg:w-[min(560px,100vw)] lg:max-h-none lg:rounded-none lg:rounded-l-3xl"
             >
               <header class="flex items-start justify-between gap-3 border-b border-[color:var(--color-divider)] px-4 py-4">
                 <div class="min-w-0">
@@ -138,6 +146,7 @@ export const DecisionSummarySection = component$(
                   </h3>
                 </div>
                 <button
+                  ref={initialFocusRef}
                   type="button"
                   class="rounded-full border border-[color:var(--color-border)] px-3 py-1.5 text-xs font-semibold text-[color:var(--color-text-strong)]"
                   onClick$={onClose$}

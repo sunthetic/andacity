@@ -62,7 +62,10 @@ export default component$(() => {
             </div>
           </div>
 
-          <div class="lg:sticky lg:top-24 lg:self-start">
+          <div
+            class="lg:sticky lg:self-start"
+            style={{ top: "var(--sticky-top-offset)" }}
+          >
             <div class="t-card p-5">
               <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
                 Search hotels in {d.name}

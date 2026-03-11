@@ -309,7 +309,7 @@ export default component$(() => {
             </div>
           </div>
 
-          <div class="lg:sticky lg:top-24">
+          <div class="lg:sticky" style={{ top: "var(--sticky-top-offset)" }}>
             <div class="t-card p-5 bg-surface">
               <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <span class="t-badge">Cars</span>

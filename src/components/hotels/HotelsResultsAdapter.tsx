@@ -581,12 +581,6 @@ export const HotelsResultsAdapter = component$(
           </div>
         ) : null}
 
-        <RecentlyViewedModule
-          vertical={HOTELS_VERTICAL}
-          excludeIds={pageItems.map((hotel) => hotel.slug)}
-          class="mb-4"
-        />
-
         <div class="grid gap-3">
           {pageItems.map((hotel, index) => {
             const priceDisplay = {
@@ -632,6 +626,12 @@ export const HotelsResultsAdapter = component$(
             );
           })}
         </div>
+
+        <RecentlyViewedModule
+          vertical={HOTELS_VERTICAL}
+          excludeIds={pageItems.map((hotel) => hotel.slug)}
+          class="mt-4"
+        />
 
         {comparedItems.length ? (
           <CompareTray

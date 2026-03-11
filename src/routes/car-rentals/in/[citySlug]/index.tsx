@@ -119,7 +119,10 @@ export default component$(() => {
           </div>
         </div>
 
-        <aside class="lg:sticky lg:top-24 lg:self-start">
+        <aside
+          class="lg:sticky lg:self-start"
+          style={{ top: "var(--sticky-top-offset)" }}
+        >
           <CarRentalSearchCard
             title={`Search car rentals in ${data.city.name}`}
             destinationValue={data.city.name}
