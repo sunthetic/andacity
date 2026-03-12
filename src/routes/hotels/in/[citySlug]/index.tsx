@@ -272,7 +272,7 @@ const buildSearchHotelsHref = (d: {
     // Canonical Hotels SRP URL requires both dates in the path; fall back to city guide
     return `/hotels/in/${encodeURIComponent(d.citySlug)}`
   }
-  const base = `/hotels/in/${encodeURIComponent(d.citySlug)}/fromDate/${encodeURIComponent(d.checkIn)}/toDate/${encodeURIComponent(d.checkOut)}/${d.page}`
+  const base = `/hotels/in/${encodeURIComponent(d.citySlug)}/checkIn/${encodeURIComponent(d.checkIn)}/checkOut/${encodeURIComponent(d.checkOut)}/${d.page}`
   const sp = new URLSearchParams()
 
   if (d.adults != null) sp.set('adults', String(d.adults))

@@ -175,8 +175,8 @@ export const useHotelCanonicalSrpPage = routeLoader$(
     const citySlug = String(params.citySlug || "")
       .toLowerCase()
       .trim();
-    const dateFrom = String(params.dateFrom || "").trim();
-    const dateTo = String(params.dateTo || "").trim();
+    const checkIn = String(params.checkIn || "").trim();
+    const checkOut = String(params.checkOut || "").trim();
 
     // Validate required path segments — return 404 for any invalid input
     if (!citySlug) {
@@ -187,18 +187,18 @@ export const useHotelCanonicalSrpPage = routeLoader$(
       throw error(404, "Not found");
     }
 
-    if (!isValidIsoDate(dateFrom)) {
+    if (!isValidIsoDate(checkIn)) {
       console.error(
-        "[Hotels SRP] Invalid dateFrom in canonical URL",
-        { citySlug, dateFrom, url: url.href },
+        "[Hotels SRP] Invalid checkIn in canonical URL",
+        { citySlug, checkIn, url: url.href },
       );
       throw error(404, "Not found");
     }
 
-    if (!isValidIsoDate(dateTo)) {
+    if (!isValidIsoDate(checkOut)) {
       console.error(
-        "[Hotels SRP] Invalid dateTo in canonical URL",
-        { citySlug, dateTo, url: url.href },
+        "[Hotels SRP] Invalid checkOut in canonical URL",
+        { citySlug, checkOut, url: url.href },
       );
       throw error(404, "Not found");
     }
@@ -218,8 +218,8 @@ export const useHotelCanonicalSrpPage = routeLoader$(
 
     const source = await loadHotelResultsFromDb({
       query: citySlug,
-      checkIn: dateFrom,
-      checkOut: dateTo,
+      checkIn: checkIn,
+      checkOut: checkOut,
       sort,
       page,
       pageSize: 24,
@@ -229,7 +229,7 @@ export const useHotelCanonicalSrpPage = routeLoader$(
         err instanceof Error ? err.message : "Failed to load hotel results.";
       console.error(
         "[Hotels SRP] Unexpected error loading hotel results",
-        { citySlug, dateFrom, dateTo, page, url: url.href, message },
+        { citySlug, checkIn, checkOut, page, url: url.href, message },
       );
       loadError = message;
 
@@ -255,8 +255,8 @@ export const useHotelCanonicalSrpPage = routeLoader$(
 
     return {
       citySlug,
-      dateFrom,
-      dateTo,
+      checkIn,
+      checkOut,
       page: source.page,
       qHuman,
       results: source.results,
@@ -274,11 +274,11 @@ export default component$(() => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const pathBase = `/hotels/in/${encodeURIComponent(data.citySlug)}/fromDate/${encodeURIComponent(data.dateFrom)}/toDate/${encodeURIComponent(data.dateTo)}`;
+  const pathBase = `/hotels/in/${encodeURIComponent(data.citySlug)}/checkIn/${encodeURIComponent(data.checkIn)}/checkOut/${encodeURIComponent(data.checkOut)}`;
   const mobileFiltersOpen = useSignal(false);
   const desktopFiltersOpen = useSignal(true);
 
-  const nights = computeNights(data.dateFrom, data.dateTo);
+  const nights = computeNights(data.checkIn, data.checkOut);
 
   const activeFilters: FilterValues = {
     priceRange: data.filters.priceRange,
@@ -329,8 +329,8 @@ export default component$(() => {
     contextParts.push(`${nights} ${nights === 1 ? "night" : "nights"}`);
   }
 
-  const checkIn = data.dateFrom;
-  const checkOut = data.dateTo;
+  const checkIn = data.checkIn;
+  const checkOut = data.checkOut;
   const searchAgainParams = new URLSearchParams();
   searchAgainParams.set("destination", data.qHuman);
   searchAgainParams.set("checkIn", checkIn);
@@ -659,7 +659,7 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
 
   const title = `Hotels in ${data.qHuman} – Page ${data.page} | Andacity Travel`;
   const description = `Browse hotel results for ${data.qHuman}. Compare totals and policies with clarity.`;
-  const canonicalPath = `/hotels/in/${encodeURIComponent(data.citySlug)}/fromDate/${encodeURIComponent(data.dateFrom)}/toDate/${encodeURIComponent(data.dateTo)}/${data.page}`;
+  const canonicalPath = `/hotels/in/${encodeURIComponent(data.citySlug)}/checkIn/${encodeURIComponent(data.checkIn)}/checkOut/${encodeURIComponent(data.checkOut)}/${data.page}`;
   const canonicalHref = new URL(canonicalPath, url.origin).href;
 
   return {
