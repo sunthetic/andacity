@@ -1,6 +1,8 @@
-import { RequestHandler } from "@builder.io/qwik-city"
+import type { RequestHandler } from '@builder.io/qwik-city'
 
-export const onGet: RequestHandler = async ({ params, redirect }) => {
+export const onGet: RequestHandler = async ({ params, url, redirect }) => {
   const { query } = params
-  throw redirect(302, `/search/hotels/${query}/1`)
+  const qs = url.searchParams.toString()
+  const target = `/search/hotels/${query}/1`
+  throw redirect(302, qs ? `${target}?${qs}` : target)
 }

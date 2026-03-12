@@ -37,6 +37,7 @@ import {
   storeRefreshPriceSnapshot,
 } from "~/lib/pricing/refresh-price-snapshot";
 import { buildHotelSavedItem } from "~/lib/save-compare/item-builders";
+import { buildHotelsSrpPath, normalizeCitySlug } from '~/lib/search/hotels/canonical';
 import { getOgSecret, encodeOgPayload, signOgPayload } from "~/lib/seo/og-sign";
 import {
   DecisionSummarySection,
@@ -103,7 +104,7 @@ export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
 
   // Suggested backlinks (search is noindex, fine for conversion)
   const searchHref = buildSearchHotelsHref({
-    query: hotel.cityQuery,
+    citySlug: normalizeCitySlug(hotel.cityQuery),
     page: 1,
     checkIn: active.checkIn,
     checkOut: active.checkOut,
@@ -1238,18 +1239,25 @@ const computePricing = (
 };
 
 const buildSearchHotelsHref = (d: {
-  query: string;
+  citySlug: string;
   page: number;
   checkIn: string | null;
   checkOut: string | null;
   adults: number | null;
   rooms: number | null;
 }) => {
-  const base = `/search/hotels/${encodeURIComponent(d.query)}/${d.page}`;
-  const sp = new URLSearchParams();
+  if (!d.checkIn || !d.checkOut) return `/hotels/in/${encodeURIComponent(d.citySlug)}`;
 
-  if (d.checkIn) sp.set("checkIn", d.checkIn);
-  if (d.checkOut) sp.set("checkOut", d.checkOut);
+  const base = buildHotelsSrpPath({
+    citySlug: d.citySlug,
+    checkIn: d.checkIn,
+    checkOut: d.checkOut,
+    pageNumber: d.page,
+  });
+
+  if (!base) return `/hotels/in/${encodeURIComponent(d.citySlug)}`;
+
+  const sp = new URLSearchParams();
   if (d.adults != null) sp.set("adults", String(d.adults));
   if (d.rooms != null) sp.set("rooms", String(d.rooms));
 

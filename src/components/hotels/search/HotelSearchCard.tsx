@@ -1,4 +1,5 @@
 import { component$, useSignal } from '@builder.io/qwik'
+import { buildHotelsSrpPath } from '~/lib/search/hotels/canonical'
 import {
   BOOKING_SEARCH_CONTROL_CLASS,
   BookingSearchField,
@@ -24,7 +25,7 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
   return (
     <BookingSearchSurface>
       <form
-        action={props.action ?? '/search/hotels/anywhere/1'}
+        action={props.action ?? '/hotels'}
         method="get"
         preventdefault:submit
         noValidate
@@ -42,7 +43,19 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
           const destinationToken = toPathToken(snapshot.destination)
           if (!destinationToken) return
 
-          form.action = `/search/hotels/${encodeURIComponent(destinationToken)}/1`
+          const target = buildHotelsSrpPath({
+            citySlug: destinationToken,
+            checkIn: snapshot.checkIn,
+            checkOut: snapshot.checkOut,
+            pageNumber: 1,
+          })
+
+          if (!target) return
+
+          const qs = new URLSearchParams()
+          if (snapshot.guests) qs.set('guests', snapshot.guests)
+
+          form.action = qs.toString() ? `${target}?${qs.toString()}` : target
           form.submit()
         }}
         class="grid gap-3 md:grid-cols-[minmax(0,2fr)_1fr_1fr_minmax(180px,0.95fr)_auto]"
