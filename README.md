@@ -1,11 +1,11 @@
-# Andacity ⚡️
+# 🪐 Andacity Travel — 🏨 + ✈️ + 🚗
 
-An experience-driven travel booking and discovery-first travel planning site offering search modes for destinations, hotels, car rentals, and flights.
+Welcome to the development space for [andacity.com](https://andacity.com), an experience-driven travel booking and discovery-first travel planning site offering search modes for destinations, hotels, flights, and car rentals.
 
 ## Release Info
 
-* Version **`0.2.0`**
-* Released on `2026-03-08`
+* Version **`0.3.0`**
+* Released on `2026-03-12`
 
 ## Project Documentation
 
