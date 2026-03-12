@@ -2965,607 +2965,662 @@ export async function listTrips(): Promise<TripListItem[]> {
     const db = getDb()
     const snapshotColumns = requireTripSnapshotColumns()
 
-
-    export async function getTripDetails(
-      tripId: number,
-      options: {
-        revalidate?: 'auto' | 'force'
-      } = {},
-    ): Promise<TripDetails | null> {
-      return withTripSchemaGuard(async () => {
-        const base = await readTripBase(tripId)
-        if (!base) return null
-
-        const itemRecords = await readTripItems(tripId)
-        return buildTripDetailsFromRecords(base, itemRecords, {
-          revalidate: options.revalidate,
-        })
+    const itemAgg = db
+      .select({
+        tripId: tripItems.tripId,
+        itemCount: sql<number>`count(${tripItems.id})::int`.as('item_count'),
+        estimatedTotalCents:
+          sql<number>`coalesce(sum(${snapshotColumns.snapshotPriceCents}), 0)::int`.as(
+            'estimated_total_cents'
+          ),
+        currencyCode:
+          sql<string>`coalesce(max(${snapshotColumns.snapshotCurrencyCode}), 'USD')`.as(
+            'currency_code'
+          ),
+        currencyCount:
+          sql<number>`count(distinct ${snapshotColumns.snapshotCurrencyCode})::int`.as(
+            'currency_count'
+          ),
       })
+      .from(tripItems)
+      .groupBy(tripItems.tripId)
+      .as('trip_item_agg')
+
+    const rows = await db
+      .select({
+        id: trips.id,
+        name: trips.name,
+        status: trips.status,
+        startDate: tripDates.startDate,
+        endDate: tripDates.endDate,
+        itemCount: sql<number>`coalesce(${itemAgg.itemCount}, 0)::int`,
+        estimatedTotalCents: sql<number>`coalesce(${itemAgg.estimatedTotalCents}, 0)::int`,
+        currencyCode: sql<string>`coalesce(${itemAgg.currencyCode}, 'USD')`,
+        currencyCount: sql<number>`coalesce(${itemAgg.currencyCount}, 0)::int`,
+        updatedAt: trips.updatedAt,
+      })
+      .from(trips)
+      .leftJoin(tripDates, eq(tripDates.tripId, trips.id))
+      .leftJoin(itemAgg, eq(itemAgg.tripId, trips.id))
+      .orderBy(desc(trips.updatedAt), desc(trips.id))
+
+    return rows.map((row) =>
+      toListItem({
+        id: row.id,
+        name: row.name,
+        status: normalizeTripStatus(row.status),
+        startDate: row.startDate,
+        endDate: row.endDate,
+        itemCount: row.itemCount,
+        estimatedTotalCents: row.estimatedTotalCents,
+        currencyCode: row.currencyCode,
+        hasMixedCurrencies: row.currencyCount > 1,
+        updatedAt: row.updatedAt,
+      })
+    )
+  })
+}
+
+export async function getTripDetails(
+  tripId: number,
+  options: {
+    revalidate?: 'auto' | 'force'
+  } = {},
+): Promise<TripDetails | null> {
+  return withTripSchemaGuard(async () => {
+    const base = await readTripBase(tripId)
+    if (!base) return null
+
+    const itemRecords = await readTripItems(tripId)
+    return buildTripDetailsFromRecords(base, itemRecords, {
+      revalidate: options.revalidate,
+    })
+  })
+}
+
+export async function revalidateTrip(tripId: number): Promise<TripDetails> {
+  const details = await getTripDetails(tripId, { revalidate: 'force' })
+  if (!details) {
+    throw new TripRepoError('trip_not_found', `Trip ${tripId} was not found.`)
+  }
+
+  return details
+}
+
+export async function addItemToTrip(tripId: number, candidate: TripItemCandidate): Promise<TripDetails> {
+  return withTripSchemaGuard(async () => {
+    const db = getDb()
+    requireTripSnapshotColumns()
+
+    await db.transaction(async (tx) => {
+      await assertTripExists(tx, tripId)
+      const snapshot = await resolveTripItemSnapshot(tx, candidate)
+
+      const [positionRow] = await tx
+        .select({
+          maxPosition: sql<number>`coalesce(max(${tripItems.position}), -1)::int`,
+        })
+        .from(tripItems)
+        .where(eq(tripItems.tripId, tripId))
+
+      const nextPosition = (positionRow?.maxPosition ?? -1) + 1
+
+      await tx.insert(tripItems).values({
+        tripId,
+        itemType: snapshot.itemType,
+        position: nextPosition,
+        hotelId: snapshot.hotelId,
+        flightItineraryId: snapshot.flightItineraryId,
+        carInventoryId: snapshot.carInventoryId,
+        startCityId: snapshot.startCityId,
+        endCityId: snapshot.endCityId,
+        startDate: snapshot.startDate,
+        endDate: snapshot.endDate,
+        snapshotPriceCents: snapshot.snapshotPriceCents,
+        snapshotCurrencyCode: snapshot.snapshotCurrencyCode,
+        title: snapshot.title,
+        subtitle: snapshot.subtitle,
+        imageUrl: snapshot.imageUrl,
+        meta: snapshot.meta,
+        metadata: snapshot.metadata,
+      })
+
+      await syncTripDatesIfAuto(tx, tripId)
+      await touchTrip(tx, tripId)
+    })
+
+    const details = await getTripDetails(tripId)
+    if (!details) {
+      throw new TripRepoError('trip_not_found', `Trip ${tripId} was not found after adding an item.`)
     }
 
-    export async function revalidateTrip(tripId: number): Promise<TripDetails> {
-      const details = await getTripDetails(tripId, { revalidate: 'force' })
-      if (!details) {
-        throw new TripRepoError('trip_not_found', `Trip ${tripId} was not found.`)
+    return details
+  })
+}
+
+export async function removeItemFromTrip(tripId: number, itemId: number): Promise<TripDetails> {
+  return withTripSchemaGuard(async () => {
+    const db = getDb()
+    await db.transaction(async (tx) => {
+      await assertTripExists(tx, tripId)
+
+      const deleted = await tx
+        .delete(tripItems)
+        .where(and(eq(tripItems.tripId, tripId), eq(tripItems.id, itemId)))
+        .returning({ id: tripItems.id })
+
+      if (!deleted.length) {
+        throw new TripRepoError(
+          'trip_item_not_found',
+          `Trip item ${itemId} was not found on trip ${tripId}.`,
+        )
       }
 
-      return details
+      await normalizeTripItemPositions(tx, tripId)
+      await syncTripDatesIfAuto(tx, tripId)
+      await touchTrip(tx, tripId)
+    })
+
+    const details = await getTripDetails(tripId)
+    if (!details) {
+      throw new TripRepoError('trip_not_found', `Trip ${tripId} was not found after removing an item.`)
     }
 
-    export async function addItemToTrip(tripId: number, candidate: TripItemCandidate): Promise<TripDetails> {
-      return withTripSchemaGuard(async () => {
-        const db = getDb()
-        requireTripSnapshotColumns()
+    return details
+  })
+}
 
-        await db.transaction(async (tx) => {
-          await assertTripExists(tx, tripId)
-          const snapshot = await resolveTripItemSnapshot(tx, candidate)
+export async function reorderTripItems(
+  tripId: number,
+  orderedItemIds: number[],
+): Promise<TripDetails> {
+  return withTripSchemaGuard(async () => {
+    const db = getDb()
+    await db.transaction(async (tx) => {
+      await assertTripExists(tx, tripId)
 
-          const [positionRow] = await tx
-            .select({
-              maxPosition: sql<number>`coalesce(max(${tripItems.position}), -1)::int`,
-            })
-            .from(tripItems)
-            .where(eq(tripItems.tripId, tripId))
+      const existingRows = await tx
+        .select({ id: tripItems.id })
+        .from(tripItems)
+        .where(eq(tripItems.tripId, tripId))
+        .orderBy(asc(tripItems.position), asc(tripItems.id))
 
-          const nextPosition = (positionRow?.maxPosition ?? -1) + 1
+      const existingIds = existingRows.map((row) => row.id)
+      const requestedIds = orderedItemIds.map((value) => Number.parseInt(String(value), 10))
 
-          await tx.insert(tripItems).values({
-            tripId,
-            itemType: snapshot.itemType,
-            position: nextPosition,
-            hotelId: snapshot.hotelId,
-            flightItineraryId: snapshot.flightItineraryId,
-            carInventoryId: snapshot.carInventoryId,
-            startCityId: snapshot.startCityId,
-            endCityId: snapshot.endCityId,
-            startDate: snapshot.startDate,
-            endDate: snapshot.endDate,
-            snapshotPriceCents: snapshot.snapshotPriceCents,
-            snapshotCurrencyCode: snapshot.snapshotCurrencyCode,
-            title: snapshot.title,
-            subtitle: snapshot.subtitle,
-            imageUrl: snapshot.imageUrl,
-            meta: snapshot.meta,
-            metadata: snapshot.metadata,
-          })
+      const isValid =
+        requestedIds.length === existingIds.length &&
+        new Set(requestedIds).size === requestedIds.length &&
+        requestedIds.every((id) => existingIds.includes(id))
 
-          await syncTripDatesIfAuto(tx, tripId)
-          await touchTrip(tx, tripId)
-        })
-
-        const details = await getTripDetails(tripId)
-        if (!details) {
-          throw new TripRepoError('trip_not_found', `Trip ${tripId} was not found after adding an item.`)
-        }
-
-        return details
-      })
-    }
-
-    export async function removeItemFromTrip(tripId: number, itemId: number): Promise<TripDetails> {
-      return withTripSchemaGuard(async () => {
-        const db = getDb()
-        await db.transaction(async (tx) => {
-          await assertTripExists(tx, tripId)
-
-          const deleted = await tx
-            .delete(tripItems)
-            .where(and(eq(tripItems.tripId, tripId), eq(tripItems.id, itemId)))
-            .returning({ id: tripItems.id })
-
-          if (!deleted.length) {
-            throw new TripRepoError(
-              'trip_item_not_found',
-              `Trip item ${itemId} was not found on trip ${tripId}.`,
-            )
-          }
-
-          await normalizeTripItemPositions(tx, tripId)
-          await syncTripDatesIfAuto(tx, tripId)
-          await touchTrip(tx, tripId)
-        })
-
-        const details = await getTripDetails(tripId)
-        if (!details) {
-          throw new TripRepoError('trip_not_found', `Trip ${tripId} was not found after removing an item.`)
-        }
-
-        return details
-      })
-    }
-
-    export async function reorderTripItems(
-      tripId: number,
-      orderedItemIds: number[],
-    ): Promise<TripDetails> {
-      return withTripSchemaGuard(async () => {
-        const db = getDb()
-        await db.transaction(async (tx) => {
-          await assertTripExists(tx, tripId)
-
-          const existingRows = await tx
-            .select({ id: tripItems.id })
-            .from(tripItems)
-            .where(eq(tripItems.tripId, tripId))
-            .orderBy(asc(tripItems.position), asc(tripItems.id))
-
-          const existingIds = existingRows.map((row) => row.id)
-          const requestedIds = orderedItemIds.map((value) => Number.parseInt(String(value), 10))
-
-          const isValid =
-            requestedIds.length === existingIds.length &&
-            new Set(requestedIds).size === requestedIds.length &&
-            requestedIds.every((id) => existingIds.includes(id))
-
-          if (!isValid) {
-            throw new TripRepoError(
-              'invalid_reorder',
-              'Reorder payload must contain the exact set of trip item ids.',
-            )
-          }
-
-          for (const [index, itemId] of requestedIds.entries()) {
-            await tx
-              .update(tripItems)
-              .set({
-                position: index,
-                updatedAt: new Date(),
-              })
-              .where(and(eq(tripItems.id, itemId), eq(tripItems.tripId, tripId)))
-          }
-
-          await touchTrip(tx, tripId)
-        })
-
-        const details = await getTripDetails(tripId)
-        if (!details) {
-          throw new TripRepoError('trip_not_found', `Trip ${tripId} was not found after reordering items.`)
-        }
-
-        return details
-      })
-    }
-
-    export async function listTripItemReplacementOptions(
-      tripId: number,
-      itemId: number,
-    ): Promise<TripItemReplacementOption[]> {
-      return withTripSchemaGuard(async () => {
-        const base = await readTripBase(tripId)
-        if (!base) {
-          throw new TripRepoError('trip_not_found', `Trip ${tripId} was not found.`)
-        }
-
-        const items = await readTripItems(tripId)
-        const item = requireTripItemRecord(items, tripId, itemId)
-
-        if (item.itemType === 'hotel') return buildHotelReplacementOptions(item)
-        if (item.itemType === 'car') return buildCarReplacementOptions(item)
-        return buildFlightReplacementOptions(item)
-      })
-    }
-
-    export async function previewTripItemEdit(
-      tripId: number,
-      itemId: number,
-      input:
-        | {
-          actionType: 'reorder'
-          orderedItemIds: number[]
-        }
-        | {
-          actionType: 'remove'
-        }
-        | {
-          actionType: 'replace'
-          candidate: TripItemCandidate
-        },
-    ): Promise<TripEditPreview> {
-      return withTripSchemaGuard(async () => {
-        const base = await readTripBase(tripId)
-        if (!base) {
-          throw new TripRepoError('trip_not_found', `Trip ${tripId} was not found.`)
-        }
-
-        const currentItemRecords = await readTripItems(tripId)
-        requireTripItemRecord(currentItemRecords, tripId, itemId)
-
-        let nextItemRecords = currentItemRecords.map(cloneTripItemRecord)
-        let autoRebalanced = false
-
-        if (input.actionType === 'reorder') {
-          nextItemRecords = applyPreviewReorder(nextItemRecords, input.orderedItemIds)
-        } else if (input.actionType === 'remove') {
-          nextItemRecords = normalizeSimulatedTripItemPositions(
-            nextItemRecords
-              .filter((item) => item.id !== itemId)
-              .sort((left, right) => left.position - right.position || left.id - right.id),
-          )
-        } else {
-          const db = getDb()
-          await db.transaction(async (tx) => {
-            const existingItem = requireTripItemRecord(nextItemRecords, tripId, itemId)
-            const replacement = await buildReplacementTripItemRecord(tx, existingItem, input.candidate)
-            nextItemRecords = nextItemRecords.map((item) => (item.id === itemId ? replacement : item))
-          })
-
-          if (readTripAutoRebalance(base.metadata)) {
-            nextItemRecords = applyLockedAutoRebalance(nextItemRecords)
-            autoRebalanced = true
-          } else {
-            nextItemRecords = normalizeSimulatedTripItemPositions(
-              nextItemRecords
-                .slice()
-                .sort((left, right) => left.position - right.position || left.id - right.id),
-            )
-          }
-        }
-
-        const [currentTrip, nextTrip] = await Promise.all([
-          buildTripDetailsFromRecords(base, currentItemRecords, { preview: true }),
-          buildTripDetailsFromRecords(base, nextItemRecords, { preview: true }),
-        ])
-        const focusItem = currentTrip.items.find((item) => item.id === itemId)
-
-        if (!focusItem) {
-          throw new TripRepoError(
-            'trip_item_not_found',
-            `Trip item ${itemId} was not found on trip ${tripId}.`,
-          )
-        }
-
-        return buildTripEditPreviewResult(
-          input.actionType,
-          focusItem,
-          currentTrip,
-          nextTrip,
-          autoRebalanced,
+      if (!isValid) {
+        throw new TripRepoError(
+          'invalid_reorder',
+          'Reorder payload must contain the exact set of trip item ids.',
         )
-      })
-    }
+      }
 
-    export async function applyTripItemEdit(
-      tripId: number,
-      itemId: number,
-      input:
-        | {
-          actionType: 'reorder'
-          orderedItemIds: number[]
-        }
-        | {
-          actionType: 'remove'
-        }
-        | {
-          actionType: 'replace'
-          candidate: TripItemCandidate
-        },
-    ): Promise<{
-      trip: TripDetails
-      appliedChange: TripAppliedChange | null
-    }> {
-      return withTripSchemaGuard(async () => {
-        const preview = await previewTripItemEdit(tripId, itemId, input)
-        const currentItemRecords = await readTripItems(tripId)
-        requireTripItemRecord(currentItemRecords, tripId, itemId)
-
-        let trip: TripDetails
-        if (input.actionType === 'reorder') {
-          trip = await reorderTripItems(tripId, input.orderedItemIds)
-        } else if (input.actionType === 'remove') {
-          trip = await removeItemFromTrip(tripId, itemId)
-        } else {
-          trip = await updateTripItem(tripId, itemId, {
-            candidate: input.candidate,
+      for (const [index, itemId] of requestedIds.entries()) {
+        await tx
+          .update(tripItems)
+          .set({
+            position: index,
+            updatedAt: new Date(),
           })
-        }
+          .where(and(eq(tripItems.id, itemId), eq(tripItems.tripId, tripId)))
+      }
 
-        return {
-          trip,
-          appliedChange:
-            preview.changeSummary.safetyLevel === 'major'
-              ? {
-                summary: preview.changeSummary,
-                preview,
-                rollbackDraft: buildTripRollbackDraft(currentItemRecords),
-              }
-              : null,
-        }
+      await touchTrip(tx, tripId)
+    })
+
+    const details = await getTripDetails(tripId)
+    if (!details) {
+      throw new TripRepoError('trip_not_found', `Trip ${tripId} was not found after reordering items.`)
+    }
+
+    return details
+  })
+}
+
+export async function listTripItemReplacementOptions(
+  tripId: number,
+  itemId: number,
+): Promise<TripItemReplacementOption[]> {
+  return withTripSchemaGuard(async () => {
+    const base = await readTripBase(tripId)
+    if (!base) {
+      throw new TripRepoError('trip_not_found', `Trip ${tripId} was not found.`)
+    }
+
+    const items = await readTripItems(tripId)
+    const item = requireTripItemRecord(items, tripId, itemId)
+
+    if (item.itemType === 'hotel') return buildHotelReplacementOptions(item)
+    if (item.itemType === 'car') return buildCarReplacementOptions(item)
+    return buildFlightReplacementOptions(item)
+  })
+}
+
+export async function previewTripItemEdit(
+  tripId: number,
+  itemId: number,
+  input:
+    | {
+      actionType: 'reorder'
+      orderedItemIds: number[]
+    }
+    | {
+      actionType: 'remove'
+    }
+    | {
+      actionType: 'replace'
+      candidate: TripItemCandidate
+    },
+): Promise<TripEditPreview> {
+  return withTripSchemaGuard(async () => {
+    const base = await readTripBase(tripId)
+    if (!base) {
+      throw new TripRepoError('trip_not_found', `Trip ${tripId} was not found.`)
+    }
+
+    const currentItemRecords = await readTripItems(tripId)
+    requireTripItemRecord(currentItemRecords, tripId, itemId)
+
+    let nextItemRecords = currentItemRecords.map(cloneTripItemRecord)
+    let autoRebalanced = false
+
+    if (input.actionType === 'reorder') {
+      nextItemRecords = applyPreviewReorder(nextItemRecords, input.orderedItemIds)
+    } else if (input.actionType === 'remove') {
+      nextItemRecords = normalizeSimulatedTripItemPositions(
+        nextItemRecords
+          .filter((item) => item.id !== itemId)
+          .sort((left, right) => left.position - right.position || left.id - right.id),
+      )
+    } else {
+      const db = getDb()
+      await db.transaction(async (tx) => {
+        const existingItem = requireTripItemRecord(nextItemRecords, tripId, itemId)
+        const replacement = await buildReplacementTripItemRecord(tx, existingItem, input.candidate)
+        nextItemRecords = nextItemRecords.map((item) => (item.id === itemId ? replacement : item))
+      })
+
+      if (readTripAutoRebalance(base.metadata)) {
+        nextItemRecords = applyLockedAutoRebalance(nextItemRecords)
+        autoRebalanced = true
+      } else {
+        nextItemRecords = normalizeSimulatedTripItemPositions(
+          nextItemRecords
+            .slice()
+            .sort((left, right) => left.position - right.position || left.id - right.id),
+        )
+      }
+    }
+
+    const [currentTrip, nextTrip] = await Promise.all([
+      buildTripDetailsFromRecords(base, currentItemRecords, { preview: true }),
+      buildTripDetailsFromRecords(base, nextItemRecords, { preview: true }),
+    ])
+    const focusItem = currentTrip.items.find((item) => item.id === itemId)
+
+    if (!focusItem) {
+      throw new TripRepoError(
+        'trip_item_not_found',
+        `Trip item ${itemId} was not found on trip ${tripId}.`,
+      )
+    }
+
+    return buildTripEditPreviewResult(
+      input.actionType,
+      focusItem,
+      currentTrip,
+      nextTrip,
+      autoRebalanced,
+    )
+  })
+}
+
+export async function applyTripItemEdit(
+  tripId: number,
+  itemId: number,
+  input:
+    | {
+      actionType: 'reorder'
+      orderedItemIds: number[]
+    }
+    | {
+      actionType: 'remove'
+    }
+    | {
+      actionType: 'replace'
+      candidate: TripItemCandidate
+    },
+): Promise<{
+  trip: TripDetails
+  appliedChange: TripAppliedChange | null
+}> {
+  return withTripSchemaGuard(async () => {
+    const preview = await previewTripItemEdit(tripId, itemId, input)
+    const currentItemRecords = await readTripItems(tripId)
+    requireTripItemRecord(currentItemRecords, tripId, itemId)
+
+    let trip: TripDetails
+    if (input.actionType === 'reorder') {
+      trip = await reorderTripItems(tripId, input.orderedItemIds)
+    } else if (input.actionType === 'remove') {
+      trip = await removeItemFromTrip(tripId, itemId)
+    } else {
+      trip = await updateTripItem(tripId, itemId, {
+        candidate: input.candidate,
       })
     }
 
-    export async function restoreTripRollbackDraft(
-      tripId: number,
-      draft: TripRollbackDraft,
-    ): Promise<TripDetails> {
-      return withTripSchemaGuard(async () => {
-        const db = getDb()
-        await db.transaction(async (tx) => {
-          await assertTripExists(tx, tripId)
-
-          await tx.delete(tripItems).where(eq(tripItems.tripId, tripId))
-
-          if (draft.items.length) {
-            await tx.insert(tripItems).values(
-              draft.items.map((item) => ({
-                id: item.id,
-                tripId,
-                itemType: item.itemType,
-                position: item.position,
-                hotelId: item.hotelId,
-                flightItineraryId: item.flightItineraryId,
-                carInventoryId: item.carInventoryId,
-                startCityId: item.startCityId,
-                endCityId: item.endCityId,
-                startDate: item.startDate,
-                endDate: item.endDate,
-                snapshotPriceCents: item.snapshotPriceCents,
-                snapshotCurrencyCode: item.snapshotCurrencyCode,
-                snapshotTimestamp: new Date(item.snapshotTimestamp),
-                title: item.title,
-                subtitle: item.subtitle,
-                imageUrl: item.imageUrl,
-                meta: item.meta,
-                metadata: item.metadata,
-              })),
-            )
+    return {
+      trip,
+      appliedChange:
+        preview.changeSummary.safetyLevel === 'major'
+          ? {
+            summary: preview.changeSummary,
+            preview,
+            rollbackDraft: buildTripRollbackDraft(currentItemRecords),
           }
+          : null,
+    }
+  })
+}
 
-          await normalizeTripItemPositions(tx, tripId)
-          await syncTripDatesIfAuto(tx, tripId)
-          await touchTrip(tx, tripId)
+export async function restoreTripRollbackDraft(
+  tripId: number,
+  draft: TripRollbackDraft,
+): Promise<TripDetails> {
+  return withTripSchemaGuard(async () => {
+    const db = getDb()
+    await db.transaction(async (tx) => {
+      await assertTripExists(tx, tripId)
+
+      await tx.delete(tripItems).where(eq(tripItems.tripId, tripId))
+
+      if (draft.items.length) {
+        await tx.insert(tripItems).values(
+          draft.items.map((item) => ({
+            id: item.id,
+            tripId,
+            itemType: item.itemType,
+            position: item.position,
+            hotelId: item.hotelId,
+            flightItineraryId: item.flightItineraryId,
+            carInventoryId: item.carInventoryId,
+            startCityId: item.startCityId,
+            endCityId: item.endCityId,
+            startDate: item.startDate,
+            endDate: item.endDate,
+            snapshotPriceCents: item.snapshotPriceCents,
+            snapshotCurrencyCode: item.snapshotCurrencyCode,
+            snapshotTimestamp: new Date(item.snapshotTimestamp),
+            title: item.title,
+            subtitle: item.subtitle,
+            imageUrl: item.imageUrl,
+            meta: item.meta,
+            metadata: item.metadata,
+          })),
+        )
+      }
+
+      await normalizeTripItemPositions(tx, tripId)
+      await syncTripDatesIfAuto(tx, tripId)
+      await touchTrip(tx, tripId)
+    })
+
+    const details = await getTripDetails(tripId)
+    if (!details) {
+      throw new TripRepoError(
+        'trip_not_found',
+        `Trip ${tripId} was not found after restoring the itinerary draft.`,
+      )
+    }
+
+    return details
+  })
+}
+
+export async function updateTripItem(
+  tripId: number,
+  itemId: number,
+  input: {
+    locked?: boolean
+    candidate?: TripItemCandidate
+  },
+): Promise<TripDetails> {
+  return withTripSchemaGuard(async () => {
+    const db = getDb()
+    let shouldAutoRebalance = false
+
+    if (input.candidate) {
+      requireTripSnapshotColumns()
+    }
+
+    await db.transaction(async (tx) => {
+      await assertTripExists(tx, tripId)
+
+      const itemRows = await tx
+        .select({
+          id: tripItems.id,
+          itemType: tripItems.itemType,
+          position: tripItems.position,
+          createdAt: tripItems.createdAt,
+          metadata: tripItems.metadata,
         })
+        .from(tripItems)
+        .where(and(eq(tripItems.tripId, tripId), eq(tripItems.id, itemId)))
+        .limit(1)
 
-        const details = await getTripDetails(tripId)
-        if (!details) {
+      const existingItem = itemRows[0]
+      if (!existingItem) {
+        throw new TripRepoError(
+          'trip_item_not_found',
+          `Trip item ${itemId} was not found on trip ${tripId}.`,
+        )
+      }
+
+      const currentMetadata = normalizeMetadata(existingItem.metadata)
+      const locked =
+        input.locked === undefined ? readTripItemLocked(currentMetadata) : input.locked
+
+      if (input.candidate) {
+        const snapshot = await resolveTripItemSnapshot(tx, input.candidate)
+        if (snapshot.itemType !== existingItem.itemType) {
           throw new TripRepoError(
-            'trip_not_found',
-            `Trip ${tripId} was not found after restoring the itinerary draft.`,
+            'invalid_edit',
+            `Replacement item type ${snapshot.itemType} does not match existing ${existingItem.itemType}.`,
           )
         }
 
-        return details
-      })
+        // Snapshot columns are intentionally immutable via DB trigger, so a
+        // replacement swap needs to recreate the row instead of updating it.
+        await tx
+          .delete(tripItems)
+          .where(and(eq(tripItems.tripId, tripId), eq(tripItems.id, itemId)))
+
+        await tx.insert(tripItems).values({
+          id: itemId,
+          tripId,
+          itemType: snapshot.itemType,
+          position: existingItem.position,
+          hotelId: snapshot.hotelId,
+          flightItineraryId: snapshot.flightItineraryId,
+          carInventoryId: snapshot.carInventoryId,
+          startCityId: snapshot.startCityId,
+          endCityId: snapshot.endCityId,
+          startDate: snapshot.startDate,
+          endDate: snapshot.endDate,
+          snapshotPriceCents: snapshot.snapshotPriceCents,
+          snapshotCurrencyCode: snapshot.snapshotCurrencyCode,
+          snapshotTimestamp: new Date(),
+          title: snapshot.title,
+          subtitle: snapshot.subtitle,
+          imageUrl: snapshot.imageUrl,
+          meta: snapshot.meta,
+          metadata: writeTripItemLocked(snapshot.metadata, locked),
+          createdAt: existingItem.createdAt,
+          updatedAt: new Date(),
+        })
+
+        shouldAutoRebalance = readTripAutoRebalance((await tx
+          .select({ metadata: trips.metadata })
+          .from(trips)
+          .where(eq(trips.id, tripId))
+          .limit(1))[0]?.metadata)
+      } else if (input.locked !== undefined) {
+        await tx
+          .update(tripItems)
+          .set({
+            metadata: writeTripItemLocked(currentMetadata, input.locked),
+            updatedAt: new Date(),
+          })
+          .where(and(eq(tripItems.tripId, tripId), eq(tripItems.id, itemId)))
+      } else {
+        throw new TripRepoError('invalid_edit', 'No trip item change was provided.')
+      }
+
+      await syncTripDatesIfAuto(tx, tripId)
+      await touchTrip(tx, tripId)
+    })
+
+    if (shouldAutoRebalance) {
+      const nextItems = await readTripItems(tripId)
+      const currentOrder = nextItems
+        .slice()
+        .sort((left, right) => left.position - right.position || left.id - right.id)
+        .map((item) => item.id)
+      const nextOrder = applyLockedAutoRebalance(nextItems).map((item) => item.id)
+
+      if (JSON.stringify(currentOrder) !== JSON.stringify(nextOrder)) {
+        return reorderTripItems(tripId, nextOrder)
+      }
     }
 
-    export async function updateTripItem(
-      tripId: number,
-      itemId: number,
-      input: {
-        locked?: boolean
-        candidate?: TripItemCandidate
-      },
-    ): Promise<TripDetails> {
-      return withTripSchemaGuard(async () => {
-        const db = getDb()
-        let shouldAutoRebalance = false
+    const details = await getTripDetails(tripId)
+    if (!details) {
+      throw new TripRepoError(
+        'trip_not_found',
+        `Trip ${tripId} was not found after updating an item.`,
+      )
+    }
 
-        if (input.candidate) {
-          requireTripSnapshotColumns()
-        }
+    return details
+  })
+}
 
-        await db.transaction(async (tx) => {
-          await assertTripExists(tx, tripId)
+export async function updateTripMetadata(
+  tripId: number,
+  input: UpdateTripMetadataInput,
+): Promise<TripDetails> {
+  return withTripSchemaGuard(async () => {
+    const db = getDb()
 
-          const itemRows = await tx
-            .select({
-              id: tripItems.id,
-              itemType: tripItems.itemType,
-              position: tripItems.position,
-              createdAt: tripItems.createdAt,
-              metadata: tripItems.metadata,
-            })
-            .from(tripItems)
-            .where(and(eq(tripItems.tripId, tripId), eq(tripItems.id, itemId)))
-            .limit(1)
+    await db.transaction(async (tx) => {
+      await assertTripExists(tx, tripId)
+      await ensureTripDatesRow(tx, tripId)
 
-          const existingItem = itemRows[0]
-          if (!existingItem) {
-            throw new TripRepoError(
-              'trip_item_not_found',
-              `Trip item ${itemId} was not found on trip ${tripId}.`,
-            )
-          }
+      const tripRows = await tx
+        .select({
+          metadata: trips.metadata,
+        })
+        .from(trips)
+        .where(eq(trips.id, tripId))
+        .limit(1)
 
-          const currentMetadata = normalizeMetadata(existingItem.metadata)
-          const locked =
-            input.locked === undefined ? readTripItemLocked(currentMetadata) : input.locked
+      const currentMetadata = normalizeMetadata(tripRows[0]?.metadata)
+      const nextMetadata = input.metadata
+        ? { ...currentMetadata, ...normalizeMetadata(input.metadata) }
+        : currentMetadata
 
-          if (input.candidate) {
-            const snapshot = await resolveTripItemSnapshot(tx, input.candidate)
-            if (snapshot.itemType !== existingItem.itemType) {
-              throw new TripRepoError(
-                'invalid_edit',
-                `Replacement item type ${snapshot.itemType} does not match existing ${existingItem.itemType}.`,
-              )
-            }
+      const nextTripUpdate: {
+        name?: string
+        status?: TripStatus
+        notes?: string | null
+        metadata?: Record<string, unknown>
+        updatedAt: Date
+      } = {
+        updatedAt: new Date(),
+      }
 
-            // Snapshot columns are intentionally immutable via DB trigger, so a
-            // replacement swap needs to recreate the row instead of updating it.
-            await tx
-              .delete(tripItems)
-              .where(and(eq(tripItems.tripId, tripId), eq(tripItems.id, itemId)))
+      if (input.name != null) {
+        nextTripUpdate.name = normalizeTripName(input.name)
+      }
 
-            await tx.insert(tripItems).values({
-              id: itemId,
-              tripId,
-              itemType: snapshot.itemType,
-              position: existingItem.position,
-              hotelId: snapshot.hotelId,
-              flightItineraryId: snapshot.flightItineraryId,
-              carInventoryId: snapshot.carInventoryId,
-              startCityId: snapshot.startCityId,
-              endCityId: snapshot.endCityId,
-              startDate: snapshot.startDate,
-              endDate: snapshot.endDate,
-              snapshotPriceCents: snapshot.snapshotPriceCents,
-              snapshotCurrencyCode: snapshot.snapshotCurrencyCode,
-              snapshotTimestamp: new Date(),
-              title: snapshot.title,
-              subtitle: snapshot.subtitle,
-              imageUrl: snapshot.imageUrl,
-              meta: snapshot.meta,
-              metadata: writeTripItemLocked(snapshot.metadata, locked),
-              createdAt: existingItem.createdAt,
+      if (input.status != null) {
+        nextTripUpdate.status = normalizeTripStatus(input.status)
+      }
+
+      if (input.notes !== undefined) {
+        nextTripUpdate.notes = input.notes == null ? null : String(input.notes).trim() || null
+      }
+
+      if (input.metadata) {
+        nextTripUpdate.metadata = nextMetadata
+      }
+
+      await tx
+        .update(trips)
+        .set(nextTripUpdate)
+        .where(eq(trips.id, tripId))
+
+      const hasDateInput =
+        input.startDate !== undefined ||
+        input.endDate !== undefined ||
+        input.dateSource !== undefined
+
+      if (hasDateInput) {
+        const currentRows = await tx
+          .select({
+            source: tripDates.source,
+            startDate: tripDates.startDate,
+            endDate: tripDates.endDate,
+          })
+          .from(tripDates)
+          .where(eq(tripDates.tripId, tripId))
+          .limit(1)
+
+        const current = currentRows[0]
+
+        if (input.dateSource === 'auto') {
+          await tx
+            .update(tripDates)
+            .set({
+              source: 'auto',
               updatedAt: new Date(),
             })
-
-            shouldAutoRebalance = readTripAutoRebalance((await tx
-              .select({ metadata: trips.metadata })
-              .from(trips)
-              .where(eq(trips.id, tripId))
-              .limit(1))[0]?.metadata)
-          } else if (input.locked !== undefined) {
-            await tx
-              .update(tripItems)
-              .set({
-                metadata: writeTripItemLocked(currentMetadata, input.locked),
-                updatedAt: new Date(),
-              })
-              .where(and(eq(tripItems.tripId, tripId), eq(tripItems.id, itemId)))
-          } else {
-            throw new TripRepoError('invalid_edit', 'No trip item change was provided.')
-          }
-
+            .where(eq(tripDates.tripId, tripId))
           await syncTripDatesIfAuto(tx, tripId)
-          await touchTrip(tx, tripId)
-        })
-
-        if (shouldAutoRebalance) {
-          const nextItems = await readTripItems(tripId)
-          const currentOrder = nextItems
-            .slice()
-            .sort((left, right) => left.position - right.position || left.id - right.id)
-            .map((item) => item.id)
-          const nextOrder = applyLockedAutoRebalance(nextItems).map((item) => item.id)
-
-          if (JSON.stringify(currentOrder) !== JSON.stringify(nextOrder)) {
-            return reorderTripItems(tripId, nextOrder)
-          }
-        }
-
-        const details = await getTripDetails(tripId)
-        if (!details) {
-          throw new TripRepoError(
-            'trip_not_found',
-            `Trip ${tripId} was not found after updating an item.`,
-          )
-        }
-
-        return details
-      })
-    }
-
-    export async function updateTripMetadata(
-      tripId: number,
-      input: UpdateTripMetadataInput,
-    ): Promise<TripDetails> {
-      return withTripSchemaGuard(async () => {
-        const db = getDb()
-
-        await db.transaction(async (tx) => {
-          await assertTripExists(tx, tripId)
-          await ensureTripDatesRow(tx, tripId)
-
-          const tripRows = await tx
-            .select({
-              metadata: trips.metadata,
-            })
-            .from(trips)
-            .where(eq(trips.id, tripId))
-            .limit(1)
-
-          const currentMetadata = normalizeMetadata(tripRows[0]?.metadata)
-          const nextMetadata = input.metadata
-            ? { ...currentMetadata, ...normalizeMetadata(input.metadata) }
-            : currentMetadata
-
-          const nextTripUpdate: {
-            name?: string
-            status?: TripStatus
-            notes?: string | null
-            metadata?: Record<string, unknown>
-            updatedAt: Date
-          } = {
-            updatedAt: new Date(),
-          }
-
-          if (input.name != null) {
-            nextTripUpdate.name = normalizeTripName(input.name)
-          }
-
-          if (input.status != null) {
-            nextTripUpdate.status = normalizeTripStatus(input.status)
-          }
-
-          if (input.notes !== undefined) {
-            nextTripUpdate.notes = input.notes == null ? null : String(input.notes).trim() || null
-          }
-
-          if (input.metadata) {
-            nextTripUpdate.metadata = nextMetadata
-          }
+        } else {
+          const nextSource = input.dateSource === 'manual' ? 'manual' : current?.source || 'manual'
+          const nextStartDate =
+            input.startDate !== undefined ? toIsoDate(input.startDate) : current?.startDate || null
+          const nextEndDate =
+            input.endDate !== undefined ? toIsoDate(input.endDate) : current?.endDate || null
 
           await tx
-            .update(trips)
-            .set(nextTripUpdate)
-            .where(eq(trips.id, tripId))
-
-          const hasDateInput =
-            input.startDate !== undefined ||
-            input.endDate !== undefined ||
-            input.dateSource !== undefined
-
-          if (hasDateInput) {
-            const currentRows = await tx
-              .select({
-                source: tripDates.source,
-                startDate: tripDates.startDate,
-                endDate: tripDates.endDate,
-              })
-              .from(tripDates)
-              .where(eq(tripDates.tripId, tripId))
-              .limit(1)
-
-            const current = currentRows[0]
-
-            if (input.dateSource === 'auto') {
-              await tx
-                .update(tripDates)
-                .set({
-                  source: 'auto',
-                  updatedAt: new Date(),
-                })
-                .where(eq(tripDates.tripId, tripId))
-              await syncTripDatesIfAuto(tx, tripId)
-            } else {
-              const nextSource = input.dateSource === 'manual' ? 'manual' : current?.source || 'manual'
-              const nextStartDate =
-                input.startDate !== undefined ? toIsoDate(input.startDate) : current?.startDate || null
-              const nextEndDate =
-                input.endDate !== undefined ? toIsoDate(input.endDate) : current?.endDate || null
-
-              await tx
-                .update(tripDates)
-                .set({
-                  source: nextSource,
-                  startDate: nextStartDate,
-                  endDate: nextEndDate,
-                  updatedAt: new Date(),
-                })
-                .where(eq(tripDates.tripId, tripId))
-            }
-          }
-        })
-
-        const details = await getTripDetails(tripId)
-        if (!details) {
-          throw new TripRepoError(
-            'trip_not_found',
-            `Trip ${tripId} was not found after metadata update.`,
-          )
+            .update(tripDates)
+            .set({
+              source: nextSource,
+              startDate: nextStartDate,
+              endDate: nextEndDate,
+              updatedAt: new Date(),
+            })
+            .where(eq(tripDates.tripId, tripId))
         }
+      }
+    })
 
-        return details
-      })
+    const details = await getTripDetails(tripId)
+    if (!details) {
+      throw new TripRepoError(
+        'trip_not_found',
+        `Trip ${tripId} was not found after metadata update.`,
+      )
     }
+
+    return details
+  })
+}
