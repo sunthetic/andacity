@@ -2,6 +2,10 @@ import { $, component$, useSignal, type QRL } from "@builder.io/qwik";
 import { AsyncPendingButton } from "~/components/async/AsyncPendingButton";
 import { AsyncRetryControl } from "~/components/async/AsyncRetryControl";
 import { ListSkeleton } from "~/components/async/AsyncSurfaceSkeleton";
+import {
+  markBookingStageProgress,
+  trackBookingEvent,
+} from "~/lib/analytics/booking-telemetry";
 import { useOverlayBehavior } from "~/lib/ui/overlay";
 import {
   addItemToTripApi,
@@ -51,6 +55,13 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
       const message =
         cause instanceof TripApiError ? cause.message : "Failed to load trips.";
       error.value = message;
+      trackBookingEvent("booking_error", {
+        vertical: props.item.vertical,
+        surface: props.telemetrySource || "unknown",
+        action: "load_trips",
+        item_id: props.item.id,
+        error_message: message,
+      });
     } finally {
       loading.value = false;
     }
@@ -58,6 +69,12 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
 
   const onOpen$ = $(async () => {
     if (!canAdd || loading.value || saving.value) return;
+    trackBookingEvent("booking_add_to_trip_started", {
+      vertical: props.item.vertical,
+      surface: props.telemetrySource || "unknown",
+      item_id: props.item.id,
+      item_position: props.telemetryItemPosition ?? undefined,
+    });
     open.value = true;
     await refreshTrips$();
   });
@@ -83,6 +100,18 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
       success.value = `Added to ${trip.name}.`;
       open.value = false;
       await refreshTrips$();
+      trackBookingEvent("booking_add_to_trip_completed", {
+        vertical: props.item.vertical,
+        surface: props.telemetrySource || "unknown",
+        item_id: props.item.id,
+        item_position: props.telemetryItemPosition ?? undefined,
+        action: "add_existing_trip",
+        trip_id: trip.id,
+        outcome: "success",
+      });
+      if (props.telemetrySource === "detail") {
+        markBookingStageProgress("detail");
+      }
       if (props.onAdded$) {
         await props.onAdded$(trip.id);
       }
@@ -92,6 +121,22 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
           ? cause.message
           : "Failed to add item to trip.";
       error.value = message;
+      trackBookingEvent("booking_add_to_trip_completed", {
+        vertical: props.item.vertical,
+        surface: props.telemetrySource || "unknown",
+        item_id: props.item.id,
+        item_position: props.telemetryItemPosition ?? undefined,
+        action: "add_existing_trip",
+        outcome: "failure",
+        error_message: message,
+      });
+      trackBookingEvent("booking_error", {
+        vertical: props.item.vertical,
+        surface: props.telemetrySource || "unknown",
+        action: "add_to_trip",
+        item_id: props.item.id,
+        error_message: message,
+      });
     } finally {
       saving.value = false;
     }
@@ -120,6 +165,18 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
       newTripName.value = "";
       open.value = false;
       await refreshTrips$();
+      trackBookingEvent("booking_add_to_trip_completed", {
+        vertical: props.item.vertical,
+        surface: props.telemetrySource || "unknown",
+        item_id: props.item.id,
+        item_position: props.telemetryItemPosition ?? undefined,
+        action: "create_trip_and_add",
+        trip_id: updated.id,
+        outcome: "success",
+      });
+      if (props.telemetrySource === "detail") {
+        markBookingStageProgress("detail");
+      }
       if (props.onAdded$) {
         await props.onAdded$(updated.id);
       }
@@ -129,6 +186,22 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
           ? cause.message
           : "Failed to create trip.";
       error.value = message;
+      trackBookingEvent("booking_add_to_trip_completed", {
+        vertical: props.item.vertical,
+        surface: props.telemetrySource || "unknown",
+        item_id: props.item.id,
+        item_position: props.telemetryItemPosition ?? undefined,
+        action: "create_trip_and_add",
+        outcome: "failure",
+        error_message: message,
+      });
+      trackBookingEvent("booking_error", {
+        vertical: props.item.vertical,
+        surface: props.telemetrySource || "unknown",
+        action: "create_trip_and_add",
+        item_id: props.item.id,
+        error_message: message,
+      });
     } finally {
       saving.value = false;
     }
@@ -208,6 +281,12 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
                   message={error.value}
                   label="Retry trips"
                   onRetry$={refreshTrips$}
+                  telemetry={{
+                    vertical: props.item.vertical,
+                    surface: props.telemetrySource || "unknown",
+                    retryType: "load_trips",
+                    context: "add_to_trip_dialog",
+                  }}
                 />
               </div>
             ) : (
@@ -309,6 +388,17 @@ export const AddToTripButton = component$((props: AddToTripButtonProps) => {
                           : onAddToSelected$
                         : refreshTrips$
                     }
+                    telemetry={{
+                      vertical: props.item.vertical,
+                      surface: props.telemetrySource || "unknown",
+                      retryType:
+                        trips.value.length && lastSaveAction.value === "create"
+                          ? "create_trip_and_add"
+                          : trips.value.length
+                            ? "add_to_trip"
+                            : "load_trips",
+                      context: "add_to_trip_dialog",
+                    }}
                   />
                 ) : null}
               </>
@@ -325,4 +415,6 @@ type AddToTripButtonProps = {
   label?: string;
   class?: string;
   onAdded$?: QRL<(tripId: number) => void>;
+  telemetrySource?: string;
+  telemetryItemPosition?: number | null;
 };

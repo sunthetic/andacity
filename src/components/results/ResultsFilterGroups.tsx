@@ -1,4 +1,8 @@
 import { component$ } from "@builder.io/qwik";
+import {
+  trackBookingEvent,
+  type BookingVertical,
+} from "~/lib/analytics/booking-telemetry";
 
 export const ResultsFilterGroups = component$(
   (props: ResultsFilterGroupsProps) => {
@@ -14,6 +18,17 @@ export const ResultsFilterGroups = component$(
                 <a
                   key={`${group.title}-${option.label}`}
                   href={option.href}
+                  onClick$={() => {
+                    if (!props.telemetry) return;
+
+                    trackBookingEvent("booking_filter_toggled", {
+                      vertical: props.telemetry.vertical,
+                      surface: props.telemetry.surface,
+                      filter_group: group.title,
+                      filter_value: option.telemetryValue || option.label,
+                      action: option.active ? "remove" : "add",
+                    });
+                  }}
                   aria-disabled={props.disabled || undefined}
                   tabIndex={props.disabled ? -1 : undefined}
                   class={[
@@ -42,6 +57,7 @@ export type ResultsFilterOption = {
   label: string;
   href: string;
   active?: boolean;
+  telemetryValue?: string;
 };
 
 export type ResultsFilterGroup = {
@@ -57,6 +73,10 @@ export type ResultsFilterChip = {
 type ResultsFilterGroupsProps = {
   groups: ResultsFilterGroup[];
   disabled?: boolean;
+  telemetry?: {
+    vertical: BookingVertical;
+    surface: string;
+  };
 };
 
 export const buildResultsFilterChips = (

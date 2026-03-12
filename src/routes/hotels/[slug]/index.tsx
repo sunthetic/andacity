@@ -1,6 +1,8 @@
 import { $, component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import { routeLoader$, useLocation } from "@builder.io/qwik-city";
 import type { DocumentHead } from "@builder.io/qwik-city";
+import { useBookingAbandonmentTelemetry } from "~/lib/analytics/booking-abandonment";
+import { trackBookingEvent } from "~/lib/analytics/booking-telemetry";
 import { AsyncRetryControl } from "~/components/async/AsyncRetryControl";
 import { AsyncStateNotice } from "~/components/async/AsyncStateNotice";
 import { InventoryRefreshControl } from "~/components/inventory/InventoryRefreshControl";
@@ -13,6 +15,7 @@ import {
 import { CompareSheet } from "~/components/save-compare/CompareSheet";
 import { CompareTray } from "~/components/save-compare/CompareTray";
 import { SaveButton } from "~/components/save-compare/SaveButton";
+import { AddToTripButton } from "~/components/trips/AddToTripButton";
 import {
   resolveAvailabilityAsyncState,
   summarizeAvailabilitySignals,
@@ -142,6 +145,15 @@ export default component$(() => {
   const data = useHotelPage().value;
   const h = data.hotel;
   const location = useLocation();
+  useBookingAbandonmentTelemetry({
+    vertical: "hotels",
+    stage: "detail",
+    enabled: Boolean(h),
+    payload: {
+      surface: "detail_page",
+    },
+    trackOnCleanup: false,
+  });
   const refreshHref = `${location.url.pathname}${location.url.search}`;
   const refreshSnapshotId = `hotel-detail:${refreshHref}`;
   const refreshPriceChange = useSignal<PriceChange | null>(null);
@@ -181,6 +193,12 @@ export default component$(() => {
             message="Retry this page or return to hotel search."
             label="Retry hotel details"
             href={location.url.pathname + location.url.search}
+            telemetry={{
+              vertical: "hotels",
+              surface: "detail",
+              retryType: "detail_reload",
+              context: "load_failure",
+            }}
           />
         </div>
       </Page>
@@ -268,10 +286,20 @@ export default component$(() => {
 
   const onOpenCompare$ = $(() => {
     if (decisioning.state.compare.hotels.length < 2) return;
+    trackBookingEvent("booking_compare_opened", {
+      vertical: "hotels",
+      surface: "detail",
+      compare_count: decisioning.state.compare.hotels.length,
+    });
     decisioning.openCompare$("hotels");
   });
 
   const onClearCompare$ = $(() => {
+    trackBookingEvent("booking_compare_cleared", {
+      vertical: "hotels",
+      surface: "detail",
+      compare_count: decisioning.state.compare.hotels.length,
+    });
     decisioning.clearComparedItems$("hotels");
   });
 
@@ -544,12 +572,26 @@ export default component$(() => {
                   )}
                   idleLabel="Shortlist"
                   activeLabel="Shortlisted"
+                  telemetry={{
+                    vertical: "hotels",
+                    itemId: decisionItem.id,
+                    surface: "detail",
+                  }}
                   onToggle$={onToggleShortlist$}
                 />
                 <CompareButton
                   selected={compared}
                   disabled={compareDisabled}
+                  telemetry={{
+                    vertical: "hotels",
+                    itemId: decisionItem.id,
+                    surface: "detail",
+                  }}
                   onToggle$={onToggleCompare$}
+                />
+                <AddToTripButton
+                  item={decisionItem}
+                  telemetrySource="detail"
                 />
               </div>
             </div>
@@ -683,6 +725,12 @@ export default component$(() => {
                   compact={true}
                   align="right"
                   disabled={location.isNavigating}
+                  telemetry={{
+                    vertical: "hotels",
+                    surface: "detail",
+                    refreshType: "inventory_revalidation",
+                    itemCount: 1,
+                  }}
                 />
               </div>
 

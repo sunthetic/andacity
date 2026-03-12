@@ -49,6 +49,12 @@ export type HotelResultCardProps = {
   detailHref?: string;
   priceDisplay?: import("~/lib/pricing/price-display").PriceDisplayContract;
   activeSort?: import("~/lib/search/hotels/hotel-sort-options").HotelSortKey;
+  telemetry?: {
+    vertical: import("~/lib/analytics/booking-telemetry").BookingVertical;
+    surface: string;
+    itemId: string;
+    itemPosition?: number | null;
+  };
 };
 
 export type MobileDrawerProps = {

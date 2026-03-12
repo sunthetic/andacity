@@ -3,6 +3,8 @@ import { useLocation } from "@builder.io/qwik-city";
 import { FlightCard } from "~/components/flights/FlightCard";
 import { FlightFilters } from "~/components/flights/FlightFilters";
 import type { FlightFilterGroup } from "~/components/flights/FlightFilters";
+import { useBookingAbandonmentTelemetry } from "~/lib/analytics/booking-abandonment";
+import { trackBookingEvent } from "~/lib/analytics/booking-telemetry";
 import { buildResultsFilterChips } from "~/components/results/ResultsFilterGroups";
 import { ResultsShell } from "~/components/results/ResultsShell";
 import {
@@ -177,6 +179,14 @@ export const FlightsResultsAdapter = component$(
         includeLocationParams: false,
         dateParamKeys: { checkIn: "depart", checkOut: "return" },
       });
+    useBookingAbandonmentTelemetry({
+      vertical: "flights",
+      stage: "search_results",
+      payload: {
+        surface: "results_shell",
+      },
+      trackOnCleanup: false,
+    });
 
     const preservedFilterKeys = Object.keys(
       props.searchState.filters || {},
@@ -254,10 +264,20 @@ export const FlightsResultsAdapter = component$(
     const onOpenCompare$ = $(() => {
       if (!canOpenCompare(decisioning.state.compare[FLIGHTS_VERTICAL].length))
         return;
+      trackBookingEvent("booking_compare_opened", {
+        vertical: FLIGHTS_VERTICAL,
+        surface: "search_results",
+        compare_count: decisioning.state.compare[FLIGHTS_VERTICAL].length,
+      });
       decisioning.openCompare$(FLIGHTS_VERTICAL);
     });
 
     const onClearCompare$ = $(() => {
+      trackBookingEvent("booking_compare_cleared", {
+        vertical: FLIGHTS_VERTICAL,
+        surface: "search_results",
+        compare_count: comparedItems.length,
+      });
       decisioning.clearComparedItems$(FLIGHTS_VERTICAL);
     });
 
@@ -407,6 +427,16 @@ export const FlightsResultsAdapter = component$(
           failureMessage:
             "Failed to refresh visible flight availability signals.",
           disabled: controlsDisabled,
+          telemetry: {
+            vertical: FLIGHTS_VERTICAL,
+            surface: "search_results",
+            refreshType: "visible_inventory_revalidation",
+            itemCount: visibleInventoryIds.length,
+          },
+        }}
+        telemetry={{
+          vertical: FLIGHTS_VERTICAL,
+          surface: "search_results",
         }}
         filtersTitle="Flight filters"
         asyncState={asyncState}
@@ -476,11 +506,19 @@ export const FlightsResultsAdapter = component$(
           q:slot="filters-desktop"
           groups={filterGroups}
           disabled={controlsDisabled}
+          telemetry={{
+            vertical: FLIGHTS_VERTICAL,
+            surface: "search_results",
+          }}
         />
         <FlightFilters
           q:slot="filters-mobile"
           groups={filterGroups}
           disabled={controlsDisabled}
+          telemetry={{
+            vertical: FLIGHTS_VERTICAL,
+            surface: "search_results",
+          }}
         />
 
         {refreshPriceSummary.value ? (
@@ -526,6 +564,12 @@ export const FlightsResultsAdapter = component$(
                   comparedItems.length >= decisioning.state.compareLimit
                 }
                 onToggleCompare$={onToggleCompare$}
+                telemetry={{
+                  vertical: FLIGHTS_VERTICAL,
+                  surface: "search_results",
+                  itemId: savedItem.id,
+                  itemPosition: index + 1,
+                }}
               />
             );
           })}

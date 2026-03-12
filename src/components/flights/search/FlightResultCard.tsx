@@ -5,10 +5,27 @@ import {
   ResultPricePanel,
   ResultTrustBar,
 } from '~/components/results/ResultCardScaffold'
+import {
+  markBookingStageProgress,
+  trackBookingEvent,
+  type BookingVertical,
+} from '~/lib/analytics/booking-telemetry'
 import { buildFlightPriceDisplay } from '~/lib/pricing/price-display'
 import type { FlightResult } from '~/types/flights/search'
 
-export const FlightResultCard = component$(({ flight }: FlightResultCardProps) => {
+export const FlightResultCard = component$(({ flight, telemetry }: FlightResultCardProps) => {
+  const onSelectFlight$ = () => {
+    if (!telemetry) return
+
+    trackBookingEvent('booking_search_result_opened', {
+      vertical: telemetry.vertical,
+      surface: telemetry.surface,
+      item_id: telemetry.itemId,
+      item_position: telemetry.itemPosition ?? undefined,
+      target: 'select',
+    })
+    markBookingStageProgress('search_results')
+  }
   const priceDisplay = buildFlightPriceDisplay({
     currencyCode: flight.currency,
     fare: flight.price,
@@ -63,6 +80,7 @@ export const FlightResultCard = component$(({ flight }: FlightResultCardProps) =
         q:slot="primary-action"
         class="t-btn-primary block w-full px-4 py-2.5 text-center text-sm font-semibold"
         href="/flights"
+        onClick$={onSelectFlight$}
       >
         Select flight
       </a>
@@ -78,4 +96,10 @@ export const FlightResultCard = component$(({ flight }: FlightResultCardProps) =
 
 type FlightResultCardProps = {
   flight: FlightResult
+  telemetry?: {
+    vertical: BookingVertical
+    surface: string
+    itemId: string
+    itemPosition?: number | null
+  }
 }

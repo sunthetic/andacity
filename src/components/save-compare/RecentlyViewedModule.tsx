@@ -87,11 +87,21 @@ export const RecentlyViewedModule = component$((props: RecentlyViewedModuleProps
                   saved={shortlisted}
                   idleLabel="Shortlist"
                   activeLabel="Shortlisted"
+                  telemetry={{
+                    vertical: props.vertical,
+                    itemId: item.id,
+                    surface: 'recently_viewed',
+                  }}
                   onToggle$={() => decisioning.toggleShortlist$(props.vertical, item)}
                 />
                 <CompareButton
                   selected={compared}
                   disabled={compareDisabled}
+                  telemetry={{
+                    vertical: props.vertical,
+                    itemId: item.id,
+                    surface: 'recently_viewed',
+                  }}
                   onToggle$={() => decisioning.toggleCompare$(props.vertical, item)}
                 />
               </div>

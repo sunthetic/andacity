@@ -10,6 +10,11 @@ import { buildHotelWhyThis } from "~/components/results/result-card-copy";
 import { CompareButton } from "~/components/save-compare/CompareButton";
 import { SaveButton } from "~/components/save-compare/SaveButton";
 import { AddToTripButton } from "~/components/trips/AddToTripButton";
+import {
+  markBookingStageProgress,
+  trackBookingEvent,
+  type BookingVertical,
+} from "~/lib/analytics/booking-telemetry";
 import type { Hotel } from "~/data/hotels";
 import type { PriceDisplayContract } from "~/lib/pricing/price-display";
 import type { HotelSortKey } from "~/lib/search/hotels/hotel-sort-options";
@@ -18,6 +23,18 @@ import type { SavedItem } from "~/types/save-compare/saved-item";
 export const HotelCard = component$((props: HotelCardProps) => {
   const h = props.hotel;
   const detailHref = props.detailHref || buildHotelDetailHref(h.slug);
+  const onOpenDetail$ = () => {
+    if (!props.telemetry) return;
+
+    trackBookingEvent("booking_search_result_opened", {
+      vertical: props.telemetry.vertical,
+      surface: props.telemetry.surface,
+      item_id: props.telemetry.itemId,
+      item_position: props.telemetry.itemPosition ?? undefined,
+      target: "detail",
+    });
+    markBookingStageProgress("search_results");
+  };
   const whyThis = buildHotelWhyThis(
     {
       rating: h.rating,
@@ -45,7 +62,7 @@ export const HotelCard = component$((props: HotelCardProps) => {
       hasPrimaryAction={true}
       hasTrust={Boolean(h.availabilityConfidence || h.freshness)}
     >
-      <a q:slot="media" class="block h-full" href={detailHref}>
+      <a q:slot="media" class="block h-full" href={detailHref} onClick$={onOpenDetail$}>
         <img
           class="h-48 w-full object-cover md:h-full"
           src={h.images[0] || "/img/demo/hotel-1.jpg"}
@@ -60,6 +77,7 @@ export const HotelCard = component$((props: HotelCardProps) => {
         <a
           class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
           href={detailHref}
+          onClick$={onOpenDetail$}
         >
           {h.name}
         </a>
@@ -126,6 +144,12 @@ export const HotelCard = component$((props: HotelCardProps) => {
               saved={Boolean(props.isSaved)}
               idleLabel="Shortlist"
               activeLabel="Shortlisted"
+              telemetry={{
+                vertical: "hotels",
+                itemId: props.savedItem.id,
+                surface: "search_results",
+                itemPosition: props.telemetry?.itemPosition,
+              }}
               onToggle$={() => {
                 if (!props.savedItem || !props.onToggleSave$) return;
                 props.onToggleSave$(props.savedItem);
@@ -138,6 +162,12 @@ export const HotelCard = component$((props: HotelCardProps) => {
               class="min-h-9 px-3 py-2"
               selected={Boolean(props.isCompared)}
               disabled={Boolean(props.compareDisabled)}
+              telemetry={{
+                vertical: "hotels",
+                itemId: props.savedItem.id,
+                surface: "search_results",
+                itemPosition: props.telemetry?.itemPosition,
+              }}
               onToggle$={() => {
                 if (!props.savedItem || !props.onToggleCompare$) return;
                 props.onToggleCompare$(props.savedItem);
@@ -148,6 +178,8 @@ export const HotelCard = component$((props: HotelCardProps) => {
           <AddToTripButton
             class="min-h-9 rounded-full border border-[color:var(--color-border)] px-3 py-2 text-xs font-semibold text-[color:var(--color-action)] hover:border-[color:var(--color-action)]"
             item={props.savedItem}
+            telemetrySource="search_results"
+            telemetryItemPosition={props.telemetry?.itemPosition}
           />
         </div>
       ) : null}
@@ -163,6 +195,7 @@ export const HotelCard = component$((props: HotelCardProps) => {
         q:slot="primary-action"
         class="t-btn-primary block w-full px-4 py-2.5 text-center text-sm font-semibold"
         href={detailHref}
+        onClick$={onOpenDetail$}
       >
         View stay
       </a>
@@ -187,6 +220,12 @@ type HotelCardProps = {
   compareDisabled?: boolean;
   onToggleCompare$?: QRL<(item: SavedItem) => void>;
   detailHref?: string;
+  telemetry?: {
+    vertical: BookingVertical;
+    surface: string;
+    itemId: string;
+    itemPosition?: number | null;
+  };
 };
 
 const buildHotelDetailHref = (hotelSlug: string) =>

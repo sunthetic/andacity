@@ -3,6 +3,7 @@ import { compareFieldDefinitions, COMPARE_MISMATCH_LOG_PREFIX, verticalCompareTi
 import { useDecisioning } from '~/components/save-compare/DecisioningProvider'
 import { SaveButton } from '~/components/save-compare/SaveButton'
 import { AddToTripButton } from '~/components/trips/AddToTripButton'
+import { trackBookingEvent } from '~/lib/analytics/booking-telemetry'
 import { useOverlayBehavior } from '~/lib/ui/overlay'
 import type { SavedItem, SavedVertical } from '~/types/save-compare/saved-item'
 
@@ -29,7 +30,14 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
         type="button"
         aria-label="Close compare sheet"
         class="absolute inset-0 bg-black/45"
-        onClick$={decisioning.closeCompare$}
+        onClick$={() => {
+          trackBookingEvent('booking_compare_closed', {
+            vertical: props.vertical,
+            surface: 'compare_sheet',
+            compare_count: props.items.length,
+          })
+          return decisioning.closeCompare$()
+        }}
       />
 
       <section
@@ -54,7 +62,14 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
             <div class="flex items-center gap-2">
               <button
                 type="button"
-                onClick$={() => decisioning.clearComparedItems$(props.vertical)}
+                onClick$={() => {
+                  trackBookingEvent('booking_compare_cleared', {
+                    vertical: props.vertical,
+                    surface: 'compare_sheet',
+                    compare_count: props.items.length,
+                  })
+                  return decisioning.clearComparedItems$(props.vertical)
+                }}
                 class="rounded-full border border-[color:var(--color-border)] px-3 py-2 text-xs font-semibold text-[color:var(--color-text-muted)]"
               >
                 Clear all
@@ -62,7 +77,14 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
               <button
                 ref={initialFocusRef}
                 type="button"
-                onClick$={decisioning.closeCompare$}
+                onClick$={() => {
+                  trackBookingEvent('booking_compare_closed', {
+                    vertical: props.vertical,
+                    surface: 'compare_sheet',
+                    compare_count: props.items.length,
+                  })
+                  return decisioning.closeCompare$()
+                }}
                 class="t-btn-primary px-4 py-2 text-xs font-semibold"
               >
                 Close
@@ -128,11 +150,23 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
                       saved={shortlisted}
                       idleLabel="Shortlist"
                       activeLabel="Shortlisted"
+                      telemetry={{
+                        vertical: props.vertical,
+                        itemId: item.id,
+                        surface: 'compare_sheet',
+                      }}
                       onToggle$={() => decisioning.toggleShortlist$(props.vertical, item)}
                     />
                     <button
                       type="button"
-                      onClick$={() => decisioning.removeComparedItem$(props.vertical, item.id)}
+                      onClick$={() => {
+                        trackBookingEvent('booking_compare_removed', {
+                          vertical: props.vertical,
+                          surface: 'compare_sheet',
+                          item_id: item.id,
+                        })
+                        return decisioning.removeComparedItem$(props.vertical, item.id)
+                      }}
                       class="rounded-full border border-[color:var(--color-border)] px-3 py-1 text-xs font-semibold text-[color:var(--color-text-muted)]"
                     >
                       Remove
@@ -146,7 +180,10 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
                     >
                       View
                     </a>
-                    <AddToTripButton item={item} />
+                    <AddToTripButton
+                      item={item}
+                      telemetrySource="compare_sheet"
+                    />
                   </div>
                 </article>
               )

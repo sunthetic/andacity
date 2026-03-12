@@ -3,6 +3,8 @@ import { useLocation } from "@builder.io/qwik-city";
 import { CarRentalCard } from "~/components/car-rentals/CarRentalCard";
 import { CarRentalFilters } from "~/components/car-rentals/CarRentalFilters";
 import type { CarRentalFilterGroup } from "~/components/car-rentals/CarRentalFilters";
+import { useBookingAbandonmentTelemetry } from "~/lib/analytics/booking-abandonment";
+import { trackBookingEvent } from "~/lib/analytics/booking-telemetry";
 import { buildResultsFilterChips } from "~/components/results/ResultsFilterGroups";
 import { ResultsShell } from "~/components/results/ResultsShell";
 import {
@@ -144,6 +146,14 @@ export const CarRentalsResultsAdapter = component$(
         includeLocationParams: props.urlOptions?.includeLocationParams,
         dateParamKeys: props.urlOptions?.dateParamKeys,
       });
+    useBookingAbandonmentTelemetry({
+      vertical: "cars",
+      stage: "search_results",
+      payload: {
+        surface: "results_shell",
+      },
+      trackOnCleanup: false,
+    });
 
     const preservedFilterKeys = Object.keys(
       props.searchState.filters || {},
@@ -224,10 +234,20 @@ export const CarRentalsResultsAdapter = component$(
     const onOpenCompare$ = $(() => {
       if (!canOpenCompare(decisioning.state.compare[CARS_VERTICAL].length))
         return;
+      trackBookingEvent("booking_compare_opened", {
+        vertical: CARS_VERTICAL,
+        surface: "search_results",
+        compare_count: decisioning.state.compare[CARS_VERTICAL].length,
+      });
       decisioning.openCompare$(CARS_VERTICAL);
     });
 
     const onClearCompare$ = $(() => {
+      trackBookingEvent("booking_compare_cleared", {
+        vertical: CARS_VERTICAL,
+        surface: "search_results",
+        compare_count: comparedItems.length,
+      });
       decisioning.clearComparedItems$(CARS_VERTICAL);
     });
 
@@ -385,6 +405,16 @@ export const CarRentalsResultsAdapter = component$(
           failureMessage:
             "Failed to refresh visible car rental availability signals.",
           disabled: controlsDisabled,
+          telemetry: {
+            vertical: CARS_VERTICAL,
+            surface: "search_results",
+            refreshType: "visible_inventory_revalidation",
+            itemCount: visibleInventoryIds.length,
+          },
+        }}
+        telemetry={{
+          vertical: CARS_VERTICAL,
+          surface: "search_results",
         }}
         filtersTitle="Car rental filters"
         asyncState={asyncState}
@@ -454,11 +484,19 @@ export const CarRentalsResultsAdapter = component$(
           q:slot="filters-desktop"
           groups={filterGroups}
           disabled={controlsDisabled}
+          telemetry={{
+            vertical: CARS_VERTICAL,
+            surface: "search_results",
+          }}
         />
         <CarRentalFilters
           q:slot="filters-mobile"
           groups={filterGroups}
           disabled={controlsDisabled}
+          telemetry={{
+            vertical: CARS_VERTICAL,
+            surface: "search_results",
+          }}
         />
 
         {refreshPriceSummary.value ? (
@@ -513,6 +551,12 @@ export const CarRentalsResultsAdapter = component$(
                   props.searchState.dates,
                   props.searchState.filters?.drivers,
                 )}
+                telemetry={{
+                  vertical: CARS_VERTICAL,
+                  surface: "search_results",
+                  itemId: savedItem.id,
+                  itemPosition: index + 1,
+                }}
               />
             );
           })}

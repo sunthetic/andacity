@@ -48,6 +48,7 @@ import {
 import {
   readTripBundlingState,
 } from "~/lib/trips/bundle-explainability";
+import { trackBookingEvent } from "~/lib/analytics/booking-telemetry";
 import { compareIsoDate, differenceInDays } from "~/lib/trips/date-utils";
 import type {
   TripAppliedChange,
@@ -152,7 +153,34 @@ export default component$(() => {
     Record<number, TripItemReplacementOption[]>
   >({});
   const lastPreviewScrollKey = useSignal<string | null>(null);
+  const trackTripError = (
+    action: string,
+    message: string,
+    extra?: Record<string, string | number | boolean | null | undefined>,
+  ) => {
+    trackBookingEvent("booking_error", {
+      vertical: "trips",
+      surface: "trip_builder",
+      trip_id: activeTrip.value?.id ?? undefined,
+      action,
+      error_message: message,
+      ...(extra || {}),
+    });
+  };
+  const trackTripAction = (
+    action: string,
+    extra?: Record<string, string | number | boolean | null | undefined>,
+  ) => {
+    trackBookingEvent("booking_trip_action", {
+      vertical: "trips",
+      surface: "trip_builder",
+      trip_id: activeTrip.value?.id ?? undefined,
+      action,
+      ...(extra || {}),
+    });
+  };
 
+  // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(({ track, cleanup }) => {
     const previewKey = track(() => {
       const itemId = previewItemId.value;
@@ -196,6 +224,46 @@ export default component$(() => {
 
     cleanup(() => {
       window.cancelAnimationFrame(frameId);
+    });
+  });
+
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ cleanup }) => {
+    let tracked = false;
+    const trackPreviewAbandonment = () => {
+      if (tracked) return;
+
+      if (editPreview.value && previewItemId.value != null) {
+        trackBookingEvent("booking_abandonment", {
+          vertical: editPreview.value.bundleImpact ? "bundles" : "trips",
+          surface: "trip_builder",
+          stage: editPreview.value.bundleImpact
+            ? "bundle_review"
+            : "trip_edit_preview",
+          trip_id: activeTrip.value?.id ?? undefined,
+          item_id: previewItemId.value,
+          action_type: editPreview.value.actionType,
+        });
+        tracked = true;
+        return;
+      }
+
+      if (replacementPanelItemId.value != null) {
+        trackBookingEvent("booking_abandonment", {
+          vertical: "trips",
+          surface: "trip_builder",
+          stage: "replacement_options",
+          trip_id: activeTrip.value?.id ?? undefined,
+          item_id: replacementPanelItemId.value,
+        });
+        tracked = true;
+      }
+    };
+
+    window.addEventListener("pagehide", trackPreviewAbandonment);
+    cleanup(() => {
+      window.removeEventListener("pagehide", trackPreviewAbandonment);
+      trackPreviewAbandonment();
     });
   });
 
@@ -351,6 +419,7 @@ export default component$(() => {
           ? cause.message
           : "Failed to revalidate trip.";
       error.value = message;
+      trackTripError("revalidate_trip", message);
       throw new Error(message);
     } finally {
       loading.value = false;
@@ -380,12 +449,18 @@ export default component$(() => {
       };
       editPreview.value = preview;
       previewItemId.value = item.id;
+      trackTripAction("preview_remove_item", {
+        item_id: item.id,
+      });
     } catch (cause) {
       const message =
         cause instanceof TripApiError
           ? cause.message
           : "Failed to preview trip item removal.";
       error.value = message;
+      trackTripError("preview_remove_item", message, {
+        item_id: item.id,
+      });
     } finally {
       loading.value = false;
       activeAction.value = null;
@@ -428,12 +503,18 @@ export default component$(() => {
       };
       editPreview.value = preview;
       previewItemId.value = itemId;
+      trackTripAction("preview_reorder_item", {
+        item_id: itemId,
+      });
     } catch (cause) {
       const message =
         cause instanceof TripApiError
           ? cause.message
           : "Failed to preview itinerary reorder.";
       error.value = message;
+      trackTripError("preview_reorder_item", message, {
+        item_id: itemId,
+      });
     } finally {
       loading.value = false;
       activeAction.value = null;
@@ -444,6 +525,9 @@ export default component$(() => {
     if (!activeTrip.value || loading.value) return;
 
     if (replacementPanelItemId.value === itemId) {
+      trackTripAction("close_replacement_options", {
+        item_id: itemId,
+      });
       replacementPanelItemId.value = null;
       if (replacementPanelError.value?.itemId === itemId) {
         replacementPanelError.value = null;
@@ -453,6 +537,10 @@ export default component$(() => {
 
     const cached = replacementOptions.value[itemId];
     if (cached?.length) {
+      trackTripAction("open_replacement_options", {
+        item_id: itemId,
+        option_count: cached.length,
+      });
       replacementPanelItemId.value = itemId;
       if (replacementPanelError.value?.itemId === itemId) {
         replacementPanelError.value = null;
@@ -476,12 +564,19 @@ export default component$(() => {
         [itemId]: options,
       };
       replacementPanelItemId.value = itemId;
+      trackTripAction("open_replacement_options", {
+        item_id: itemId,
+        option_count: options.length,
+      });
     } catch (cause) {
       const message =
         cause instanceof TripApiError
           ? cause.message
           : "Failed to load replacement options.";
       error.value = message;
+      trackTripError("load_replacement_options", message, {
+        item_id: itemId,
+      });
     } finally {
       loading.value = false;
       activeAction.value = null;
@@ -515,6 +610,10 @@ export default component$(() => {
         };
         editPreview.value = preview;
         previewItemId.value = itemId;
+        trackTripAction("preview_replacement", {
+          item_id: itemId,
+          replacement_inventory_id: option.inventoryId,
+        });
       } catch (cause) {
         const message =
           cause instanceof TripApiError
@@ -525,6 +624,10 @@ export default component$(() => {
           itemId,
           message,
         };
+        trackTripError("preview_replacement", message, {
+          item_id: itemId,
+          replacement_inventory_id: option.inventoryId,
+        });
       } finally {
         loading.value = false;
         activeAction.value = null;
@@ -533,6 +636,21 @@ export default component$(() => {
   );
 
   const onCancelEditPreview$ = $(() => {
+    if (editPreview.value?.bundleImpact) {
+      trackBookingEvent("booking_bundle_decision", {
+        vertical: "bundles",
+        surface: "trip_builder",
+        trip_id: activeTrip.value?.id ?? undefined,
+        item_id: previewItemId.value ?? undefined,
+        decision: "reject",
+        reason: "cancel_preview",
+        action_type: editPreview.value.actionType,
+      });
+    } else if (previewItemId.value != null) {
+      trackTripAction("cancel_preview", {
+        item_id: previewItemId.value,
+      });
+    }
     editDraft.value = null;
     editPreview.value = null;
     previewItemId.value = null;
@@ -619,12 +737,33 @@ export default component$(() => {
                 title: "Item replaced",
                 message: `${draft.replacementTitle} is now in the itinerary.`,
               };
+      if (preview?.bundleImpact) {
+        trackBookingEvent("booking_bundle_decision", {
+          vertical: "bundles",
+          surface: "trip_builder",
+          trip_id: trip.id,
+          item_id: draft.itemId,
+          decision: "accept",
+          action_type: draft.actionType,
+          selection_mode: preview.bundleImpact.selectionMode,
+          safety_level: preview.changeSummary.safetyLevel,
+        });
+      } else {
+        trackTripAction("apply_edit", {
+          item_id: draft.itemId,
+          action_type: draft.actionType,
+        });
+      }
     } catch (cause) {
       const message =
         cause instanceof TripApiError
           ? cause.message
           : "Failed to apply itinerary edit.";
       error.value = message;
+      trackTripError("apply_edit", message, {
+        item_id: draft.itemId,
+        action_type: draft.actionType,
+      });
     } finally {
       loading.value = false;
       activeAction.value = null;
@@ -737,12 +876,14 @@ export default component$(() => {
         title: "Change rolled back",
         message: "The prior itinerary draft was restored.",
       };
+      trackTripAction("rollback_change");
     } catch (cause) {
       const message =
         cause instanceof TripApiError
           ? cause.message
           : "Failed to roll back itinerary change.";
       error.value = message;
+      trackTripError("rollback_change", message);
     } finally {
       loading.value = false;
       activeAction.value = null;
@@ -766,12 +907,24 @@ export default component$(() => {
         title: "Suggestion added",
         message: "The suggested inventory was added to the itinerary.",
       };
+      trackBookingEvent("booking_bundle_decision", {
+        vertical: "bundles",
+        surface: "trip_builder",
+        trip_id: trip.id,
+        decision: "accept",
+        reason: "suggested_addition",
+        inventory_id: candidate.inventoryId,
+        item_type: candidate.itemType,
+      });
     } catch (cause) {
       const message =
         cause instanceof TripApiError
           ? cause.message
           : "Failed to add suggested trip item.";
       error.value = message;
+      trackTripError("add_suggested_item", message, {
+        inventory_id: candidate.inventoryId,
+      });
     } finally {
       loading.value = false;
       activeAction.value = null;
@@ -809,6 +962,7 @@ export default component$(() => {
           : "Failed to reload trips.";
       setupError.value = message;
       error.value = message;
+      trackTripError("setup_retry", message);
     } finally {
       loading.value = false;
       activeAction.value = null;
@@ -876,6 +1030,12 @@ export default component$(() => {
             message="Retry loading your trips without leaving the builder."
             label="Retry trips"
             onRetry$={retrySetup$}
+            telemetry={{
+              vertical: "trips",
+              surface: "trip_builder",
+              retryType: "setup_retry",
+              context: "load_failure",
+            }}
           />
         </div>
       ) : null}
@@ -1093,6 +1253,12 @@ export default component$(() => {
                       failureMessage="Failed to revalidate trip."
                       align="right"
                       disabled={loading.value}
+                      telemetry={{
+                        vertical: "trips",
+                        surface: "trip_builder",
+                        refreshType: "trip_revalidation",
+                        itemCount: activeTrip.value.items.length,
+                      }}
                     />
                   </div>
 
@@ -1319,7 +1485,15 @@ export default component$(() => {
                   disabled={
                     loading.value && activeAction.value !== "setup-retry"
                   }
-                  onClick$={retrySetup$}
+                  onClick$={() => {
+                    trackBookingEvent("booking_retry_requested", {
+                      vertical: "trips",
+                      surface: "trip_builder",
+                      retry_type: "setup_retry",
+                      context: "failed_state",
+                    });
+                    return retrySetup$();
+                  }}
                 >
                   Retry trips
                 </AsyncPendingButton>
@@ -1827,6 +2001,7 @@ const TripTimelineItemCard = component$(
         isTripTimelineDetailActionPending(props.pendingActionId, props.item.id),
     );
 
+    // eslint-disable-next-line qwik/no-use-visible-task
     useVisibleTask$(({ track }) => {
       const replacementPanelOpen = track(() => props.replacementPanelOpen);
       const hasPreview = track(() => Boolean(props.preview));

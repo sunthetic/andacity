@@ -15,6 +15,7 @@ import { ResultsPagination } from "~/components/results/ResultsPagination";
 import type { ResultsPaginationLink } from "~/components/results/ResultsPagination";
 import type { ResultsSortOption } from "~/components/results/ResultsSort";
 import type { BookingAsyncState } from "~/lib/async/booking-async-state";
+import type { BookingVertical } from "~/lib/analytics/booking-telemetry";
 
 export const ResultsShell = component$((props: ResultsShellProps) => {
   const asyncState = props.asyncState || "loaded";
@@ -57,6 +58,7 @@ export const ResultsShell = component$((props: ResultsShellProps) => {
         onToggleFilters$={onToggleFilters$}
         busy={asyncState === "refreshing" || asyncState === "initial_loading"}
         disabled={props.controlsDisabled}
+        telemetry={props.telemetry}
       />
 
       {mobileFiltersOpen.value ? (
@@ -211,4 +213,8 @@ type ResultsShellProps = {
     };
   };
   class?: string;
+  telemetry?: {
+    vertical: BookingVertical;
+    surface: string;
+  };
 };

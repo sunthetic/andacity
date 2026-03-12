@@ -6,6 +6,10 @@ import {
   type QRL,
 } from "@builder.io/qwik";
 import { AsyncPendingButton } from "~/components/async/AsyncPendingButton";
+import {
+  trackBookingEvent,
+  type BookingVertical,
+} from "~/lib/analytics/booking-telemetry";
 import type { InventoryRefreshState } from "~/lib/inventory/freshness";
 
 const reloadDocument = (href: string) => {
@@ -64,6 +68,15 @@ export const InventoryRefreshControl = component$(
       state.value = "refreshing";
       message.value = null;
 
+      if (props.telemetry) {
+        trackBookingEvent("booking_refresh_requested", {
+          vertical: props.telemetry.vertical,
+          surface: props.telemetry.surface,
+          refresh_type: props.telemetry.refreshType,
+          item_count: props.telemetry.itemCount ?? undefined,
+        });
+      }
+
       try {
         if (props.mode === "reload") {
           const href = props.reloadHref || window.location.href;
@@ -76,6 +89,16 @@ export const InventoryRefreshControl = component$(
 
           if (!response.ok) {
             throw new Error(`Refresh failed with status ${response.status}.`);
+          }
+
+          if (props.telemetry) {
+            trackBookingEvent("booking_refresh_completed", {
+              vertical: props.telemetry.vertical,
+              surface: props.telemetry.surface,
+              refresh_type: props.telemetry.refreshType,
+              item_count: props.telemetry.itemCount ?? undefined,
+              outcome: "success",
+            });
           }
 
           window.sessionStorage.setItem(storageKey, new Date().toISOString());
@@ -100,12 +123,45 @@ export const InventoryRefreshControl = component$(
 
         state.value = "refreshed";
         message.value = props.successMessage || "Refreshed just now.";
+
+        if (props.telemetry) {
+          trackBookingEvent("booking_refresh_completed", {
+            vertical: props.telemetry.vertical,
+            surface: props.telemetry.surface,
+            refresh_type: props.telemetry.refreshType,
+            item_count: props.telemetry.itemCount ?? undefined,
+            outcome: "success",
+          });
+        }
       } catch (error) {
         state.value = "failed";
         message.value =
           error instanceof Error && error.message
             ? error.message
             : props.failureMessage || "Refresh failed.";
+
+        if (props.telemetry) {
+          const errorMessage =
+            error instanceof Error && error.message
+              ? error.message
+              : props.failureMessage || "Refresh failed.";
+
+          trackBookingEvent("booking_refresh_completed", {
+            vertical: props.telemetry.vertical,
+            surface: props.telemetry.surface,
+            refresh_type: props.telemetry.refreshType,
+            item_count: props.telemetry.itemCount ?? undefined,
+            outcome: "failure",
+            error_message: errorMessage,
+          });
+
+          trackBookingEvent("booking_error", {
+            vertical: props.telemetry.vertical,
+            surface: props.telemetry.surface,
+            action: "refresh",
+            error_message: errorMessage,
+          });
+        }
       }
     });
 
@@ -179,4 +235,10 @@ export type InventoryRefreshControlProps = {
   compact?: boolean;
   align?: "left" | "right";
   disabled?: boolean;
+  telemetry?: {
+    vertical: BookingVertical;
+    surface: string;
+    refreshType?: string;
+    itemCount?: number | null;
+  };
 };

@@ -1,4 +1,8 @@
 import { component$, type QRL } from "@builder.io/qwik";
+import {
+  trackBookingEvent,
+  type BookingVertical,
+} from "~/lib/analytics/booking-telemetry";
 
 export const AsyncRetryControl = component$((props: AsyncRetryControlProps) => {
   if (!props.onRetry$ && !props.href) {
@@ -25,7 +29,18 @@ export const AsyncRetryControl = component$((props: AsyncRetryControlProps) => {
         <button
           type="button"
           class="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 font-medium text-[color:var(--color-action)] hover:border-[color:var(--color-action)]"
-          onClick$={props.onRetry$}
+          onClick$={() => {
+            if (props.telemetry) {
+              trackBookingEvent("booking_retry_requested", {
+                vertical: props.telemetry.vertical,
+                surface: props.telemetry.surface,
+                retry_type: props.telemetry.retryType,
+                context: props.telemetry.context,
+              });
+            }
+
+            return props.onRetry$?.();
+          }}
         >
           {props.label || "Retry"}
         </button>
@@ -33,6 +48,16 @@ export const AsyncRetryControl = component$((props: AsyncRetryControlProps) => {
         <a
           class="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 font-medium text-[color:var(--color-action)] hover:border-[color:var(--color-action)]"
           href={props.href}
+          onClick$={() => {
+            if (!props.telemetry) return;
+
+            trackBookingEvent("booking_retry_requested", {
+              vertical: props.telemetry.vertical,
+              surface: props.telemetry.surface,
+              retry_type: props.telemetry.retryType,
+              context: props.telemetry.context,
+            });
+          }}
         >
           {props.label || "Retry"}
         </a>
@@ -48,4 +73,10 @@ type AsyncRetryControlProps = {
   class?: string;
   compact?: boolean;
   onRetry$?: QRL<() => void>;
+  telemetry?: {
+    vertical: BookingVertical;
+    surface: string;
+    retryType?: string;
+    context?: string;
+  };
 };

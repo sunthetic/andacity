@@ -9,6 +9,11 @@ import { buildFlightWhyThis } from "~/components/results/result-card-copy";
 import { CompareButton } from "~/components/save-compare/CompareButton";
 import { SaveButton } from "~/components/save-compare/SaveButton";
 import { AddToTripButton } from "~/components/trips/AddToTripButton";
+import {
+  markBookingStageProgress,
+  trackBookingEvent,
+  type BookingVertical,
+} from "~/lib/analytics/booking-telemetry";
 import type { PriceDisplayContract } from "~/lib/pricing/price-display";
 import type { FlightSortKey } from "~/lib/search/flights/flight-sort-options";
 import type { FlightResult } from "~/types/flights/search";
@@ -16,6 +21,18 @@ import type { SavedItem } from "~/types/save-compare/saved-item";
 
 export const FlightCard = component$((props: FlightCardProps) => {
   const flight = props.result;
+  const onSelectFlight$ = () => {
+    if (!props.telemetry) return;
+
+    trackBookingEvent("booking_search_result_opened", {
+      vertical: props.telemetry.vertical,
+      surface: props.telemetry.surface,
+      item_id: props.telemetry.itemId,
+      item_position: props.telemetry.itemPosition ?? undefined,
+      target: "select",
+    });
+    markBookingStageProgress("search_results");
+  };
   const whyThis = buildFlightWhyThis(
     {
       stops: flight.stops,
@@ -88,6 +105,12 @@ export const FlightCard = component$((props: FlightCardProps) => {
               saved={Boolean(props.isSaved)}
               idleLabel="Shortlist"
               activeLabel="Shortlisted"
+              telemetry={{
+                vertical: "flights",
+                itemId: props.savedItem.id,
+                surface: "search_results",
+                itemPosition: props.telemetry?.itemPosition,
+              }}
               onToggle$={() => {
                 if (!props.savedItem || !props.onToggleSave$) return;
                 props.onToggleSave$(props.savedItem);
@@ -100,6 +123,12 @@ export const FlightCard = component$((props: FlightCardProps) => {
               class="min-h-9 px-3 py-2"
               selected={Boolean(props.isCompared)}
               disabled={Boolean(props.compareDisabled)}
+              telemetry={{
+                vertical: "flights",
+                itemId: props.savedItem.id,
+                surface: "search_results",
+                itemPosition: props.telemetry?.itemPosition,
+              }}
               onToggle$={() => {
                 if (!props.savedItem || !props.onToggleCompare$) return;
                 props.onToggleCompare$(props.savedItem);
@@ -110,6 +139,8 @@ export const FlightCard = component$((props: FlightCardProps) => {
           <AddToTripButton
             class="min-h-9 rounded-full border border-[color:var(--color-border)] px-3 py-2 text-xs font-semibold text-[color:var(--color-action)] hover:border-[color:var(--color-action)]"
             item={props.savedItem}
+            telemetrySource="search_results"
+            telemetryItemPosition={props.telemetry?.itemPosition}
           />
         </div>
       ) : null}
@@ -125,6 +156,7 @@ export const FlightCard = component$((props: FlightCardProps) => {
         q:slot="primary-action"
         class="t-btn-primary block w-full px-4 py-2.5 text-center text-sm font-semibold"
         href={props.ctaHref || "/flights"}
+        onClick$={onSelectFlight$}
       >
         Select flight
       </a>
@@ -295,4 +327,10 @@ type FlightCardProps = {
   isCompared?: boolean;
   compareDisabled?: boolean;
   onToggleCompare$?: QRL<(item: SavedItem) => void>;
+  telemetry?: {
+    vertical: BookingVertical;
+    surface: string;
+    itemId: string;
+    itemPosition?: number | null;
+  };
 };

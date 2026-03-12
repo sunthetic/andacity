@@ -1,4 +1,9 @@
 import { component$, type QRL } from '@builder.io/qwik'
+import {
+  markBookingStageProgress,
+  trackBookingEvent,
+  type BookingVertical,
+} from '~/lib/analytics/booking-telemetry'
 
 export const CompareButton = component$((props: CompareButtonProps) => {
   const base =
@@ -12,7 +17,23 @@ export const CompareButton = component$((props: CompareButtonProps) => {
       type="button"
       aria-pressed={props.selected}
       disabled={props.disabled}
-      onClick$={props.onToggle$}
+      onClick$={() => {
+        if (props.telemetry) {
+          trackBookingEvent('booking_compare_toggled', {
+            vertical: props.telemetry.vertical,
+            surface: props.telemetry.surface,
+            item_id: props.telemetry.itemId,
+            item_position: props.telemetry.itemPosition ?? undefined,
+            action: props.selected ? 'remove' : 'add',
+          })
+
+          if (props.telemetry.surface === 'detail') {
+            markBookingStageProgress('detail')
+          }
+        }
+
+        return props.onToggle$()
+      }}
       class={[base, stateClass, props.class, props.disabled ? 'cursor-not-allowed opacity-60' : null]}
     >
       {props.selected ? props.activeLabel || 'Selected' : props.idleLabel || 'Compare'}
@@ -27,4 +48,10 @@ type CompareButtonProps = {
   idleLabel?: string
   activeLabel?: string
   disabled?: boolean
+  telemetry?: {
+    vertical: BookingVertical
+    itemId: string
+    surface: string
+    itemPosition?: number | null
+  }
 }

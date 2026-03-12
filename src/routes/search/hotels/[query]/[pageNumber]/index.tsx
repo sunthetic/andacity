@@ -1,6 +1,8 @@
 import { $, component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import { routeLoader$, useLocation, useNavigate } from "@builder.io/qwik-city";
 import type { DocumentHead } from "@builder.io/qwik-city";
+import { useBookingAbandonmentTelemetry } from "~/lib/analytics/booking-abandonment";
+import { trackBookingEvent } from "~/lib/analytics/booking-telemetry";
 import { revalidateInventoryApi } from "~/lib/inventory/inventory-api";
 import { AsyncRetryControl } from "~/components/async/AsyncRetryControl";
 import { AsyncStateNotice } from "~/components/async/AsyncStateNotice";
@@ -226,6 +228,14 @@ export default component$(() => {
   const data = useSearchHotelsPage().value;
   const location = useLocation();
   const navigate = useNavigate();
+  useBookingAbandonmentTelemetry({
+    vertical: "hotels",
+    stage: "search_results",
+    payload: {
+      surface: "legacy_search_route",
+    },
+    trackOnCleanup: false,
+  });
 
   const pathBase = `/search/hotels/${encodeURIComponent(data.query)}`;
   const mobileFiltersOpen = useSignal(false);
@@ -245,6 +255,17 @@ export default component$(() => {
 
   const onCheckboxToggle$ = $(
     async (sectionId: string, optionValue: string) => {
+      trackBookingEvent("booking_filter_toggled", {
+        vertical: "hotels",
+        surface: "search_results",
+        filter_group: sectionId,
+        filter_value: optionValue,
+        action: Array.isArray(activeFilters[sectionId])
+          ? activeFilters[sectionId].includes(optionValue)
+            ? "remove"
+            : "add"
+          : "set",
+      });
       await navigate(
         toggleCheckboxFilterHref(
           pathBase,
@@ -263,6 +284,11 @@ export default component$(() => {
   });
 
   const onReset$ = $(async () => {
+    trackBookingEvent("booking_filters_cleared", {
+      vertical: "hotels",
+      surface: "search_results",
+      active_filter_count: activeFilterChips.length,
+    });
     const params = new URLSearchParams(location.url.searchParams);
     params.delete("priceRange");
     params.delete("starRating");
@@ -272,6 +298,12 @@ export default component$(() => {
   });
 
   const onToggleFilters$ = $(() => {
+    trackBookingEvent("booking_filter_panel_toggled", {
+      vertical: "hotels",
+      surface: "search_results",
+      action: "toggle",
+      active_filter_count: activeFilterChips.length,
+    });
     if (window.matchMedia("(min-width: 1024px)").matches) {
       desktopFiltersOpen.value = !desktopFiltersOpen.value;
       return;
@@ -466,6 +498,12 @@ export default component$(() => {
           failureMessage="Failed to refresh visible hotel availability signals."
           align="right"
           disabled={controlsDisabled}
+          telemetry={{
+            vertical: "hotels",
+            surface: "search_results",
+            refreshType: "visible_inventory_revalidation",
+            itemCount: visibleInventoryIds.length,
+          }}
         />
       </div>
 
@@ -479,6 +517,10 @@ export default component$(() => {
         onToggleFilters$={onToggleFilters$}
         busy={location.isNavigating}
         disabled={controlsDisabled}
+        telemetry={{
+          vertical: "hotels",
+          surface: "search_results",
+        }}
       />
 
       <div class="mt-4 lg:hidden">
@@ -555,6 +597,12 @@ export default component$(() => {
                     message="Retry this search or go back to the hotel search form."
                     label="Retry hotel search"
                     href={location.url.pathname + location.url.search}
+                    telemetry={{
+                      vertical: "hotels",
+                      surface: "search_results",
+                      retryType: "search_reload",
+                      context: "load_failure",
+                    }}
                   />
                 </div>
               ) : asyncState === "initial_loading" ? (
@@ -566,7 +614,7 @@ export default component$(() => {
                     asyncState === "refreshing" ? "opacity-70" : null,
                   ]}
                 >
-                  {data.results.map((hotel: HotelResult) => (
+                  {data.results.map((hotel: HotelResult, index: number) => (
                     <HotelResultCard
                       key={hotel.id}
                       h={hotel}
@@ -585,6 +633,12 @@ export default component$(() => {
                           ? `/hotels/${encodeURIComponent(hotel.slug)}?${detailParams.toString()}`
                           : `/hotels/${encodeURIComponent(hotel.slug)}`
                       }
+                      telemetry={{
+                        vertical: "hotels",
+                        surface: "search_results",
+                        itemId: hotel.id,
+                        itemPosition: (data.page - 1) * 24 + index + 1,
+                      }}
                     />
                   ))}
                 </div>

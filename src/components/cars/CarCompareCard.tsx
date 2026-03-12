@@ -52,7 +52,7 @@ export const CarCompareCard = component$((props: CarCompareCardProps) => {
           ) : null}
 
           <div class="mt-2">
-            <AddToTripButton item={props.item} />
+            <AddToTripButton item={props.item} telemetrySource="compare_card" />
           </div>
 
           <a

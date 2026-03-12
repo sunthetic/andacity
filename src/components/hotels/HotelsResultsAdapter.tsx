@@ -3,6 +3,8 @@ import { useLocation } from "@builder.io/qwik-city";
 import { HotelCard } from "~/components/hotels/HotelCard";
 import { HotelFilters } from "~/components/hotels/HotelFilters";
 import type { HotelFilterGroup } from "~/components/hotels/HotelFilters";
+import { useBookingAbandonmentTelemetry } from "~/lib/analytics/booking-abandonment";
+import { trackBookingEvent } from "~/lib/analytics/booking-telemetry";
 import { buildResultsFilterChips } from "~/components/results/ResultsFilterGroups";
 import { ResultsShell } from "~/components/results/ResultsShell";
 import {
@@ -206,6 +208,14 @@ export const HotelsResultsAdapter = component$(
       });
 
     const activeSort = normalizeHotelSort(props.searchState.sort);
+    useBookingAbandonmentTelemetry({
+      vertical: "hotels",
+      stage: "search_results",
+      payload: {
+        surface: "results_shell",
+      },
+      trackOnCleanup: false,
+    });
 
     const requestedPage =
       props.searchState.page && props.searchState.page > 0
@@ -352,10 +362,20 @@ export const HotelsResultsAdapter = component$(
     const onOpenCompare$ = $(() => {
       if (!canOpenCompare(decisioning.state.compare[HOTELS_VERTICAL].length))
         return;
+      trackBookingEvent("booking_compare_opened", {
+        vertical: HOTELS_VERTICAL,
+        surface: "search_results",
+        compare_count: decisioning.state.compare[HOTELS_VERTICAL].length,
+      });
       decisioning.openCompare$(HOTELS_VERTICAL);
     });
 
     const onClearCompare$ = $(() => {
+      trackBookingEvent("booking_compare_cleared", {
+        vertical: HOTELS_VERTICAL,
+        surface: "search_results",
+        compare_count: comparedItems.length,
+      });
       decisioning.clearComparedItems$(HOTELS_VERTICAL);
     });
 
@@ -521,6 +541,16 @@ export const HotelsResultsAdapter = component$(
           failureMessage:
             "Failed to refresh visible hotel availability signals.",
           disabled: controlsDisabled,
+          telemetry: {
+            vertical: HOTELS_VERTICAL,
+            surface: "search_results",
+            refreshType: "visible_inventory_revalidation",
+            itemCount: visibleInventoryIds.length,
+          },
+        }}
+        telemetry={{
+          vertical: HOTELS_VERTICAL,
+          surface: "search_results",
         }}
         filtersTitle="Hotel filters"
         asyncState={asyncState}
@@ -568,11 +598,19 @@ export const HotelsResultsAdapter = component$(
           q:slot="filters-desktop"
           groups={filterGroups}
           disabled={controlsDisabled}
+          telemetry={{
+            vertical: HOTELS_VERTICAL,
+            surface: "search_results",
+          }}
         />
         <HotelFilters
           q:slot="filters-mobile"
           groups={filterGroups}
           disabled={controlsDisabled}
+          telemetry={{
+            vertical: HOTELS_VERTICAL,
+            surface: "search_results",
+          }}
         />
 
         {refreshPriceSummary.value ? (
@@ -622,6 +660,12 @@ export const HotelsResultsAdapter = component$(
                   hotel.slug,
                   props.searchState.dates,
                 )}
+                telemetry={{
+                  vertical: HOTELS_VERTICAL,
+                  surface: "search_results",
+                  itemId: savedItem.id,
+                  itemPosition: offset + index + 1,
+                }}
               />
             );
           })}

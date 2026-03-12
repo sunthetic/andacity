@@ -1,6 +1,8 @@
 import { $, component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import { routeLoader$, useLocation } from "@builder.io/qwik-city";
 import type { DocumentHead } from "@builder.io/qwik-city";
+import { useBookingAbandonmentTelemetry } from "~/lib/analytics/booking-abandonment";
+import { trackBookingEvent } from "~/lib/analytics/booking-telemetry";
 import { AsyncRetryControl } from "~/components/async/AsyncRetryControl";
 import { AsyncStateNotice } from "~/components/async/AsyncStateNotice";
 import { InventoryRefreshControl } from "~/components/inventory/InventoryRefreshControl";
@@ -13,6 +15,7 @@ import {
 import { CompareSheet } from "~/components/save-compare/CompareSheet";
 import { CompareTray } from "~/components/save-compare/CompareTray";
 import { SaveButton } from "~/components/save-compare/SaveButton";
+import { AddToTripButton } from "~/components/trips/AddToTripButton";
 import { Page } from "~/components/site/Page";
 import {
   resolveAvailabilityAsyncState,
@@ -91,6 +94,15 @@ export default component$(() => {
   const decisioning = useDecisioning();
   const data = useCarRental().value;
   const location = useLocation();
+  useBookingAbandonmentTelemetry({
+    vertical: "cars",
+    stage: "detail",
+    enabled: !data.loadError,
+    payload: {
+      surface: "detail_page",
+    },
+    trackOnCleanup: false,
+  });
 
   if (data.loadError) {
     return (
@@ -112,6 +124,12 @@ export default component$(() => {
             message="Retry this page or return to car rental search."
             label="Retry car rental details"
             href={location.url.pathname + location.url.search}
+            telemetry={{
+              vertical: "cars",
+              surface: "detail",
+              retryType: "detail_reload",
+              context: "load_failure",
+            }}
           />
         </div>
       </Page>
@@ -224,10 +242,20 @@ export default component$(() => {
 
   const onOpenCompare$ = $(() => {
     if (decisioning.state.compare.cars.length < 2) return;
+    trackBookingEvent("booking_compare_opened", {
+      vertical: "cars",
+      surface: "detail",
+      compare_count: decisioning.state.compare.cars.length,
+    });
     decisioning.openCompare$("cars");
   });
 
   const onClearCompare$ = $(() => {
+    trackBookingEvent("booking_compare_cleared", {
+      vertical: "cars",
+      surface: "detail",
+      compare_count: decisioning.state.compare.cars.length,
+    });
     decisioning.clearComparedItems$("cars");
   });
 
@@ -322,12 +350,26 @@ export default component$(() => {
                     )}
                     idleLabel="Shortlist"
                     activeLabel="Shortlisted"
+                    telemetry={{
+                      vertical: "cars",
+                      itemId: decisionItem.id,
+                      surface: "detail",
+                    }}
                     onToggle$={onToggleShortlist$}
                   />
                   <CompareButton
                     selected={compared}
                     disabled={compareDisabled}
+                    telemetry={{
+                      vertical: "cars",
+                      itemId: decisionItem.id,
+                      surface: "detail",
+                    }}
                     onToggle$={onToggleCompare$}
+                  />
+                  <AddToTripButton
+                    item={decisionItem}
+                    telemetrySource="detail"
                   />
                 </div>
               </div>
@@ -403,6 +445,12 @@ export default component$(() => {
                   compact={true}
                   align="right"
                   disabled={location.isNavigating}
+                  telemetry={{
+                    vertical: "cars",
+                    surface: "detail",
+                    refreshType: "inventory_revalidation",
+                    itemCount: 1,
+                  }}
                 />
               </div>
 

@@ -61,7 +61,9 @@ The suite is intentionally scenario-driven instead of exhaustive:
 
 1. Rerun the harness after each reseed or stabilization change.
 2. Use the generated URLs and prepared trip ids instead of ad hoc searches.
-3. Record manual observations directly under each scenario.
-4. Promote anything critical into a follow-on implementation issue.
+3. During the manual pass, watch `/api/analytics/events` in the browser network panel or inspect server logs for `[andacity.analytics]` entries.
+4. Confirm the scenario emits the expected funnel and friction events from [booking-telemetry-taxonomy.md](/home/alden/a/andacity/docs/booking-telemetry-taxonomy.md).
+5. Record manual observations directly under each scenario.
+6. Promote anything critical into a follow-on implementation issue.
 
 The current follow-on issue set is tracked in [guided-booking-follow-up-issues.md](/home/alden/a/andacity/docs/guided-booking-follow-up-issues.md).

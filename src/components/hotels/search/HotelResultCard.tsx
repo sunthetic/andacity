@@ -6,6 +6,10 @@ import {
   ResultReasonCallout,
   ResultTrustBar,
 } from "~/components/results/ResultCardScaffold";
+import {
+  markBookingStageProgress,
+  trackBookingEvent,
+} from "~/lib/analytics/booking-telemetry";
 import { buildHotelWhyThis } from "~/components/results/result-card-copy";
 import { buildHotelPriceDisplay } from "~/lib/pricing/price-display";
 import type { HotelResultCardProps } from "~/types/hotels/search";
@@ -17,6 +21,7 @@ export const HotelResultCard = component$(
     detailHref,
     priceDisplay,
     activeSort,
+    telemetry,
   }: HotelResultCardProps) => {
     const display =
       priceDisplay ||
@@ -26,6 +31,18 @@ export const HotelResultCard = component$(
         nights,
       });
     const href = detailHref || `/hotels/${encodeURIComponent(h.slug)}`;
+    const onOpenDetail$ = () => {
+      if (!telemetry) return;
+
+      trackBookingEvent("booking_search_result_opened", {
+        vertical: telemetry.vertical,
+        surface: telemetry.surface,
+        item_id: telemetry.itemId,
+        item_position: telemetry.itemPosition ?? undefined,
+        target: "detail",
+      });
+      markBookingStageProgress("search_results");
+    };
     const whyThis = buildHotelWhyThis(
       {
         rating: h.rating,
@@ -49,7 +66,7 @@ export const HotelResultCard = component$(
         hasPrimaryAction={true}
         hasTrust={Boolean(h.availabilityConfidence || h.freshness)}
       >
-        <a q:slot="media" class="block h-full" href={href}>
+        <a q:slot="media" class="block h-full" href={href} onClick$={onOpenDetail$}>
           <img
             class="h-48 w-full object-cover md:h-full"
             src={h.image}
@@ -64,6 +81,7 @@ export const HotelResultCard = component$(
           <a
             class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
             href={href}
+            onClick$={onOpenDetail$}
           >
             {h.name}
           </a>
@@ -125,6 +143,7 @@ export const HotelResultCard = component$(
           q:slot="primary-action"
           class="t-btn-primary block w-full px-4 py-2.5 text-center text-sm font-semibold"
           href={href}
+          onClick$={onOpenDetail$}
         >
           View stay
         </a>

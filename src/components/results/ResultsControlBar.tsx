@@ -2,6 +2,10 @@ import { component$ } from "@builder.io/qwik";
 import type { QRL } from "@builder.io/qwik";
 import { useNavigate } from "@builder.io/qwik-city";
 import { AsyncInlineSpinner } from "~/components/async/AsyncInlineSpinner";
+import {
+  trackBookingEvent,
+  type BookingVertical,
+} from "~/lib/analytics/booking-telemetry";
 import type { ResultsSortOption } from "~/components/results/ResultsSort";
 import type { ResultsFilterChip } from "~/components/results/ResultsFilterGroups";
 
@@ -33,7 +37,18 @@ export const ResultsControlBar = component$((props: ResultsControlBarProps) => {
                   type="button"
                   class="inline-flex items-center gap-2 rounded-full border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3 py-2 text-sm font-medium text-[color:var(--color-text)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={props.disabled}
-                  onClick$={props.onToggleFilters$}
+                  onClick$={() => {
+                    if (props.telemetry) {
+                      trackBookingEvent("booking_filter_panel_toggled", {
+                        vertical: props.telemetry.vertical,
+                        surface: props.telemetry.surface,
+                        action: "toggle",
+                        active_filter_count: activeFilterCount,
+                      });
+                    }
+
+                    return props.onToggleFilters$?.();
+                  }}
                 >
                   <span>Filters</span>
                   {activeFilterCount ? (
@@ -47,6 +62,15 @@ export const ResultsControlBar = component$((props: ResultsControlBarProps) => {
               {activeFilterCount && props.clearAllHref ? (
                 <a
                   href={props.clearAllHref}
+                  onClick$={() => {
+                    if (!props.telemetry) return;
+
+                    trackBookingEvent("booking_filters_cleared", {
+                      vertical: props.telemetry.vertical,
+                      surface: props.telemetry.surface,
+                      active_filter_count: activeFilterCount,
+                    });
+                  }}
                   aria-disabled={props.disabled || undefined}
                   tabIndex={props.disabled ? -1 : undefined}
                   class={[
@@ -82,6 +106,16 @@ export const ResultsControlBar = component$((props: ResultsControlBarProps) => {
                       window.location.pathname + window.location.search;
                     if (nextOption.href === currentHref) return;
 
+                    if (props.telemetry) {
+                      trackBookingEvent("booking_filter_toggled", {
+                        vertical: props.telemetry.vertical,
+                        surface: props.telemetry.surface,
+                        filter_group: "sort",
+                        filter_value: nextOption.value,
+                        action: "set",
+                      });
+                    }
+
                     void navigate(nextOption.href, {
                       replaceState: false,
                       scroll: false,
@@ -104,6 +138,17 @@ export const ResultsControlBar = component$((props: ResultsControlBarProps) => {
                 <a
                   key={`${chip.label}-${chip.href}`}
                   href={chip.href}
+                  onClick$={() => {
+                    if (!props.telemetry) return;
+
+                    trackBookingEvent("booking_filter_toggled", {
+                      vertical: props.telemetry.vertical,
+                      surface: props.telemetry.surface,
+                      filter_group: "active-chip",
+                      filter_value: chip.label,
+                      action: "remove",
+                    });
+                  }}
                   aria-disabled={props.disabled || undefined}
                   tabIndex={props.disabled ? -1 : undefined}
                   class={[
@@ -138,4 +183,8 @@ type ResultsControlBarProps = {
   busy?: boolean;
   disabled?: boolean;
   class?: string;
+  telemetry?: {
+    vertical: BookingVertical;
+    surface: string;
+  };
 };

@@ -5,11 +5,28 @@ import {
   ResultPricePanel,
   ResultTrustBar,
 } from '~/components/results/ResultCardScaffold'
+import {
+  markBookingStageProgress,
+  trackBookingEvent,
+  type BookingVertical,
+} from '~/lib/analytics/booking-telemetry'
 import { buildCarPriceDisplay } from '~/lib/pricing/price-display'
 import type { CarRentalResult } from '~/types/car-rentals/search'
 
-export const CarRentalResultCard = component$(({ r, days, detailHref }: CarRentalResultCardProps) => {
+export const CarRentalResultCard = component$(({ r, days, detailHref, telemetry }: CarRentalResultCardProps) => {
   const href = detailHref || `/car-rentals/${encodeURIComponent(r.slug)}`
+  const onOpenDetail$ = () => {
+    if (!telemetry) return
+
+    trackBookingEvent('booking_search_result_opened', {
+      vertical: telemetry.vertical,
+      surface: telemetry.surface,
+      item_id: telemetry.itemId,
+      item_position: telemetry.itemPosition ?? undefined,
+      target: 'detail',
+    })
+    markBookingStageProgress('search_results')
+  }
   const priceDisplay = buildCarPriceDisplay({
     currencyCode: r.currency,
     dailyRate: r.priceFrom,
@@ -26,7 +43,7 @@ export const CarRentalResultCard = component$(({ r, days, detailHref }: CarRenta
       hasPrimaryAction={true}
       hasTrust={Boolean(r.availabilityConfidence || r.freshness)}
     >
-      <a q:slot="media" class="block h-full" href={href}>
+      <a q:slot="media" class="block h-full" href={href} onClick$={onOpenDetail$}>
           <img
             class="h-44 w-full object-cover md:h-full"
             src={r.image}
@@ -41,6 +58,7 @@ export const CarRentalResultCard = component$(({ r, days, detailHref }: CarRenta
         <a
           class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
           href={href}
+          onClick$={onOpenDetail$}
         >
           {r.name}
         </a>
@@ -92,6 +110,7 @@ export const CarRentalResultCard = component$(({ r, days, detailHref }: CarRenta
         q:slot="primary-action"
         class="t-btn-primary block w-full px-4 py-2.5 text-center text-sm font-semibold"
         href={href}
+        onClick$={onOpenDetail$}
       >
         View rental
       </a>
@@ -126,4 +145,10 @@ type CarRentalResultCardProps = {
   r: CarRentalResult
   days: number | null
   detailHref?: string
+  telemetry?: {
+    vertical: BookingVertical
+    surface: string
+    itemId: string
+    itemPosition?: number | null
+  }
 }
