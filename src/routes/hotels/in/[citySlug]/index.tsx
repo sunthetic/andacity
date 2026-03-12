@@ -7,6 +7,7 @@ import { HotelCitySearchCard } from '~/components/hotels/HotelCitySearchCard'
 import { normalizeHotelSort } from '~/lib/search/hotels/hotel-sort-options'
 import { searchStateFromUrl } from '~/lib/search/url-to-state'
 import { loadHotelCityBySlugFromDb, loadHotelsForCityFromDb } from '~/lib/queries/hotels-pages.server'
+import { buildSearchHotelsHref } from '~/lib/search/hotels/srp-url'
 
 export const useHotelCityPage = routeLoader$(async ({ params, url, error }) => {
   const slug = String(params.citySlug || '').toLowerCase().trim()
@@ -37,7 +38,7 @@ export const useHotelCityPage = routeLoader$(async ({ params, url, error }) => {
   searchState.sort = normalizeHotelSort(searchState.sort)
 
   const searchHref = buildSearchHotelsHref({
-    query: city.query,
+    citySlug: slug,
     page: 1,
     checkIn: active.checkIn,
     checkOut: active.checkOut,
@@ -258,26 +259,6 @@ const parseStayParams = (sp: URLSearchParams): StayParams => {
   const adults = clampMaybeInt(sp.get('adults'), 1, 10)
   const rooms = clampMaybeInt(sp.get('rooms'), 1, 6)
   return { checkIn, checkOut, adults, rooms }
-}
-
-const buildSearchHotelsHref = (d: {
-  query: string
-  page: number
-  checkIn: string | null
-  checkOut: string | null
-  adults: number | null
-  rooms: number | null
-}) => {
-  const base = `/search/hotels/${encodeURIComponent(d.query)}/${d.page}`
-  const sp = new URLSearchParams()
-
-  if (d.checkIn) sp.set('checkIn', d.checkIn)
-  if (d.checkOut) sp.set('checkOut', d.checkOut)
-  if (d.adults != null) sp.set('adults', String(d.adults))
-  if (d.rooms != null) sp.set('rooms', String(d.rooms))
-
-  const qs = sp.toString()
-  return qs ? `${base}?${qs}` : base
 }
 
 const normalizeIsoDate = (raw: string | null) => {
