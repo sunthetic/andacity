@@ -37,7 +37,7 @@ export const useHotelCityPage = routeLoader$(async ({ params, url, error }) => {
   searchState.sort = normalizeHotelSort(searchState.sort)
 
   const searchHref = buildSearchHotelsHref({
-    query: city.query,
+    citySlug: slug,
     page: 1,
     checkIn: active.checkIn,
     checkOut: active.checkOut,
@@ -261,18 +261,20 @@ const parseStayParams = (sp: URLSearchParams): StayParams => {
 }
 
 const buildSearchHotelsHref = (d: {
-  query: string
+  citySlug: string
   page: number
   checkIn: string | null
   checkOut: string | null
   adults: number | null
   rooms: number | null
 }) => {
-  const base = `/search/hotels/${encodeURIComponent(d.query)}/${d.page}`
+  if (!d.checkIn || !d.checkOut) {
+    // Canonical Hotels SRP URL requires both dates in the path; fall back to city guide
+    return `/hotels/in/${encodeURIComponent(d.citySlug)}`
+  }
+  const base = `/hotels/in/${encodeURIComponent(d.citySlug)}/fromDate/${encodeURIComponent(d.checkIn)}/toDate/${encodeURIComponent(d.checkOut)}/${d.page}`
   const sp = new URLSearchParams()
 
-  if (d.checkIn) sp.set('checkIn', d.checkIn)
-  if (d.checkOut) sp.set('checkOut', d.checkOut)
   if (d.adults != null) sp.set('adults', String(d.adults))
   if (d.rooms != null) sp.set('rooms', String(d.rooms))
 
