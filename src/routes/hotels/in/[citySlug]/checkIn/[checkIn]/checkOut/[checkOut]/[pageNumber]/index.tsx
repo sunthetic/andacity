@@ -45,13 +45,12 @@ import {
   HOTEL_SORT_OPTIONS,
   normalizeHotelSort,
 } from "~/lib/search/hotels/hotel-sort-options";
-
-/** ISO-8601 date validation: YYYY-MM-DD */
-const isValidIsoDate = (value: string): boolean => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const d = new Date(value);
-  return !Number.isNaN(d.getTime());
-};
+import {
+  buildPageLinks,
+  isValidIsoDate,
+  toggleCheckboxFilterHref,
+  toPageHref,
+} from "~/lib/search/hotels/srp-url";
 
 const HOTEL_FILTER_SECTIONS: FilterSectionConfig[] = [
   {
@@ -110,64 +109,6 @@ const parseMultiValue = (url: URL, key: string) => {
 
 const parseSort = (url: URL) => {
   return normalizeHotelSort(url.searchParams.get("sort"));
-};
-
-const toPageHref = (
-  basePath: string,
-  page: number,
-  searchParams: URLSearchParams,
-) => {
-  const qs = searchParams.toString();
-  return qs ? `${basePath}/${page}?${qs}` : `${basePath}/${page}`;
-};
-
-const buildPageLinks = (
-  page: number,
-  totalPages: number,
-  makeHref: (pageNumber: number) => string,
-) => {
-  const links: { label: string; href: string; active?: boolean }[] = [];
-  const start = Math.max(1, page - 2);
-  const end = Math.min(totalPages, start + 4);
-
-  for (let value = start; value <= end; value += 1) {
-    links.push({
-      label: String(value),
-      href: makeHref(value),
-      active: value === page,
-    });
-  }
-
-  return links;
-};
-
-const toggleCheckboxFilterHref = (
-  basePath: string,
-  searchParams: URLSearchParams,
-  sectionId: string,
-  optionValue: string,
-) => {
-  const params = new URLSearchParams(searchParams);
-  const current = new Set(
-    String(params.get(sectionId) || "")
-      .split(",")
-      .map((value) => value.trim().toLowerCase())
-      .filter(Boolean),
-  );
-
-  if (current.has(optionValue)) {
-    current.delete(optionValue);
-  } else {
-    current.add(optionValue);
-  }
-
-  if (!current.size) {
-    params.delete(sectionId);
-  } else {
-    params.set(sectionId, Array.from(current).join(","));
-  }
-
-  return toPageHref(basePath, 1, params);
 };
 
 export const useHotelCanonicalSrpPage = routeLoader$(
