@@ -1,3 +1,6 @@
+import type { AvailabilityConfidenceModel } from '~/lib/inventory/availability-confidence'
+import type { InventoryFreshnessModel } from '~/lib/inventory/freshness'
+
 export type SortKey = 'relevance' | 'price-asc' | 'price-desc' | 'rating-desc' | 'reviewcount-desc'
 
 export type ActiveFilters = {
@@ -44,6 +47,8 @@ export type CarRentalResult = {
 
   badges: string[]
   score: number
+  availabilityConfidence?: AvailabilityConfidenceModel
+  freshness?: InventoryFreshnessModel
 }
 
 export type Facets = {

@@ -1,6 +1,11 @@
 import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { computeDays } from '~/lib/search/car-rentals/dates'
+import {
+  buildAvailabilityConfidence,
+  evaluateFlightAvailabilityContext,
+} from '~/lib/inventory/availability-confidence'
+import { buildInventoryFreshness, type InventoryFreshnessModel } from '~/lib/inventory/freshness'
 import { buildFlightsSearchPath, slugifyLocation } from '~/lib/search/flights/routing'
 import { computeNights } from '~/lib/search/hotels/dates'
 import { addDays, toUtcDate } from '~/lib/trips/date-utils'
@@ -30,7 +35,14 @@ type RecommendationInventoryMatch = {
   currencyCode: string
   meta: string[]
   href: string | null
+  availabilityConfidence: import('~/lib/inventory/availability-confidence').AvailabilityConfidenceModel
+  freshness: InventoryFreshnessModel
   serviceDate?: string | null
+  explainability: {
+    cheapestExactMatchPriceCents: number | null
+    preferredLocationType: 'airport' | 'city' | null
+    selectedLocationType: 'airport' | 'city' | null
+  }
 }
 
 type HotelRecommendationInput = {
@@ -153,6 +165,7 @@ const findHotelRecommendation = async (
       freeCancellation: hotels.freeCancellation,
       payLater: hotels.payLater,
       imageUrl: hotelImage.url,
+      freshnessTimestamp: hotelAvailabilitySnapshots.snapshotAt,
     })
     .from(hotels)
     .innerJoin(cities, eq(hotels.cityId, cities.id))
@@ -165,8 +178,24 @@ const findHotelRecommendation = async (
     .orderBy(desc(hotels.rating), desc(hotels.reviewCount), asc(hotels.fromNightlyCents), asc(hotels.id))
     .limit(1)
 
+  const cheapestRows = await db
+    .select({
+      priceCents: hotels.fromNightlyCents,
+    })
+    .from(hotels)
+    .innerJoin(hotelAvailabilitySnapshots, eq(hotelAvailabilitySnapshots.hotelId, hotels.id))
+    .where(and(...conditions))
+    .orderBy(asc(hotels.fromNightlyCents), desc(hotels.rating), desc(hotels.reviewCount), asc(hotels.id))
+    .limit(1)
+
   const row = rows[0]
   if (!row) return null
+  const cheapestExactMatchPriceCents = cheapestRows[0]?.priceCents ?? null
+
+  const freshness = buildInventoryFreshness({
+    checkedAt: row.freshnessTimestamp,
+    profile: 'inventory_snapshot',
+  })
 
   return {
     inventoryId: row.id,
@@ -183,6 +212,16 @@ const findHotelRecommendation = async (
       ...(row.payLater ? ['Pay later'] : []),
     ],
     href: `/hotels/${encodeURIComponent(row.slug)}`,
+    availabilityConfidence: buildAvailabilityConfidence({
+      freshness,
+      match: 'exact',
+    }),
+    freshness,
+    explainability: {
+      cheapestExactMatchPriceCents,
+      preferredLocationType: null,
+      selectedLocationType: null,
+    },
   }
 }
 
@@ -225,6 +264,7 @@ const readCarRecommendation = async (
       freeCancellation: carInventory.freeCancellation,
       payAtCounter: carInventory.payAtCounter,
       imageUrl: inventoryImage.url,
+      freshnessTimestamp: carInventory.updatedAt,
     })
     .from(carInventory)
     .innerJoin(cities, eq(carInventory.cityId, cities.id))
@@ -241,8 +281,24 @@ const readCarRecommendation = async (
     .orderBy(desc(carInventory.score), desc(carInventory.rating), asc(carInventory.fromDailyCents), asc(carInventory.id))
     .limit(1)
 
+  const cheapestRows = await db
+    .select({
+      priceCents: carInventory.fromDailyCents,
+    })
+    .from(carInventory)
+    .innerJoin(carLocations, eq(carInventory.locationId, carLocations.id))
+    .where(and(...conditions))
+    .orderBy(asc(carInventory.fromDailyCents), desc(carInventory.score), desc(carInventory.rating), asc(carInventory.id))
+    .limit(1)
+
   const row = rows[0]
   if (!row) return null
+  const cheapestExactMatchPriceCents = cheapestRows[0]?.priceCents ?? null
+
+  const freshness = buildInventoryFreshness({
+    checkedAt: row.freshnessTimestamp,
+    profile: 'inventory_snapshot',
+  })
 
   return {
     inventoryId: row.id,
@@ -257,6 +313,16 @@ const readCarRecommendation = async (
       ...(row.payAtCounter ? ['Pay at counter'] : []),
     ],
     href: `/car-rentals/${encodeURIComponent(row.slug)}`,
+    availabilityConfidence: buildAvailabilityConfidence({
+      freshness,
+      match: 'exact',
+    }),
+    freshness,
+    explainability: {
+      cheapestExactMatchPriceCents,
+      preferredLocationType: locationType || null,
+      selectedLocationType: row.locationType,
+    },
   } satisfies RecommendationInventoryMatch
 }
 
@@ -282,6 +348,7 @@ const readFlightRecommendationForDate = async (
   const standardFare = alias(flightFares, 'trip_bundle_standard_fare')
   const priceSql = sql<number>`coalesce(${standardFare.priceCents}, ${flightItineraries.basePriceCents})`
   const currencySql = sql<string>`coalesce(${standardFare.currencyCode}, ${flightItineraries.currencyCode})`
+  const freshnessSql = sql<Date | null>`coalesce(${standardFare.updatedAt}, ${flightItineraries.updatedAt})`
   const oneWayRankSql = sql<number>`case when ${flightItineraries.itineraryType} = 'one-way' then 0 else 1 end`
   const db = getDb()
 
@@ -301,6 +368,7 @@ const readFlightRecommendationForDate = async (
       cabinClass: flightItineraries.cabinClass,
       priceCents: priceSql,
       currencyCode: currencySql,
+      freshnessTimestamp: freshnessSql,
     })
     .from(flightItineraries)
     .innerJoin(flightRoutes, eq(flightItineraries.routeId, flightRoutes.id))
@@ -327,11 +395,44 @@ const readFlightRecommendationForDate = async (
     .orderBy(desc(flightRoutes.isPopular), asc(oneWayRankSql), asc(flightItineraries.stops), asc(priceSql), asc(flightItineraries.departureMinutes), asc(flightItineraries.id))
     .limit(1)
 
+  const cheapestRows = await db
+    .select({
+      priceCents: priceSql,
+    })
+    .from(flightItineraries)
+    .innerJoin(flightRoutes, eq(flightItineraries.routeId, flightRoutes.id))
+    .leftJoin(
+      standardFare,
+      and(
+        eq(standardFare.itineraryId, flightItineraries.id),
+        eq(standardFare.fareCode, 'standard'),
+        eq(standardFare.cabinClass, flightItineraries.cabinClass),
+      ),
+    )
+    .where(
+      and(
+        eq(flightRoutes.originCityId, input.originCityId),
+        eq(flightRoutes.destinationCityId, input.destinationCityId),
+        eq(flightItineraries.serviceDate, serviceDate),
+      ),
+    )
+    .orderBy(asc(priceSql), asc(flightItineraries.stops), asc(flightItineraries.departureMinutes), asc(flightItineraries.id))
+    .limit(1)
+
   const row = rows[0]
   if (!row) return null
+  const cheapestExactMatchPriceCents = cheapestRows[0]?.priceCents ?? null
 
   const departureLabel = formatFlightTime(row.departureAt)
   const arrivalLabel = formatFlightTime(row.arrivalAt)
+  const freshness = buildInventoryFreshness({
+    checkedAt: row.freshnessTimestamp,
+    profile: 'inventory_snapshot',
+  })
+  const flightAssessment = evaluateFlightAvailabilityContext({
+    requestedServiceDate: serviceDate,
+    actualServiceDate: row.serviceDate,
+  })
 
   return {
     inventoryId: row.id,
@@ -348,7 +449,17 @@ const readFlightRecommendationForDate = async (
       titleCaseToken(row.cabinClass),
     ],
     href: buildFlightHref(row.originCityName, row.destinationCityName, row.serviceDate),
+    availabilityConfidence: buildAvailabilityConfidence({
+      freshness,
+      ...flightAssessment,
+    }),
+    freshness,
     serviceDate: row.serviceDate,
+    explainability: {
+      cheapestExactMatchPriceCents,
+      preferredLocationType: null,
+      selectedLocationType: null,
+    },
   } satisfies RecommendationInventoryMatch
 }
 

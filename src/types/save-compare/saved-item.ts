@@ -4,6 +4,8 @@ export const SAVE_VERTICALS = ["hotels", "cars", "flights"] as const;
 
 export type SavedVertical = (typeof SAVE_VERTICALS)[number];
 
+export type CompareData = Record<string, string>;
+
 export type SavedItem = {
   id: string;
   vertical: SavedVertical;
@@ -13,6 +15,7 @@ export type SavedItem = {
   meta?: string[];
   href: string;
   image?: string;
+  compareData?: CompareData;
   tripCandidate?: TripItemCandidate;
 };
 

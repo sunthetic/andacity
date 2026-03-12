@@ -1,5 +1,7 @@
+import { buildAvailabilityConfidence } from '~/lib/inventory/availability-confidence'
 import type { HotelCity } from '~/data/hotel-cities'
 import type { Hotel, Room } from '~/data/hotels'
+import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import {
   countHotels,
   getHotelCitySummaryBySlug,
@@ -74,6 +76,11 @@ const defaultHotelFaq = (hotelName: string, city: string) => [
 ]
 
 const mapCityHotelRowToHotel = (row: HotelListRow): Hotel => {
+  const freshness = buildInventoryFreshness({
+    checkedAt: row.freshnessTimestamp,
+    profile: 'inventory_snapshot',
+  })
+
   return {
     inventoryId: row.id,
     slug: row.slug,
@@ -106,6 +113,11 @@ const mapCityHotelRowToHotel = (row: HotelListRow): Hotel => {
     }),
     rooms: [],
     faq: defaultHotelFaq(row.name, row.cityName),
+    availabilityConfidence: buildAvailabilityConfidence({
+      freshness,
+      match: 'unknown',
+    }),
+    freshness,
   }
 }
 
@@ -125,8 +137,13 @@ export async function loadHotelBySlugFromDb(slug: string): Promise<Hotel | null>
     badges: offer.badges || [],
     features: offer.features || [],
   }))
+  const freshness = buildInventoryFreshness({
+    checkedAt: row.freshnessTimestamp,
+    profile: 'inventory_snapshot',
+  })
 
   return {
+    inventoryId: row.id,
     slug: row.slug,
     name: row.name,
     city: row.cityName,
@@ -157,6 +174,11 @@ export async function loadHotelBySlugFromDb(slug: string): Promise<Hotel | null>
     }),
     rooms,
     faq: defaultHotelFaq(row.name, row.cityName),
+    availabilityConfidence: buildAvailabilityConfidence({
+      freshness,
+      match: 'unknown',
+    }),
+    freshness,
     availability: row.availability
       ? {
           checkInStart: row.availability.checkInStart,
@@ -216,6 +238,7 @@ export type DestinationTopStay = {
   currency: string
   image: string
   badges: string[]
+  freshness?: import('~/lib/inventory/freshness').InventoryFreshnessModel
 }
 
 export async function loadTopDestinationStaysFromDb(
@@ -224,21 +247,29 @@ export async function loadTopDestinationStaysFromDb(
 ): Promise<DestinationTopStay[]> {
   const rows = await listHotelsByCitySlug(citySlug, { limit: Math.max(8, limit) })
 
-  return rows.slice(0, limit).map((row, index) => ({
-    id: `${citySlug}-db-top-${index + 1}`,
-    slug: row.slug,
-    name: row.name,
-    area: row.neighborhood,
-    rating: toRating(row.rating),
-    reviewCount: row.reviewCount,
-    from: toMoneyAmount(row.fromNightlyCents),
-    currency: row.currencyCode,
-    image: row.imageUrl || '/img/demo/hotel-1.jpg',
-    badges: [
-      row.freeCancellation ? 'Free cancellation' : 'Flexible terms',
-      row.payLater ? 'Pay later' : 'Book now',
-    ],
-  }))
+  return rows.slice(0, limit).map((row, index) => {
+    const freshness = buildInventoryFreshness({
+      checkedAt: row.freshnessTimestamp,
+      profile: 'inventory_snapshot',
+    })
+
+    return {
+      id: `${citySlug}-db-top-${index + 1}`,
+      slug: row.slug,
+      name: row.name,
+      area: row.neighborhood,
+      rating: toRating(row.rating),
+      reviewCount: row.reviewCount,
+      from: toMoneyAmount(row.fromNightlyCents),
+      currency: row.currencyCode,
+      image: row.imageUrl || '/img/demo/hotel-1.jpg',
+      badges: [
+        row.freeCancellation ? 'Free cancellation' : 'Flexible terms',
+        row.payLater ? 'Pay later' : 'Book now',
+      ],
+      freshness,
+    }
+  })
 }
 
 export type HotelSitemapPage = {

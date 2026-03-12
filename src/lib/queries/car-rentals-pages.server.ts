@@ -1,5 +1,7 @@
+import { buildAvailabilityConfidence } from '~/lib/inventory/availability-confidence'
 import type { CarRentalCity } from '~/data/car-rental-cities'
 import type { CarOffer, CarRental } from '~/data/car-rentals'
+import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import {
   getCarRentalCityBySlug,
   getCarRentalDetailBySlug,
@@ -64,6 +66,10 @@ const toResult = (
 ): CarRentalResult => {
   const priceFrom = toMoneyAmount(row.fromDailyCents)
   const rating = toRating(row.rating)
+  const freshness = buildInventoryFreshness({
+    checkedAt: row.freshnessTimestamp,
+    profile: 'inventory_snapshot',
+  })
 
   return {
     id: `car-${row.slug}-${index}`,
@@ -97,6 +103,11 @@ const toResult = (
       freeCancellation: row.freeCancellation,
       payAtCounter: row.payAtCounter,
     }),
+    availabilityConfidence: buildAvailabilityConfidence({
+      freshness,
+      match: 'unknown',
+    }),
+    freshness,
   }
 }
 
@@ -121,8 +132,13 @@ export async function loadCarRentalBySlugFromDb(slug: string): Promise<CarRental
   }))
 
   const score = Number(row.score)
+  const freshness = buildInventoryFreshness({
+    checkedAt: row.freshnessTimestamp,
+    profile: 'inventory_snapshot',
+  })
 
   return {
+    inventoryId: row.id,
     slug: row.slug,
     name: row.providerName,
     city: row.cityName,
@@ -165,6 +181,11 @@ export async function loadCarRentalBySlugFromDb(slug: string): Promise<CarRental
     },
     offers,
     faq: defaultFaq(row.providerName, row.cityName),
+    availabilityConfidence: buildAvailabilityConfidence({
+      freshness,
+      match: 'unknown',
+    }),
+    freshness,
     availability: {
       pickupStart: row.availabilityStart,
       pickupEnd: row.availabilityEnd,

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { SEED_CONFIG } from "../config/seed-config.js";
+import { ADDITIONAL_TRAVEL_CITIES } from "./additional-50.js";
 
 export const TOP_TRAVEL_CITIES = [
   {
@@ -1007,6 +1008,7 @@ export const TOP_TRAVEL_CITIES = [
     lng: -104.9903,
     airportCodes: ["DEN"],
   },
+  ...ADDITIONAL_TRAVEL_CITIES,
 ];
 
 export const TOP_TRAVEL_CITIES_BY_SLUG = Object.fromEntries(

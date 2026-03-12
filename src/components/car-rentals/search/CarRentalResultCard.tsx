@@ -1,88 +1,127 @@
 import { component$ } from '@builder.io/qwik'
+import {
+  ResultCardScaffold,
+  ResultFactList,
+  ResultPricePanel,
+  ResultTrustBar,
+} from '~/components/results/ResultCardScaffold'
+import {
+  markBookingStageProgress,
+  trackBookingEvent,
+  type BookingVertical,
+} from '~/lib/analytics/booking-telemetry'
+import { buildCarPriceDisplay } from '~/lib/pricing/price-display'
 import type { CarRentalResult } from '~/types/car-rentals/search'
 
-export const CarRentalResultCard = component$(({ r, days }: CarRentalResultCardProps) => {
-  const total = days ? r.priceFrom * days : null
+export const CarRentalResultCard = component$(({ r, days, detailHref, telemetry }: CarRentalResultCardProps) => {
+  const href = detailHref || `/car-rentals/${encodeURIComponent(r.slug)}`
+  const onOpenDetail$ = () => {
+    if (!telemetry) return
+
+    trackBookingEvent('booking_search_result_opened', {
+      vertical: telemetry.vertical,
+      surface: telemetry.surface,
+      item_id: telemetry.itemId,
+      item_position: telemetry.itemPosition ?? undefined,
+      target: 'detail',
+    })
+    markBookingStageProgress('search_results')
+  }
+  const priceDisplay = buildCarPriceDisplay({
+    currencyCode: r.currency,
+    dailyRate: r.priceFrom,
+    days,
+  })
+  const inclusionHighlights = r.inclusions.slice(0, 4).join(' · ')
 
   return (
-    <a class="t-card block overflow-hidden hover:bg-white" href={`/car-rentals/${encodeURIComponent(r.slug)}`}>
-      <div class="grid gap-0 lg:grid-cols-[220px_1fr]">
-        <div class="bg-[color:var(--color-neutral-50)]">
+    <ResultCardScaffold
+      hasMedia={true}
+      hasFacts={true}
+      hasDetails={Boolean(inclusionHighlights)}
+      hasPrice={true}
+      hasPrimaryAction={true}
+      hasTrust={Boolean(r.availabilityConfidence || r.freshness)}
+    >
+      <a q:slot="media" class="block h-full" href={href} onClick$={onOpenDetail$}>
           <img
-            class="h-44 w-full object-cover lg:h-full"
+            class="h-44 w-full object-cover md:h-full"
             src={r.image}
             alt={r.name}
             loading="lazy"
             width={640}
             height={352}
           />
-        </div>
+      </a>
 
-        <div class="p-5">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <div class="text-base font-semibold text-[color:var(--color-text-strong)]">{r.name}</div>
-              <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                {r.pickupArea}
-                {r.category ? ` · ${r.category}` : ''}
-                {r.transmission ? ` · ${r.transmission}` : ''}
-                {r.seats != null ? ` · ${r.seats} seats` : ''}
-              </div>
-
-              <div class="mt-3 flex flex-wrap gap-2">
-                {r.freeCancellation ? (
-                  <span class="t-badge t-badge--deal">Free cancellation</span>
-                ) : (
-                  <span class="t-badge">Cancellation varies</span>
-                )}
-
-                {r.payAtCounter ? (
-                  <span class="t-badge t-badge--deal">Pay at counter</span>
-                ) : (
-                  <span class="t-badge">Prepay</span>
-                )}
-
-                {r.badges.slice(0, 2).map((b) => (
-                  <span key={b} class="t-badge">
-                    {b}
-                  </span>
-                ))}
-              </div>
-
-              <div class="mt-4 text-sm text-[color:var(--color-text-muted)]">
-                <span class="font-medium text-[color:var(--color-text)]">Includes:</span>{' '}
-                {r.inclusions.slice(0, 4).join(' · ')}
-              </div>
-            </div>
-
-            <div class="text-right min-w-40.25">
-              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                From {formatMoney(r.priceFrom, r.currency)}
-                <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">/day</span>
-              </div>
-
-              {total != null ? (
-                <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                  Est. total:{' '}
-                  <span class="font-medium text-[color:var(--color-text)]">{formatMoney(total, r.currency)}</span>
-                  <span class="ml-1">({days} days)</span>
-                </div>
-              ) : (
-                <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">Add dates to see totals</div>
-              )}
-
-              <div class="mt-4">
-                <span class="t-btn-primary inline-block px-5 text-center">View →</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-4 border-t border-[color:var(--color-divider)] pt-4 text-xs text-[color:var(--color-text-muted)]">
-            Score: {r.score.toFixed(2)} · Balanced for price, rating, policies
-          </div>
-        </div>
+      <div q:slot="identity">
+        <a
+          class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
+          href={href}
+          onClick$={onOpenDetail$}
+        >
+          {r.name}
+        </a>
+        <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+          {[r.pickupArea, r.category, r.transmission, r.seats != null ? `${r.seats} seats` : '']
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
       </div>
-    </a>
+
+      <ResultFactList
+        q:slot="facts"
+        columnsFrom="xl"
+        items={[
+          {
+            label: 'Price',
+            value: `From ${formatMoney(r.priceFrom, r.currency)}/day`,
+            detail: days ? `${days} day total available below` : 'Add dates for totals',
+          },
+          {
+            label: 'Policies',
+            value: r.freeCancellation ? 'Free cancellation' : 'Cancellation varies',
+            detail: r.payAtCounter ? 'Pay at counter' : 'Prepay',
+          },
+          {
+            label: 'Pickup',
+            value: r.pickupArea,
+            detail: `${r.score.toFixed(2)} suitability score`,
+          },
+        ]}
+      />
+
+      {inclusionHighlights ? (
+        <p q:slot="details" class="text-sm leading-5 text-[color:var(--color-text-muted)]">
+          <span class="font-medium text-[color:var(--color-text)]">Includes:</span>{' '}
+          {inclusionHighlights}
+        </p>
+      ) : null}
+
+      <ResultPricePanel
+        q:slot="price"
+        display={priceDisplay}
+        currency={r.currency}
+        align="right"
+        missingTotalText="Add dates to see rental totals."
+      />
+
+      <a
+        q:slot="primary-action"
+        class="t-btn-primary block w-full px-4 py-2.5 text-center text-sm font-semibold"
+        href={href}
+        onClick$={onOpenDetail$}
+      >
+        View rental
+      </a>
+
+      <ResultTrustBar
+        q:slot="trust"
+        confidence={r.availabilityConfidence}
+        freshness={r.freshness}
+        note={`Score ${r.score.toFixed(2)} reflects price, policy, and convenience balance.`}
+      />
+    </ResultCardScaffold>
   )
 })
 
@@ -105,4 +144,11 @@ const formatMoney = (amount: number, currency: string) => {
 type CarRentalResultCardProps = {
   r: CarRentalResult
   days: number | null
+  detailHref?: string
+  telemetry?: {
+    vertical: BookingVertical
+    surface: string
+    itemId: string
+    itemPosition?: number | null
+  }
 }

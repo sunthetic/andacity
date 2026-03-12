@@ -1,85 +1,159 @@
-import { component$ } from '@builder.io/qwik'
-import type { HotelResultCardProps } from '~/types/hotels/search'
+import { component$ } from "@builder.io/qwik";
+import {
+  ResultCardScaffold,
+  ResultFactList,
+  ResultPricePanel,
+  ResultReasonCallout,
+  ResultTrustBar,
+} from "~/components/results/ResultCardScaffold";
+import {
+  markBookingStageProgress,
+  trackBookingEvent,
+} from "~/lib/analytics/booking-telemetry";
+import { buildHotelWhyThis } from "~/components/results/result-card-copy";
+import { buildHotelPriceDisplay } from "~/lib/pricing/price-display";
+import type { HotelResultCardProps } from "~/types/hotels/search";
 
-export const HotelResultCard = component$(({ h, nights }: HotelResultCardProps) => {
-  const total = nights ? h.priceFrom * nights : null
+export const HotelResultCard = component$(
+  ({
+    h,
+    nights,
+    detailHref,
+    priceDisplay,
+    activeSort,
+    telemetry,
+  }: HotelResultCardProps) => {
+    const display =
+      priceDisplay ||
+      buildHotelPriceDisplay({
+        currencyCode: h.currency,
+        nightlyRate: h.priceFrom,
+        nights,
+      });
+    const href = detailHref || `/hotels/${encodeURIComponent(h.slug)}`;
+    const onOpenDetail$ = () => {
+      if (!telemetry) return;
 
-  return (
-    <a class="t-card block overflow-hidden hover:bg-white" href={`/hotels/${encodeURIComponent(h.slug)}`}>
-      <div class="grid gap-0 lg:grid-cols-[220px_1fr]">
-        <div class="bg-[color:var(--color-neutral-50)]">
+      trackBookingEvent("booking_search_result_opened", {
+        vertical: telemetry.vertical,
+        surface: telemetry.surface,
+        item_id: telemetry.itemId,
+        item_position: telemetry.itemPosition ?? undefined,
+        target: "detail",
+      });
+      markBookingStageProgress("search_results");
+    };
+    const whyThis = buildHotelWhyThis(
+      {
+        rating: h.rating,
+        reviewCount: h.reviewCount,
+        priceFrom: h.priceFrom,
+        stars: h.stars,
+        freeCancellation: h.refundable,
+        payLater: h.badges.some((badge) => badge.toLowerCase() === "pay later"),
+      },
+      activeSort,
+    );
+    const amenityHighlights = h.amenities.slice(0, 3).join(" · ");
+
+    return (
+      <ResultCardScaffold
+        hasMedia={true}
+        hasFacts={true}
+        hasDetails={Boolean(amenityHighlights)}
+        hasWhyThis={Boolean(whyThis)}
+        hasPrice={true}
+        hasPrimaryAction={true}
+        hasTrust={Boolean(h.availabilityConfidence || h.freshness)}
+      >
+        <a q:slot="media" class="block h-full" href={href} onClick$={onOpenDetail$}>
           <img
-            class="h-44 w-full object-cover lg:h-full"
+            class="h-48 w-full object-cover md:h-full"
             src={h.image}
             alt={h.name}
             loading="lazy"
             width={640}
             height={352}
           />
+        </a>
+
+        <div q:slot="identity">
+          <a
+            class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
+            href={href}
+            onClick$={onOpenDetail$}
+          >
+            {h.name}
+          </a>
+          <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+            {h.neighborhood}
+          </p>
         </div>
 
-        <div class="p-5">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <div class="text-base font-semibold text-[color:var(--color-text-strong)]">{h.name}</div>
-              <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                {h.neighborhood} · {h.stars}★ · {h.rating.toFixed(1)} ★ ({h.reviewCount.toLocaleString('en-US')})
-              </div>
+        <ResultFactList
+          q:slot="facts"
+          columnsFrom="xl"
+          items={[
+            {
+              label: "Guest rating",
+              value: `${h.rating.toFixed(1)}/10`,
+              detail: `${h.reviewCount.toLocaleString("en-US")} reviews`,
+            },
+            {
+              label: "Stay type",
+              value: `${h.stars}-star stay`,
+              detail: null,
+            },
+            {
+              label: "Policies",
+              value: h.refundable ? "Free cancellation" : "Non-refundable",
+              detail: h.badges.some(
+                (badge) => badge.toLowerCase() === "pay later",
+              )
+                ? "Pay later available"
+                : null,
+            },
+          ]}
+        />
 
-              <div class="mt-3 flex flex-wrap gap-2">
-                {h.refundable ? (
-                  <span class="t-badge t-badge--deal">Free cancellation</span>
-                ) : (
-                  <span class="t-badge">Non-refundable</span>
-                )}
-                {h.badges.slice(0, 2).map((b) => (
-                  <span key={b} class="t-badge">
-                    {b}
-                  </span>
-                ))}
-              </div>
+        {amenityHighlights ? (
+          <p
+            q:slot="details"
+            class="text-sm leading-5 text-[color:var(--color-text-muted)]"
+          >
+            <span class="font-medium text-[color:var(--color-text)]">
+              Top amenities:
+            </span>{" "}
+            {amenityHighlights}
+          </p>
+        ) : null}
 
-              <div class="mt-4 text-sm text-[color:var(--color-text-muted)]">
-                <span class="font-medium text-[color:var(--color-text)]">Top amenities:</span>{' '}
-                {h.amenities.slice(0, 4).join(' · ')}
-              </div>
-            </div>
+        {whyThis ? (
+          <ResultReasonCallout q:slot="why-this" text={whyThis} />
+        ) : null}
 
-            <div class="text-right">
-              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                From {formatMoney(h.priceFrom, h.currency)}
-                <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">/night</span>
-              </div>
+        <ResultPricePanel
+          q:slot="price"
+          display={display}
+          currency={h.currency}
+          align="right"
+        />
 
-              {total != null ? (
-                <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                  Est. total:{' '}
-                  <span class="font-medium text-[color:var(--color-text)]">{formatMoney(total, h.currency)}</span>
-                  <span class="ml-1">({nights} nights)</span>
-                </div>
-              ) : (
-                <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">Add dates to see totals</div>
-              )}
+        <a
+          q:slot="primary-action"
+          class="t-btn-primary block w-full px-4 py-2.5 text-center text-sm font-semibold"
+          href={href}
+          onClick$={onOpenDetail$}
+        >
+          View stay
+        </a>
 
-              <div class="mt-4">
-                <span class="t-btn-primary inline-block px-5 text-center">View →</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-4 border-t border-[color:var(--color-divider)] pt-4 text-xs text-[color:var(--color-text-muted)]">
-            Score: {h.score.toFixed(2)} · Balanced for price, rating, location, cancellation
-          </div>
-        </div>
-      </div>
-    </a>
-  )
-})
-
-const formatMoney = (amount: number, currency: string) => {
-  try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount)
-  } catch {
-    return `${Math.round(amount)} ${currency}`
-  }
-}
+        <ResultTrustBar
+          q:slot="trust"
+          confidence={h.availabilityConfidence}
+          freshness={h.freshness}
+        />
+      </ResultCardScaffold>
+    );
+  },
+);

@@ -1,5 +1,11 @@
 // @ts-nocheck
-import { DEMO_IMAGE_SETS, SEED_CONFIG } from "../config/seed-config.js";
+import {
+  DEMO_IMAGE_SETS,
+  SEED_CONFIG,
+  carInventoryCountForCity,
+  isDenseInventoryCity,
+  resolveSeedConfig,
+} from "../config/seed-config.js";
 import {
   createDeterministicRandom,
   deterministicId,
@@ -12,7 +18,7 @@ import {
   sampleUnique,
   weightedPick,
 } from "../fns/random.js";
-import { addDays, parseIsoDate, toIsoDate } from "../fns/format.js";
+import { parseIsoDate } from "../fns/format.js";
 import { getTopTravelCities } from "../cities/top-100.js";
 
 const PROVIDERS = [
@@ -123,9 +129,24 @@ const FUEL_POLICIES = [
   "Return as received",
 ];
 
-const cityCostMultiplier = (city) => {
+const resolveConfig = (options = {}) => {
+  return resolveSeedConfig(options.seedConfig || {});
+};
+
+const cacheKeyForConfig = (config) => {
+  return [
+    config.seed,
+    config.topCityCount,
+    config.horizonStartDate,
+    config.horizonDays,
+    config.carDensity.denseCityInventory,
+    config.carDensity.secondaryCityInventory,
+  ].join(":");
+};
+
+const cityCostMultiplier = (city, config) => {
   const rankFactor =
-    (SEED_CONFIG.topCityCount - city.rank) / SEED_CONFIG.topCityCount;
+    (config.topCityCount - city.rank) / config.topCityCount;
   const expensive = new Set([
     "new-york",
     "london",
@@ -147,34 +168,39 @@ const pickupAreaForCity = (city, pickupType) => {
   return `${code} Airport`;
 };
 
-const buildAvailability = (rand, citySlug, index) => {
-  const anchor = parseIsoDate(SEED_CONFIG.availabilityAnchorDate);
+const buildAvailability = (rand, city, index, count, config) => {
+  const anchor = parseIsoDate(config.horizonStartDate);
   if (!anchor) {
     return {
-      pickupStart: SEED_CONFIG.availabilityAnchorDate,
-      pickupEnd: SEED_CONFIG.availabilityAnchorDate,
+      pickupStart: config.horizonStartDate,
+      pickupEnd: config.horizonStartDate,
       minDays: 1,
       maxDays: 30,
       blockedWeekdays: [],
     };
   }
 
-  const startOffset = randomInt(rand, 0, 80);
-  const span = randomInt(rand, 280, 680);
-
-  const start = addDays(anchor, startOffset);
-  const end = addDays(start, span);
-
   const blockedWeekdays = [];
-  if (rand() > 0.7) blockedWeekdays.push(randomInt(rand, 0, 6));
+  const denseCity = isDenseInventoryCity(city, config);
+  const nightlyMinimum = denseCity ? 3 : 1;
+  const guaranteedNightly = Math.min(count, nightlyMinimum);
+  const nightlyBaseline = index < guaranteedNightly;
+  const weeklongFriendly = index < Math.max(guaranteedNightly, Math.ceil(count * 0.85));
+  if (!nightlyBaseline && !weeklongFriendly && rand() > (denseCity ? 0.64 : 0.55)) {
+    blockedWeekdays.push(randomInt(rand, 0, 6));
+  }
 
   return {
-    pickupStart: toIsoDate(start),
-    pickupEnd: toIsoDate(end),
-    minDays: randomInt(rand, 1, 3),
-    maxDays: randomInt(rand, 12, 30),
+    pickupStart: config.horizonStartDate,
+    pickupEnd: config.horizonEndDate,
+    minDays: nightlyBaseline
+      ? 1
+      : weeklongFriendly
+        ? (rand() > 0.35 ? 1 : 2)
+        : randomInt(rand, 1, 3),
+    maxDays: weeklongFriendly ? randomInt(rand, 9, 30) : randomInt(rand, 5, 18),
     blockedWeekdays,
-    pairingKey: `${citySlug}:${index}`,
+    pairingKey: `${city.slug}:${index}`,
   };
 };
 
@@ -184,16 +210,24 @@ const buildOffers = (rand, cityMultiplier, preferredClass) => {
     ...sampleUnique(
       rand,
       VEHICLE_CLASSES.filter((item) => item.key !== preferredClass.key),
-      2,
+      3,
     ),
   ];
 
   return classes.map((vehicleClass, index) => {
     const transmission = rand() > 0.2 ? "Automatic" : "Manual";
+    const fuelType =
+      vehicleClass.key === "luxury" && rand() > 0.45
+        ? "Plug-in hybrid"
+        : vehicleClass.key === "compact" && rand() > 0.72
+          ? "Electric"
+          : vehicleClass.key === "suv" && rand() > 0.68
+            ? "Hybrid"
+            : "Gasoline";
     const priceFrom = Math.round(
       (vehicleClass.base + randomInt(rand, -6, 16)) *
         cityMultiplier *
-        (index === 2 ? 1.25 : 1),
+        (index >= 2 ? 1.25 : 1),
     );
 
     return {
@@ -209,7 +243,13 @@ const buildOffers = (rand, cityMultiplier, preferredClass) => {
       freeCancellation: rand() > 0.22,
       payAtCounter: rand() > 0.4,
       badges:
-        index === 0 ? ["Best value"] : index === 1 ? ["Top pick"] : ["Premium"],
+        index === 0
+          ? ["Best value"]
+          : index === 1
+            ? ["Top pick"]
+            : index === 2
+              ? ["Family-ready"]
+              : ["Premium"],
       features: sampleUnique(
         rand,
         [
@@ -218,6 +258,8 @@ const buildOffers = (rand, cityMultiplier, preferredClass) => {
           "Fuel: full-to-full",
           "Fast return lane",
           "Roadside assistance",
+          `Fuel type: ${fuelType}`,
+          vehicleClass.seats >= 7 ? "Third-row seating" : "Easy city parking",
         ],
         3,
       ),
@@ -235,8 +277,10 @@ const providerScore = (rating, priceFrom, freeCancellation, payAtCounter) => {
 };
 
 export const generateCarRentalsForCity = (city, options = {}) => {
-  const count = Math.max(20, Number(options.count) || SEED_CONFIG.carsPerCity);
-  const citySeed = hashParts(SEED_CONFIG.seed, "cars", city.slug);
+  const config = resolveConfig(options);
+  const defaultCount = carInventoryCountForCity(city, config);
+  const count = Math.max(1, Number(options.count) || defaultCount);
+  const citySeed = hashParts(config.seed, "cars", city.slug);
   const rentals = [];
 
   for (let index = 0; index < count; index += 1) {
@@ -246,7 +290,7 @@ export const generateCarRentalsForCity = (city, options = {}) => {
     const pickupType = rand() > 0.36 ? "airport" : "city";
     const pickupArea = pickupAreaForCity(city, pickupType);
 
-    const cityMultiplier = cityCostMultiplier(city);
+    const cityMultiplier = cityCostMultiplier(city, config);
     const offers = buildOffers(rand, cityMultiplier, preferredClass);
     const fromDaily = Math.min(...offers.map((offer) => offer.priceFrom));
 
@@ -302,12 +346,19 @@ export const generateCarRentalsForCity = (city, options = {}) => {
         },
         {
           q: "Do rates vary by date?",
-          a: "Yes. Availability and pricing windows vary deterministically by route and date inputs.",
+          a: "Yes. Availability and pricing windows vary deterministically across the rolling horizon.",
         },
       ],
-      availability: buildAvailability(rand, city.slug, index),
+      availability: buildAvailability(rand, city, index, count, config),
       seedMeta: {
-        id: deterministicId("car", city.slug, index),
+        id: deterministicId(
+          "car",
+          config.seed,
+          config.horizonStartDate,
+          config.horizonDays,
+          city.slug,
+          index,
+        ),
         score: providerScore(rating, fromDaily, rand() > 0.25, rand() > 0.4),
       },
     };
@@ -318,34 +369,42 @@ export const generateCarRentalsForCity = (city, options = {}) => {
   return rentals;
 };
 
-let rentalsCache = null;
-let rentalsBySlugCache = null;
+const rentalsCache = new Map();
+const rentalsBySlugCache = new Map();
 
-export const generateCarRentalsInventory = () => {
-  if (rentalsCache) return rentalsCache;
+export const generateCarRentalsInventory = (options = {}) => {
+  const config = resolveConfig(options);
+  const cacheKey = cacheKeyForConfig(config);
+  if (rentalsCache.has(cacheKey)) return rentalsCache.get(cacheKey);
 
   const all = [];
   for (const city of getTopTravelCities()) {
-    all.push(...generateCarRentalsForCity(city));
+    all.push(...generateCarRentalsForCity(city, { seedConfig: config }));
   }
 
-  rentalsCache = all;
-  return rentalsCache;
+  rentalsCache.set(cacheKey, all);
+  return all;
 };
 
-export const carRentalsBySlug = () => {
-  if (rentalsBySlugCache) return rentalsBySlugCache;
+export const carRentalsBySlug = (options = {}) => {
+  const config = resolveConfig(options);
+  const cacheKey = cacheKeyForConfig(config);
+  if (rentalsBySlugCache.has(cacheKey)) return rentalsBySlugCache.get(cacheKey);
 
-  rentalsBySlugCache = Object.fromEntries(
-    generateCarRentalsInventory().map((rental) => [rental.slug, rental]),
+  const bySlug = Object.fromEntries(
+    generateCarRentalsInventory({ seedConfig: config }).map((rental) => [
+      rental.slug,
+      rental,
+    ]),
   );
-  return rentalsBySlugCache;
+  rentalsBySlugCache.set(cacheKey, bySlug);
+  return bySlug;
 };
 
-export const getCarRentalBySlug = (slug) => {
+export const getCarRentalBySlug = (slug, options = {}) => {
   const key = String(slug || "")
     .trim()
     .toLowerCase();
   if (!key) return null;
-  return carRentalsBySlug()[key] || null;
+  return carRentalsBySlug(options)[key] || null;
 };

@@ -1,3 +1,6 @@
+import type { AvailabilityConfidenceModel } from "~/lib/inventory/availability-confidence";
+import type { InventoryFreshnessModel } from "~/lib/inventory/freshness";
+
 export const TRIP_STATUSES = [
   "draft",
   "planning",
@@ -63,6 +66,22 @@ export const TRIP_BUNDLING_SUGGESTION_TYPES = [
 export type TripBundlingSuggestionType =
   (typeof TRIP_BUNDLING_SUGGESTION_TYPES)[number];
 
+export const TRIP_BUNDLING_EXPLANATION_STRENGTHS = [
+  "strong",
+  "moderate",
+  "tentative",
+] as const;
+export type TripBundlingExplanationStrength =
+  (typeof TRIP_BUNDLING_EXPLANATION_STRENGTHS)[number];
+
+export const TRIP_BUNDLING_PRICE_POSITIONS = [
+  "lowest_exact_match",
+  "above_lowest_exact_match",
+  "unknown",
+] as const;
+export type TripBundlingPricePosition =
+  (typeof TRIP_BUNDLING_PRICE_POSITIONS)[number];
+
 export type TripValidationIssue = {
   code: string;
   scope: "availability" | "itinerary";
@@ -107,6 +126,7 @@ export type TripVerticalPricing = {
   currentSubtotalCents: number | null;
   priceDeltaCents: number | null;
   hasMixedCurrencies: boolean;
+  hasPartialPricing: boolean;
 };
 
 export type TripPricingSummary = {
@@ -115,6 +135,7 @@ export type TripPricingSummary = {
   currentTotalCents: number | null;
   priceDeltaCents: number | null;
   hasMixedCurrencies: boolean;
+  hasPartialPricing: boolean;
   driftCounts: Record<TripPriceDriftStatus, number>;
   verticals: TripVerticalPricing[];
 };
@@ -124,6 +145,7 @@ export type TripItem = {
   tripId: number;
   itemType: TripItemType;
   position: number;
+  locked: boolean;
   title: string;
   subtitle: string | null;
   startDate: string | null;
@@ -135,6 +157,8 @@ export type TripItem = {
   currentCurrencyCode: string | null;
   priceDriftStatus: TripPriceDriftStatus;
   priceDriftCents: number | null;
+  availabilityConfidence: AvailabilityConfidenceModel;
+  freshness?: InventoryFreshnessModel;
   availabilityStatus: TripItemValidityStatus;
   availabilityCheckedAt: string | null;
   availabilityExpiresAt: string | null;
@@ -143,12 +167,23 @@ export type TripItem = {
   issues: TripValidationIssue[];
   startCityName: string | null;
   endCityName: string | null;
+  liveCarLocationType: "airport" | "city" | null;
+  liveCarLocationName: string | null;
   hotelId: number | null;
   flightItineraryId: number | null;
   carInventoryId: number | null;
+  liveFlightServiceDate: string | null;
+  liveFlightDepartureAt: string | null;
+  liveFlightArrivalAt: string | null;
+  liveFlightItineraryType: "one-way" | "round-trip" | null;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+};
+
+export type TripEditingState = {
+  autoRebalance: boolean;
+  lockedItemCount: number;
 };
 
 export type TripIntelligenceSummary = {
@@ -190,6 +225,42 @@ export type TripBundlingInventoryReference = {
   currencyCode: string;
   meta: string[];
   href: string | null;
+  availabilityConfidence: AvailabilityConfidenceModel;
+  freshness?: InventoryFreshnessModel;
+};
+
+export type TripBundlingSavingsBreakdown = {
+  currencyCode: string;
+  currentTripBaseTotalCents: number | null;
+  addedComponentBaseCents: number;
+  projectedBundleBaseTotalCents: number | null;
+  selectedComponentBaseCents: number;
+  cheapestExactMatchBaseCents: number | null;
+  deltaFromCheapestExactMatchCents: number | null;
+  pricePosition: TripBundlingPricePosition;
+  summary: string;
+};
+
+export type TripBundlingStrengthIndicator = {
+  level: TripBundlingExplanationStrength;
+  label: string;
+  reason: string;
+};
+
+export type TripBundlingExplanation = {
+  summary: string;
+  why: string[];
+  savings: TripBundlingSavingsBreakdown;
+  constraints: string[];
+  tradeoffs: string[];
+  strength: TripBundlingStrengthIndicator;
+  missingSignals: string[];
+};
+
+export type TripBundlingPricingContext = {
+  currencyCode: string | null;
+  snapshotTotalCents: number | null;
+  hasMixedCurrencies: boolean;
 };
 
 export type TripBundlingSuggestion = {
@@ -204,6 +275,7 @@ export type TripBundlingSuggestion = {
   startDate: string | null;
   endDate: string | null;
   cityName: string | null;
+  explanation: TripBundlingExplanation;
   inventory: TripBundlingInventoryReference;
   tripCandidate: TripItemCandidate;
 };
@@ -217,9 +289,119 @@ export type TripBundlingSummary = {
 export type TripDetails = TripListItem & {
   notes: string | null;
   metadata: Record<string, unknown>;
+  editing: TripEditingState;
   citiesInvolved: string[];
   pricing: TripPricingSummary;
   intelligence: TripIntelligenceSummary;
   bundling: TripBundlingSummary;
   items: TripItem[];
+};
+
+export type TripItemReplacementOption = {
+  inventoryId: number;
+  itemType: TripItemType;
+  title: string;
+  subtitle: string | null;
+  imageUrl: string | null;
+  meta: string[];
+  priceCents: number;
+  currencyCode: string;
+  startDate: string | null;
+  endDate: string | null;
+  candidate: TripItemCandidate;
+  reasons: string[];
+};
+
+export type TripEditPreviewActionType = "reorder" | "remove" | "replace";
+
+export type TripChangeSafetyLevel = "minor" | "major";
+
+export type TripChangeSummary = {
+  safetyLevel: TripChangeSafetyLevel;
+  headline: string;
+  whatChanged: string;
+  whyChanged: string;
+  impactSummary: string;
+};
+
+export type TripRollbackItemSnapshot = {
+  id: number;
+  itemType: TripItemType;
+  position: number;
+  hotelId: number | null;
+  flightItineraryId: number | null;
+  carInventoryId: number | null;
+  startCityId: number | null;
+  endCityId: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  snapshotPriceCents: number;
+  snapshotCurrencyCode: string;
+  snapshotTimestamp: string;
+  title: string;
+  subtitle: string | null;
+  imageUrl: string | null;
+  meta: string[];
+  metadata: Record<string, unknown>;
+};
+
+export type TripRollbackDraft = {
+  items: TripRollbackItemSnapshot[];
+};
+
+export type TripEditTimingChange = {
+  itemId: number;
+  title: string;
+  kind: "position" | "schedule" | "position_and_schedule";
+  previousLabel: string;
+  nextLabel: string;
+};
+
+export type TripEditPriceImpact = {
+  currencyCode: string | null;
+  snapshotDeltaCents: number | null;
+  currentDeltaCents: number | null;
+  summary: string;
+};
+
+export type TripEditCoherenceImpact = {
+  status: "improved" | "unchanged" | "riskier" | "mixed";
+  blockingDelta: number;
+  warningDelta: number;
+  summary: string;
+};
+
+export type TripEditTimingImpact = {
+  summary: string;
+  changedItems: TripEditTimingChange[];
+};
+
+export type TripEditBundleImpact = {
+  selectionMode: "recommended" | "manual_override";
+  summary: string;
+  preservedRelatedItemIds: number[];
+  strengthSummary: string;
+  savingsDeltaCents: number | null;
+  savingsSummary: string;
+  explanation: TripBundlingExplanation | null;
+  limitations: string[];
+};
+
+export type TripEditPreview = {
+  actionType: TripEditPreviewActionType;
+  trip: TripDetails;
+  autoRebalanced: boolean;
+  changeSummary: TripChangeSummary;
+  lockedItemIdsPreserved: number[];
+  limitations: string[];
+  priceImpact: TripEditPriceImpact;
+  timingImpact: TripEditTimingImpact;
+  coherenceImpact: TripEditCoherenceImpact;
+  bundleImpact: TripEditBundleImpact | null;
+};
+
+export type TripAppliedChange = {
+  summary: TripChangeSummary;
+  preview: TripEditPreview;
+  rollbackDraft: TripRollbackDraft | null;
 };

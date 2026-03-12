@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "incremental": false,
+    "outDir": "/tmp/andacity-validate"
+  },
+  "include": [
+    "src",
+    "scripts/validate/bundle-explainability-scenarios.ts",
+    "./*.d.ts",
+    "./*.config.ts"
+  ]
+}

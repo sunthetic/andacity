@@ -1,5 +1,10 @@
 import { component$, Slot } from '@builder.io/qwik'
 import type { RequestHandler } from '@builder.io/qwik-city'
+import {
+  DecisioningProvider,
+  useDecisioning,
+} from '~/components/save-compare/DecisioningProvider'
+import { UndoSnackbar } from '~/components/save-compare/UndoSnackbar'
 import { SiteFooter } from '~/components/site/SiteFooter'
 import { SiteHeader } from '~/components/site/SiteHeader'
 import { getPublicBaseUrl, shouldIndex } from '~/lib/seo/env'
@@ -39,17 +44,32 @@ export const onRequest: RequestHandler = ({ url, headers }) => {
 
 export default component$(() => {
   return (
-    <div class="min-h-screen bg-[color:var(--color-bg)] text-[color:var(--color-text)]">
+    <DecisioningProvider>
+      <div class="min-h-screen bg-[color:var(--color-bg)] text-[color:var(--color-text)]">
 
-      <SiteHeader />
+        <SiteHeader />
 
-      <main>
-        <Slot />
-      </main>
+        <main>
+          <Slot />
+        </main>
 
-      <SiteFooter />
+        <SiteFooter />
+        <DecisioningChrome />
 
-    </div>
+      </div>
+    </DecisioningProvider>
+  )
+})
+
+const DecisioningChrome = component$(() => {
+  const decisioning = useDecisioning()
+
+  return (
+    <UndoSnackbar
+      message={decisioning.state.undo?.message || null}
+      onUndo$={decisioning.undo$}
+      onDismiss$={decisioning.dismissUndo$}
+    />
   )
 })
 

@@ -1,0 +1,28 @@
+name: Deploy development to EC2
+
+on:
+  push:
+    branches: [ dev ]
+
+jobs:
+  run-ec2-deploy-script:
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - id: configure-ssh
+        name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh/
+          echo "${{ secrets.EC2_SERVER_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "Host myserver " >> ~/.ssh/config
+          echo "  HostName ${{ vars.EC2_SERVER_HOST }}" >> ~/.ssh/config
+          echo "  User ${{ secrets.EC2_SERVER_USER }}" >> ~/.ssh/config
+          echo "  IdentityFile ~/.ssh/id_rsa" >> ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+      - id: run-script-via-ssh-to-ec2
+        name: Run Deployment Script
+        run: |
+          ssh -t myserver \
+            'cd ${{ vars.EC2_DEPLOY_ROOT_DIR }}; \
+            ./deploy_development.sh ${{ vars.APP_NAME }} ${{ vars.APP_SERVER_PORT }}'

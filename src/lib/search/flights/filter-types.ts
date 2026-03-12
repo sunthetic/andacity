@@ -1,4 +1,7 @@
-import { isFlightSortKey, type FlightSortKey } from '~/lib/search/flights/flight-sort-options'
+import {
+  normalizeFlightSortValue,
+  type FlightSortKey,
+} from '~/lib/search/flights/flight-sort-options'
 import type { FlightCabinClass, FlightTimeWindow } from '~/types/flights/search'
 
 export type FlightPriceBand = 'under-200' | '200-400' | '400-700' | '700-plus'
@@ -103,12 +106,7 @@ const parsePriceBand = (filters: Record<string, unknown>): FlightPriceBand | '' 
 }
 
 export const normalizeFlightSort = (value: string | null | undefined): FlightSortKey => {
-  const token = String(value || '').trim()
-  if (isFlightSortKey(token)) return token
-  if (token === 'best' || token === 'relevance') return 'recommended'
-  if (token === 'price') return 'price-asc'
-  if (token === 'earliest-departure' || token === 'departure') return 'departure-asc'
-  return 'recommended'
+  return normalizeFlightSortValue(value)
 }
 
 export const parseFlightsSelectedFilters = (

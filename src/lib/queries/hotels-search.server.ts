@@ -1,4 +1,7 @@
+import { buildAvailabilityConfidence } from '~/lib/inventory/availability-confidence'
 import { searchHotels, type HotelPriceRange, type HotelSort } from '~/lib/repos/hotels-repo.server'
+import { buildInventoryFreshness } from '~/lib/inventory/freshness'
+import { normalizeHotelSort } from '~/lib/search/hotels/hotel-sort-options'
 import { findTopTravelCity } from '~/seed/cities/top-100.js'
 import type { HotelResult } from '~/types/hotels/search'
 
@@ -19,10 +22,7 @@ const normalizeOptions = (value: string[] | null | undefined) =>
 const toPriceAmount = (cents: number) => Math.max(0, Math.round(Number(cents || 0) / 100))
 
 const toSort = (value: string | null | undefined): HotelSort => {
-  if (value === 'price-desc') return 'price-desc'
-  if (value === 'price' || value === 'price-asc') return 'price-asc'
-  if (value === 'rating' || value === 'rating-desc') return 'rating-desc'
-  return 'recommended'
+  return normalizeHotelSort(value)
 }
 
 const toPriceRanges = (value: string[] | null | undefined): HotelPriceRange[] => {
@@ -132,6 +132,7 @@ export async function loadHotelResultsFromDb(
   }
 
   const q = normalizeToken(input.query)
+  const hasExactDates = Boolean(input.checkIn && input.checkOut)
 
   return {
     matchedCity: {
@@ -171,6 +172,17 @@ export async function loadHotelResultsFromDb(
           q && row.citySlug.includes(q) ? 'Great match' : 'Popular',
         ].slice(0, 3),
         score,
+        freshness: buildInventoryFreshness({
+          checkedAt: row.freshnessTimestamp,
+          profile: 'inventory_snapshot',
+        }),
+        availabilityConfidence: buildAvailabilityConfidence({
+          freshness: buildInventoryFreshness({
+            checkedAt: row.freshnessTimestamp,
+            profile: 'inventory_snapshot',
+          }),
+          match: hasExactDates ? 'exact' : 'unknown',
+        }),
       }
     }),
   }

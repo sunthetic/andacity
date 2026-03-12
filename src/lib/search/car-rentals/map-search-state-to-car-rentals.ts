@@ -1,7 +1,9 @@
 import type { CarRentalResult } from '~/types/car-rentals/search'
 import type { SearchState } from '~/types/search/state'
-import { isCarRentalsSortKey } from '~/lib/search/car-rentals/car-sort-options'
-import type { CarRentalsSortKey } from '~/lib/search/car-rentals/car-sort-options'
+import {
+  normalizeCarRentalsSortValue,
+  type CarRentalsSortKey,
+} from '~/lib/search/car-rentals/car-sort-options'
 
 type CarRentalsPriceBand = 'under-50' | '50-100' | '100-150' | '150-plus'
 
@@ -113,11 +115,16 @@ const pickupConvenienceRank = (result: CarRentalResult) => {
 const sortItems = (items: CarRentalResult[], activeSort: CarRentalsSortKey) => {
   return [...items].sort((a, b) => {
     if (activeSort === 'price-asc') return a.priceFrom - b.priceFrom
-    if (activeSort === 'price-desc') return b.priceFrom - a.priceFrom
 
-    if (activeSort === 'vehicle-class') {
-      const classCompare = normalizeToken(a.category || '').localeCompare(normalizeToken(b.category || ''))
-      if (classCompare !== 0) return classCompare
+    if (activeSort === 'value') {
+      const valueCompare =
+        (b.score / Math.max(b.priceFrom, 1)) - (a.score / Math.max(a.priceFrom, 1))
+      if (valueCompare !== 0) return valueCompare
+      return b.score - a.score
+    }
+
+    if (activeSort === 'rating-desc') {
+      if (b.rating !== a.rating) return b.rating - a.rating
       return a.priceFrom - b.priceFrom
     }
 
@@ -172,7 +179,7 @@ export const mapSearchStateToCarRentals = (
   })
 
   const sortCandidate = String(searchState.sort || '').trim()
-  const activeSort = isCarRentalsSortKey(sortCandidate) ? sortCandidate : 'recommended'
+  const activeSort = normalizeCarRentalsSortValue(sortCandidate)
 
   return {
     activeSort,

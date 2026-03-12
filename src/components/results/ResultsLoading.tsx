@@ -1,15 +1,26 @@
-import { component$ } from '@builder.io/qwik'
+import { component$ } from "@builder.io/qwik";
+import {
+  CardSkeleton,
+  ListSkeleton,
+} from "~/components/async/AsyncSurfaceSkeleton";
 
-export const ResultsLoading = component$(() => {
-  return (
-    <div class="grid gap-3">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div
-          key={`skeleton-${i}`}
-          class="h-40 animate-pulse rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-neutral-50)]"
-          aria-hidden="true"
-        />
-      ))}
-    </div>
-  )
-})
+export const ResultsLoading = component$((props: ResultsLoadingProps) => {
+  if (props.variant === "card") {
+    const count = props.count || 6;
+
+    return (
+      <div class="grid gap-3 sm:grid-cols-2">
+        {Array.from({ length: count }).map((_, index) => (
+          <CardSkeleton key={`card-skeleton-${index}`} />
+        ))}
+      </div>
+    );
+  }
+
+  return <ListSkeleton count={props.count} />;
+});
+
+type ResultsLoadingProps = {
+  variant?: "card" | "list";
+  count?: number;
+};

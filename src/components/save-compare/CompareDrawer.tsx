@@ -1,4 +1,4 @@
-import { component$, type QRL } from "@builder.io/qwik";
+import { component$, useSignal, type QRL } from "@builder.io/qwik";
 import { CarCompareCard } from "~/components/cars/CarCompareCard";
 import { FlightCompareCard } from "~/components/flights/FlightCompareCard";
 import { HotelCompareCard } from "~/components/hotels/HotelCompareCard";
@@ -6,9 +6,17 @@ import {
   verticalCompareLabel,
   verticalCompareTitle,
 } from "~/lib/save-compare/compare-state";
+import { useOverlayBehavior } from "~/lib/ui/overlay";
 import type { SavedItem, SavedVertical } from "~/types/save-compare/saved-item";
 
 export const CompareDrawer = component$((props: CompareDrawerProps) => {
+  const openSignal = useSignal(props.open);
+  openSignal.value = props.open;
+  const { overlayRef, initialFocusRef } = useOverlayBehavior({
+    open: openSignal,
+    onClose$: props.onClose$,
+  });
+
   if (!props.open) return null;
 
   return (
@@ -20,7 +28,14 @@ export const CompareDrawer = component$((props: CompareDrawerProps) => {
         onClick$={props.onClose$}
       />
 
-      <aside class="absolute inset-x-0 bottom-0 max-h-[88vh] rounded-t-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] shadow-[var(--shadow-e3)] lg:inset-y-0 lg:left-auto lg:w-[min(560px,100vw)] lg:max-h-none lg:rounded-none lg:rounded-l-2xl">
+      <aside
+        ref={overlayRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={verticalCompareTitle(props.vertical)}
+        tabIndex={-1}
+        class="absolute inset-x-0 bottom-0 max-h-[88vh] rounded-t-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] shadow-[var(--shadow-e3)] outline-none lg:inset-y-0 lg:left-auto lg:w-[min(560px,100vw)] lg:max-h-none lg:rounded-none lg:rounded-l-2xl"
+      >
         <header class="flex items-start justify-between gap-2 border-b border-[color:var(--color-divider)] px-4 py-3">
           <div>
             <h2 class="text-sm font-semibold text-[color:var(--color-text-strong)]">
@@ -32,6 +47,7 @@ export const CompareDrawer = component$((props: CompareDrawerProps) => {
           </div>
 
           <button
+            ref={initialFocusRef}
             type="button"
             class="rounded-lg border border-[color:var(--color-border)] px-2 py-1 text-xs font-medium text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-strong)]"
             onClick$={props.onClose$}

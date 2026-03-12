@@ -1,8 +1,13 @@
 import {
+  buildAvailabilityConfidence,
+  evaluateFlightAvailabilityContext,
+} from '~/lib/inventory/availability-confidence'
+import {
   listFlightSearchFacets,
   searchFlightsPage,
   type FlightSort,
 } from '~/lib/repos/flights-repo.server'
+import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import {
   EMPTY_FLIGHT_SEARCH_FACETS,
   normalizeFlightSort,
@@ -66,7 +71,6 @@ const toPriceBandBounds = (band: FlightPriceBand | '') => {
 
 const toRepoSort = (sort: ReturnType<typeof normalizeFlightSort>): FlightSort => {
   if (sort === 'price-asc') return 'price-asc'
-  if (sort === 'price-desc') return 'price-desc'
   if (sort === 'duration') return 'duration'
   if (sort === 'departure-asc') return 'departure-asc'
   return 'recommended'
@@ -217,10 +221,20 @@ export async function loadFlightResultsPageFromDb(
     facets,
     results: rows.map((row, index) => {
       const stops = clampStops(Number(row.stops))
+      const freshness = buildInventoryFreshness({
+        checkedAt: row.freshnessTimestamp,
+        profile: 'inventory_snapshot',
+      })
+      const flightAssessment = evaluateFlightAvailabilityContext({
+        requestedServiceDate: input.departDate || null,
+        actualServiceDate: row.serviceDate,
+      })
+
       return {
         id: row.seedKey || `flight-${row.id}-${effectiveOffset + index}`,
         itineraryId: row.id,
         serviceDate: row.serviceDate,
+        requestedServiceDate: input.departDate || undefined,
         airline: row.airline,
         origin: `${fromCity.name} (${row.originIata})`,
         destination: `${toCity.name} (${row.destinationIata})`,
@@ -234,8 +248,18 @@ export async function loadFlightResultsPageFromDb(
         stopsLabel: toStopsLabel(stops),
         duration: formatDuration(row.durationMinutes),
         cabinClass: row.cabinClass,
+        fareCode: row.fareCode,
         price: toPriceAmount(row.priceCents),
         currency: row.currencyCode,
+        refundable: row.refundable,
+        changeable: row.changeable,
+        checkedBagsIncluded: row.checkedBagsIncluded,
+        seatsRemaining: row.seatsRemaining,
+        availabilityConfidence: buildAvailabilityConfidence({
+          freshness,
+          ...flightAssessment,
+        }),
+        freshness,
       }
     }),
   }

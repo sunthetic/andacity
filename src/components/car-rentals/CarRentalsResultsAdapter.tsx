@@ -1,22 +1,38 @@
 import { $, component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
+import { useLocation } from "@builder.io/qwik-city";
 import { CarRentalCard } from "~/components/car-rentals/CarRentalCard";
 import { CarRentalFilters } from "~/components/car-rentals/CarRentalFilters";
 import type { CarRentalFilterGroup } from "~/components/car-rentals/CarRentalFilters";
+import { useBookingAbandonmentTelemetry } from "~/lib/analytics/booking-abandonment";
+import { trackBookingEvent } from "~/lib/analytics/booking-telemetry";
+import { buildResultsFilterChips } from "~/components/results/ResultsFilterGroups";
 import { ResultsShell } from "~/components/results/ResultsShell";
-import { CompareDrawer } from "~/components/save-compare/CompareDrawer";
-import { CompareTray } from "~/components/save-compare/CompareTray";
-import type { ResultsSortOption } from "~/components/results/ResultsSort";
-import { formatMoney } from "~/lib/formatMoney";
-import { canOpenCompare } from "~/lib/save-compare/compare-state";
 import {
-  clearSavedCollection,
-  isItemSaved,
-  loadSavedItems,
-  persistSavedItems,
-  removeSavedItem,
-  toggleSavedItem,
-} from "~/lib/save-compare/saved-state";
-import { SAVE_COMPARE_STORAGE_KEY } from "~/lib/save-compare/storage";
+  isCompared,
+  isShortlisted,
+  useDecisioning,
+} from "~/components/save-compare/DecisioningProvider";
+import { CompareSheet } from "~/components/save-compare/CompareSheet";
+import { CompareTray } from "~/components/save-compare/CompareTray";
+import { RecentlyViewedModule } from "~/components/save-compare/RecentlyViewedModule";
+import type { ResultsSortOption } from "~/components/results/ResultsSort";
+import { revalidateInventoryApi } from "~/lib/inventory/inventory-api";
+import {
+  buildCarPriceDisplay,
+  describePriceChangeCollection,
+  type PriceChange,
+} from "~/lib/pricing/price-display";
+import {
+  buildRefreshPriceChangeMap,
+  consumeRefreshPriceSnapshot,
+  storeRefreshPriceSnapshot,
+} from "~/lib/pricing/refresh-price-snapshot";
+import {
+  buildCarRentalDetailHrefWithDates,
+  buildCarResultSavedItem,
+} from "~/lib/save-compare/item-builders";
+import { canOpenCompare } from "~/lib/save-compare/compare-state";
+import { computeDays } from "~/lib/search/car-rentals/dates";
 import {
   CAR_RENTALS_SORT_OPTIONS,
   type CarRentalsSortKey,
@@ -26,11 +42,35 @@ import type {
   CarRentalsSelectedFilters,
 } from "~/lib/search/car-rentals/filter-types";
 import { searchStateToUrl } from "~/lib/search/state-to-url";
+import {
+  resolveAvailabilityAsyncState,
+  summarizeAvailabilitySignals,
+  type BookingAsyncState,
+} from "~/lib/async/booking-async-state";
+import {
+  clearSearchStateFilters,
+  withSearchStateArrayToggle,
+  withSearchStatePage,
+  withSearchStateSingleToggle,
+  withSearchStateSort,
+} from "~/lib/search/state-controls";
 import type { CarRentalResult } from "~/types/car-rentals/search";
 import type { SavedItem } from "~/types/save-compare/saved-item";
 import type { SearchState } from "~/types/search/state";
 
 const CARS_VERTICAL = "cars" as const;
+const CAR_RESULTS_FILTER_KEYS = [
+  "class",
+  "vehicleClass",
+  "pickup",
+  "pickupType",
+  "transmission",
+  "seats",
+  "seatsMin",
+  "priceBand",
+  "price",
+  "priceRange",
+] as const;
 
 const normalizeToken = (value: string) =>
   String(value || "")
@@ -64,76 +104,6 @@ const buildQuerySummary = (
   return parts.join(" · ");
 };
 
-const withFilters = (
-  state: SearchState,
-  updater: (filters: Record<string, unknown>) => Record<string, unknown>,
-): SearchState => {
-  const nextFilters = updater({ ...(state.filters || {}) });
-  return {
-    ...state,
-    page: 1,
-    filters: Object.keys(nextFilters).length ? nextFilters : undefined,
-  };
-};
-
-const withArrayToggle = (
-  state: SearchState,
-  key: string,
-  value: string,
-): SearchState => {
-  return withFilters(state, (filters) => {
-    const currentRaw = filters[key];
-    const current = Array.isArray(currentRaw)
-      ? currentRaw
-          .map((item) => normalizeToken(String(item || "")))
-          .filter(Boolean)
-      : String(currentRaw || "")
-          .split(",")
-          .map((item) => normalizeToken(item))
-          .filter(Boolean);
-
-    const has = current.includes(value);
-    const next = has
-      ? current.filter((item) => item !== value)
-      : [...current, value];
-
-    if (next.length) {
-      filters[key] = next;
-    } else {
-      delete filters[key];
-    }
-
-    return filters;
-  });
-};
-
-const withSingleToggle = (
-  state: SearchState,
-  key: string,
-  value: string,
-): SearchState => {
-  return withFilters(state, (filters) => {
-    const current = normalizeToken(String(filters[key] || ""));
-    if (current === normalizeToken(value)) {
-      delete filters[key];
-    } else {
-      filters[key] = value;
-    }
-    return filters;
-  });
-};
-
-const withSort = (state: SearchState, sort: string): SearchState => ({
-  ...state,
-  sort,
-  page: 1,
-});
-
-const withPage = (state: SearchState, page: number): SearchState => ({
-  ...state,
-  page,
-});
-
 const buildPageLinks = (
   page: number,
   totalPages: number,
@@ -166,145 +136,208 @@ const buildEditSearchHref = (state: SearchState, queryLabel: string) => {
   return `/car-rentals?${sp.toString()}`;
 };
 
-const buildCarRentalDetailHref = (rentalSlug: string) =>
-  `/car-rentals/${encodeURIComponent(rentalSlug)}`;
-
-const toSavedCarItem = (
-  result: CarRentalResult,
-  dates: SearchState["dates"],
-): SavedItem => ({
-  id: result.id,
-  vertical: CARS_VERTICAL,
-  title: result.name,
-  subtitle: result.vehicleName || result.category || "Standard car",
-  price: `${formatMoney(result.priceFrom, result.currency)} /day`,
-  meta: [
-    result.pickupArea,
-    result.transmission || "",
-    result.seats != null ? `${result.seats} seats` : "",
-    result.bags || "",
-  ].filter(Boolean),
-  href: buildCarRentalDetailHref(result.slug),
-  image: result.image || undefined,
-  tripCandidate:
-    result.inventoryId != null
-      ? {
-          itemType: "car",
-          inventoryId: result.inventoryId,
-          startDate: dates?.checkIn,
-          endDate: dates?.checkOut,
-          priceCents: Math.round(result.priceFrom * 100),
-          currencyCode: result.currency,
-          title: result.name,
-          subtitle: result.vehicleName || result.category || "Standard car",
-          imageUrl: result.image || undefined,
-          meta: [
-            result.pickupArea,
-            result.transmission || "",
-            result.seats != null ? `${result.seats} seats` : "",
-            result.bags || "",
-          ].filter(Boolean),
-        }
-      : undefined,
-});
-
 export const CarRentalsResultsAdapter = component$(
   (props: CarRentalsResultsAdapterProps) => {
+    const decisioning = useDecisioning();
+    const location = useLocation();
     const toHref = (nextState: SearchState) =>
       searchStateToUrl(props.basePath, nextState, {
         includeQueryParam: props.urlOptions?.includeQueryParam,
         includeLocationParams: props.urlOptions?.includeLocationParams,
         dateParamKeys: props.urlOptions?.dateParamKeys,
       });
+    useBookingAbandonmentTelemetry({
+      vertical: "cars",
+      stage: "search_results",
+      payload: {
+        surface: "results_shell",
+      },
+      trackOnCleanup: false,
+    });
 
+    const preservedFilterKeys = Object.keys(
+      props.searchState.filters || {},
+    ).filter(
+      (key) =>
+        !CAR_RESULTS_FILTER_KEYS.includes(
+          key as (typeof CAR_RESULTS_FILTER_KEYS)[number],
+        ),
+    );
     const pageItems = props.results;
-    const savedItems = useSignal<SavedItem[]>([]);
-    const compareOpen = useSignal(false);
+    const days = computeDays(
+      props.searchState.dates?.checkIn || null,
+      props.searchState.dates?.checkOut || null,
+    );
+    const refreshHref = toHref(
+      withSearchStatePage(props.searchState, props.page),
+    );
+    const refreshSnapshotId = `car-results:${refreshHref}`;
+    const visibleInventoryIds = pageItems.flatMap((result) =>
+      result.inventoryId != null ? [result.inventoryId] : [],
+    );
+    const priceDisplays = pageItems.map((result) =>
+      buildCarPriceDisplay({
+        currencyCode: result.currency,
+        dailyRate: result.priceFrom,
+        days,
+      }),
+    );
+    const refreshPriceChanges = useSignal<Record<string, PriceChange>>({});
+    const refreshPriceSummary = useSignal<string | null>(null);
+    const availabilitySignals = summarizeAvailabilitySignals(pageItems);
+    const asyncState = resolveAvailabilityAsyncState({
+      itemCount: props.totalCount,
+      isRefreshing: location.isNavigating,
+      isFailed: Boolean(props.loadError),
+      signals: availabilitySignals,
+    });
+    const controlsDisabled = location.isNavigating || asyncState === "failed";
+    const statusNotice = buildCarResultsStatusNotice(asyncState, {
+      partialCount: availabilitySignals.partialCount,
+      staleCount: availabilitySignals.staleCount,
+      failedCount: availabilitySignals.failedCount,
+    });
 
     // eslint-disable-next-line qwik/no-use-visible-task
-    useVisibleTask$(({ cleanup }) => {
-      const syncSaved = () => {
-        savedItems.value = loadSavedItems(CARS_VERTICAL);
-      };
+    useVisibleTask$(() => {
+      const previousEntries = consumeRefreshPriceSnapshot(refreshSnapshotId);
+      if (!previousEntries.length) {
+        refreshPriceChanges.value = {};
+        refreshPriceSummary.value = null;
+        return;
+      }
 
-      syncSaved();
+      const nextChanges = buildRefreshPriceChangeMap(
+        previousEntries,
+        pageItems.map((result) => ({
+          id: result.id,
+          amount: result.priceFrom,
+          currencyCode: result.currency,
+        })),
+        "Daily rate",
+      );
 
-      const onStorage = (event: StorageEvent) => {
-        if (event.key && event.key !== SAVE_COMPARE_STORAGE_KEY) return;
-        syncSaved();
-      };
-
-      window.addEventListener("storage", onStorage);
-      cleanup(() => window.removeEventListener("storage", onStorage));
+      refreshPriceChanges.value = nextChanges;
+      refreshPriceSummary.value = describePriceChangeCollection(
+        Object.values(nextChanges),
+      );
     });
 
     const onToggleSave$ = $((item: SavedItem) => {
-      const next = toggleSavedItem(savedItems.value, item);
-      savedItems.value = next;
-      persistSavedItems(CARS_VERTICAL, next);
+      decisioning.toggleShortlist$(CARS_VERTICAL, item);
     });
 
-    const onRemoveSaved$ = $((id: string) => {
-      const next = removeSavedItem(savedItems.value, id);
-      savedItems.value = next;
-      persistSavedItems(CARS_VERTICAL, next);
-    });
-
-    const onClearSaved$ = $(() => {
-      const next = clearSavedCollection();
-      savedItems.value = next;
-      persistSavedItems(CARS_VERTICAL, next);
-      compareOpen.value = false;
+    const onToggleCompare$ = $((item: SavedItem) => {
+      decisioning.toggleCompare$(CARS_VERTICAL, item);
     });
 
     const onOpenCompare$ = $(() => {
-      if (!canOpenCompare(savedItems.value.length)) return;
-      compareOpen.value = true;
+      if (!canOpenCompare(decisioning.state.compare[CARS_VERTICAL].length))
+        return;
+      trackBookingEvent("booking_compare_opened", {
+        vertical: CARS_VERTICAL,
+        surface: "search_results",
+        compare_count: decisioning.state.compare[CARS_VERTICAL].length,
+      });
+      decisioning.openCompare$(CARS_VERTICAL);
     });
 
-    const onCloseCompare$ = $(() => {
-      compareOpen.value = false;
+    const onClearCompare$ = $(() => {
+      trackBookingEvent("booking_compare_cleared", {
+        vertical: CARS_VERTICAL,
+        surface: "search_results",
+        compare_count: comparedItems.length,
+      });
+      decisioning.clearComparedItems$(CARS_VERTICAL);
     });
 
-    const canCompare = canOpenCompare(savedItems.value.length);
+    const onRevalidateVisibleResults$ = $(async () => {
+      if (!visibleInventoryIds.length) {
+        throw new Error("No visible car rental inventory can be revalidated.");
+      }
+
+      storeRefreshPriceSnapshot(
+        refreshSnapshotId,
+        pageItems.map((result) => ({
+          id: result.id,
+          amount: result.priceFrom,
+          currencyCode: result.currency,
+        })),
+      );
+
+      await revalidateInventoryApi({
+        itemType: "car",
+        inventoryIds: visibleInventoryIds,
+      });
+    });
+
+    const comparedItems = decisioning.state.compare[CARS_VERTICAL];
+    const canCompare = canOpenCompare(comparedItems.length);
 
     const sortOptions: ResultsSortOption[] = CAR_RENTALS_SORT_OPTIONS.map(
       (option) => ({
         label: option.label,
         value: option.value,
         active: props.activeSort === option.value,
-        href: toHref(withSort(props.searchState, option.value)),
+        href: toHref(withSearchStateSort(props.searchState, option.value)),
       }),
     );
 
     const classOptions = props.filterFacets.vehicleClasses.map((item) => ({
       label: item.label,
-      href: toHref(withArrayToggle(props.searchState, "class", item.value)),
+      href: toHref(
+        withSearchStateArrayToggle(
+          props.searchState,
+          "class",
+          item.value,
+          normalizeToken,
+        ),
+      ),
       active: props.selectedFilters.vehicleClasses.includes(item.value),
     }));
 
-    const pickupTypeOptions = props.filterFacets.pickupTypes
-      .map((pickupType) => ({
+    const pickupTypeOptions = props.filterFacets.pickupTypes.map(
+      (pickupType) => ({
         label: pickupType === "airport" ? "Airport pickup" : "City pickup",
-        href: toHref(withSingleToggle(props.searchState, "pickup", pickupType)),
-        active: props.selectedFilters.pickupType === pickupType,
-      }));
-
-    const transmissionOptions = props.filterFacets.transmissions
-      .map((kind) => ({
-        label: kind === "automatic" ? "Automatic" : "Manual",
-        href: toHref(withSingleToggle(props.searchState, "transmission", kind)),
-        active: props.selectedFilters.transmission === kind,
-      }));
-
-    const seatOptions = props.filterFacets.seats
-      .map((seats) => ({
-        label: `${seats}+ seats`,
         href: toHref(
-          withSingleToggle(props.searchState, "seats", String(seats)),
+          withSearchStateSingleToggle(
+            props.searchState,
+            "pickup",
+            pickupType,
+            normalizeToken,
+          ),
         ),
-        active: props.selectedFilters.seatsMin === seats,
-      }));
+        active: props.selectedFilters.pickupType === pickupType,
+      }),
+    );
+
+    const transmissionOptions = props.filterFacets.transmissions.map(
+      (kind) => ({
+        label: kind === "automatic" ? "Automatic" : "Manual",
+        href: toHref(
+          withSearchStateSingleToggle(
+            props.searchState,
+            "transmission",
+            kind,
+            normalizeToken,
+          ),
+        ),
+        active: props.selectedFilters.transmission === kind,
+      }),
+    );
+
+    const seatOptions = props.filterFacets.seats.map((seats) => ({
+      label: `${seats}+ seats`,
+      href: toHref(
+        withSearchStateSingleToggle(
+          props.searchState,
+          "seats",
+          String(seats),
+          normalizeToken,
+        ),
+      ),
+      active: props.selectedFilters.seatsMin === seats,
+    }));
 
     const priceBandOptions: {
       label: string;
@@ -319,7 +352,12 @@ export const CarRentalsResultsAdapter = component$(
     const priceOptions = priceBandOptions.map((option) => ({
       label: option.label,
       href: toHref(
-        withSingleToggle(props.searchState, "priceBand", option.value),
+        withSearchStateSingleToggle(
+          props.searchState,
+          "priceBand",
+          option.value,
+          normalizeToken,
+        ),
       ),
       active: props.selectedFilters.priceBand === option.value,
     }));
@@ -331,6 +369,10 @@ export const CarRentalsResultsAdapter = component$(
       { title: "Seats", options: seatOptions },
       { title: "Price band", options: priceOptions },
     ].filter((group) => group.options.length > 0);
+    const activeFilterChips = buildResultsFilterChips(filterGroups);
+    const clearAllFiltersHref = toHref(
+      clearSearchStateFilters(props.searchState, preservedFilterKeys),
+    );
 
     return (
       <ResultsShell
@@ -343,22 +385,81 @@ export const CarRentalsResultsAdapter = component$(
           props.editSearchHref ||
           buildEditSearchHref(props.searchState, props.queryLabel)
         }
+        refreshControl={{
+          id: refreshSnapshotId,
+          mode: visibleInventoryIds.length ? "action" : "unsupported",
+          onRefresh$: visibleInventoryIds.length
+            ? onRevalidateVisibleResults$
+            : undefined,
+          reloadHref: refreshHref,
+          reloadOnSuccess: true,
+          label: "Refresh visible availability",
+          refreshingLabel: "Refreshing...",
+          refreshedLabel: "Availability refreshed",
+          failedLabel: "Retry refresh",
+          unsupportedLabel: "Refresh unavailable",
+          unsupportedMessage:
+            "No visible car rental inventory can refresh availability right now.",
+          successMessage:
+            "Visible car rental availability was refreshed. Any daily-rate changes are highlighted below.",
+          failureMessage:
+            "Failed to refresh visible car rental availability signals.",
+          disabled: controlsDisabled,
+          telemetry: {
+            vertical: CARS_VERTICAL,
+            surface: "search_results",
+            refreshType: "visible_inventory_revalidation",
+            itemCount: visibleInventoryIds.length,
+          },
+        }}
+        telemetry={{
+          vertical: CARS_VERTICAL,
+          surface: "search_results",
+        }}
         filtersTitle="Car rental filters"
+        asyncState={asyncState}
+        statusNotice={statusNotice}
+        failed={
+          props.loadError
+            ? {
+                title: "Car rental results could not be updated",
+                description: props.loadError,
+                primaryAction: {
+                  label: "Retry car rental search",
+                  href: location.url.pathname + location.url.search,
+                },
+                secondaryAction: props.emptyPrimaryAction || {
+                  label: "Search car rentals again",
+                  href: "/car-rentals",
+                },
+              }
+            : undefined
+        }
+        loadingVariant="list"
+        loadingCount={3}
+        refreshingOverlayLabel="Updating rentals"
+        controlsDisabled={controlsDisabled}
         resultCountLabel={`${props.totalCount.toLocaleString("en-US")} rentals`}
+        sortId="car-results-sort"
         sortOptions={sortOptions}
+        activeFilterChips={activeFilterChips}
+        clearAllFiltersHref={clearAllFiltersHref}
         pagination={{
           page: props.page,
           totalPages: props.totalPages,
           prevHref:
             props.page > 1
-              ? toHref(withPage(props.searchState, props.page - 1))
+              ? toHref(withSearchStatePage(props.searchState, props.page - 1))
               : undefined,
           nextHref:
             props.page < props.totalPages
-              ? toHref(withPage(props.searchState, props.page + 1))
+              ? toHref(withSearchStatePage(props.searchState, props.page + 1))
               : undefined,
-          pageLinks: buildPageLinks(props.page, props.totalPages, (pageNumber) =>
-            toHref(withPage(props.searchState, pageNumber)),
+          pageLinks: buildPageLinks(
+            props.page,
+            props.totalPages,
+            (pageNumber) =>
+              toHref(withSearchStatePage(props.searchState, pageNumber)),
           ),
         }}
         empty={
@@ -379,43 +480,113 @@ export const CarRentalsResultsAdapter = component$(
               }
         }
       >
-        <CarRentalFilters q:slot="filters-desktop" groups={filterGroups} />
-        <CarRentalFilters q:slot="filters-mobile" groups={filterGroups} />
+        <CarRentalFilters
+          q:slot="filters-desktop"
+          groups={filterGroups}
+          disabled={controlsDisabled}
+          telemetry={{
+            vertical: CARS_VERTICAL,
+            surface: "search_results",
+          }}
+        />
+        <CarRentalFilters
+          q:slot="filters-mobile"
+          groups={filterGroups}
+          disabled={controlsDisabled}
+          telemetry={{
+            vertical: CARS_VERTICAL,
+            surface: "search_results",
+          }}
+        />
+
+        {refreshPriceSummary.value ? (
+          <div class="mb-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
+            {refreshPriceSummary.value}
+          </div>
+        ) : null}
 
         <div class="grid gap-3">
-          {pageItems.map((result) => {
-            const savedItem = toSavedCarItem(result, props.searchState.dates);
+          {pageItems.map((result, index) => {
+            const priceDisplay = {
+              ...priceDisplays[index],
+              delta: refreshPriceChanges.value[result.id] || null,
+            };
+            const savedItem = buildCarResultSavedItem(
+              result,
+              props.searchState.dates,
+              priceDisplays[index],
+              buildCarRentalDetailHrefWithDates(
+                result.slug,
+                props.searchState.dates,
+                props.searchState.filters?.drivers,
+              ),
+            );
+            const compared = isCompared(
+              decisioning.state,
+              CARS_VERTICAL,
+              savedItem.id,
+            );
 
             return (
               <CarRentalCard
                 key={result.id}
                 result={result}
+                priceDisplay={priceDisplay}
+                activeSort={props.activeSort}
                 savedItem={savedItem}
-                isSaved={isItemSaved(savedItems.value, savedItem.id)}
+                isSaved={isShortlisted(
+                  decisioning.state,
+                  CARS_VERTICAL,
+                  savedItem.id,
+                )}
                 onToggleSave$={onToggleSave$}
+                isCompared={compared}
+                compareDisabled={
+                  !compared &&
+                  comparedItems.length >= decisioning.state.compareLimit
+                }
+                onToggleCompare$={onToggleCompare$}
+                detailHref={buildCarRentalDetailHrefWithDates(
+                  result.slug,
+                  props.searchState.dates,
+                  props.searchState.filters?.drivers,
+                )}
+                telemetry={{
+                  vertical: CARS_VERTICAL,
+                  surface: "search_results",
+                  itemId: savedItem.id,
+                  itemPosition: index + 1,
+                }}
               />
             );
           })}
         </div>
 
-        {canCompare ? (
+        <RecentlyViewedModule
+          vertical={CARS_VERTICAL}
+          excludeIds={pageItems.map((result) => result.slug)}
+          class="mt-4"
+        />
+
+        {comparedItems.length ? (
           <CompareTray
             q:slot="results-overlay"
             vertical={CARS_VERTICAL}
-            savedCount={savedItems.value.length}
+            compareCount={comparedItems.length}
             onOpen$={onOpenCompare$}
-            onClear$={onClearSaved$}
+            onClear$={onClearCompare$}
           />
         ) : null}
 
-        <CompareDrawer
+        <CompareSheet
           q:slot="results-overlay"
-          open={compareOpen.value && canCompare}
+          open={
+            decisioning.state.compareOpen &&
+            decisioning.state.compareVertical === CARS_VERTICAL &&
+            canCompare
+          }
           vertical={CARS_VERTICAL}
-          items={savedItems.value}
-          onClose$={onCloseCompare$}
-          onClear$={onClearSaved$}
-          onRemove$={onRemoveSaved$}
+          items={comparedItems}
         />
       </ResultsShell>
     );
@@ -442,6 +613,7 @@ type CarRentalsResultsAdapterProps = {
     label: string;
     href: string;
   };
+  loadError?: string | null;
   urlOptions?: {
     includeQueryParam?: boolean;
     includeLocationParams?: boolean;
@@ -450,4 +622,38 @@ type CarRentalsResultsAdapterProps = {
       checkOut?: string;
     };
   };
+};
+
+const buildCarResultsStatusNotice = (
+  state: BookingAsyncState,
+  input: {
+    partialCount: number;
+    staleCount: number;
+    failedCount: number;
+  },
+) => {
+  if (state === "refreshing") {
+    return {
+      title: "Refreshing car rental results",
+      message:
+        "Updated daily rates and filters are loading. Current rentals stay visible until the next result set is ready.",
+    };
+  }
+
+  if (state === "partial") {
+    return {
+      title: "Some rentals only partially match",
+      message: `${input.partialCount.toLocaleString("en-US")} visible car rental result${input.partialCount === 1 ? "" : "s"} only partially match the requested pickup or dropoff dates. Refresh availability or widen the criteria to compare cleaner matches.`,
+    };
+  }
+
+  if (state === "stale") {
+    const affected = input.staleCount + input.failedCount;
+    return {
+      title: "Some rentals need recheck",
+      message: `${affected.toLocaleString("en-US")} visible car rental result${affected === 1 ? "" : "s"} rely on stale or failed availability signals. Refresh visible availability before trusting these daily rates.`,
+    };
+  }
+
+  return undefined;
 };

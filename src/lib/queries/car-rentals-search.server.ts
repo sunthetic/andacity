@@ -1,8 +1,13 @@
+import { buildAvailabilityConfidence } from '~/lib/inventory/availability-confidence'
 import {
   listCarRentalSearchFacets,
   searchCarRentalsPage,
 } from '~/lib/repos/car-rentals-repo.server'
-import { isCarRentalsSortKey, type CarRentalsSortKey } from '~/lib/search/car-rentals/car-sort-options'
+import { buildInventoryFreshness } from '~/lib/inventory/freshness'
+import {
+  normalizeCarRentalsSortValue,
+  type CarRentalsSortKey,
+} from '~/lib/search/car-rentals/car-sort-options'
 import type {
   CarRentalsPriceBand,
   CarRentalsPickupType,
@@ -126,8 +131,7 @@ const parseVehicleClasses = (filters: Record<string, unknown>) => {
 }
 
 export const normalizeCarRentalsSort = (value: string | null | undefined): CarRentalsSortKey => {
-  const token = String(value || '').trim()
-  return isCarRentalsSortKey(token) ? token : 'recommended'
+  return normalizeCarRentalsSortValue(value)
 }
 
 export const parseCarRentalsSelectedFilters = (
@@ -258,6 +262,7 @@ export async function loadCarRentalResultsPageFromDb(
   }
 
   const q = normalizeToken(String(input.query || input.citySlug || ''))
+  const hasExactDates = Boolean(input.pickupDate && input.dropoffDate)
 
   return {
     totalCount,
@@ -270,6 +275,11 @@ export async function loadCarRentalResultsPageFromDb(
     results: rows.map((row, index) => {
       const priceFrom = toPriceAmount(row.fromDailyCents)
       const rating = Number(row.rating)
+
+      const freshness = buildInventoryFreshness({
+        checkedAt: row.freshnessTimestamp,
+        profile: 'inventory_snapshot',
+      })
 
       return {
         id: `car-${row.slug}-${effectiveOffset + index}`,
@@ -304,6 +314,11 @@ export async function loadCarRentalResultsPageFromDb(
           freeCancellation: row.freeCancellation,
           payAtCounter: row.payAtCounter,
         }),
+        availabilityConfidence: buildAvailabilityConfidence({
+          freshness,
+          match: hasExactDates ? 'exact' : 'unknown',
+        }),
+        freshness,
       }
     }),
   }

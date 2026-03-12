@@ -1,4 +1,10 @@
 import { component$, useSignal } from '@builder.io/qwik'
+import {
+  BOOKING_SEARCH_CONTROL_CLASS,
+  BookingSearchField,
+  BookingSearchSurface,
+  BookingValidationSummary,
+} from '~/components/booking-surface/SearchFormPrimitives'
 
 export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
   const destination = useSignal(props.initialDestination ?? '')
@@ -16,7 +22,7 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
   const isValid = errors.length === 0
 
   return (
-    <div class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-3 shadow-[var(--shadow-lg)] md:p-4">
+    <BookingSearchSurface>
       <form
         action={props.action ?? '/search/hotels/anywhere/1'}
         method="get"
@@ -41,78 +47,50 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
         }}
         class="grid gap-3 md:grid-cols-[minmax(0,2fr)_1fr_1fr_minmax(180px,0.95fr)_auto]"
       >
-        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3 text-left">
-          <label
-            for="hotel-destination"
-            class="text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]"
-          >
-            Destination
-          </label>
-
+        <BookingSearchField label="Destination" forId="hotel-destination">
           <input
             id="hotel-destination"
             name="destination"
             type="text"
             bind:value={destination}
             placeholder="City, neighborhood, or hotel"
-            class="w-full bg-transparent text-sm text-[color:var(--color-text-strong)] outline-none placeholder:text-[color:var(--color-text-muted)]"
+            class={BOOKING_SEARCH_CONTROL_CLASS}
           />
-        </div>
+        </BookingSearchField>
 
-        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3 text-left">
-          <label
-            for="hotel-check-in"
-            class="text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]"
-          >
-            Check-in
-          </label>
-
+        <BookingSearchField label="Check-in" forId="hotel-check-in">
           <input
             id="hotel-check-in"
             name="checkIn"
             type="date"
             bind:value={checkIn}
-            class="w-full bg-transparent text-sm text-[color:var(--color-text-strong)] outline-none"
+            class={BOOKING_SEARCH_CONTROL_CLASS}
           />
-        </div>
+        </BookingSearchField>
 
-        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3 text-left">
-          <label
-            for="hotel-check-out"
-            class="text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]"
-          >
-            Check-out
-          </label>
-
+        <BookingSearchField label="Check-out" forId="hotel-check-out">
           <input
             id="hotel-check-out"
             name="checkOut"
             type="date"
             bind:value={checkOut}
-            class="w-full bg-transparent text-sm text-[color:var(--color-text-strong)] outline-none"
+            class={BOOKING_SEARCH_CONTROL_CLASS}
           />
-        </div>
+        </BookingSearchField>
 
-        <div class="flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3 text-left">
-          <label
-            for="hotel-guests"
-            class="text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]"
-          >
-            Guests
-          </label>
-
+        <BookingSearchField label="Guests" forId="hotel-guests">
           <select
             id="hotel-guests"
             name="guests"
             bind:value={guests}
-            class="w-full bg-transparent text-sm text-[color:var(--color-text-strong)] outline-none"
+            class={BOOKING_SEARCH_CONTROL_CLASS}
           >
             <option value="1 guest · 1 room">1 guest · 1 room</option>
             <option value="2 guests · 1 room">2 guests · 1 room</option>
             <option value="3 guests · 1 room">3 guests · 1 room</option>
             <option value="4 guests · 2 rooms">4 guests · 2 rooms</option>
           </select>
-        </div>
+        </BookingSearchField>
 
         <button
           type="submit"
@@ -123,16 +101,8 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
         </button>
       </form>
 
-      {hasSubmitted.value && errors.length > 0 && (
-        <div class="mt-3 text-left text-sm text-[color:var(--color-danger)]">
-          <ul class="grid gap-1">
-            {errors.map((error) => (
-              <li key={error}>{error}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
+      <BookingValidationSummary errors={errors} show={hasSubmitted.value} />
+    </BookingSearchSurface>
   )
 })
 

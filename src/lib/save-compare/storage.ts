@@ -1,11 +1,14 @@
 import type {
   SavedCollections,
+  CompareData,
   SavedItem,
   SavedVertical,
 } from '~/types/save-compare/saved-item'
 import { TRIP_ITEM_TYPES, type TripItemCandidate, type TripItemType } from '~/types/trips/trip'
 
 export const SAVE_COMPARE_STORAGE_KEY = 'andacity-save-compare-v1'
+export const COMPARE_SESSION_STORAGE_KEY = 'andacity-compare-v1'
+export const RECENTLY_VIEWED_SESSION_STORAGE_KEY = 'andacity-recently-viewed-v1'
 
 const EMPTY_SAVED_COLLECTIONS: SavedCollections = {
   hotels: [],
@@ -87,6 +90,23 @@ const sanitizeTripItemCandidate = (value: unknown): TripItemCandidate | undefine
   }
 }
 
+const sanitizeCompareData = (value: unknown): CompareData | undefined => {
+  const obj = asObject(value)
+  if (!obj) return undefined
+
+  const entries = Object.entries(obj)
+    .map(([key, raw]) => {
+      const safeKey = toNonEmptyString(key)
+      const safeValue = toNonEmptyString(raw)
+      if (!safeKey || !safeValue) return null
+      return [safeKey, safeValue] as const
+    })
+    .filter((entry): entry is readonly [string, string] => Boolean(entry))
+    .slice(0, 24)
+
+  return entries.length ? Object.fromEntries(entries) : undefined
+}
+
 const normalizeSavedItem = (value: unknown, vertical: SavedVertical): SavedItem | null => {
   const obj = asObject(value)
   if (!obj) return null
@@ -100,6 +120,7 @@ const normalizeSavedItem = (value: unknown, vertical: SavedVertical): SavedItem 
   const price = toNonEmptyString(obj.price) || undefined
   const image = toNonEmptyString(obj.image) || undefined
   const meta = sanitizeMeta(obj.meta)
+  const compareData = sanitizeCompareData(obj.compareData)
   const tripCandidate = sanitizeTripItemCandidate(obj.tripCandidate)
 
   return {
@@ -111,6 +132,7 @@ const normalizeSavedItem = (value: unknown, vertical: SavedVertical): SavedItem 
     meta,
     href,
     image,
+    compareData,
     tripCandidate,
   }
 }
@@ -147,26 +169,11 @@ const sanitizeSavedCollections = (value: unknown): SavedCollections => {
 }
 
 export const readSavedCollections = (): SavedCollections => {
-  if (typeof window === 'undefined') return createEmptySavedCollections()
-
-  try {
-    const raw = window.localStorage.getItem(SAVE_COMPARE_STORAGE_KEY)
-    if (!raw) return createEmptySavedCollections()
-    return sanitizeSavedCollections(JSON.parse(raw))
-  } catch {
-    return createEmptySavedCollections()
-  }
+  return readCollectionsFromWindowStorage('local', SAVE_COMPARE_STORAGE_KEY)
 }
 
 export const writeSavedCollections = (collections: SavedCollections) => {
-  if (typeof window === 'undefined') return
-
-  try {
-    const payload = sanitizeSavedCollections(collections)
-    window.localStorage.setItem(SAVE_COMPARE_STORAGE_KEY, JSON.stringify(payload))
-  } catch {
-    // Ignore quota and serialization failures for MVP persistence.
-  }
+  writeCollectionsToWindowStorage('local', SAVE_COMPARE_STORAGE_KEY, collections)
 }
 
 export const readSavedItems = (vertical: SavedVertical) => {
@@ -183,4 +190,52 @@ export const clearSavedItems = (vertical: SavedVertical) => {
   const current = readSavedCollections()
   current[vertical] = EMPTY_SAVED_COLLECTIONS[vertical]
   writeSavedCollections(current)
+}
+
+export const readSessionCompareCollections = () => {
+  return readCollectionsFromWindowStorage('session', COMPARE_SESSION_STORAGE_KEY)
+}
+
+export const writeSessionCompareCollections = (collections: SavedCollections) => {
+  writeCollectionsToWindowStorage('session', COMPARE_SESSION_STORAGE_KEY, collections)
+}
+
+export const readRecentlyViewedCollections = () => {
+  return readCollectionsFromWindowStorage('session', RECENTLY_VIEWED_SESSION_STORAGE_KEY)
+}
+
+export const writeRecentlyViewedCollections = (collections: SavedCollections) => {
+  writeCollectionsToWindowStorage('session', RECENTLY_VIEWED_SESSION_STORAGE_KEY, collections)
+}
+
+const readCollectionsFromWindowStorage = (
+  storageType: 'local' | 'session',
+  key: string,
+): SavedCollections => {
+  if (typeof window === 'undefined') return createEmptySavedCollections()
+
+  try {
+    const storage = storageType === 'local' ? window.localStorage : window.sessionStorage
+    const raw = storage.getItem(key)
+    if (!raw) return createEmptySavedCollections()
+    return sanitizeSavedCollections(JSON.parse(raw))
+  } catch {
+    return createEmptySavedCollections()
+  }
+}
+
+const writeCollectionsToWindowStorage = (
+  storageType: 'local' | 'session',
+  key: string,
+  collections: SavedCollections,
+) => {
+  if (typeof window === 'undefined') return
+
+  try {
+    const storage = storageType === 'local' ? window.localStorage : window.sessionStorage
+    const payload = sanitizeSavedCollections(collections)
+    storage.setItem(key, JSON.stringify(payload))
+  } catch {
+    // Ignore quota and serialization failures for MVP persistence.
+  }
 }

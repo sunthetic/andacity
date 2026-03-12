@@ -1,4 +1,10 @@
 import { component$, useSignal } from '@builder.io/qwik'
+import {
+  BOOKING_SEARCH_CONTROL_CLASS,
+  BookingSearchField,
+  BookingSearchSurface,
+  BookingValidationSummary,
+} from '~/components/booking-surface/SearchFormPrimitives'
 
 export const CarRentalSearchCard = component$((props: CarRentalSearchCardProps) => {
   const variant = props.variant || 'stacked'
@@ -15,19 +21,8 @@ export const CarRentalSearchCard = component$((props: CarRentalSearchCardProps) 
   })
   const isValid = errors.length === 0
 
-  const fieldClass =
-    'flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] px-3 text-left'
-  const labelClass =
-    'text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]'
-  const inputClass =
-    'w-full bg-transparent text-sm text-[color:var(--color-text-strong)] outline-none placeholder:text-[color:var(--color-text-muted)]'
-
   return (
-    <div class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-3 shadow-[var(--shadow-lg)] md:p-4">
-      {props.title ? (
-        <div class="mb-3 text-sm font-semibold text-[color:var(--color-text-strong)]">{props.title}</div>
-      ) : null}
-
+    <BookingSearchSurface title={props.title}>
       <form
         method="get"
         action={props.action || '/search/car-rentals/anywhere/1'}
@@ -54,94 +49,76 @@ export const CarRentalSearchCard = component$((props: CarRentalSearchCardProps) 
           ? 'grid gap-3 md:grid-cols-[minmax(0,2fr)_1fr_1fr_minmax(180px,0.95fr)_auto]'
           : 'grid gap-3'}
       >
-        <div class={fieldClass}>
-          <label for="car-rental-destination" class={labelClass}>
-            Destination
-          </label>
+        <BookingSearchField label="Destination" forId="car-rental-destination">
           <input
             id="car-rental-destination"
             name="q"
-            class={inputClass}
+            class={BOOKING_SEARCH_CONTROL_CLASS}
             placeholder={props.destinationPlaceholder || 'e.g., Las Vegas'}
             bind:value={destination}
             required
           />
-        </div>
+        </BookingSearchField>
 
         {variant === 'hero' ? (
           <>
-            <div class={fieldClass}>
-              <label for="car-rental-pickup" class={labelClass}>
-                Pickup
-              </label>
+            <BookingSearchField label="Pickup" forId="car-rental-pickup">
               <input
                 id="car-rental-pickup"
                 name="pickupDate"
                 type="date"
-                class={inputClass}
+                class={BOOKING_SEARCH_CONTROL_CLASS}
                 placeholder="YYYY-MM-DD"
                 bind:value={pickupDate}
                 required
               />
-            </div>
+            </BookingSearchField>
 
-            <div class={fieldClass}>
-              <label for="car-rental-dropoff" class={labelClass}>
-                Dropoff
-              </label>
+            <BookingSearchField label="Dropoff" forId="car-rental-dropoff">
               <input
                 id="car-rental-dropoff"
                 name="dropoffDate"
                 type="date"
-                class={inputClass}
+                class={BOOKING_SEARCH_CONTROL_CLASS}
                 placeholder="YYYY-MM-DD"
                 bind:value={dropoffDate}
                 required
               />
-            </div>
+            </BookingSearchField>
           </>
         ) : (
           <div class="grid grid-cols-2 gap-3">
-            <div class={fieldClass}>
-              <label for="car-rental-pickup" class={labelClass}>
-                Pickup
-              </label>
+            <BookingSearchField label="Pickup" forId="car-rental-pickup">
               <input
                 id="car-rental-pickup"
                 name="pickupDate"
                 type="date"
-                class={inputClass}
+                class={BOOKING_SEARCH_CONTROL_CLASS}
                 placeholder="YYYY-MM-DD"
                 bind:value={pickupDate}
                 required
               />
-            </div>
+            </BookingSearchField>
 
-            <div class={fieldClass}>
-              <label for="car-rental-dropoff" class={labelClass}>
-                Dropoff
-              </label>
+            <BookingSearchField label="Dropoff" forId="car-rental-dropoff">
               <input
                 id="car-rental-dropoff"
                 name="dropoffDate"
                 type="date"
-                class={inputClass}
+                class={BOOKING_SEARCH_CONTROL_CLASS}
                 placeholder="YYYY-MM-DD"
                 bind:value={dropoffDate}
                 required
               />
-            </div>
+            </BookingSearchField>
           </div>
         )}
 
-        <div class={fieldClass}>
-          <label for="car-rental-drivers" class={labelClass}>
-            Drivers
-          </label>
+        <BookingSearchField label="Drivers" forId="car-rental-drivers">
           <select
             id="car-rental-drivers"
             name="drivers"
-            class={inputClass}
+            class={BOOKING_SEARCH_CONTROL_CLASS}
             bind:value={drivers}
           >
             <option value="1">1 driver</option>
@@ -149,7 +126,7 @@ export const CarRentalSearchCard = component$((props: CarRentalSearchCardProps) 
             <option value="3">3 drivers</option>
             <option value="4">4 drivers</option>
           </select>
-        </div>
+        </BookingSearchField>
 
         <button
           disabled={hasSubmitted.value && !isValid}
@@ -169,16 +146,8 @@ export const CarRentalSearchCard = component$((props: CarRentalSearchCardProps) 
         ) : null}
       </form>
 
-      {hasSubmitted.value && errors.length > 0 ? (
-        <div class="mt-3 text-left text-sm text-[color:var(--color-danger)]">
-          <ul class="grid gap-1">
-            {errors.map((error) => (
-              <li key={error}>{error}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
+      <BookingValidationSummary errors={errors} show={hasSubmitted.value} />
+    </BookingSearchSurface>
   )
 })
 

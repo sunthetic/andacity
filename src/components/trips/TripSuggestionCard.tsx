@@ -1,4 +1,12 @@
 import { component$, type QRL } from "@builder.io/qwik";
+import { AsyncPendingButton } from "~/components/async/AsyncPendingButton";
+import { AvailabilityConfidence } from "~/components/inventory/AvailabilityConfidence";
+import { TripBundleExplanation } from "~/components/trips/TripBundleExplanation";
+import {
+  buildPriceDisplayFromMetadata,
+  formatMoney,
+  formatPriceQualifier,
+} from "~/lib/pricing/price-display";
 import type {
   TripBundlingSuggestion,
   TripItemCandidate,
@@ -8,9 +16,14 @@ export const TripSuggestionCard = component$(
   (props: {
     suggestion: TripBundlingSuggestion;
     loading: boolean;
+    disabled?: boolean;
     onAdd$: QRL<(candidate: TripItemCandidate) => Promise<void>>;
   }) => {
     const { suggestion } = props;
+    const priceDisplay = buildPriceDisplayFromMetadata(
+      suggestion.tripCandidate.metadata,
+      suggestion.inventory.currencyCode,
+    );
 
     return (
       <article class="rounded-xl border border-[color:var(--color-border)] p-4">
@@ -33,14 +46,15 @@ export const TripSuggestionCard = component$(
             </p>
           </div>
 
-          <button
-            type="button"
+          <AsyncPendingButton
             class="t-btn-primary px-3 py-2 text-sm"
-            disabled={props.loading}
+            pending={props.loading}
+            pendingLabel="Adding..."
+            disabled={props.disabled && !props.loading}
             onClick$={() => props.onAdd$(suggestion.tripCandidate)}
           >
-            {props.loading ? "Adding..." : suggestion.ctaLabel}
-          </button>
+            {suggestion.ctaLabel}
+          </AsyncPendingButton>
         </div>
 
         <div class="mt-3 grid gap-3 rounded-xl border border-[color:var(--color-border)] px-3 py-3 md:grid-cols-[1fr_auto] md:items-start">
@@ -65,18 +79,67 @@ export const TripSuggestionCard = component$(
 
           <div class="text-left md:text-right">
             <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-              Snapshot price
+              Suggested price
             </p>
             <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
-              {formatMoneyFromCents(
-                suggestion.inventory.priceCents,
-                suggestion.inventory.currencyCode,
-              )}
+              {priceDisplay?.baseTotalAmount != null
+                ? `${priceDisplay.baseTotalLabel} ${formatMoney(
+                    priceDisplay.baseTotalAmount,
+                    suggestion.inventory.currencyCode,
+                  )}`
+                : `${priceDisplay?.baseLabel || "Base price"} ${formatMoney(
+                    priceDisplay?.baseAmount ??
+                      suggestion.inventory.priceCents / 100,
+                    suggestion.inventory.currencyCode,
+                  )} ${formatPriceQualifier(priceDisplay?.baseQualifier)}`.trim()}
             </p>
+            {priceDisplay?.baseTotalAmount != null ? (
+              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                {priceDisplay.baseLabel}{" "}
+                <span class="font-medium text-[color:var(--color-text)]">
+                  {formatMoney(
+                    priceDisplay.baseAmount,
+                    suggestion.inventory.currencyCode,
+                  )}
+                </span>{" "}
+                {formatPriceQualifier(priceDisplay.baseQualifier)}
+              </p>
+            ) : null}
+            {priceDisplay?.totalAmount != null &&
+            priceDisplay?.estimatedFeesAmount != null ? (
+              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                {priceDisplay.totalLabel}{" "}
+                <span class="font-medium text-[color:var(--color-text)]">
+                  {formatMoney(
+                    priceDisplay.totalAmount,
+                    suggestion.inventory.currencyCode,
+                  )}
+                </span>
+                <span class="ml-1">
+                  incl.{" "}
+                  {formatMoney(
+                    priceDisplay.estimatedFeesAmount,
+                    suggestion.inventory.currencyCode,
+                  )}{" "}
+                  est.
+                </span>
+              </p>
+            ) : null}
             <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
               {formatDateRange(suggestion.startDate, suggestion.endDate)}
               {suggestion.cityName ? ` · ${suggestion.cityName}` : ""}
             </p>
+            {priceDisplay?.supportText ? (
+              <p class="mt-1 max-w-[260px] text-xs text-[color:var(--color-text-muted)]">
+                {priceDisplay.supportText}
+              </p>
+            ) : null}
+            <div class="mt-3">
+              <AvailabilityConfidence
+                confidence={suggestion.inventory.availabilityConfidence}
+                align="right"
+              />
+            </div>
             {suggestion.inventory.href ? (
               <a
                 href={suggestion.inventory.href}
@@ -87,6 +150,8 @@ export const TripSuggestionCard = component$(
             ) : null}
           </div>
         </div>
+
+        <TripBundleExplanation explanation={suggestion.explanation} />
       </article>
     );
   },
@@ -130,19 +195,4 @@ const formatDate = (value: string) => {
     year: "numeric",
     timeZone: "UTC",
   }).format(date);
-};
-
-const formatMoneyFromCents = (cents: number, currency: string) => {
-  const amount = Math.max(0, Number(cents || 0)) / 100;
-
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency || "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  } catch {
-    return `${amount.toFixed(2)} ${currency || "USD"}`;
-  }
 };

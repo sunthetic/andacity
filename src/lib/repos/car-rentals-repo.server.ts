@@ -70,6 +70,7 @@ export type CarRentalSearchRow = {
   transmission: 'automatic' | 'manual' | null
   seats: number | null
   bagsLabel: string | null
+  freshnessTimestamp: Date | string | null
 }
 
 export type CarRentalCityRow = {
@@ -140,6 +141,7 @@ export type CarRentalDetailRow = {
   score: string | null
   images: string[]
   offers: CarRentalOfferRow[]
+  freshnessTimestamp: Date | string | null
 }
 
 const DEFAULT_LIMIT = 48
@@ -228,29 +230,29 @@ const buildOfferFiltersSql = (input: SearchCarRentalsPageInput['filters']) => {
 const getCarRentalSortOrder = (
   sort: CarRentalsSortKey | undefined,
   bestOfferPriceSql: SQL<number | null>,
-  bestOfferCategorySql: SQL<string | null>,
 ) => {
   const scoreSql = sql<number>`coalesce((${carInventory.score})::numeric, 0)`
   const ratingSql = sql<number>`(${carInventory.rating})::numeric`
   const pickupConvenienceSql =
     sql<number>`case when ${carLocations.locationType} = 'city' then 2 else 1 end`
   const bestPriceSql = sql<number>`coalesce(${bestOfferPriceSql}, ${carInventory.fromDailyCents})`
-  const bestCategorySafeSql = sql<string>`coalesce(${bestOfferCategorySql}, '')`
+  const valueSql =
+    sql<number>`coalesce(((${scoreSql}) * 10000.0) / nullif(${bestPriceSql}, 0), 0)`
 
   if (sort === 'price-asc') {
     return [asc(bestPriceSql), desc(scoreSql), asc(carInventory.id)] as const
   }
 
-  if (sort === 'price-desc') {
-    return [desc(bestPriceSql), desc(scoreSql), asc(carInventory.id)] as const
-  }
-
-  if (sort === 'vehicle-class') {
-    return [asc(bestCategorySafeSql), asc(bestPriceSql), desc(scoreSql), asc(carInventory.id)] as const
+  if (sort === 'value') {
+    return [desc(valueSql), desc(scoreSql), asc(bestPriceSql), asc(carInventory.id)] as const
   }
 
   if (sort === 'pickup-convenience') {
     return [desc(pickupConvenienceSql), asc(bestPriceSql), desc(scoreSql), asc(carInventory.id)] as const
+  }
+
+  if (sort === 'rating-desc') {
+    return [desc(ratingSql), desc(scoreSql), asc(bestPriceSql), asc(carInventory.id)] as const
   }
 
   return [desc(scoreSql), desc(ratingSql), asc(bestPriceSql), asc(carInventory.id)] as const
@@ -280,6 +282,7 @@ export async function searchCarRentals(
       inclusions: carInventory.inclusions,
       imageUrl: carInventoryImages.url,
       score: carInventory.score,
+      freshnessTimestamp: carInventory.updatedAt,
     })
     .from(carInventory)
     .innerJoin(cities, eq(carInventory.cityId, cities.id))
@@ -348,6 +351,7 @@ export async function searchCarRentals(
       transmission: offer?.transmission || null,
       seats: offer?.seats ?? null,
       bagsLabel: offer?.bagsLabel || null,
+      freshnessTimestamp: row.freshnessTimestamp,
     }
   })
 }
@@ -473,6 +477,7 @@ export async function searchCarRentalsPage(
       transmission: bestOfferTransmissionSql,
       seats: bestOfferSeatsSql,
       bagsLabel: bestOfferBagsLabelSql,
+      freshnessTimestamp: carInventory.updatedAt,
     })
     .from(carInventory)
     .innerJoin(cities, eq(carInventory.cityId, cities.id))
@@ -486,7 +491,7 @@ export async function searchCarRentalsPage(
       ),
     )
     .where(and(...conditions))
-    .orderBy(...getCarRentalSortOrder(input.sort, bestOfferPriceSql, bestOfferCategorySql))
+    .orderBy(...getCarRentalSortOrder(input.sort, bestOfferPriceSql))
     .limit(input.limit ?? DEFAULT_LIMIT)
     .offset(input.offset ?? 0)
 
@@ -672,6 +677,7 @@ export async function getCarRentalDetailBySlug(slug: string): Promise<CarRentalD
       maxDays: carInventory.maxDays,
       blockedWeekdays: carInventory.blockedWeekdays,
       score: carInventory.score,
+      freshnessTimestamp: carInventory.updatedAt,
     })
     .from(carInventory)
     .innerJoin(carProviders, eq(carInventory.providerId, carProviders.id))
@@ -719,5 +725,6 @@ export async function getCarRentalDetailBySlug(slug: string): Promise<CarRentalD
     ...rental,
     images: imageRows.map((row) => row.url),
     offers: offerRows,
+    freshnessTimestamp: rental.freshnessTimestamp,
   }
 }

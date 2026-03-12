@@ -1,3 +1,5 @@
+import { getConfiguredDatabaseUrl, getServerRuntimeEnvValue } from '~/lib/server/runtime-env.server'
+
 const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on'])
 const FALSE_VALUES = new Set(['0', 'false', 'no', 'off'])
 
@@ -7,11 +9,11 @@ const normalize = (value: string | undefined) =>
     .toLowerCase()
 
 export const isDbReadEnabled = () => {
-  const explicit = normalize(process.env.DB_READS_ENABLED)
+  const explicit = normalize(getServerRuntimeEnvValue('DB_READS_ENABLED'))
   if (TRUE_VALUES.has(explicit)) return true
   if (FALSE_VALUES.has(explicit)) return false
 
-  return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL)
+  return Boolean(getConfiguredDatabaseUrl())
 }
 
 export async function tryDbRead<T>(

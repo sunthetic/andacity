@@ -44,6 +44,8 @@ export const useSearchCarRentalsPage = routeLoader$(async ({ params, url }) => {
     city: qHuman,
   };
 
+  let loadError: string | null = null;
+
   const source = matchedCity
     ? await loadCarRentalResultsPageFromDb({
         citySlug: matchedCity.slug,
@@ -54,6 +56,24 @@ export const useSearchCarRentalsPage = routeLoader$(async ({ params, url }) => {
         page: searchState.page || routePage,
         pageSize: 6,
         filters: (searchState.filters || {}) as Record<string, unknown>,
+      }).catch((error) => {
+        loadError =
+          error instanceof Error
+            ? error.message
+            : "Failed to load car rental results.";
+
+        return {
+          totalCount: 0,
+          page: searchState.page || routePage,
+          pageSize: 6,
+          totalPages: 1,
+          activeSort: normalizeCarRentalsSort(searchState.sort),
+          selectedFilters: parseCarRentalsSelectedFilters(
+            (searchState.filters || {}) as Record<string, unknown>,
+          ),
+          results: [],
+          facets: EMPTY_CAR_RENTALS_FACETS,
+        };
       })
     : {
         totalCount: 0,
@@ -86,6 +106,7 @@ export const useSearchCarRentalsPage = routeLoader$(async ({ params, url }) => {
     facets: source.facets,
     results: source.results,
     searchState,
+    loadError,
   };
 });
 
@@ -123,6 +144,7 @@ export default component$(() => {
           filterFacets={data.facets}
           searchState={data.searchState}
           queryLabel={data.qHuman}
+          loadError={data.loadError}
           basePath={basePath}
           urlOptions={{
             includeQueryParam: true,

@@ -37,6 +37,8 @@ const TABLE_KEYS = [
 export const TABLE_INSERT_ORDER = TABLE_KEYS.slice();
 const DEFAULT_MAX_FLIGHT_ROUTES = 1200;
 
+const resolveConfig = (options = {}) => options.seedConfig || SEED_CONFIG;
+
 const toCentAmount = (amount) => Math.round(Number(amount || 0) * 100);
 
 const normalizeToken = (value) =>
@@ -495,14 +497,16 @@ const buildFlightRequests = ({
   itineraryType,
   departDate,
   maxFlightRoutes,
+  seedConfig,
 }) => {
+  const config = resolveConfig({ seedConfig });
   if (from && to) {
     return [
       {
         fromSlug: from,
         toSlug: to,
         itineraryType: itineraryType === "one-way" ? "one-way" : "round-trip",
-        departDate: departDate || SEED_CONFIG.availabilityAnchorDate,
+        departDate: departDate || config.horizonStartDate,
       },
     ];
   }
@@ -542,7 +546,7 @@ const buildFlightRequests = ({
           fromSlug: pairing.from,
           toSlug: pairing.to,
           itineraryType: pairing.itineraryType,
-          departDate: departDate || SEED_CONFIG.availabilityAnchorDate,
+          departDate: departDate || config.horizonStartDate,
         });
         progressed = true;
         break;
@@ -565,6 +569,7 @@ const citySelection = (citySlug) => {
 };
 
 export const buildPostgresSeedPayload = (options = {}) => {
+  const config = resolveConfig(options);
   const vertical = normalizeToken(options.vertical || "all") || "all";
   const collector = createCollector();
 
@@ -585,13 +590,21 @@ export const buildPostgresSeedPayload = (options = {}) => {
 
   if (vertical === "all" || vertical === "hotels") {
     for (const city of selectedCities) {
-      collectHotelsForCity(collector, city, generateHotelsForCity(city));
+      collectHotelsForCity(
+        collector,
+        city,
+        generateHotelsForCity(city, { seedConfig: config }),
+      );
     }
   }
 
   if (vertical === "all" || vertical === "cars") {
     for (const city of selectedCities) {
-      collectCarsForCity(collector, city, generateCarRentalsForCity(city));
+      collectCarsForCity(
+        collector,
+        city,
+        generateCarRentalsForCity(city, { seedConfig: config }),
+      );
     }
   }
 
@@ -604,6 +617,7 @@ export const buildPostgresSeedPayload = (options = {}) => {
       itineraryType: options.itineraryType,
       departDate: options.departDate,
       maxFlightRoutes: options.maxFlightRoutes,
+      seedConfig: config,
     });
 
     for (const request of flightRequests) {
@@ -612,6 +626,7 @@ export const buildPostgresSeedPayload = (options = {}) => {
         toSlug: request.toSlug,
         itineraryType: request.itineraryType,
         departDate: request.departDate,
+        seedConfig: config,
       });
 
       collectFlightRoute(collector, request, flights);
@@ -624,10 +639,13 @@ export const buildPostgresSeedPayload = (options = {}) => {
 
   return {
     meta: {
-      seed: SEED_CONFIG.seed,
+      seed: config.seed,
       vertical,
       sourceCities: selectedCities.map((city) => city.slug),
       generatedAt: new Date().toISOString(),
+      horizonDays: config.horizonDays,
+      horizonStartDate: config.horizonStartDate,
+      horizonEndDate: config.horizonEndDate,
       flightRequests,
       assumptions: {
         maxFlightRoutes:

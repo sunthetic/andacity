@@ -1,10 +1,10 @@
 // src/lib/seo/og-sign.ts
+import { getServerRuntimeEnvValue } from '~/lib/server/runtime-env.server'
 
 const te = new TextEncoder()
 
 export const getOgSecret = () => {
-  // Works in SSR. If unavailable, returns null.
-  const secret = (globalThis as any)?.process?.env?.OG_SIGNING_SECRET as string | undefined
+  const secret = getServerRuntimeEnvValue('OG_SIGNING_SECRET')
   return secret && secret.trim().length ? secret : null
 }
 
