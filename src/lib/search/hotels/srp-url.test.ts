@@ -11,38 +11,174 @@ import {
 // isValidIsoDate
 // ---------------------------------------------------------------------------
 
-describe("isValidIsoDate", () => {
-  it("accepts a valid calendar date", () => {
-    expect(isValidIsoDate("2025-06-15")).toBe(true);
-  });
+// Fixed reference date used throughout so tests remain deterministic.
+// 2026-03-12 → valid range window is [2026-03-12, 2027-03-12].
+const FIXED_NOW = new Date(2026, 2, 12); // March 12 2026 (local midnight)
 
-  it("accepts the last day of February in a leap year", () => {
-    expect(isValidIsoDate("2024-02-29")).toBe(true);
-  });
+// Helper: format a Date as YYYY-MM-DD.
+const formatDate = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-  it("accepts an out-of-range day that JavaScript Date rolls forward (implementation does not strict-validate overflow)", () => {
-    // new Date("2023-02-29") does not produce NaN — it rolls over to 2023-03-01.
-    // The validator intentionally keeps this simple; callers relying on strict
-    // calendar correctness should use a more thorough date library.
-    expect(isValidIsoDate("2023-02-29")).toBe(true);
-  });
+// Helper: build a YYYY-MM-DD string by offsetting `base` by `deltaDays`.
+const shiftDays = (base: Date, deltaDays: number): string =>
+  formatDate(new Date(base.getFullYear(), base.getMonth(), base.getDate() + deltaDays));
 
-  it("rejects a string with wrong format", () => {
-    expect(isValidIsoDate("15-06-2025")).toBe(false);
-    expect(isValidIsoDate("2025/06/15")).toBe(false);
-    expect(isValidIsoDate("20250615")).toBe(false);
-  });
+// Helper: build a YYYY-MM-DD string by offsetting `base` by `deltaYears`.
+const shiftYears = (base: Date, deltaYears: number): string =>
+  formatDate(new Date(base.getFullYear() + deltaYears, base.getMonth(), base.getDate()));
 
+describe("isValidIsoDate — format validation", () => {
   it("rejects an empty string", () => {
-    expect(isValidIsoDate("")).toBe(false);
+    expect(isValidIsoDate("", FIXED_NOW)).toBe(false);
   });
 
-  it("rejects a month-13 date", () => {
-    expect(isValidIsoDate("2025-13-01")).toBe(false);
+  it("rejects the wrong field order (DD-MM-YYYY)", () => {
+    expect(isValidIsoDate("12-03-2026", FIXED_NOW)).toBe(false);
   });
 
-  it("rejects a day-32 date", () => {
-    expect(isValidIsoDate("2025-01-32")).toBe(false);
+  it("rejects slashes as separators", () => {
+    expect(isValidIsoDate("2026/03/12", FIXED_NOW)).toBe(false);
+  });
+
+  it("rejects a compact form with no separators", () => {
+    expect(isValidIsoDate("20260312", FIXED_NOW)).toBe(false);
+  });
+
+  it("rejects a single-digit month", () => {
+    expect(isValidIsoDate("2026-3-12", FIXED_NOW)).toBe(false);
+  });
+
+  it("rejects a single-digit day", () => {
+    expect(isValidIsoDate("2026-03-2", FIXED_NOW)).toBe(false);
+  });
+
+  it("rejects non-numeral characters in the month field", () => {
+    expect(isValidIsoDate("2026-XX-12", FIXED_NOW)).toBe(false);
+  });
+
+  it("rejects non-numeral characters in the day field", () => {
+    expect(isValidIsoDate("2026-03-XX", FIXED_NOW)).toBe(false);
+  });
+});
+
+describe("isValidIsoDate — month boundary validation", () => {
+  it("rejects month 00", () => {
+    expect(isValidIsoDate("2026-00-15", FIXED_NOW)).toBe(false);
+  });
+
+  it("rejects month 13", () => {
+    expect(isValidIsoDate("2026-13-15", FIXED_NOW)).toBe(false);
+  });
+
+  it("accepts month 01 (January)", () => {
+    expect(isValidIsoDate("2027-01-15", FIXED_NOW)).toBe(true);
+  });
+
+  it("accepts month 12 (December)", () => {
+    expect(isValidIsoDate("2026-12-15", FIXED_NOW)).toBe(true);
+  });
+});
+
+describe("isValidIsoDate — day boundary validation", () => {
+  it("rejects day 00", () => {
+    expect(isValidIsoDate("2026-04-00", FIXED_NOW)).toBe(false);
+  });
+
+  it("rejects day 32 (never valid for any month)", () => {
+    expect(isValidIsoDate("2026-04-32", FIXED_NOW)).toBe(false);
+  });
+
+  it("rejects day 31 for a 30-day month (April)", () => {
+    expect(isValidIsoDate("2026-04-31", FIXED_NOW)).toBe(false);
+  });
+
+  it("accepts day 30 for a 30-day month (April)", () => {
+    expect(isValidIsoDate("2026-04-30", FIXED_NOW)).toBe(true);
+  });
+
+  it("rejects day 31 for a 30-day month (September)", () => {
+    expect(isValidIsoDate("2026-09-31", FIXED_NOW)).toBe(false);
+  });
+
+  it("accepts day 30 for a 30-day month (September)", () => {
+    expect(isValidIsoDate("2026-09-30", FIXED_NOW)).toBe(true);
+  });
+
+  it("accepts day 31 for a 31-day month (January)", () => {
+    expect(isValidIsoDate("2027-01-31", FIXED_NOW)).toBe(true);
+  });
+
+  it("accepts day 31 for a 31-day month (December)", () => {
+    expect(isValidIsoDate("2026-12-31", FIXED_NOW)).toBe(true);
+  });
+});
+
+describe("isValidIsoDate — February and leap-year validation", () => {
+  it("rejects February 30 (never valid)", () => {
+    // Use a now that puts 2027-02 in range
+    expect(isValidIsoDate("2027-02-30", FIXED_NOW)).toBe(false);
+  });
+
+  it("rejects February 29 in a non-leap year (2027)", () => {
+    expect(isValidIsoDate("2027-02-29", FIXED_NOW)).toBe(false);
+  });
+
+  it("accepts February 28 in a non-leap year", () => {
+    expect(isValidIsoDate("2027-02-28", FIXED_NOW)).toBe(true);
+  });
+
+  it("accepts February 29 in a leap year (2024)", () => {
+    // Use a now that puts 2024-02-29 within the valid range
+    const now2024 = new Date(2024, 0, 1); // 2024-01-01
+    expect(isValidIsoDate("2024-02-29", now2024)).toBe(true);
+  });
+
+  it("rejects February 29 in a common year (2023)", () => {
+    const now2023 = new Date(2023, 0, 1); // 2023-01-01
+    expect(isValidIsoDate("2023-02-29", now2023)).toBe(false);
+  });
+
+  it("accepts February 29 in a century year divisible by 400 (2000)", () => {
+    // 2000 is a leap year (divisible by 400)
+    const now2000 = new Date(2000, 0, 1); // 2000-01-01
+    expect(isValidIsoDate("2000-02-29", now2000)).toBe(true);
+  });
+
+  it("rejects February 29 in a century year not divisible by 400 (1900)", () => {
+    // 1900 is NOT a leap year (divisible by 100, not by 400)
+    const now1900 = new Date(1900, 0, 1); // 1900-01-01
+    expect(isValidIsoDate("1900-02-29", now1900)).toBe(false);
+  });
+});
+
+describe("isValidIsoDate — date range validation", () => {
+  it("accepts today's date (lower bound inclusive)", () => {
+    expect(isValidIsoDate(shiftDays(FIXED_NOW, 0), FIXED_NOW)).toBe(true);
+  });
+
+  it("rejects yesterday (one day before today)", () => {
+    expect(isValidIsoDate(shiftDays(FIXED_NOW, -1), FIXED_NOW)).toBe(false);
+  });
+
+  it("accepts a date 6 months from today", () => {
+    expect(isValidIsoDate(shiftDays(FIXED_NOW, 183), FIXED_NOW)).toBe(true);
+  });
+
+  it("accepts a date exactly 1 year from today (upper bound inclusive)", () => {
+    expect(isValidIsoDate(shiftYears(FIXED_NOW, 1), FIXED_NOW)).toBe(true);
+  });
+
+  it("rejects a date 1 year and 1 day from today (just beyond upper bound)", () => {
+    const oneYearPlusOneDay = shiftDays(new Date(FIXED_NOW.getFullYear() + 1, FIXED_NOW.getMonth(), FIXED_NOW.getDate()), 1);
+    expect(isValidIsoDate(oneYearPlusOneDay, FIXED_NOW)).toBe(false);
+  });
+
+  it("rejects a date far in the past", () => {
+    expect(isValidIsoDate("2020-01-01", FIXED_NOW)).toBe(false);
+  });
+
+  it("rejects a date more than 1 year in the future", () => {
+    expect(isValidIsoDate("2028-01-01", FIXED_NOW)).toBe(false);
   });
 });
 
