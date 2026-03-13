@@ -5,7 +5,7 @@ import {
 } from '~/lib/repos/car-rentals-repo.server'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import { emitSearchMetrics } from '~/lib/metrics/search-metrics'
-import { getCachedResults, setCachedResults } from '~/lib/search/search-cache'
+import { getCachedResults, getSearchCacheKey, setCachedResults } from '~/lib/search/search-cache'
 import { toBookableEntity, toCarSearchEntity } from '~/lib/search/search-entity'
 import {
   normalizeCarRentalsSortValue,
@@ -209,24 +209,6 @@ export type LoadCarRentalResultsPageOutput = {
   facets: CarRentalsSearchFacets
 }
 
-const buildCarRentalSearchCacheKey = (input: LoadCarRentalResultsPageInput) => {
-  const selected = parseCarRentalsSelectedFilters(input.filters || {})
-  return [
-    'cars',
-    input.citySlug,
-    input.pickupDate || 'any',
-    input.dropoffDate || 'any',
-    `sort=${normalizeCarRentalsSort(input.sort)}`,
-    `page=${Math.max(1, Number(input.page || 1))}`,
-    `size=${Math.max(1, Math.min(60, Number(input.pageSize || DEFAULT_PAGE_SIZE)))}`,
-    `class=${selected.vehicleClasses.slice().sort().join(',') || 'any'}`,
-    `pickup=${selected.pickupType || 'any'}`,
-    `transmission=${selected.transmission || 'any'}`,
-    `seats=${selected.seatsMin ?? 'any'}`,
-    `price=${selected.priceBand || 'any'}`,
-  ].join(':')
-}
-
 const toSearchDateTime = (value: string | null | undefined, fallback: string) => {
   const text = String(value || '').trim()
   return text ? `${text}T10:00` : fallback
@@ -252,7 +234,20 @@ export async function loadCarRentalResultsPageFromDb(
   const offset = (requestedPage - 1) * pageSize
   const activeSort = normalizeCarRentalsSort(input.sort)
   const selectedFilters = parseCarRentalsSelectedFilters(input.filters || {})
-  const searchKey = buildCarRentalSearchCacheKey(input)
+  const cacheParams = {
+    citySlug: input.citySlug,
+    pickupDate: input.pickupDate,
+    dropoffDate: input.dropoffDate,
+    sort: activeSort,
+    page: requestedPage,
+    pageSize,
+    vehicleClasses: selectedFilters.vehicleClasses,
+    pickupType: selectedFilters.pickupType,
+    transmission: selectedFilters.transmission,
+    seatsMin: selectedFilters.seatsMin,
+    priceBand: selectedFilters.priceBand,
+  }
+  const searchKey = getSearchCacheKey('car', cacheParams)
 
   const cached = getCachedResults<LoadCarRentalResultsPageOutput>(searchKey)
   if (cached) {
@@ -407,7 +402,9 @@ export async function loadCarRentalResultsPageFromDb(
     }),
   }
 
-  setCachedResults(searchKey, result)
+  setCachedResults('car', searchKey, cacheParams, result.results, {
+    value: result,
+  })
   emitSearchMetrics({
     vertical: 'car',
     searchKey,

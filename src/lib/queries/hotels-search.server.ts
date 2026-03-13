@@ -2,7 +2,7 @@ import { buildAvailabilityConfidence } from '~/lib/inventory/availability-confid
 import { searchHotels, type HotelPriceRange, type HotelSort } from '~/lib/repos/hotels-repo.server'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import { emitSearchMetrics } from '~/lib/metrics/search-metrics'
-import { getCachedResults, setCachedResults } from '~/lib/search/search-cache'
+import { getCachedResults, getSearchCacheKey, setCachedResults } from '~/lib/search/search-cache'
 import { toBookableEntity, toHotelSearchEntity } from '~/lib/search/search-entity'
 import { normalizeHotelSort } from '~/lib/search/hotels/hotel-sort-options'
 import { findTopTravelCity } from '~/seed/cities/top-100.js'
@@ -96,25 +96,6 @@ export type LoadHotelResultsOutput = {
   results: HotelResult[]
 }
 
-const stableArrayKey = (values: string[] | null | undefined) =>
-  (values || []).map(normalizeToken).filter(Boolean).sort().join(',')
-
-const buildHotelSearchCacheKey = (input: LoadHotelResultsInput, citySlug: string) =>
-  [
-    'hotels',
-    citySlug,
-    input.checkIn || 'any',
-    input.checkOut || 'any',
-    `sort=${toSort(input.sort)}`,
-    `page=${Math.max(1, Number(input.page || 1))}`,
-    `size=${Math.max(1, Math.min(60, Number(input.pageSize || 24)))}`,
-    `price=${stableArrayKey(input.filters?.priceRange) || 'any'}`,
-    `stars=${stableArrayKey(input.filters?.starRating) || 'any'}`,
-    `rating=${stableArrayKey(input.filters?.guestRating) || 'any'}`,
-    `amenities=${stableArrayKey(input.filters?.amenities) || 'any'}`,
-    `occupancy=${String(input.occupancy || '2').trim() || '2'}`,
-  ].join(':')
-
 export async function loadHotelResultsFromDb(
   input: LoadHotelResultsInput,
 ): Promise<LoadHotelResultsOutput> {
@@ -135,7 +116,21 @@ export async function loadHotelResultsFromDb(
     }
   }
 
-  const searchKey = buildHotelSearchCacheKey(input, city.slug)
+  const sort = toSort(input.sort)
+  const cacheParams = {
+    citySlug: city.slug,
+    checkIn: input.checkIn,
+    checkOut: input.checkOut,
+    occupancy: input.occupancy,
+    sort,
+    page: requestedPage,
+    pageSize,
+    priceRange: input.filters?.priceRange,
+    starRating: input.filters?.starRating,
+    guestRating: input.filters?.guestRating,
+    amenities: input.filters?.amenities,
+  }
+  const searchKey = getSearchCacheKey('hotel', cacheParams)
   const cached = getCachedResults<LoadHotelResultsOutput>(searchKey)
   if (cached) {
     emitSearchMetrics({
@@ -149,7 +144,6 @@ export async function loadHotelResultsFromDb(
     return cached
   }
 
-  const sort = toSort(input.sort)
   const amenities = normalizeOptions(input.filters?.amenities)
   const stars = toStarRatings(input.filters?.starRating)
   const priceRanges = toPriceRanges(input.filters?.priceRange)
@@ -274,7 +268,9 @@ export async function loadHotelResultsFromDb(
     }),
   }
 
-  setCachedResults(searchKey, result)
+  setCachedResults('hotel', searchKey, cacheParams, result.results, {
+    value: result,
+  })
   emitSearchMetrics({
     vertical: 'hotel',
     searchKey,

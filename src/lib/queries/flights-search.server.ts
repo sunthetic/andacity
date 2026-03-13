@@ -9,7 +9,7 @@ import {
 } from '~/lib/repos/flights-repo.server'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import { emitSearchMetrics } from '~/lib/metrics/search-metrics'
-import { getCachedResults, setCachedResults } from '~/lib/search/search-cache'
+import { getCachedResults, getSearchCacheKey, setCachedResults } from '~/lib/search/search-cache'
 import { toBookableEntity, toFlightSearchEntity } from '~/lib/search/search-entity'
 import {
   EMPTY_FLIGHT_SEARCH_FACETS,
@@ -109,28 +109,6 @@ export type LoadFlightResultsPageOutput = {
   results: FlightResult[]
 }
 
-const stableFlightFilterKey = (values: string[] | undefined) =>
-  (values || []).slice().sort().join(',') || 'any'
-
-const buildFlightSearchCacheKey = (input: LoadFlightResultsPageInput) => {
-  const selectedFilters = parseFlightsSelectedFilters(input.filters || {})
-  return [
-    'flights',
-    input.fromLocationSlug,
-    input.toLocationSlug,
-    input.itineraryType,
-    input.departDate || 'any',
-    `sort=${normalizeFlightSort(input.sort)}`,
-    `page=${Math.max(1, Number(input.page || 1))}`,
-    `size=${Math.max(1, Math.min(60, Number(input.pageSize || DEFAULT_PAGE_SIZE)))}`,
-    `stops=${selectedFilters.maxStops ?? 'any'}`,
-    `cabin=${selectedFilters.cabinClass || 'any'}`,
-    `depart=${stableFlightFilterKey(selectedFilters.departureWindows)}`,
-    `arrive=${stableFlightFilterKey(selectedFilters.arrivalWindows)}`,
-    `price=${selectedFilters.priceBand || 'any'}`,
-  ].join(':')
-}
-
 export async function loadFlightResultsPageFromDb(
   input: LoadFlightResultsPageInput,
 ): Promise<LoadFlightResultsPageOutput> {
@@ -141,7 +119,21 @@ export async function loadFlightResultsPageFromDb(
   const activeSort = normalizeFlightSort(input.sort)
   const selectedFilters = parseFlightsSelectedFilters(input.filters || {})
   const priceBand = toPriceBandBounds(selectedFilters.priceBand)
-  const searchKey = buildFlightSearchCacheKey(input)
+  const cacheParams = {
+    fromLocationSlug: input.fromLocationSlug,
+    toLocationSlug: input.toLocationSlug,
+    itineraryType: input.itineraryType,
+    departDate: input.departDate,
+    sort: activeSort,
+    page: requestedPage,
+    pageSize,
+    maxStops: selectedFilters.maxStops,
+    cabinClass: selectedFilters.cabinClass,
+    departureWindows: selectedFilters.departureWindows,
+    arrivalWindows: selectedFilters.arrivalWindows,
+    priceBand: selectedFilters.priceBand,
+  }
+  const searchKey = getSearchCacheKey('flight', cacheParams)
   const cached = getCachedResults<LoadFlightResultsPageOutput>(searchKey)
 
   if (cached) {
@@ -332,7 +324,9 @@ export async function loadFlightResultsPageFromDb(
     }),
   }
 
-  setCachedResults(searchKey, result)
+  setCachedResults('flight', searchKey, cacheParams, result.results, {
+    value: result,
+  })
   emitSearchMetrics({
     vertical: 'flight',
     searchKey,
