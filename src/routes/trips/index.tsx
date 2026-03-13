@@ -153,32 +153,36 @@ export default component$(() => {
     Record<number, TripItemReplacementOption[]>
   >({});
   const lastPreviewScrollKey = useSignal<string | null>(null);
-  const trackTripError = (
-    action: string,
-    message: string,
-    extra?: Record<string, string | number | boolean | null | undefined>,
-  ) => {
-    trackBookingEvent("booking_error", {
-      vertical: "trips",
-      surface: "trip_builder",
-      trip_id: activeTrip.value?.id ?? undefined,
-      action,
-      error_message: message,
-      ...(extra || {}),
-    });
-  };
-  const trackTripAction = (
-    action: string,
-    extra?: Record<string, string | number | boolean | null | undefined>,
-  ) => {
-    trackBookingEvent("booking_trip_action", {
-      vertical: "trips",
-      surface: "trip_builder",
-      trip_id: activeTrip.value?.id ?? undefined,
-      action,
-      ...(extra || {}),
-    });
-  };
+  const trackTripError$ = $(
+    (
+      action: string,
+      message: string,
+      extra?: Record<string, string | number | boolean | null | undefined>,
+    ) => {
+      trackBookingEvent("booking_error", {
+        vertical: "trips",
+        surface: "trip_builder",
+        trip_id: activeTrip.value?.id ?? undefined,
+        action,
+        error_message: message,
+        ...(extra || {}),
+      });
+    },
+  );
+  const trackTripAction$ = $(
+    (
+      action: string,
+      extra?: Record<string, string | number | boolean | null | undefined>,
+    ) => {
+      trackBookingEvent("booking_trip_action", {
+        vertical: "trips",
+        surface: "trip_builder",
+        trip_id: activeTrip.value?.id ?? undefined,
+        action,
+        ...(extra || {}),
+      });
+    },
+  );
 
   // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(({ track, cleanup }) => {
@@ -419,7 +423,7 @@ export default component$(() => {
           ? cause.message
           : "Failed to revalidate trip.";
       error.value = message;
-      trackTripError("revalidate_trip", message);
+      await trackTripError$("revalidate_trip", message);
       throw new Error(message);
     } finally {
       loading.value = false;
@@ -449,7 +453,7 @@ export default component$(() => {
       };
       editPreview.value = preview;
       previewItemId.value = item.id;
-      trackTripAction("preview_remove_item", {
+      await trackTripAction$("preview_remove_item", {
         item_id: item.id,
       });
     } catch (cause) {
@@ -458,7 +462,7 @@ export default component$(() => {
           ? cause.message
           : "Failed to preview trip item removal.";
       error.value = message;
-      trackTripError("preview_remove_item", message, {
+      await trackTripError$("preview_remove_item", message, {
         item_id: item.id,
       });
     } finally {
@@ -503,7 +507,7 @@ export default component$(() => {
       };
       editPreview.value = preview;
       previewItemId.value = itemId;
-      trackTripAction("preview_reorder_item", {
+      await trackTripAction$("preview_reorder_item", {
         item_id: itemId,
       });
     } catch (cause) {
@@ -512,7 +516,7 @@ export default component$(() => {
           ? cause.message
           : "Failed to preview itinerary reorder.";
       error.value = message;
-      trackTripError("preview_reorder_item", message, {
+      await trackTripError$("preview_reorder_item", message, {
         item_id: itemId,
       });
     } finally {
@@ -525,7 +529,7 @@ export default component$(() => {
     if (!activeTrip.value || loading.value) return;
 
     if (replacementPanelItemId.value === itemId) {
-      trackTripAction("close_replacement_options", {
+      await trackTripAction$("close_replacement_options", {
         item_id: itemId,
       });
       replacementPanelItemId.value = null;
@@ -537,7 +541,7 @@ export default component$(() => {
 
     const cached = replacementOptions.value[itemId];
     if (cached?.length) {
-      trackTripAction("open_replacement_options", {
+      await trackTripAction$("open_replacement_options", {
         item_id: itemId,
         option_count: cached.length,
       });
@@ -564,7 +568,7 @@ export default component$(() => {
         [itemId]: options,
       };
       replacementPanelItemId.value = itemId;
-      trackTripAction("open_replacement_options", {
+      await trackTripAction$("open_replacement_options", {
         item_id: itemId,
         option_count: options.length,
       });
@@ -574,7 +578,7 @@ export default component$(() => {
           ? cause.message
           : "Failed to load replacement options.";
       error.value = message;
-      trackTripError("load_replacement_options", message, {
+      await trackTripError$("load_replacement_options", message, {
         item_id: itemId,
       });
     } finally {
@@ -610,7 +614,7 @@ export default component$(() => {
         };
         editPreview.value = preview;
         previewItemId.value = itemId;
-        trackTripAction("preview_replacement", {
+        await trackTripAction$("preview_replacement", {
           item_id: itemId,
           replacement_inventory_id: option.inventoryId,
         });
@@ -624,7 +628,7 @@ export default component$(() => {
           itemId,
           message,
         };
-        trackTripError("preview_replacement", message, {
+        await trackTripError$("preview_replacement", message, {
           item_id: itemId,
           replacement_inventory_id: option.inventoryId,
         });
@@ -635,7 +639,7 @@ export default component$(() => {
     },
   );
 
-  const onCancelEditPreview$ = $(() => {
+  const onCancelEditPreview$ = $(async () => {
     if (editPreview.value?.bundleImpact) {
       trackBookingEvent("booking_bundle_decision", {
         vertical: "bundles",
@@ -647,7 +651,7 @@ export default component$(() => {
         action_type: editPreview.value.actionType,
       });
     } else if (previewItemId.value != null) {
-      trackTripAction("cancel_preview", {
+      await trackTripAction$("cancel_preview", {
         item_id: previewItemId.value,
       });
     }
@@ -749,7 +753,7 @@ export default component$(() => {
           safety_level: preview.changeSummary.safetyLevel,
         });
       } else {
-        trackTripAction("apply_edit", {
+        await trackTripAction$("apply_edit", {
           item_id: draft.itemId,
           action_type: draft.actionType,
         });
@@ -760,7 +764,7 @@ export default component$(() => {
           ? cause.message
           : "Failed to apply itinerary edit.";
       error.value = message;
-      trackTripError("apply_edit", message, {
+      await trackTripError$("apply_edit", message, {
         item_id: draft.itemId,
         action_type: draft.actionType,
       });
@@ -876,14 +880,14 @@ export default component$(() => {
         title: "Change rolled back",
         message: "The prior itinerary draft was restored.",
       };
-      trackTripAction("rollback_change");
+      await trackTripAction$("rollback_change");
     } catch (cause) {
       const message =
         cause instanceof TripApiError
           ? cause.message
           : "Failed to roll back itinerary change.";
       error.value = message;
-      trackTripError("rollback_change", message);
+      await trackTripError$("rollback_change", message);
     } finally {
       loading.value = false;
       activeAction.value = null;
@@ -922,7 +926,7 @@ export default component$(() => {
           ? cause.message
           : "Failed to add suggested trip item.";
       error.value = message;
-      trackTripError("add_suggested_item", message, {
+      await trackTripError$("add_suggested_item", message, {
         inventory_id: candidate.inventoryId,
       });
     } finally {
@@ -962,7 +966,7 @@ export default component$(() => {
           : "Failed to reload trips.";
       setupError.value = message;
       error.value = message;
-      trackTripError("setup_retry", message);
+      await trackTripError$("setup_retry", message);
     } finally {
       loading.value = false;
       activeAction.value = null;
@@ -1293,8 +1297,8 @@ export default component$(() => {
                             class={[
                               "rounded-lg border px-3 py-2 text-sm",
                               issue.severity === "blocking"
-                                ? "border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.06)] text-[color:var(--color-error,#b91c1c)]"
-                                : "border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] text-[color:var(--color-warning,#92400e)]",
+                                ? "border-[color:var(--color-error)] bg-[color:rgba(185,28,28,0.06)] text-[color:var(--color-error)]"
+                                : "border-[color:var(--color-warning)] bg-[color:rgba(180,83,9,0.08)] text-[color:var(--color-warning)]",
                             ]}
                           >
                             {issue.message}
@@ -2090,8 +2094,8 @@ const TripTimelineItemCard = component$(
                     props.item.issues.some(
                       (issue) => issue.severity === "blocking",
                     )
-                      ? "text-[color:var(--color-error,#b91c1c)]"
-                      : "text-[color:var(--color-warning,#92400e)]",
+                      ? "text-[color:var(--color-error)]"
+                      : "text-[color:var(--color-warning)]",
                   ]}
                 >
                   {props.item.issues[0]?.message}
@@ -2166,8 +2170,8 @@ const TripTimelineItemCard = component$(
                         class={[
                           "rounded-xl border px-3 py-2 text-sm",
                           issue.severity === "blocking"
-                            ? "border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.06)] text-[color:var(--color-error,#b91c1c)]"
-                            : "border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] text-[color:var(--color-warning,#92400e)]",
+                            ? "border-[color:var(--color-error)] bg-[color:rgba(185,28,28,0.06)] text-[color:var(--color-error)]"
+                            : "border-[color:var(--color-warning)] bg-[color:rgba(180,83,9,0.08)] text-[color:var(--color-warning)]",
                         ]}
                       >
                         {issue.message}
@@ -2297,7 +2301,7 @@ const TripTimelineItemCard = component$(
                     {props.item.locked ? "Unlock item" : "Lock item"}
                   </AsyncPendingButton>
                   <AsyncPendingButton
-                    class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs text-[color:var(--color-error,#b91c1c)] sm:col-span-2 lg:col-span-1"
+                    class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs text-[color:var(--color-error)] sm:col-span-2 lg:col-span-1"
                     pending={
                       props.pendingActionId ===
                       `preview-remove:${props.item.id}`
@@ -2319,8 +2323,8 @@ const TripTimelineItemCard = component$(
             {bundleExplanation ? (
               <div class="mt-3">
                 {bundleState?.selectionMode === "manual_override" ? (
-                  <div class="mb-3 rounded-xl border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-3 py-2">
-                    <p class="text-xs font-medium text-[color:var(--color-warning,#92400e)]">
+                  <div class="mb-3 rounded-xl border border-[color:var(--color-warning)] bg-[color:rgba(180,83,9,0.08)] px-3 py-2">
+                    <p class="text-xs font-medium text-[color:var(--color-warning)]">
                       Manual override is active. Preview another swap or use
                       rollback after apply to restore the previous bundle pick.
                     </p>
@@ -2544,8 +2548,8 @@ const TripEditPreviewPanel = component$(
                     class={[
                       "text-xs",
                       issue.severity === "blocking"
-                        ? "text-[color:var(--color-error,#b91c1c)]"
-                        : "text-[color:var(--color-warning,#92400e)]",
+                        ? "text-[color:var(--color-error)]"
+                        : "text-[color:var(--color-warning)]",
                     ]}
                   >
                     {issue.message}
@@ -2650,7 +2654,7 @@ const TripEditPreviewPanel = component$(
                 {props.preview.bundleImpact.limitations.map((entry) => (
                   <p
                     key={entry}
-                    class="text-xs text-[color:var(--color-warning,#92400e)]"
+                    class="text-xs text-[color:var(--color-warning)]"
                   >
                     {entry}
                   </p>
@@ -2684,7 +2688,7 @@ const TripEditPreviewPanel = component$(
         ) : null}
 
         {props.preview.limitations.length ? (
-          <div class="mt-3 rounded-xl border border-[color:var(--color-warning,#b45309)] bg-[color:var(--color-warning-soft)] px-3 py-3">
+          <div class="mt-3 rounded-xl border border-[color:var(--color-warning)] bg-[color:var(--color-warning-soft)] px-3 py-3">
             <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
               Preview limits
             </p>
@@ -2692,7 +2696,7 @@ const TripEditPreviewPanel = component$(
               {props.preview.limitations.map((entry) => (
                 <p
                   key={entry}
-                  class="text-xs text-[color:var(--color-warning,#92400e)]"
+                  class="text-xs text-[color:var(--color-warning)]"
                 >
                   {entry}
                 </p>
@@ -3075,30 +3079,30 @@ const formatTimelineGap = (days: number) => {
 
 const tripTimelineCardClass = (item: TripItem) => {
   if (item.issues.some((issue) => issue.severity === "blocking")) {
-    return "border-[color:var(--color-error,#b91c1c)]";
+    return "border-[color:var(--color-error)]";
   }
   if (item.issues.length) {
-    return "border-[color:var(--color-warning,#b45309)]";
+    return "border-[color:var(--color-warning)]";
   }
   return "border-[color:var(--color-border)]";
 };
 
 const timelineTransitionClass = (tone: TimelineTransitionTone) => {
   if (tone === "blocking") {
-    return "border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.06)] text-[color:var(--color-error,#b91c1c)]";
+    return "border-[color:var(--color-error)] bg-[color:rgba(185,28,28,0.06)] text-[color:var(--color-error)]";
   }
   if (tone === "warning") {
-    return "border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] text-[color:var(--color-warning,#92400e)]";
+    return "border-[color:var(--color-warning)] bg-[color:rgba(180,83,9,0.08)] text-[color:var(--color-warning)]";
   }
   return "border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] text-[color:var(--color-text-muted)]";
 };
 
 const timelineCountBadgeClass = (tone: TimelineTransitionTone | "neutral") => {
   if (tone === "blocking") {
-    return "rounded-full border border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.08)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-error,#b91c1c)]";
+    return "rounded-full border border-[color:var(--color-error)] bg-[color:rgba(185,28,28,0.08)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-error)]";
   }
   if (tone === "warning") {
-    return "rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-warning,#92400e)]";
+    return "rounded-full border border-[color:var(--color-warning)] bg-[color:rgba(180,83,9,0.08)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-warning)]";
   }
   return "rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]";
 };
@@ -3117,7 +3121,7 @@ const bundleSelectionBadgeClass = (
   selectionMode: "recommended" | "manual_override",
 ) => {
   if (selectionMode === "manual_override") {
-    return "rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning,#92400e)]";
+    return "rounded-full border border-[color:var(--color-warning)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning)]";
   }
 
   return "rounded-full border border-[color:var(--color-success,#0f766e)] bg-[color:rgba(15,118,110,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-success,#0f766e)]";
@@ -3131,7 +3135,7 @@ const bundleStrengthBadgeClass = (
   }
 
   if (level === "moderate") {
-    return "rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning,#92400e)]";
+    return "rounded-full border border-[color:var(--color-warning)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning)]";
   }
 
   return "rounded-full border border-[color:var(--color-text-muted)] bg-[color:rgba(100,116,139,0.12)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-text-muted)]";
@@ -3508,10 +3512,10 @@ const formatTripPricingSupport = (trip: TripDetails) => {
 
 const intelligenceToneClass = (intelligence: TripIntelligenceSummary) => {
   if (intelligence.status === "blocking_issues_present") {
-    return "text-[color:var(--color-error,#b91c1c)]";
+    return "text-[color:var(--color-error)]";
   }
   if (intelligence.status === "warnings_present") {
-    return "text-[color:var(--color-warning,#92400e)]";
+    return "text-[color:var(--color-warning)]";
   }
   return "text-[color:var(--color-success,#0f766e)]";
 };
@@ -3524,8 +3528,8 @@ const getHighestIssueSeverity = (issues: TripValidationIssue[]) => {
 
 const issueBadgeClass = (issues: TripValidationIssue[]) => {
   return getHighestIssueSeverity(issues) === "blocking"
-    ? "rounded-full border border-[color:var(--color-error,#b91c1c)] bg-[color:rgba(185,28,28,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-error,#b91c1c)]"
-    : "rounded-full border border-[color:var(--color-warning,#b45309)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning,#92400e)]";
+    ? "rounded-full border border-[color:var(--color-error)] bg-[color:rgba(185,28,28,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-error)]"
+    : "rounded-full border border-[color:var(--color-warning)] bg-[color:rgba(180,83,9,0.08)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.06em] text-[color:var(--color-warning)]";
 };
 
 const formatItemIssueBadge = (issues: TripValidationIssue[]) => {
@@ -3631,7 +3635,7 @@ const formatItemDrift = (item: TripItem) => {
 };
 
 const driftToneClass = (status: TripPriceDriftStatus) => {
-  if (status === "increased") return "text-[color:var(--color-error,#b91c1c)]";
+  if (status === "increased") return "text-[color:var(--color-error)]";
   if (status === "decreased")
     return "text-[color:var(--color-success,#0f766e)]";
   return "text-[color:var(--color-text-muted)]";

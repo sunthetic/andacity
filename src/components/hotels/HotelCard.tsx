@@ -1,4 +1,4 @@
-import { component$, type QRL } from "@builder.io/qwik";
+import { $, component$, type QRL } from "@builder.io/qwik";
 import {
   ResultCardScaffold,
   ResultFactList,
@@ -16,14 +16,14 @@ import {
   type BookingVertical,
 } from "~/lib/analytics/booking-telemetry";
 import type { Hotel } from "~/data/hotels";
-import { formatMoney, type PriceDisplayContract } from "~/lib/pricing/price-display";
+import { type PriceDisplayContract } from "~/lib/pricing/price-display";
 import type { HotelSortKey } from "~/lib/search/hotels/hotel-sort-options";
 import type { SavedItem } from "~/types/save-compare/saved-item";
 
 export const HotelCard = component$((props: HotelCardProps) => {
   const h = props.hotel;
   const detailHref = props.detailHref || buildHotelDetailHref(h.slug);
-  const onOpenDetail$ = () => {
+  const onOpenDetail$ = $(() => {
     if (!props.telemetry) return;
 
     trackBookingEvent("booking_search_result_opened", {
@@ -34,7 +34,7 @@ export const HotelCard = component$((props: HotelCardProps) => {
       target: "detail",
     });
     markBookingStageProgress("search_results");
-  };
+  });
   const whyThis = buildHotelWhyThis(
     {
       rating: h.rating,
@@ -47,6 +47,15 @@ export const HotelCard = component$((props: HotelCardProps) => {
     props.activeSort,
   );
   const amenityHighlights = h.amenities.slice(0, 3).join(" · ");
+  const locationSummary = [h.neighborhood, h.city].filter(Boolean).join(" · ");
+  const ratingSummary =
+    h.rating > 0
+      ? `${h.rating.toFixed(1)} rating${
+          h.reviewCount
+            ? ` · ${h.reviewCount.toLocaleString("en-US")} reviews`
+            : ""
+        }`
+      : "";
   const stayType = `${h.stars}-star ${
     String(h.propertyType || "stay").trim() || "stay"
   }`;
@@ -82,49 +91,8 @@ export const HotelCard = component$((props: HotelCardProps) => {
           {h.name}
         </a>
         <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-          {[h.neighborhood, h.city].filter(Boolean).join(" · ")}
+          {[locationSummary, ratingSummary].filter(Boolean).join(" · ")}
         </p>
-      </div>
-
-      <div class="p-4">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <a
-              class="text-sm font-semibold text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
-              href={buildHotelDetailHref(h.slug)}
-            >
-              {h.name}
-            </a>
-            <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-              {h.neighborhood} · {h.stars}★ · {h.rating.toFixed(1)} (
-              {h.reviewCount.toLocaleString("en-US")})
-            </p>
-          </div>
-
-          <div class="flex flex-col items-end gap-2">
-            {props.savedItem && props.onToggleSave$ ? (
-              <SaveButton
-                saved={Boolean(props.isSaved)}
-                onToggle$={() => {
-                  if (!props.savedItem || !props.onToggleSave$) return;
-                  props.onToggleSave$(props.savedItem);
-                }}
-              />
-            ) : null}
-
-            {props.savedItem ? (
-              <AddToTripButton item={props.savedItem} />
-            ) : null}
-
-            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-              {formatMoney(h.fromNightly, h.currency)}
-              <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">
-                /night
-              </span>
-            </div>
-          </div>
-        </div>
-
         <div class="mt-3 flex flex-wrap gap-2">
           {h.policies.freeCancellation ? (
             <span class="t-badge t-badge--deal">Free cancellation</span>

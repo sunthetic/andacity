@@ -1,4 +1,4 @@
-import { component$, type QRL } from "@builder.io/qwik";
+import { $, component$, type QRL } from "@builder.io/qwik";
 import {
   ResultCardScaffold,
   ResultFactGrid,
@@ -14,14 +14,14 @@ import {
   trackBookingEvent,
   type BookingVertical,
 } from "~/lib/analytics/booking-telemetry";
-import { formatMoney, type PriceDisplayContract } from "~/lib/pricing/price-display";
+import { type PriceDisplayContract } from "~/lib/pricing/price-display";
 import type { FlightSortKey } from "~/lib/search/flights/flight-sort-options";
 import type { FlightResult } from "~/types/flights/search";
 import type { SavedItem } from "~/types/save-compare/saved-item";
 
 export const FlightCard = component$((props: FlightCardProps) => {
   const flight = props.result;
-  const onSelectFlight$ = () => {
+  const onSelectFlight$ = $(() => {
     if (!props.telemetry) return;
 
     trackBookingEvent("booking_search_result_opened", {
@@ -32,7 +32,7 @@ export const FlightCard = component$((props: FlightCardProps) => {
       target: "select",
     });
     markBookingStageProgress("search_results");
-  };
+  });
   const whyThis = buildFlightWhyThis(
     {
       stops: flight.stops,
@@ -135,24 +135,6 @@ export const FlightCard = component$((props: FlightCardProps) => {
               }}
             />
           ) : null}
-          {props.savedItem ? (
-            <div class="mb-2">
-              <AddToTripButton item={props.savedItem} />
-            </div>
-          ) : null}
-
-          {props.savedItem ? (
-            <div class="mb-2">
-              <AddToTripButton item={props.savedItem} />
-            </div>
-          ) : null}
-
-          <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-            {formatMoney(flight.price, flight.currency)}
-            <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">
-              /traveler
-            </span>
-          </p>
 
           <AddToTripButton
             class="min-h-9 rounded-full border border-[color:var(--color-border)] px-3 py-2 text-xs font-semibold text-[color:var(--color-action)] hover:border-[color:var(--color-action)]"
