@@ -69,6 +69,7 @@ import {
   type TripItemRevalidationResolver,
 } from '~/lib/trips/revalidate-trip-items'
 import { toBookableEntityFromTripItem } from '~/lib/booking/bookable-entity'
+import { resolveInventoryWithSnapshot } from '~/lib/inventory/resolveInventory'
 import { buildTripEditBundleImpact } from '~/lib/trips/bundle-swap-impact'
 import { buildTripIntelligenceSummary } from '~/lib/trips/status-aggregation'
 import {
@@ -1240,18 +1241,6 @@ const readTripItems = async (tripId: number): Promise<TripItemRecord[]> => {
   })
 }
 
-type FlightRevalidationRow = {
-  id: number
-  airlineCode: string | null
-  flightNumber: string | null
-  serviceDate: string
-  originCode: string
-  destinationCode: string
-  currentPriceCents: number
-  currentCurrencyCode: string
-  seatsRemaining: number | null
-}
-
 const readTripItemRecordProviderInventoryId = (item: TripItemRecord) =>
   resolveStoredProviderInventoryId({
     itemType: item.itemType,
@@ -1278,426 +1267,39 @@ const toTripItemRevalidationCandidate = (
   providerInventoryId: readTripItemRecordProviderInventoryId(item),
 })
 
-const buildResolvedHotelInventoryId = (input: {
-  hotelId: number
-  checkInDate: string
-  checkOutDate: string
-  roomType: string
-  occupancy: number
-}) => {
-  try {
-    return buildHotelInventoryId(input)
-  } catch {
-    return null
-  }
-}
-
-const buildResolvedCarInventoryId = (input: {
-  providerLocationId: string | number
-  pickupDateTime: string
-  dropoffDateTime: string
-  vehicleClass: string
-}) => {
-  try {
-    return buildCarInventoryId(input)
-  } catch {
-    return null
-  }
-}
-
-const buildResolvedFlightInventoryId = (input: {
-  airlineCode: string
-  flightNumber: string
-  departDate: string
-  originCode: string
-  destinationCode: string
-}) => {
-  try {
-    return buildFlightInventoryId(input)
-  } catch {
-    return null
-  }
-}
-
-const isHotelInventoryAvailable = (
-  availability:
-    | {
-        checkInStart: string
-        checkInEnd: string
-        minNights: number
-        maxNights: number
-        blockedWeekdays: number[]
-      }
-    | null,
-  checkInDate: string,
-  checkOutDate: string,
-) => {
-  if (!availability) return null
-
-  const nights = computeNights(checkInDate, checkOutDate)
-  if (nights == null) return null
-
-  if (checkInDate < availability.checkInStart || checkInDate > availability.checkInEnd) {
-    return false
-  }
-
-  if (nights < availability.minNights || nights > availability.maxNights) {
-    return false
-  }
-
-  const weekday = toUtcWeekday(checkInDate)
-  if (weekday != null && availability.blockedWeekdays.includes(weekday)) {
-    return false
-  }
-
-  return true
-}
-
-const isCarInventoryAvailable = (
-  availability: {
-    availabilityStart: string
-    availabilityEnd: string
-    minDays: number
-    maxDays: number
-    blockedWeekdays: number[]
-  },
-  pickupDateTime: string,
-  dropoffDateTime: string,
-) => {
-  const pickupDate = toIsoDate(pickupDateTime.slice(0, 10))
-  const dropoffDate = toIsoDate(dropoffDateTime.slice(0, 10))
-  const days = computeDays(pickupDate, dropoffDate)
-  if (!pickupDate || !dropoffDate || days == null) return null
-
-  if (pickupDate < availability.availabilityStart || pickupDate > availability.availabilityEnd) {
-    return false
-  }
-
-  if (days < availability.minDays || days > availability.maxDays) {
-    return false
-  }
-
-  const weekday = toUtcWeekday(pickupDate)
-  if (weekday != null && availability.blockedWeekdays.includes(weekday)) {
-    return false
-  }
-
-  return true
-}
-
-const readFlightRevalidationRowByItineraryId = async (itineraryId: number) => {
-  const db = getDb()
-  const primarySegment = alias(flightSegments, 'trip_item_revalidation_primary_segment')
-  const originAirport = alias(airports, 'trip_item_revalidation_origin_airport')
-  const destinationAirport = alias(airports, 'trip_item_revalidation_destination_airport')
-  const standardFare = alias(flightFares, 'trip_item_revalidation_standard_fare')
-
-  const rows = await db
-    .select({
-      id: flightItineraries.id,
-      airlineCode: airlines.iataCode,
-      flightNumber: primarySegment.operatingFlightNumber,
-      serviceDate: flightItineraries.serviceDate,
-      originCode: originAirport.iataCode,
-      destinationCode: destinationAirport.iataCode,
-      currentPriceCents:
-        sql<number>`coalesce(${standardFare.priceCents}, ${flightItineraries.basePriceCents})`,
-      currentCurrencyCode:
-        sql<string>`coalesce(${standardFare.currencyCode}, ${flightItineraries.currencyCode})`,
-      seatsRemaining:
-        sql<number | null>`coalesce(${standardFare.seatsRemaining}, ${flightItineraries.seatsRemaining})`,
-    })
-    .from(flightItineraries)
-    .innerJoin(flightRoutes, eq(flightItineraries.routeId, flightRoutes.id))
-    .innerJoin(airlines, eq(flightItineraries.airlineId, airlines.id))
-    .innerJoin(originAirport, eq(flightRoutes.originAirportId, originAirport.id))
-    .innerJoin(destinationAirport, eq(flightRoutes.destinationAirportId, destinationAirport.id))
-    .leftJoin(
-      primarySegment,
-      and(
-        eq(primarySegment.itineraryId, flightItineraries.id),
-        eq(primarySegment.segmentOrder, 0),
-      ),
-    )
-    .leftJoin(
-      standardFare,
-      and(
-        eq(standardFare.itineraryId, flightItineraries.id),
-        eq(standardFare.fareCode, 'standard'),
-        eq(standardFare.cabinClass, flightItineraries.cabinClass),
-      ),
-    )
-    .where(eq(flightItineraries.id, itineraryId))
-    .limit(1)
-
-  return rows[0] || null
-}
-
-const readFlightRevalidationRowByCanonical = async (input: {
-  airlineCode: string
-  flightNumber: string
-  serviceDate: string
-  originCode: string
-  destinationCode: string
-}) => {
-  const db = getDb()
-  const primarySegment = alias(flightSegments, 'trip_item_revalidation_match_segment')
-  const originAirport = alias(airports, 'trip_item_revalidation_match_origin_airport')
-  const destinationAirport = alias(airports, 'trip_item_revalidation_match_destination_airport')
-  const standardFare = alias(flightFares, 'trip_item_revalidation_match_standard_fare')
-
-  const rows = await db
-    .select({
-      id: flightItineraries.id,
-      airlineCode: airlines.iataCode,
-      flightNumber: primarySegment.operatingFlightNumber,
-      serviceDate: flightItineraries.serviceDate,
-      originCode: originAirport.iataCode,
-      destinationCode: destinationAirport.iataCode,
-      currentPriceCents:
-        sql<number>`coalesce(${standardFare.priceCents}, ${flightItineraries.basePriceCents})`,
-      currentCurrencyCode:
-        sql<string>`coalesce(${standardFare.currencyCode}, ${flightItineraries.currencyCode})`,
-      seatsRemaining:
-        sql<number | null>`coalesce(${standardFare.seatsRemaining}, ${flightItineraries.seatsRemaining})`,
-    })
-    .from(flightItineraries)
-    .innerJoin(flightRoutes, eq(flightItineraries.routeId, flightRoutes.id))
-    .innerJoin(airlines, eq(flightItineraries.airlineId, airlines.id))
-    .innerJoin(originAirport, eq(flightRoutes.originAirportId, originAirport.id))
-    .innerJoin(destinationAirport, eq(flightRoutes.destinationAirportId, destinationAirport.id))
-    .leftJoin(
-      primarySegment,
-      and(
-        eq(primarySegment.itineraryId, flightItineraries.id),
-        eq(primarySegment.segmentOrder, 0),
-      ),
-    )
-    .leftJoin(
-      standardFare,
-      and(
-        eq(standardFare.itineraryId, flightItineraries.id),
-        eq(standardFare.fareCode, 'standard'),
-        eq(standardFare.cabinClass, flightItineraries.cabinClass),
-      ),
-    )
-    .where(
-      and(
-        eq(flightItineraries.serviceDate, input.serviceDate),
-        eq(airlines.iataCode, input.airlineCode),
-        eq(originAirport.iataCode, input.originCode),
-        eq(destinationAirport.iataCode, input.destinationCode),
-        eq(primarySegment.operatingFlightNumber, input.flightNumber),
-      ),
-    )
-    .orderBy(asc(flightItineraries.id))
-    .limit(1)
-
-  return rows[0] || null
-}
-
-const toResolvedFlightCurrentInventory = (
+const resolveTripItemCurrentInventory = async (
   item: TripItemRevalidationCandidate,
-  row: FlightRevalidationRow | null,
-): ResolvedTripItemCurrentInventory | null => {
-  if (!row) return null
+  checkedAt: string,
+): Promise<ResolvedTripItemCurrentInventory | null> => {
+  const resolution = await resolveInventoryWithSnapshot({
+    inventoryId: item.inventoryId || '',
+    providerInventoryId: item.providerInventoryId,
+    checkedAt,
+    snapshot: {
+      inventoryId: item.inventoryId,
+      priceCents: item.snapshotPriceCents,
+      currencyCode: item.snapshotCurrencyCode,
+      snapshotTimestamp: item.snapshotTimestamp,
+    },
+  })
 
-  const inventoryId =
-    row.airlineCode &&
-      row.flightNumber &&
-      row.originCode &&
-      row.destinationCode &&
-      row.serviceDate
-      ? buildResolvedFlightInventoryId({
-        airlineCode: row.airlineCode,
-        flightNumber: row.flightNumber,
-        departDate: row.serviceDate,
-        originCode: row.originCode,
-        destinationCode: row.destinationCode,
-      })
-      : null
+  if (!resolution) return null
 
   return {
-    inventoryId,
-    currentPriceCents: resolveComparablePriceCents(row.currentPriceCents, item.metadata),
-    currentCurrencyCode: row.currentCurrencyCode,
-    isAvailable: row.seatsRemaining == null ? true : row.seatsRemaining > 0,
+    inventoryId: resolution.entity.inventoryId,
+    currentPriceCents: resolveComparablePriceCents(
+      resolution.entity.price.amountCents,
+      item.metadata,
+    ),
+    currentCurrencyCode: resolution.entity.price.currency,
+    isAvailable: resolution.isAvailable,
   }
 }
 
 const tripItemRevalidationResolver: TripItemRevalidationResolver = {
-  hotel: async ({ item, parsedInventory, checkedAt }) => {
-    const parsedHotelId = toPositiveInteger(parsedInventory.hotelId)
-    const hotelId = item.providerInventoryId || parsedHotelId
-    if (!hotelId) return null
-
-    const db = getDb()
-    const rows = await db
-      .select({
-        id: hotels.id,
-        currentPriceCents: hotels.fromNightlyCents,
-        currentCurrencyCode: hotels.currencyCode,
-      })
-      .from(hotels)
-      .where(eq(hotels.id, hotelId))
-      .limit(1)
-
-    const row = rows[0]
-    if (!row) {
-      return parsedHotelId && parsedHotelId !== hotelId
-        ? tripItemRevalidationResolver.hotel({
-          item: {
-            ...item,
-            providerInventoryId: parsedHotelId,
-          },
-          parsedInventory,
-          checkedAt,
-        })
-        : null
-    }
-
-    const hotelAvailability =
-      (await readLatestHotelAvailabilitySnapshots([row.id])).get(row.id) || null
-
-    return {
-      inventoryId:
-        buildResolvedHotelInventoryId({
-          hotelId: row.id,
-          checkInDate: parsedInventory.checkInDate,
-          checkOutDate: parsedInventory.checkOutDate,
-          roomType: parsedInventory.roomType,
-          occupancy: parsedInventory.occupancy,
-        }) || item.inventoryId,
-      currentPriceCents: resolveComparablePriceCents(row.currentPriceCents, item.metadata),
-      currentCurrencyCode: row.currentCurrencyCode,
-      isAvailable: isHotelInventoryAvailable(
-        hotelAvailability,
-        parsedInventory.checkInDate,
-        parsedInventory.checkOutDate,
-      ),
-    }
-  },
-  flight: async ({ item, parsedInventory }) => {
-    const providerInventoryId = item.providerInventoryId
-    const providerMatch =
-      providerInventoryId != null
-        ? await readFlightRevalidationRowByItineraryId(providerInventoryId)
-        : null
-
-    if (providerMatch) {
-      return toResolvedFlightCurrentInventory(item, providerMatch)
-    }
-
-    const canonicalMatch = await readFlightRevalidationRowByCanonical({
-      airlineCode: parsedInventory.airlineCode,
-      flightNumber: parsedInventory.flightNumber,
-      serviceDate: parsedInventory.departDate,
-      originCode: parsedInventory.originCode,
-      destinationCode: parsedInventory.destinationCode,
-    })
-
-    return toResolvedFlightCurrentInventory(item, canonicalMatch)
-  },
-  car: async ({ item, parsedInventory }) => {
-    const db = getDb()
-    const parsedLocationId = toPositiveInteger(parsedInventory.providerLocationId)
-    const providerInventoryId = item.providerInventoryId
-    const selectCarRow = () =>
-      db
-        .select({
-          id: carInventory.id,
-          locationId: carInventory.locationId,
-          currentPriceCents: carInventory.fromDailyCents,
-          currentCurrencyCode: carInventory.currencyCode,
-          availabilityStart: carInventory.availabilityStart,
-          availabilityEnd: carInventory.availabilityEnd,
-          minDays: carInventory.minDays,
-          maxDays: carInventory.maxDays,
-          blockedWeekdays: carInventory.blockedWeekdays,
-        })
-        .from(carInventory)
-
-    const rowByInventoryId =
-      providerInventoryId != null
-        ? (
-          await selectCarRow()
-            .where(eq(carInventory.id, providerInventoryId))
-            .limit(1)
-        )[0] || null
-        : null
-
-    const rowByLocationId =
-      parsedLocationId != null
-        ? (
-          await selectCarRow()
-            .where(eq(carInventory.locationId, parsedLocationId))
-            .orderBy(asc(carInventory.fromDailyCents), asc(carInventory.id))
-            .limit(1)
-        )[0] || null
-        : null
-
-    const row = rowByInventoryId || rowByLocationId
-
-    if (!row) return null
-
-    const matchedVehicleClassRows = await db
-      .select({
-        vehicleClass: carVehicleClasses.key,
-      })
-      .from(carOffers)
-      .innerJoin(carVehicleClasses, eq(carOffers.vehicleClassId, carVehicleClasses.id))
-      .where(
-        and(
-          eq(carOffers.inventoryId, row.id),
-          eq(carVehicleClasses.key, parsedInventory.vehicleClass),
-        ),
-      )
-      .limit(1)
-
-    const fallbackVehicleClassRows = await db
-      .select({
-        vehicleClass: carVehicleClasses.key,
-      })
-      .from(carOffers)
-      .innerJoin(carVehicleClasses, eq(carOffers.vehicleClassId, carVehicleClasses.id))
-      .where(eq(carOffers.inventoryId, row.id))
-      .orderBy(asc(carOffers.priceDailyCents), asc(carOffers.id))
-      .limit(1)
-
-    const resolvedVehicleClass =
-      matchedVehicleClassRows[0]?.vehicleClass ||
-      fallbackVehicleClassRows[0]?.vehicleClass ||
-      parsedInventory.vehicleClass
-    const resolvedLocationToken =
-      parsedLocationId != null &&
-        row.locationId !== parsedLocationId &&
-        row.id !== parsedLocationId
-        ? String(row.locationId)
-        : parsedInventory.providerLocationId
-
-    return {
-      inventoryId:
-        buildResolvedCarInventoryId({
-          providerLocationId: resolvedLocationToken,
-          pickupDateTime: parsedInventory.pickupDateTime,
-          dropoffDateTime: parsedInventory.dropoffDateTime,
-          vehicleClass: resolvedVehicleClass,
-        }) || item.inventoryId,
-      currentPriceCents: resolveComparablePriceCents(row.currentPriceCents, item.metadata),
-      currentCurrencyCode: row.currentCurrencyCode,
-      isAvailable: isCarInventoryAvailable(
-        {
-          availabilityStart: row.availabilityStart,
-          availabilityEnd: row.availabilityEnd,
-          minDays: row.minDays,
-          maxDays: row.maxDays,
-          blockedWeekdays: toIntList(row.blockedWeekdays),
-        },
-        parsedInventory.pickupDateTime,
-        parsedInventory.dropoffDateTime,
-      ),
-    }
-  },
+  hotel: async ({ item, checkedAt }) => resolveTripItemCurrentInventory(item, checkedAt),
+  flight: async ({ item, checkedAt }) => resolveTripItemCurrentInventory(item, checkedAt),
+  car: async ({ item, checkedAt }) => resolveTripItemCurrentInventory(item, checkedAt),
 }
 
 const dedupeIssues = (issues: TripValidationIssue[]) => {
