@@ -63,6 +63,11 @@ import { readTripBundlingState } from '~/lib/trips/bundle-explainability'
 import { buildTripItemRevalidationIssues } from '~/lib/trips/revalidate-trip-items'
 import { buildTripEditBundleImpact } from '~/lib/trips/bundle-swap-impact'
 import { buildTripIntelligenceSummary } from '~/lib/trips/status-aggregation'
+import {
+  TripItemSnapshotError,
+  buildTripItemSnapshotMetadata,
+  normalizeTripItemSnapshotCore,
+} from '~/lib/trips/trip-item-snapshot'
 import type { TripGapAnalyzerItem } from '~/lib/trips/trip-gap-analyzer'
 import {
   TRIP_ITEM_TYPES,
@@ -96,6 +101,7 @@ export class TripRepoError extends Error {
       | 'trip_not_found'
       | 'trip_item_not_found'
       | 'inventory_not_found'
+      | 'invalid_snapshot'
       | 'invalid_reorder'
       | 'invalid_edit'
       | 'trip_schema_missing'
@@ -138,6 +144,7 @@ type ResolvedTripItemSnapshot = {
   endDate: string | null
   snapshotPriceCents: number
   snapshotCurrencyCode: string
+  snapshotTimestamp: string
   title: string
   subtitle: string | null
   imageUrl: string | null
@@ -205,38 +212,20 @@ type TripBaseRecord = {
 
 const DEFAULT_TRIP_NAME = 'Untitled trip'
 const DEFAULT_CURRENCY = 'USD'
-const LATEST_TRIP_MIGRATION = '0003_trip_price_snapshots.sql'
+const LATEST_TRIP_MIGRATION = '0004_trip_item_inventory_snapshot.sql'
 const TRIP_ITEM_LOCKED_KEY = 'locked'
 const TRIP_AUTO_REBALANCE_KEY = 'autoRebalance'
-const TRIP_ITEM_INVENTORY_ID_KEY = 'inventoryId'
 const TRIP_ITEM_PROVIDER_INVENTORY_ID_KEY = 'providerInventoryId'
 
 const TRIP_SCHEMA_IDENTIFIERS = [
   'trip_items',
   'trip_dates',
   'trips',
+  'inventory_id',
   'snapshot_price_cents',
   'snapshot_currency_code',
   'snapshot_timestamp',
   'prevent_trip_item_snapshot_updates',
-] as const
-
-const CANDIDATE_PREVIEW_METADATA_KEYS = [
-  'previewAvailabilityEnd',
-  'previewAvailabilityStart',
-  'previewBlockedWeekdays',
-  'previewCurrentPriceCents',
-  'previewCurrentCurrencyCode',
-  'previewDropoffLabel',
-  'previewFlightArrivalAt',
-  'previewFlightDepartureAt',
-  'previewFlightItineraryType',
-  'previewFlightSeatsRemaining',
-  'previewFlightServiceDate',
-  'previewLocationName',
-  'previewLocationType',
-  'previewMaxDays',
-  'previewMinDays',
 ] as const
 
 const isMissingTripSchemaError = (error: unknown) => {
@@ -344,14 +333,6 @@ const normalizeMetadata = (value: unknown): Record<string, unknown> => {
   return isRecord(value) ? value : {}
 }
 
-const normalizeCandidateMetadata = (value: unknown) => {
-  const metadata = { ...normalizeMetadata(value) }
-  for (const key of CANDIDATE_PREVIEW_METADATA_KEYS) {
-    delete metadata[key]
-  }
-  return metadata
-}
-
 const readProviderInventoryId = (candidate: TripItemCandidate) => {
   if (
     candidate.providerInventoryId != null &&
@@ -375,59 +356,6 @@ const readProviderInventoryId = (candidate: TripItemCandidate) => {
   }
 
   return null
-}
-
-const writeTripItemInventoryMetadata = (
-  metadata: Record<string, unknown>,
-  candidate: TripItemCandidate,
-  providerInventoryId: number | null,
-) => {
-  const next = { ...metadata }
-  next[TRIP_ITEM_INVENTORY_ID_KEY] = candidate.inventoryId
-  if (providerInventoryId != null) {
-    next[TRIP_ITEM_PROVIDER_INVENTORY_ID_KEY] = providerInventoryId
-  }
-  return next
-}
-
-const readTripItemInventoryId = (input: {
-  itemType: TripItemType
-  metadata: Record<string, unknown>
-  hotelId: number | null
-  flightItineraryId: number | null
-  carInventoryId: number | null
-  startDate: string | null
-  endDate: string | null
-}) => {
-  const stored = String(input.metadata[TRIP_ITEM_INVENTORY_ID_KEY] || '').trim()
-  if (stored) return stored
-
-  if (input.itemType === 'hotel' && input.hotelId != null) {
-    return buildHotelInventoryId({
-      hotelId: input.hotelId,
-      checkInDate: input.startDate || '1970-01-01',
-      checkOutDate: input.endDate || input.startDate || '1970-01-02',
-      roomType: 'standard',
-      occupancy: '2',
-    })
-  }
-
-  if (input.itemType === 'car' && input.carInventoryId != null) {
-    return buildCarInventoryId({
-      providerLocationId: input.carInventoryId,
-      pickupDateTime: `${input.startDate || '1970-01-01'}T10:00`,
-      dropoffDateTime: `${input.endDate || input.startDate || '1970-01-02'}T10:00`,
-      vehicleClass: 'standard',
-    })
-  }
-
-  return buildFlightInventoryId({
-    airlineCode: 'UNKNOWN',
-    flightNumber: String(input.flightItineraryId || 'unknown'),
-    departDate: input.startDate || '1970-01-01',
-    originCode: 'UNKNOWN',
-    destinationCode: 'UNKNOWN',
-  })
 }
 
 const readTripItemLocked = (value: unknown) => {
@@ -488,6 +416,7 @@ const requireTripSchemaValue = <T>(value: T | null | undefined, label: string): 
 }
 
 const requireTripSnapshotColumns = () => ({
+  inventoryId: requireTripSchemaValue(tripItems.inventoryId, 'tripItems.inventoryId'),
   snapshotPriceCents: requireTripSchemaValue(
     tripItems.snapshotPriceCents,
     'tripItems.snapshotPriceCents',
@@ -501,6 +430,67 @@ const requireTripSnapshotColumns = () => ({
     'tripItems.snapshotTimestamp',
   ),
 })
+
+const toTripItemSnapshotError = (error: unknown): never => {
+  if (error instanceof TripItemSnapshotError) {
+    throw new TripRepoError('invalid_snapshot', error.message)
+  }
+
+  throw error
+}
+
+const normalizeSnapshotCore = (input: {
+  itemType: TripItemType
+  inventoryId: string
+  snapshotPriceCents: number | null | undefined
+  snapshotCurrencyCode: string | null | undefined
+  snapshotTimestamp?: Date | string | null
+}) => {
+  try {
+    const normalized = normalizeTripItemSnapshotCore(input)
+
+    return {
+      inventoryId: normalized.inventoryId,
+      snapshotPriceCents:
+        normalized.snapshotPriceCents == null
+          ? 0
+          : normalizePriceCents(normalized.snapshotPriceCents, normalized.snapshotPriceCents),
+      snapshotCurrencyCode: normalized.snapshotCurrencyCode || DEFAULT_CURRENCY,
+      snapshotTimestamp: normalized.snapshotTimestamp,
+    }
+  } catch (error) {
+    return toTripItemSnapshotError(error)
+  }
+}
+
+const normalizeSnapshotMetadata = (input: {
+  itemType: TripItemType
+  inventoryId: string
+  metadata: unknown
+  providerInventoryId: number | null
+}) => {
+  try {
+    return buildTripItemSnapshotMetadata({
+      itemType: input.itemType,
+      inventoryId: input.inventoryId,
+      metadata: input.metadata,
+      providerInventoryId: input.providerInventoryId,
+    })
+  } catch (error) {
+    return toTripItemSnapshotError(error)
+  }
+}
+
+const resolveStoredProviderInventoryId = (input: {
+  itemType: TripItemType
+  hotelId: number | null
+  flightItineraryId: number | null
+  carInventoryId: number | null
+}) => {
+  if (input.itemType === 'hotel') return input.hotelId
+  if (input.itemType === 'flight') return input.flightItineraryId
+  return input.carInventoryId
+}
 
 const titleCaseToken = (value: string) => {
   return String(value || '')
@@ -814,10 +804,17 @@ const resolveHotelTripItem = async (
   const startDate = toIsoDate(candidate.startDate)
   const endDate = toIsoDate(candidate.endDate)
   const fallbackSubtitle = `${row.neighborhood} · ${row.cityName}`
+  const normalizedSnapshot = normalizeSnapshotCore({
+    itemType: 'hotel',
+    inventoryId: candidate.inventoryId,
+    snapshotPriceCents: candidate.priceCents ?? row.priceCents,
+    snapshotCurrencyCode: candidate.currencyCode || row.currencyCode,
+    snapshotTimestamp: new Date(),
+  })
 
   return {
     itemType: 'hotel',
-    inventoryId: candidate.inventoryId,
+    inventoryId: normalizedSnapshot.inventoryId,
     hotelId: row.id,
     flightItineraryId: null,
     carInventoryId: null,
@@ -825,17 +822,19 @@ const resolveHotelTripItem = async (
     endCityId: row.cityId,
     startDate,
     endDate,
-    snapshotPriceCents: normalizePriceCents(candidate.priceCents, row.priceCents),
-    snapshotCurrencyCode: normalizeCurrencyCode(candidate.currencyCode || row.currencyCode),
+    snapshotPriceCents: normalizedSnapshot.snapshotPriceCents,
+    snapshotCurrencyCode: normalizedSnapshot.snapshotCurrencyCode,
+    snapshotTimestamp: normalizedSnapshot.snapshotTimestamp,
     title: String(candidate.title || '').trim() || row.name,
     subtitle: String(candidate.subtitle || '').trim() || fallbackSubtitle,
     imageUrl: String(candidate.imageUrl || '').trim() || null,
     meta: normalizeMeta(candidate.meta),
-    metadata: writeTripItemInventoryMetadata(
-      normalizeCandidateMetadata(candidate.metadata),
-      candidate,
+    metadata: normalizeSnapshotMetadata({
+      itemType: 'hotel',
+      inventoryId: normalizedSnapshot.inventoryId,
+      metadata: candidate.metadata,
       providerInventoryId,
-    ),
+    }),
   }
 }
 
@@ -879,10 +878,17 @@ const resolveCarTripItem = async (
   const startDate = toIsoDate(candidate.startDate)
   const endDate = toIsoDate(candidate.endDate)
   const fallbackSubtitle = `${row.locationName} · ${row.cityName}`
+  const normalizedSnapshot = normalizeSnapshotCore({
+    itemType: 'car',
+    inventoryId: candidate.inventoryId,
+    snapshotPriceCents: candidate.priceCents ?? row.priceCents,
+    snapshotCurrencyCode: candidate.currencyCode || row.currencyCode,
+    snapshotTimestamp: new Date(),
+  })
 
   return {
     itemType: 'car',
-    inventoryId: candidate.inventoryId,
+    inventoryId: normalizedSnapshot.inventoryId,
     hotelId: null,
     flightItineraryId: null,
     carInventoryId: row.id,
@@ -890,17 +896,19 @@ const resolveCarTripItem = async (
     endCityId: row.cityId,
     startDate,
     endDate,
-    snapshotPriceCents: normalizePriceCents(candidate.priceCents, row.priceCents),
-    snapshotCurrencyCode: normalizeCurrencyCode(candidate.currencyCode || row.currencyCode),
+    snapshotPriceCents: normalizedSnapshot.snapshotPriceCents,
+    snapshotCurrencyCode: normalizedSnapshot.snapshotCurrencyCode,
+    snapshotTimestamp: normalizedSnapshot.snapshotTimestamp,
     title: String(candidate.title || '').trim() || row.providerName,
     subtitle: String(candidate.subtitle || '').trim() || fallbackSubtitle,
     imageUrl: String(candidate.imageUrl || '').trim() || null,
     meta: normalizeMeta(candidate.meta),
-    metadata: writeTripItemInventoryMetadata(
-      normalizeCandidateMetadata(candidate.metadata),
-      candidate,
+    metadata: normalizeSnapshotMetadata({
+      itemType: 'car',
+      inventoryId: normalizedSnapshot.inventoryId,
+      metadata: candidate.metadata,
       providerInventoryId,
-    ),
+    }),
   }
 }
 
@@ -962,10 +970,17 @@ const resolveFlightTripItem = async (
   const fallbackSubtitle = `${row.originCityName} → ${row.destinationCityName}`
   const normalizedMeta = normalizeMeta(candidate.meta)
   const fallbackMeta = [row.stopsLabel, titleCaseToken(row.cabinClass)]
+  const normalizedSnapshot = normalizeSnapshotCore({
+    itemType: 'flight',
+    inventoryId: candidate.inventoryId,
+    snapshotPriceCents: candidate.priceCents ?? row.priceCents,
+    snapshotCurrencyCode: candidate.currencyCode || row.currencyCode,
+    snapshotTimestamp: new Date(),
+  })
 
   return {
     itemType: 'flight',
-    inventoryId: candidate.inventoryId,
+    inventoryId: normalizedSnapshot.inventoryId,
     hotelId: null,
     flightItineraryId: row.id,
     carInventoryId: null,
@@ -976,17 +991,19 @@ const resolveFlightTripItem = async (
     // compare like-for-like.
     startDate: serviceDate,
     endDate: serviceDate,
-    snapshotPriceCents: normalizePriceCents(candidate.priceCents, row.priceCents),
-    snapshotCurrencyCode: normalizeCurrencyCode(candidate.currencyCode || row.currencyCode),
+    snapshotPriceCents: normalizedSnapshot.snapshotPriceCents,
+    snapshotCurrencyCode: normalizedSnapshot.snapshotCurrencyCode,
+    snapshotTimestamp: normalizedSnapshot.snapshotTimestamp,
     title: String(candidate.title || '').trim() || row.airlineName,
     subtitle: String(candidate.subtitle || '').trim() || fallbackSubtitle,
     imageUrl: String(candidate.imageUrl || '').trim() || null,
     meta: normalizedMeta.length ? normalizedMeta : fallbackMeta,
-    metadata: writeTripItemInventoryMetadata(
-      normalizeCandidateMetadata(candidate.metadata),
-      candidate,
+    metadata: normalizeSnapshotMetadata({
+      itemType: 'flight',
+      inventoryId: normalizedSnapshot.inventoryId,
+      metadata: candidate.metadata,
       providerInventoryId,
-    ),
+    }),
   }
 }
 
@@ -1043,6 +1060,7 @@ const readTripItems = async (tripId: number): Promise<TripItemRecord[]> => {
       id: tripItems.id,
       tripId: tripItems.tripId,
       itemType: tripItems.itemType,
+      inventoryId: snapshotColumns.inventoryId,
       position: tripItems.position,
       title: tripItems.title,
       subtitle: tripItems.subtitle,
@@ -1129,15 +1147,7 @@ const readTripItems = async (tripId: number): Promise<TripItemRecord[]> => {
       id: row.id,
       tripId: row.tripId,
       itemType: row.itemType,
-      inventoryId: readTripItemInventoryId({
-        itemType: row.itemType,
-        metadata,
-        hotelId: row.hotelId,
-        flightItineraryId: row.flightItineraryId,
-        carInventoryId: row.carInventoryId,
-        startDate: row.startDate,
-        endDate: row.endDate,
-      }),
+      inventoryId: row.inventoryId,
       position: row.position,
       title: row.title,
       subtitle: row.subtitle,
@@ -2152,7 +2162,7 @@ const buildReplacementTripItemRecord = async (
     endDate: snapshot.endDate,
     snapshotPriceCents: snapshot.snapshotPriceCents,
     snapshotCurrencyCode: snapshot.snapshotCurrencyCode,
-    snapshotTimestamp: new Date().toISOString(),
+    snapshotTimestamp: snapshot.snapshotTimestamp,
     currentPriceCents,
     currentCurrencyCode,
     priceDriftStatus: getPriceDriftStatus(
@@ -3256,6 +3266,7 @@ export async function addItemToTrip(tripId: number, candidate: TripItemCandidate
       await tx.insert(tripItems).values({
         tripId,
         itemType: snapshot.itemType,
+        inventoryId: snapshot.inventoryId,
         position: nextPosition,
         hotelId: snapshot.hotelId,
         flightItineraryId: snapshot.flightItineraryId,
@@ -3266,6 +3277,7 @@ export async function addItemToTrip(tripId: number, candidate: TripItemCandidate
         endDate: snapshot.endDate,
         snapshotPriceCents: snapshot.snapshotPriceCents,
         snapshotCurrencyCode: snapshot.snapshotCurrencyCode,
+        snapshotTimestamp: new Date(snapshot.snapshotTimestamp),
         title: snapshot.title,
         subtitle: snapshot.subtitle,
         imageUrl: snapshot.imageUrl,
@@ -3523,17 +3535,44 @@ export async function restoreTripRollbackDraft(
 ): Promise<TripDetails> {
   return withTripSchemaGuard(async () => {
     const db = getDb()
+    requireTripSnapshotColumns()
+
+    const restoredItems = draft.items.map((item) => {
+      const normalizedSnapshot = normalizeSnapshotCore({
+        itemType: item.itemType,
+        inventoryId: item.inventoryId,
+        snapshotPriceCents: item.snapshotPriceCents,
+        snapshotCurrencyCode: item.snapshotCurrencyCode,
+        snapshotTimestamp: item.snapshotTimestamp,
+      })
+
+      return {
+        ...item,
+        inventoryId: normalizedSnapshot.inventoryId,
+        snapshotPriceCents: normalizedSnapshot.snapshotPriceCents,
+        snapshotCurrencyCode: normalizedSnapshot.snapshotCurrencyCode,
+        snapshotTimestamp: normalizedSnapshot.snapshotTimestamp,
+        metadata: normalizeSnapshotMetadata({
+          itemType: item.itemType,
+          inventoryId: normalizedSnapshot.inventoryId,
+          metadata: item.metadata,
+          providerInventoryId: resolveStoredProviderInventoryId(item),
+        }),
+      }
+    })
+
     await db.transaction(async (tx) => {
       await assertTripExists(tx, tripId)
 
       await tx.delete(tripItems).where(eq(tripItems.tripId, tripId))
 
-      if (draft.items.length) {
+      if (restoredItems.length) {
         await tx.insert(tripItems).values(
-          draft.items.map((item) => ({
+          restoredItems.map((item) => ({
             id: item.id,
             tripId,
             itemType: item.itemType,
+            inventoryId: item.inventoryId,
             position: item.position,
             hotelId: item.hotelId,
             flightItineraryId: item.flightItineraryId,
@@ -3549,10 +3588,7 @@ export async function restoreTripRollbackDraft(
             subtitle: item.subtitle,
             imageUrl: item.imageUrl,
             meta: item.meta,
-            metadata: {
-              ...normalizeMetadata(item.metadata),
-              [TRIP_ITEM_INVENTORY_ID_KEY]: item.inventoryId,
-            },
+            metadata: item.metadata,
           })),
         )
       }
@@ -3636,6 +3672,7 @@ export async function updateTripItem(
           id: itemId,
           tripId,
           itemType: snapshot.itemType,
+          inventoryId: snapshot.inventoryId,
           position: existingItem.position,
           hotelId: snapshot.hotelId,
           flightItineraryId: snapshot.flightItineraryId,
@@ -3646,7 +3683,7 @@ export async function updateTripItem(
           endDate: snapshot.endDate,
           snapshotPriceCents: snapshot.snapshotPriceCents,
           snapshotCurrencyCode: snapshot.snapshotCurrencyCode,
-          snapshotTimestamp: new Date(),
+          snapshotTimestamp: new Date(snapshot.snapshotTimestamp),
           title: snapshot.title,
           subtitle: snapshot.subtitle,
           imageUrl: snapshot.imageUrl,

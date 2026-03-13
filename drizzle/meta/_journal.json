@@ -29,6 +29,13 @@
       "when": 1773003600000,
       "tag": "0003_trip_price_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1773090000000,
+      "tag": "0004_trip_item_inventory_snapshot",
+      "breakpoints": true
     }
   ]
 }
