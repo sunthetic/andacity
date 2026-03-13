@@ -31,7 +31,8 @@ export const HotelResultCard = component$(
         nightlyRate: h.priceFrom,
         nights,
       });
-    const href = detailHref || `/hotels/${encodeURIComponent(h.slug)}`;
+    const href =
+      h.searchEntity?.href || detailHref || `/hotels/${encodeURIComponent(h.slug)}`;
     const onOpenDetail$ = $(() => {
       if (!telemetry) return;
 
@@ -80,9 +81,9 @@ export const HotelResultCard = component$(
 
         <div q:slot="identity">
           <ResultCardHeader
-            title={h.searchEntity?.provider || h.name}
-            subtitle={h.neighborhood}
-            price={h.searchEntity?.price ?? h.priceFrom}
+            title={h.searchEntity?.title || h.name}
+            subtitle={h.searchEntity?.subtitle || h.neighborhood}
+            price={h.priceFrom}
             currency={h.currency}
             href={href}
             onClick$={onOpenDetail$}

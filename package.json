@@ -81,6 +81,7 @@
     "qa:guided-booking": "node scripts/validate/guided-booking-qa.mjs",
     "smoke:trips": "node scripts/validate/trip-pricing-smoke.mjs",
     "start": "vite --open --mode ssr",
+    "test": "node --experimental-strip-types --test src/lib/search/search-entity.test.ts",
     "qwik": "qwik"
   },
   "devDependencies": {

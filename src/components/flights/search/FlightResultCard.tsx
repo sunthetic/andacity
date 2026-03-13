@@ -42,9 +42,9 @@ export const FlightResultCard = component$(({ flight, telemetry }: FlightResultC
     >
       <div q:slot="identity">
         <ResultCardHeader
-          title={flight.searchEntity?.provider || flight.airline}
-          subtitle={`${flight.origin} to ${flight.destination}`}
-          price={flight.searchEntity?.price ?? flight.price}
+          title={flight.searchEntity?.title || flight.airline}
+          subtitle={flight.searchEntity?.subtitle || `${flight.origin} to ${flight.destination}`}
+          price={flight.price}
           currency={flight.currency}
         />
       </div>

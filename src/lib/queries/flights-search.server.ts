@@ -10,7 +10,7 @@ import {
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import { emitSearchMetrics } from '~/lib/metrics/search-metrics'
 import { getCachedResults, setCachedResults } from '~/lib/search/search-cache'
-import { buildFlightSearchEntity, toBookableEntity } from '~/lib/search/search-entities'
+import { toBookableEntity, toFlightSearchEntity } from '~/lib/search/search-entity'
 import {
   EMPTY_FLIGHT_SEARCH_FACETS,
   normalizeFlightSort,
@@ -277,28 +277,10 @@ export async function loadFlightResultsPageFromDb(
 
       const flightNumber =
         String(row.flightNumber || '').trim() || String(row.seedKey || row.id).split('-').pop() || String(row.id)
-      const searchEntity = buildFlightSearchEntity({
-        providerInventoryId: row.id,
-        price: toPriceAmount(row.priceCents),
-        currency: row.currencyCode,
-        provider: row.airline,
-        snapshotTimestamp:
-          row.freshnessTimestamp instanceof Date
-            ? row.freshnessTimestamp.toISOString()
-            : String(row.freshnessTimestamp || snapshotTimestamp),
-        airlineCode: row.airlineCode || row.airline,
-        flightNumber,
-        departDate: row.serviceDate,
-        originCode: row.originIata,
-        destinationCode: row.destinationIata,
-        cabinClass: row.cabinClass,
-        fareCode: row.fareCode,
-      })
-
-      return {
+      const flightResult: Omit<FlightResult, 'searchEntity' | 'bookableEntity'> = {
         id: row.seedKey || `flight-${row.id}-${effectiveOffset + index}`,
         itineraryId: row.id,
-        canonicalInventoryId: searchEntity.inventoryId,
+        canonicalInventoryId: undefined,
         serviceDate: row.serviceDate,
         requestedServiceDate: input.departDate || undefined,
         airline: row.airline,
@@ -330,6 +312,20 @@ export async function loadFlightResultsPageFromDb(
           ...flightAssessment,
         }),
         freshness,
+      }
+      const searchEntity = toFlightSearchEntity(flightResult, {
+        departDate: input.departDate || row.serviceDate,
+        priceAmountCents: row.priceCents,
+        snapshotTimestamp:
+          row.freshnessTimestamp instanceof Date
+            ? row.freshnessTimestamp.toISOString()
+            : String(row.freshnessTimestamp || snapshotTimestamp),
+        durationMinutes: row.durationMinutes,
+      })
+
+      return {
+        ...flightResult,
+        canonicalInventoryId: searchEntity.inventoryId,
         searchEntity,
         bookableEntity: toBookableEntity(searchEntity),
       }

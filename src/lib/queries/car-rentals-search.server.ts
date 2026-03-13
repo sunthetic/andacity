@@ -6,7 +6,7 @@ import {
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import { emitSearchMetrics } from '~/lib/metrics/search-metrics'
 import { getCachedResults, setCachedResults } from '~/lib/search/search-cache'
-import { buildCarSearchEntity, toBookableEntity } from '~/lib/search/search-entities'
+import { toBookableEntity, toCarSearchEntity } from '~/lib/search/search-entity'
 import {
   normalizeCarRentalsSortValue,
   type CarRentalsSortKey,
@@ -22,6 +22,8 @@ import { findTopTravelCity } from '~/seed/cities/top-100.js'
 import type { CarRentalResult } from '~/types/car-rentals/search'
 
 const DEFAULT_PAGE_SIZE = 6
+const FALLBACK_CAR_PICKUP_DATETIME = '1970-01-01T10:00'
+const FALLBACK_CAR_DROPOFF_DATETIME = '1970-01-02T10:00'
 
 const normalizeToken = (value: string) =>
   String(value || '')
@@ -230,6 +232,17 @@ const toSearchDateTime = (value: string | null | undefined, fallback: string) =>
   return text ? `${text}T10:00` : fallback
 }
 
+const buildCarRentalResultHref = (slug: string, input: LoadCarRentalResultsPageInput) => {
+  const base = `/car-rentals/${encodeURIComponent(slug)}`
+  const searchParams = new URLSearchParams()
+
+  if (input.pickupDate) searchParams.set('pickupDate', input.pickupDate)
+  if (input.dropoffDate) searchParams.set('dropoffDate', input.dropoffDate)
+
+  const query = searchParams.toString()
+  return query ? `${base}?${query}` : base
+}
+
 export async function loadCarRentalResultsPageFromDb(
   input: LoadCarRentalResultsPageInput,
 ): Promise<LoadCarRentalResultsPageOutput> {
@@ -319,33 +332,20 @@ export async function loadCarRentalResultsPageFromDb(
     results: rows.map((row, index) => {
       const priceFrom = toPriceAmount(row.fromDailyCents)
       const rating = Number(row.rating)
+      const pickupDateTime = toSearchDateTime(input.pickupDate, FALLBACK_CAR_PICKUP_DATETIME)
+      const dropoffDateTime = toSearchDateTime(
+        input.dropoffDate,
+        input.pickupDate ? `${input.pickupDate}T10:00` : FALLBACK_CAR_DROPOFF_DATETIME,
+      )
 
       const freshness = buildInventoryFreshness({
         checkedAt: row.freshnessTimestamp,
         profile: 'inventory_snapshot',
       })
-      const searchEntity = buildCarSearchEntity({
-        providerInventoryId: row.id,
-        price: priceFrom,
-        currency: row.currencyCode,
-        provider: row.providerName,
-        snapshotTimestamp:
-          row.freshnessTimestamp instanceof Date
-            ? row.freshnessTimestamp.toISOString()
-            : String(row.freshnessTimestamp || snapshotTimestamp),
-        providerLocationId: row.id,
-        pickupDateTime: toSearchDateTime(input.pickupDate, '1970-01-01T10:00'),
-        dropoffDateTime: toSearchDateTime(
-          input.dropoffDate,
-          input.pickupDate ? `${input.pickupDate}T10:00` : '1970-01-02T10:00',
-        ),
-        vehicleClass: row.category || row.vehicleName || 'standard',
-      })
-
-      return {
+      const carResult: Omit<CarRentalResult, 'searchEntity' | 'bookableEntity'> = {
         id: `car-${row.slug}-${effectiveOffset + index}`,
         inventoryId: row.id,
-        canonicalInventoryId: searchEntity.inventoryId,
+        canonicalInventoryId: undefined,
         slug: row.slug,
         name: row.providerName,
         city: row.cityName,
@@ -382,6 +382,25 @@ export async function loadCarRentalResultsPageFromDb(
           match: hasExactDates ? 'exact' : 'unknown',
         }),
         freshness,
+      }
+      const searchEntity = toCarSearchEntity(carResult, {
+        providerLocationId: row.locationId ?? row.id,
+        pickupDateTime,
+        dropoffDateTime,
+        vehicleClass: row.category || row.vehicleName || 'standard',
+        priceAmountCents: row.fromDailyCents,
+        snapshotTimestamp:
+          row.freshnessTimestamp instanceof Date
+            ? row.freshnessTimestamp.toISOString()
+            : String(row.freshnessTimestamp || snapshotTimestamp),
+        href: buildCarRentalResultHref(row.slug, input),
+        imageUrl: row.imageUrl || '/img/demo/car-1.jpg',
+        assumedRentalWindow: !input.pickupDate || !input.dropoffDate,
+      })
+
+      return {
+        ...carResult,
+        canonicalInventoryId: searchEntity.inventoryId,
         searchEntity,
         bookableEntity: toBookableEntity(searchEntity),
       }

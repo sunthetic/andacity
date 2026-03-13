@@ -141,6 +141,10 @@ export const buildCarResultSavedItem = (
   priceDisplay: PriceDisplayContract,
   href = buildCarRentalDetailHref(result.slug),
 ): SavedItem => {
+  const resolvedHref = result.searchEntity?.href || href
+  const title = result.searchEntity?.title || result.name
+  const subtitle =
+    result.searchEntity?.subtitle || result.vehicleName || result.category || 'Standard car'
   const inventoryId =
     result.searchEntity?.inventoryId ||
     (result.inventoryId != null
@@ -160,8 +164,8 @@ export const buildCarResultSavedItem = (
   return {
     id: inventoryId || result.slug,
     vertical: CARS_VERTICAL,
-    title: result.name,
-    subtitle: result.vehicleName || result.category || 'Standard car',
+    title,
+    subtitle,
     price,
     meta: [
       buildSecondaryPrice(priceDisplay, result.currency),
@@ -170,8 +174,8 @@ export const buildCarResultSavedItem = (
       result.seats != null ? `${result.seats} seats` : '',
       result.bags || '',
     ].filter(Boolean),
-    href,
-    image: result.image || undefined,
+    href: resolvedHref,
+    image: result.searchEntity?.imageUrl || result.image || undefined,
     compareData: {
       price: price || 'Price unavailable',
       vehicleClass: result.category || result.vehicleName || 'Standard rental',
@@ -199,9 +203,9 @@ export const buildCarResultSavedItem = (
             endDate: toOptionalDate(dates?.checkOut),
             priceCents: Math.round((priceDisplay.baseTotalAmount ?? priceDisplay.baseAmount ?? 0) * 100),
             currencyCode: result.currency,
-            title: result.name,
-            subtitle: result.vehicleName || result.category || 'Standard car',
-            imageUrl: result.image || undefined,
+            title,
+            subtitle,
+            imageUrl: result.searchEntity?.imageUrl || result.image || undefined,
             meta: [
               buildSecondaryPrice(priceDisplay, result.currency),
               result.pickupArea,
@@ -291,6 +295,9 @@ export const buildFlightSavedItem = (
   priceDisplay: PriceDisplayContract,
   href: string,
 ): SavedItem => {
+  const resolvedHref = result.searchEntity?.href || href
+  const title = result.searchEntity?.title || result.airline
+  const subtitle = result.searchEntity?.subtitle || `${result.origin} → ${result.destination}`
   const inventoryId =
     result.searchEntity?.inventoryId ||
     (result.itineraryId != null
@@ -308,8 +315,8 @@ export const buildFlightSavedItem = (
   return {
     id: inventoryId || result.id,
     vertical: FLIGHTS_VERTICAL,
-    title: result.airline,
-    subtitle: `${result.origin} → ${result.destination}`,
+    title,
+    subtitle,
     price,
     meta: [
       buildSecondaryPrice(priceDisplay, result.currency),
@@ -319,7 +326,7 @@ export const buildFlightSavedItem = (
       result.stopsLabel,
       result.cabinClass ? titleCaseFlightToken(result.cabinClass) : '',
     ].filter(Boolean),
-    href,
+    href: resolvedHref,
     compareData: {
       price: price || 'Price unavailable',
       airline: result.airline,
@@ -340,8 +347,8 @@ export const buildFlightSavedItem = (
             endDate: result.requestedServiceDate || result.serviceDate,
             priceCents: Math.round((priceDisplay.baseTotalAmount ?? priceDisplay.baseAmount ?? 0) * 100),
             currencyCode: result.currency,
-            title: result.airline,
-            subtitle: `${result.origin} → ${result.destination}`,
+            title,
+            subtitle,
             meta: [
               `${result.departureTime} → ${result.arrivalTime}`,
               result.duration,

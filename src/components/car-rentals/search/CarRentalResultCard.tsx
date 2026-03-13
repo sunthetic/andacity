@@ -15,7 +15,7 @@ import { buildCarPriceDisplay } from '~/lib/pricing/price-display'
 import type { CarRentalResult } from '~/types/car-rentals/search'
 
 export const CarRentalResultCard = component$(({ r, days, detailHref, telemetry }: CarRentalResultCardProps) => {
-  const href = detailHref || `/car-rentals/${encodeURIComponent(r.slug)}`
+  const href = r.searchEntity?.href || detailHref || `/car-rentals/${encodeURIComponent(r.slug)}`
   const onOpenDetail$ = $(() => {
     if (!telemetry) return
 
@@ -57,11 +57,14 @@ export const CarRentalResultCard = component$(({ r, days, detailHref, telemetry 
 
       <div q:slot="identity">
         <ResultCardHeader
-          title={r.searchEntity?.provider || r.name}
-          subtitle={[r.pickupArea, r.category, r.transmission, r.seats != null ? `${r.seats} seats` : '']
-            .filter(Boolean)
-            .join(' · ')}
-          price={r.searchEntity?.price ?? r.priceFrom}
+          title={r.searchEntity?.title || r.name}
+          subtitle={
+            r.searchEntity?.subtitle ||
+            [r.pickupArea, r.category, r.transmission, r.seats != null ? `${r.seats} seats` : '']
+              .filter(Boolean)
+              .join(' · ')
+          }
+          price={r.priceFrom}
           currency={r.currency}
           href={href}
           onClick$={onOpenDetail$}
