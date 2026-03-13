@@ -340,6 +340,11 @@ test('default registry exposes the concrete flight provider and the legacy fligh
   assert.equal(getProvider('flight')?.provider, 'flight')
 })
 
+test('default registry exposes the concrete car provider and the legacy car alias', () => {
+  assert.equal(getProvider('car-default')?.provider, 'car-default')
+  assert.equal(getProvider('car')?.provider, 'car')
+})
+
 test('resolveInventoryRecord uses a registered provider adapter when one is specified', async () => {
   clearProviderRegistry()
 

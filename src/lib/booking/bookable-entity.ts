@@ -29,6 +29,11 @@ import type {
   HotelPriceSummary,
   HotelProviderMetadata,
 } from '~/types/hotels/provider'
+import type {
+  CarPolicySummary,
+  CarPriceSummary,
+  CarProviderMetadata,
+} from '~/types/car-rentals/provider'
 import type { TripItem, TripItemCandidate } from '~/types/trips/trip'
 
 export class BookableEntityValidationError extends Error {
@@ -130,6 +135,27 @@ const cloneHotelPriceSummary = (
 const cloneHotelProviderMetadata = (
   metadata: HotelProviderMetadata | null | undefined,
 ): HotelProviderMetadata | null | undefined => {
+  if (!metadata) return metadata
+  return { ...metadata }
+}
+
+const cloneCarPolicy = (
+  policy: CarPolicySummary | null | undefined,
+): CarPolicySummary | null | undefined => {
+  if (!policy) return policy
+  return { ...policy }
+}
+
+const cloneCarPriceSummary = (
+  summary: CarPriceSummary | null | undefined,
+): CarPriceSummary | null | undefined => {
+  if (!summary) return summary
+  return { ...summary }
+}
+
+const cloneCarProviderMetadata = (
+  metadata: CarProviderMetadata | null | undefined,
+): CarProviderMetadata | null | undefined => {
   if (!metadata) return metadata
   return { ...metadata }
 }
@@ -348,6 +374,27 @@ const buildCarEntity = (input: {
   source: BookableEntitySource
   priceSource?: BookablePriceSource
   providerInventoryId: number | null
+  pickupLocationName?: string | null
+  dropoffLocationName?: string | null
+  pickupLocationType?: string | null
+  dropoffLocationType?: string | null
+  pickupAddressLine?: string | null
+  dropoffAddressLine?: string | null
+  transmissionType?: string | null
+  seatingCapacity?: number | null
+  luggageCapacity?: string | null
+  doors?: number | null
+  airConditioning?: boolean | null
+  fuelPolicy?: string | null
+  mileagePolicy?: string | null
+  ratePlanCode?: string | null
+  ratePlan?: string | null
+  policy?: CarPolicySummary | null
+  priceSummary?: CarPriceSummary | null
+  inclusions?: string[] | null
+  badges?: string[] | null
+  features?: string[] | null
+  providerMetadata?: CarProviderMetadata | null
   assumedRentalWindow?: boolean
   providerLocationId: string | null
   pickupDateTime: string | null
@@ -378,6 +425,27 @@ const buildCarEntity = (input: {
       source: input.source,
       priceSource,
       providerInventoryId: input.providerInventoryId,
+      pickupLocationName: toNullableText(input.pickupLocationName),
+      dropoffLocationName: toNullableText(input.dropoffLocationName),
+      pickupLocationType: toNullableText(input.pickupLocationType),
+      dropoffLocationType: toNullableText(input.dropoffLocationType),
+      pickupAddressLine: toNullableText(input.pickupAddressLine),
+      dropoffAddressLine: toNullableText(input.dropoffAddressLine),
+      transmissionType: toNullableText(input.transmissionType),
+      seatingCapacity: toPositiveInteger(input.seatingCapacity),
+      luggageCapacity: toNullableText(input.luggageCapacity),
+      doors: toPositiveInteger(input.doors),
+      airConditioning: toNullableBoolean(input.airConditioning),
+      fuelPolicy: toNullableText(input.fuelPolicy),
+      mileagePolicy: toNullableText(input.mileagePolicy),
+      ratePlanCode: toNullableText(input.ratePlanCode),
+      ratePlan: toNullableText(input.ratePlan),
+      policy: cloneCarPolicy(input.policy) || null,
+      priceSummary: cloneCarPriceSummary(input.priceSummary) || null,
+      inclusions: cloneStringArray(input.inclusions) || null,
+      badges: cloneStringArray(input.badges) || null,
+      features: cloneStringArray(input.features) || null,
+      providerMetadata: cloneCarProviderMetadata(input.providerMetadata) || null,
       assumedRentalWindow: input.assumedRentalWindow || undefined,
     }),
   }
@@ -661,6 +729,47 @@ export const toBookableEntityFromSearchEntity = (entity: SearchEntity): Bookable
       price: buildBookableEntityPrice(car.price),
       source: 'search',
       providerInventoryId: toPositiveInteger(car.payload.providerInventoryId),
+      pickupLocationName:
+        toNullableText(car.payload.pickupLocationName) ??
+        toNullableText(car.metadata.pickupArea),
+      dropoffLocationName:
+        toNullableText(car.payload.dropoffLocationName) ??
+        toNullableText(car.metadata.dropoffArea) ??
+        toNullableText(car.metadata.pickupArea),
+      pickupLocationType:
+        toNullableText(car.payload.pickupLocationType) ??
+        toNullableText(car.metadata.pickupLocationType),
+      dropoffLocationType:
+        toNullableText(car.payload.dropoffLocationType) ??
+        toNullableText(car.metadata.dropoffLocationType) ??
+        toNullableText(car.metadata.pickupLocationType),
+      pickupAddressLine: toNullableText(car.payload.pickupAddressLine),
+      dropoffAddressLine:
+        toNullableText(car.payload.dropoffAddressLine) ??
+        toNullableText(car.payload.pickupAddressLine),
+      transmissionType:
+        toNullableText(car.payload.transmissionType) ??
+        toNullableText(car.metadata.transmission),
+      seatingCapacity:
+        toPositiveInteger(car.payload.seatingCapacity) ??
+        toPositiveInteger(car.metadata.seats),
+      luggageCapacity:
+        toNullableText(car.payload.luggageCapacity) ??
+        toNullableText(car.metadata.luggageCapacity),
+      doors:
+        toPositiveInteger(car.payload.doors) ??
+        toPositiveInteger(car.metadata.doors),
+      airConditioning: toNullableBoolean(car.payload.airConditioning),
+      fuelPolicy: toNullableText(car.payload.fuelPolicy),
+      mileagePolicy: toNullableText(car.payload.mileagePolicy),
+      ratePlanCode: toNullableText(car.payload.ratePlanCode),
+      ratePlan: toNullableText(car.payload.ratePlan),
+      policy: cloneCarPolicy(car.payload.policy) || null,
+      priceSummary: cloneCarPriceSummary(car.payload.priceSummary) || null,
+      inclusions: cloneStringArray(car.payload.inclusions) || null,
+      badges: cloneStringArray(car.payload.badges) || null,
+      features: cloneStringArray(car.payload.features) || null,
+      providerMetadata: cloneCarProviderMetadata(car.payload.providerMetadata) || null,
       assumedRentalWindow: car.payload.assumedRentalWindow || undefined,
       providerLocationId:
         toNullableText(car.payload.providerLocationId) ??

@@ -5,6 +5,11 @@ export type SearchParamsFilters = {
   starRating?: Array<string | number> | null
   guestRating?: Array<string | number> | null
   amenities?: string[] | null
+  vehicleClass?: Array<string | number> | null
+  transmission?: string[] | null
+  pickupType?: string | null
+  seatsMin?: number | null
+  payAtCounterOnly?: boolean | null
   refundableOnly?: boolean | null
   sort?: string | null
 }
@@ -24,5 +29,6 @@ export type SearchParams = {
   rooms?: number
   pickupLocation?: string
   dropoffLocation?: string
+  driverAge?: number
   filters?: SearchParamsFilters
 }

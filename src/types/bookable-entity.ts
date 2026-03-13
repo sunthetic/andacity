@@ -9,6 +9,11 @@ import type {
   HotelPriceSummary,
   HotelProviderMetadata,
 } from "~/types/hotels/provider";
+import type {
+  CarPolicySummary,
+  CarPriceSummary,
+  CarProviderMetadata,
+} from "~/types/car-rentals/provider";
 
 export const BOOKABLE_VERTICALS = ["flight", "hotel", "car"] as const;
 export type BookableVertical = (typeof BOOKABLE_VERTICALS)[number];
@@ -87,6 +92,27 @@ export type CarBookableEntityPayload = {
   source: BookableEntitySource;
   priceSource: BookablePriceSource;
   providerInventoryId: number | null;
+  pickupLocationName?: string | null;
+  dropoffLocationName?: string | null;
+  pickupLocationType?: string | null;
+  dropoffLocationType?: string | null;
+  pickupAddressLine?: string | null;
+  dropoffAddressLine?: string | null;
+  transmissionType?: string | null;
+  seatingCapacity?: number | null;
+  luggageCapacity?: string | null;
+  doors?: number | null;
+  airConditioning?: boolean | null;
+  fuelPolicy?: string | null;
+  mileagePolicy?: string | null;
+  ratePlanCode?: string | null;
+  ratePlan?: string | null;
+  policy?: CarPolicySummary | null;
+  priceSummary?: CarPriceSummary | null;
+  inclusions?: string[] | null;
+  badges?: string[] | null;
+  features?: string[] | null;
+  providerMetadata?: CarProviderMetadata | null;
   assumedRentalWindow?: boolean;
 };
 

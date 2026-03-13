@@ -9,6 +9,11 @@ import type {
   HotelPriceSummary,
   HotelProviderMetadata,
 } from "~/types/hotels/provider";
+import type {
+  CarPolicySummary,
+  CarPriceSummary,
+  CarProviderMetadata,
+} from "~/types/car-rentals/provider";
 
 export type SearchVertical = "flight" | "hotel" | "car";
 
@@ -62,6 +67,27 @@ export type CarSearchEntityPayload = {
   pickupDateTime: string | null;
   dropoffDateTime: string | null;
   vehicleClass: string | null;
+  pickupLocationName?: string | null;
+  dropoffLocationName?: string | null;
+  pickupLocationType?: string | null;
+  dropoffLocationType?: string | null;
+  pickupAddressLine?: string | null;
+  dropoffAddressLine?: string | null;
+  transmissionType?: string | null;
+  seatingCapacity?: number | null;
+  luggageCapacity?: string | null;
+  doors?: number | null;
+  airConditioning?: boolean | null;
+  fuelPolicy?: string | null;
+  mileagePolicy?: string | null;
+  ratePlanCode?: string | null;
+  ratePlan?: string | null;
+  policy?: CarPolicySummary | null;
+  priceSummary?: CarPriceSummary | null;
+  inclusions?: string[] | null;
+  badges?: string[] | null;
+  features?: string[] | null;
+  providerMetadata?: CarProviderMetadata | null;
   assumedRentalWindow?: boolean;
 };
 
@@ -132,6 +158,11 @@ export type CarSearchEntity<
     transmission?: string | null;
     seats?: number | null;
     pickupArea?: string | null;
+    dropoffArea?: string | null;
+    luggageCapacity?: string | null;
+    doors?: number | null;
+    pickupLocationType?: string | null;
+    dropoffLocationType?: string | null;
   };
 };
 
