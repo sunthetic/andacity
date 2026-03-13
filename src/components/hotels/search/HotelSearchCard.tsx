@@ -1,49 +1,51 @@
-import { component$, useSignal } from '@builder.io/qwik'
+import { component$, useSignal } from "@builder.io/qwik";
 import {
   BOOKING_SEARCH_CONTROL_CLASS,
   BookingSearchField,
   BookingSearchSurface,
   BookingValidationSummary,
-} from '~/components/booking-surface/SearchFormPrimitives'
+} from "~/components/booking-surface/SearchFormPrimitives";
+import { DateField } from "~/components/ui/DateField";
+import { normalizeIsoDate } from "~/lib/date/validateDate";
 
 export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
-  const destination = useSignal(props.initialDestination ?? '')
-  const checkIn = useSignal(props.initialCheckIn ?? '')
-  const checkOut = useSignal(props.initialCheckOut ?? '')
-  const guests = useSignal(props.initialGuests ?? '2 guests · 1 room')
-  const hasSubmitted = useSignal(false)
+  const destination = useSignal(props.initialDestination ?? "");
+  const checkIn = useSignal(props.initialCheckIn ?? "");
+  const checkOut = useSignal(props.initialCheckOut ?? "");
+  const guests = useSignal(props.initialGuests ?? "2 guests · 1 room");
+  const hasSubmitted = useSignal(false);
 
   const errors = validateSnapshot({
     destination: destination.value,
     checkIn: checkIn.value,
     checkOut: checkOut.value,
     guests: guests.value,
-  })
-  const isValid = errors.length === 0
+  });
+  const isValid = errors.length === 0;
 
   return (
     <BookingSearchSurface>
       <form
-        action={props.action ?? '/search/hotels/anywhere/1'}
+        action={props.action ?? "/search/hotels/anywhere/1"}
         method="get"
         preventdefault:submit
         noValidate
         onSubmit$={(_, form) => {
-          hasSubmitted.value = true
-          const snapshot = readSnapshot(form)
-          const submitErrors = validateSnapshot(snapshot)
-          if (submitErrors.length) return
+          hasSubmitted.value = true;
+          const snapshot = readSnapshot(form);
+          const submitErrors = validateSnapshot(snapshot);
+          if (submitErrors.length) return;
 
-          destination.value = snapshot.destination
-          checkIn.value = snapshot.checkIn
-          checkOut.value = snapshot.checkOut
-          guests.value = snapshot.guests
+          destination.value = snapshot.destination;
+          checkIn.value = snapshot.checkIn;
+          checkOut.value = snapshot.checkOut;
+          guests.value = snapshot.guests;
 
-          const destinationToken = toPathToken(snapshot.destination)
-          if (!destinationToken) return
+          const destinationToken = toPathToken(snapshot.destination);
+          if (!destinationToken) return;
 
-          form.action = `/search/hotels/${encodeURIComponent(destinationToken)}/1`
-          form.submit()
+          form.action = `/search/hotels/${encodeURIComponent(destinationToken)}/1`;
+          form.submit();
         }}
         class="grid gap-3 md:grid-cols-[minmax(0,2fr)_1fr_1fr_minmax(180px,0.95fr)_auto]"
       >
@@ -59,22 +61,27 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
         </BookingSearchField>
 
         <BookingSearchField label="Check-in" forId="hotel-check-in">
-          <input
+          <DateField
             id="hotel-check-in"
             name="checkIn"
-            type="date"
-            bind:value={checkIn}
-            class={BOOKING_SEARCH_CONTROL_CLASS}
+            value={checkIn}
+            required={true}
+            inputClass={BOOKING_SEARCH_CONTROL_CLASS}
+            iconLabel="Open check-in date picker"
+            overlayLabel="Check-in date picker"
           />
         </BookingSearchField>
 
         <BookingSearchField label="Check-out" forId="hotel-check-out">
-          <input
+          <DateField
             id="hotel-check-out"
             name="checkOut"
-            type="date"
-            bind:value={checkOut}
-            class={BOOKING_SEARCH_CONTROL_CLASS}
+            value={checkOut}
+            required={true}
+            inputClass={BOOKING_SEARCH_CONTROL_CLASS}
+            iconLabel="Open check-out date picker"
+            overlayLabel="Check-out date picker"
+            overlayPosition="right"
           />
         </BookingSearchField>
 
@@ -103,63 +110,65 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
 
       <BookingValidationSummary errors={errors} show={hasSubmitted.value} />
     </BookingSearchSurface>
-  )
-})
+  );
+});
 
 type HotelSearchCardProps = {
-  action?: string
-  initialDestination?: string
-  initialCheckIn?: string
-  initialCheckOut?: string
-  initialGuests?: string
-}
+  action?: string;
+  initialDestination?: string;
+  initialCheckIn?: string;
+  initialCheckOut?: string;
+  initialGuests?: string;
+};
 
 type HotelSubmitSnapshot = {
-  destination: string
-  checkIn: string
-  checkOut: string
-  guests: string
-}
+  destination: string;
+  checkIn: string;
+  checkOut: string;
+  guests: string;
+};
 
 const readSnapshot = (form: HTMLFormElement): HotelSubmitSnapshot => {
-  const fd = new FormData(form)
+  const fd = new FormData(form);
 
   return {
-    destination: String(fd.get('destination') || '').trim(),
-    checkIn: String(fd.get('checkIn') || '').trim(),
-    checkOut: String(fd.get('checkOut') || '').trim(),
-    guests: String(fd.get('guests') || '').trim(),
-  }
-}
+    destination: String(fd.get("destination") || "").trim(),
+    checkIn: String(fd.get("checkIn") || "").trim(),
+    checkOut: String(fd.get("checkOut") || "").trim(),
+    guests: String(fd.get("guests") || "").trim(),
+  };
+};
 
 const validateSnapshot = (snapshot: HotelSubmitSnapshot) => {
-  const validationErrors: string[] = []
+  const validationErrors: string[] = [];
+  const checkInDate = normalizeIsoDate(snapshot.checkIn);
+  const checkOutDate = normalizeIsoDate(snapshot.checkOut);
 
   if (!snapshot.destination) {
-    validationErrors.push('Enter a destination.')
+    validationErrors.push("Enter a destination.");
   }
 
-  if (!snapshot.checkIn) {
-    validationErrors.push('Select a check-in date.')
+  if (!checkInDate) {
+    validationErrors.push("Select a check-in date.");
   }
 
-  if (!snapshot.checkOut) {
-    validationErrors.push('Select a check-out date.')
+  if (!checkOutDate) {
+    validationErrors.push("Select a check-out date.");
   }
 
-  if (snapshot.checkIn && snapshot.checkOut && snapshot.checkOut <= snapshot.checkIn) {
-    validationErrors.push('Check-out must be after check-in.')
+  if (checkInDate && checkOutDate && checkOutDate <= checkInDate) {
+    validationErrors.push("Check-out must be after check-in.");
   }
 
-  return validationErrors
-}
+  return validationErrors;
+};
 
 const toPathToken = (value: string) => {
-  return String(value || '')
-    .normalize('NFKD')
-    .replaceAll(/[\u0300-\u036f]/g, '')
+  return String(value || "")
+    .normalize("NFKD")
+    .replaceAll(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, '-')
-    .replaceAll(/(^-|-$)/g, '')
-}
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/(^-|-$)/g, "");
+};

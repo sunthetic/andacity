@@ -17,6 +17,7 @@ import { CompareTray } from "~/components/save-compare/CompareTray";
 import { SaveButton } from "~/components/save-compare/SaveButton";
 import { AddToTripButton } from "~/components/trips/AddToTripButton";
 import { Page } from "~/components/site/Page";
+import { normalizeIsoDate } from "~/lib/date/validateDate";
 import {
   resolveAvailabilityAsyncState,
   summarizeAvailabilitySignals,
@@ -1156,12 +1157,6 @@ const parseRentalParams = (sp: URLSearchParams) => {
     dropoffDate,
     drivers,
   };
-};
-
-const normalizeIsoDate = (raw: string | null) => {
-  if (!raw) return null;
-  const text = String(raw).trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
 };
 
 const clampMaybeInt = (raw: string | null, min: number, max: number) => {

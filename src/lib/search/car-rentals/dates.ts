@@ -1,9 +1,4 @@
-export const normalizeIsoDate = (raw: string | null) => {
-  if (!raw) return null
-  const s = String(raw).trim()
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
-  return s
-}
+export { normalizeIsoDate } from '~/lib/date/validateDate'
 
 export const computeDays = (pickupDate: string | null, dropoffDate: string | null) => {
   if (!pickupDate || !dropoffDate) return null
