@@ -36,6 +36,7 @@ export type TripValidationSeverity =
 
 export const TRIP_ITEM_ISSUE_CODES = [
   "inventory_missing",
+  "inventory_unavailable",
   "sold_out",
   "price_changed",
   "currency_changed",

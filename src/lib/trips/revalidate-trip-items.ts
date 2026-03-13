@@ -3,6 +3,7 @@ import {
   normalizeTripItemSnapshotCurrencyCode,
   normalizeTripItemSnapshotPriceCents,
 } from '~/lib/trips/trip-item-snapshot'
+import type { PriceDriftStatus } from '~/types/pricing'
 import type {
   TripItemIssue,
   TripItemIssueCode,
@@ -31,6 +32,7 @@ export type ResolvedTripItemCurrentInventory = {
   currentPriceCents: number | null
   currentCurrencyCode: string | null
   isAvailable: boolean | null
+  priceDriftStatus?: PriceDriftStatus | null
 }
 
 export type TripItemRevalidationResolverInput<
@@ -66,6 +68,7 @@ type BuildTripItemRevalidationIssueInput = {
 
 const DEFAULT_SEVERITY_BY_CODE: Record<TripItemIssueCode, TripItemIssueSeverity> = {
   inventory_missing: 'blocking',
+  inventory_unavailable: 'blocking',
   sold_out: 'blocking',
   price_changed: 'warning',
   currency_changed: 'warning',
@@ -245,6 +248,14 @@ export const buildTripItemRevalidationIssue = (
       code: input.code,
       severity,
       message: `${input.title} is no longer available for the saved itinerary.`,
+    }
+  }
+
+  if (input.code === 'inventory_unavailable') {
+    return {
+      code: input.code,
+      severity,
+      message: `${input.title} could not be confirmed against live inventory pricing right now.`,
     }
   }
 
@@ -576,6 +587,7 @@ export const revalidateTripItem = async (
 
     const currentPriceCents = normalizePriceCents(currentInventory.currentPriceCents)
     const currentCurrencyCode = normalizeCurrencyCode(currentInventory.currentCurrencyCode)
+    const priceDriftStatus = currentInventory.priceDriftStatus ?? null
     const comparisonIssues = compareSnapshotToCurrentInventory({
       item,
       parsedInventory,
@@ -593,7 +605,31 @@ export const revalidateTripItem = async (
         )
       }
 
-      if (isTripItemCurrencyChanged(snapshotCurrencyCode, currentCurrencyCode)) {
+      if (priceDriftStatus === 'unavailable') {
+        issues.push(
+          buildTripItemRevalidationIssue({
+            code: 'inventory_unavailable',
+            title: item.title,
+          }),
+        )
+
+        return buildEmptyResult({
+          item,
+          checkedAt,
+          inventoryId,
+          snapshotPriceCents,
+          snapshotCurrencyCode,
+          currentPriceCents,
+          currentCurrencyCode,
+          isAvailable: currentInventory.isAvailable,
+          issues,
+        })
+      }
+
+      if (
+        priceDriftStatus !== 'valid' &&
+        isTripItemCurrencyChanged(snapshotCurrencyCode, currentCurrencyCode)
+      ) {
         issues.push(
           buildTripItemRevalidationIssue({
             code: 'currency_changed',
@@ -604,7 +640,11 @@ export const revalidateTripItem = async (
         )
       }
 
-      if (isTripItemPriceChanged(snapshotPriceCents, currentPriceCents)) {
+      if (
+        priceDriftStatus === 'price_changed' ||
+        (priceDriftStatus !== 'valid' &&
+          isTripItemPriceChanged(snapshotPriceCents, currentPriceCents))
+      ) {
         issues.push(
           buildTripItemRevalidationIssue({
             code: 'price_changed',

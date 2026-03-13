@@ -12,6 +12,7 @@ import {
   buildFlightInventoryId,
   buildHotelInventoryId,
 } from '~/lib/inventory/inventory-id'
+import { detectPriceDrift } from '~/lib/inventory/detectPriceDrift'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import {
   buildCarPriceDisplay,
@@ -75,7 +76,9 @@ import { buildTripIntelligenceSummary } from '~/lib/trips/status-aggregation'
 import {
   TripItemSnapshotError,
   buildTripItemSnapshotMetadata,
+  normalizeTripItemSnapshotCurrencyCode,
   normalizeTripItemSnapshotCore,
+  normalizeTripItemSnapshotPriceCents,
 } from '~/lib/trips/trip-item-snapshot'
 import type { TripGapAnalyzerItem } from '~/lib/trips/trip-gap-analyzer'
 import {
@@ -105,6 +108,7 @@ import {
   type TripVerticalPricing,
 } from '~/types/trips/trip'
 import { compareIsoDate } from '~/lib/trips/date-utils'
+import type { PriceQuote } from '~/types/pricing'
 
 export class TripRepoError extends Error {
   constructor(
@@ -1267,6 +1271,33 @@ const toTripItemRevalidationCandidate = (
   providerInventoryId: readTripItemRecordProviderInventoryId(item),
 })
 
+const buildTripItemSnapshotPriceQuote = (
+  item: Pick<TripItemRevalidationCandidate, 'snapshotCurrencyCode' | 'snapshotPriceCents'>,
+): PriceQuote | null => {
+  const currency = normalizeTripItemSnapshotCurrencyCode(item.snapshotCurrencyCode)
+  const amountCents = normalizeTripItemSnapshotPriceCents(item.snapshotPriceCents)
+
+  if (!currency || amountCents == null) return null
+
+  return {
+    currency,
+    amount: amountCents / 100,
+  }
+}
+
+const toPriceQuoteAmountCents = (quote: PriceQuote | null | undefined) => {
+  if (!quote) return null
+
+  const amount = Number(quote.amount)
+  if (!Number.isFinite(amount)) return null
+  return Math.max(0, Math.round(amount * 100))
+}
+
+const toPriceQuoteCurrencyCode = (quote: PriceQuote | null | undefined) => {
+  const currency = normalizeTripItemSnapshotCurrencyCode(quote?.currency)
+  return currency || null
+}
+
 const resolveTripItemCurrentInventory = async (
   item: TripItemRevalidationCandidate,
   checkedAt: string,
@@ -1285,14 +1316,33 @@ const resolveTripItemCurrentInventory = async (
 
   if (!resolution) return null
 
+  const snapshotPrice = buildTripItemSnapshotPriceQuote(item)
+  const drift =
+    snapshotPrice && resolution.isAvailable !== false
+      ? await detectPriceDrift(item.inventoryId || '', snapshotPrice, {
+          resolvedInventory: resolution.entity,
+        })
+      : null
+
   return {
     inventoryId: resolution.entity.inventoryId,
-    currentPriceCents: resolveComparablePriceCents(
-      resolution.entity.price.amountCents,
-      item.metadata,
-    ),
-    currentCurrencyCode: resolution.entity.price.currency,
+    currentPriceCents:
+      drift?.status === 'unavailable'
+        ? null
+        : drift?.newPrice
+          ? toPriceQuoteAmountCents(drift.newPrice)
+          : resolveComparablePriceCents(
+              resolution.entity.price.amountCents,
+              item.metadata,
+            ),
+    currentCurrencyCode:
+      drift?.status === 'unavailable'
+        ? null
+        : drift?.newPrice
+          ? toPriceQuoteCurrencyCode(drift.newPrice)
+          : resolution.entity.price.currency,
     isAvailable: resolution.isAvailable,
+    priceDriftStatus: drift?.status ?? null,
   }
 }
 
@@ -1652,6 +1702,7 @@ type CoreTripItemValidityStatus = Exclude<TripItemValidityStatus, 'price_only_ch
 
 const BLOCKING_REVALIDATION_CODES = new Set<TripItemIssue['code']>([
   'inventory_missing',
+  'inventory_unavailable',
   'inventory_mismatch',
   'sold_out',
 ])

@@ -242,6 +242,76 @@ test('returns a controlled warning when the provider lookup throws', async () =>
   assert.deepEqual(result.issues.map((issue) => issue.code), ['revalidation_failed'])
 })
 
+test('marks live pricing drift lookup failures as inventory_unavailable', async () => {
+  const inventoryId = buildHotelInventoryId({
+    hotelId: 555,
+    checkInDate: '2026-04-01',
+    checkOutDate: '2026-04-05',
+    roomType: 'standard',
+    occupancy: 2,
+  })
+
+  const result = await revalidateTripItem(
+    {
+      itemId: 53,
+      itemType: 'hotel',
+      title: 'Live Drift Hotel',
+      inventoryId,
+      snapshotPriceCents: 40000,
+      snapshotCurrencyCode: 'USD',
+    },
+    {
+      hotel: async () => ({
+        inventoryId,
+        currentPriceCents: null,
+        currentCurrencyCode: null,
+        isAvailable: true,
+        priceDriftStatus: 'unavailable',
+      }),
+      flight: async () => null,
+      car: async () => null,
+    },
+  )
+
+  assert.equal(result.status, 'blocking')
+  assert.deepEqual(result.issues.map((issue) => issue.code), ['inventory_unavailable'])
+})
+
+test('uses the shared price drift status to avoid false positives from rounding noise', async () => {
+  const inventoryId = buildHotelInventoryId({
+    hotelId: 555,
+    checkInDate: '2026-04-01',
+    checkOutDate: '2026-04-05',
+    roomType: 'suite',
+    occupancy: 2,
+  })
+
+  const result = await revalidateTripItem(
+    {
+      itemId: 54,
+      itemType: 'hotel',
+      title: 'Rounded Hotel',
+      inventoryId,
+      snapshotPriceCents: 18900,
+      snapshotCurrencyCode: 'USD',
+    },
+    {
+      hotel: async () => ({
+        inventoryId,
+        currentPriceCents: 18901,
+        currentCurrencyCode: 'USD',
+        isAvailable: true,
+        priceDriftStatus: 'valid',
+      }),
+      flight: async () => null,
+      car: async () => null,
+    },
+  )
+
+  assert.equal(result.status, 'ok')
+  assert.deepEqual(result.issues, [])
+})
+
 test('detects current inventory identity drift as a date change warning', async () => {
   const inventoryId = buildFlightInventoryId({
     airlineCode: 'DL',
