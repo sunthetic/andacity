@@ -1,6 +1,6 @@
 import type { AvailabilityConfidenceModel } from "~/lib/inventory/availability-confidence";
 import type { InventoryFreshnessModel } from "~/lib/inventory/freshness";
-import type { BookableEntity } from "~/types/bookable-entity";
+import type { HotelBookableEntity } from "~/types/bookable-entity";
 import type {
   HotelSearchEntity,
   HotelSearchEntityPayload,
@@ -48,7 +48,7 @@ export type HotelResult = {
   availabilityConfidence?: AvailabilityConfidenceModel;
   freshness?: InventoryFreshnessModel;
   searchEntity?: HotelSearchEntity<HotelSearchEntityPayload>;
-  bookableEntity?: BookableEntity<HotelSearchEntityPayload>;
+  bookableEntity?: HotelBookableEntity;
 };
 
 export type HotelResultCardProps = {

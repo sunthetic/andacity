@@ -68,6 +68,7 @@ import {
   type TripItemRevalidationCandidate,
   type TripItemRevalidationResolver,
 } from '~/lib/trips/revalidate-trip-items'
+import { toBookableEntityFromTripItem } from '~/lib/booking/bookable-entity'
 import { buildTripEditBundleImpact } from '~/lib/trips/bundle-swap-impact'
 import { buildTripIntelligenceSummary } from '~/lib/trips/status-aggregation'
 import {
@@ -2228,8 +2229,7 @@ const toTripItem = (
     [...resolvedAvailability.issues, ...toTripValidationIssues(resolvedRevalidation)],
     itineraryIssues,
   )
-
-  return {
+  const tripItemBase = {
     id: item.id,
     tripId: item.tripId,
     itemType: item.itemType,
@@ -2274,6 +2274,18 @@ const toTripItem = (
     metadata: item.metadata,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+  } satisfies TripItem
+  const bookableEntity = (() => {
+    try {
+      return toBookableEntityFromTripItem(tripItemBase)
+    } catch {
+      return null
+    }
+  })()
+
+  return {
+    ...tripItemBase,
+    bookableEntity,
   }
 }
 

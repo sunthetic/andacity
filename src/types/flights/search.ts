@@ -1,6 +1,6 @@
 import type { AvailabilityConfidenceModel } from "~/lib/inventory/availability-confidence";
 import type { InventoryFreshnessModel } from "~/lib/inventory/freshness";
-import type { BookableEntity } from "~/types/bookable-entity";
+import type { FlightBookableEntity } from "~/types/bookable-entity";
 import type {
   FlightSearchEntity,
   FlightSearchEntityPayload,
@@ -50,5 +50,5 @@ export type FlightResult = {
   availabilityConfidence?: AvailabilityConfidenceModel;
   freshness?: InventoryFreshnessModel;
   searchEntity?: FlightSearchEntity<FlightSearchEntityPayload>;
-  bookableEntity?: BookableEntity<FlightSearchEntityPayload>;
+  bookableEntity?: FlightBookableEntity;
 };

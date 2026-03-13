@@ -1,6 +1,6 @@
 import type { AvailabilityConfidenceModel } from '~/lib/inventory/availability-confidence'
 import type { InventoryFreshnessModel } from '~/lib/inventory/freshness'
-import type { BookableEntity } from '~/types/bookable-entity'
+import type { CarBookableEntity } from '~/types/bookable-entity'
 import type {
   CarSearchEntity,
   CarSearchEntityPayload,
@@ -57,7 +57,7 @@ export type CarRentalResult = {
   availabilityConfidence?: AvailabilityConfidenceModel
   freshness?: InventoryFreshnessModel
   searchEntity?: CarSearchEntity<CarSearchEntityPayload>
-  bookableEntity?: BookableEntity<CarSearchEntityPayload>
+  bookableEntity?: CarBookableEntity
 }
 
 export type Facets = {

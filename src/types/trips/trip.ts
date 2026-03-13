@@ -1,5 +1,6 @@
 import type { AvailabilityConfidenceModel } from "~/lib/inventory/availability-confidence";
 import type { InventoryFreshnessModel } from "~/lib/inventory/freshness";
+import type { BookableEntity } from "~/types/bookable-entity";
 
 export const TRIP_STATUSES = [
   "draft",
@@ -193,6 +194,7 @@ export type TripItem = {
   availabilityCheckedAt: string | null;
   availabilityExpiresAt: string | null;
   revalidation: TripItemRevalidationResult;
+  bookableEntity?: BookableEntity | null;
   imageUrl: string | null;
   meta: string[];
   issues: TripValidationIssue[];

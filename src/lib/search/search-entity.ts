@@ -4,7 +4,13 @@ import {
   buildHotelInventoryId,
   parseInventoryId,
 } from '../inventory/inventory-id.ts'
-import type { BookableEntity } from '../../types/bookable-entity'
+import { toBookableEntityFromSearchEntity } from '../booking/bookable-entity.ts'
+import type {
+  BookableEntity,
+  CarBookableEntity,
+  FlightBookableEntity,
+  HotelBookableEntity,
+} from '../../types/bookable-entity'
 import type {
   CarSearchEntity,
   CarSearchEntityPayload,
@@ -437,18 +443,23 @@ export const toCarSearchEntity = (
   })
 }
 
-export const toBookableEntity = <TPayload extends Record<string, unknown>>(
+export function toBookableEntity(
+  entity: FlightSearchEntity<FlightSearchEntityPayload>,
+): FlightBookableEntity
+export function toBookableEntity(
+  entity: HotelSearchEntity<HotelSearchEntityPayload>,
+): HotelBookableEntity
+export function toBookableEntity(
+  entity: CarSearchEntity<CarSearchEntityPayload>,
+): CarBookableEntity
+export function toBookableEntity<TPayload extends Record<string, unknown>>(
   entity: SearchEntity<TPayload>,
-): BookableEntity<TPayload> => ({
-  inventoryId: entity.inventoryId,
-  vertical: entity.vertical,
-  price: entity.price,
-  payload: entity.payload,
-  provider: entity.provider,
-  title: entity.title,
-  subtitle: entity.subtitle,
-  href: entity.href,
-})
+): BookableEntity
+export function toBookableEntity<TPayload extends Record<string, unknown>>(
+  entity: SearchEntity<TPayload>,
+): BookableEntity {
+  return toBookableEntityFromSearchEntity(entity)
+}
 
 export const isSearchEntity = (value: unknown): value is SearchEntity => {
   if (!isRecord(value)) return false
