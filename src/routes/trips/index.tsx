@@ -153,32 +153,36 @@ export default component$(() => {
     Record<number, TripItemReplacementOption[]>
   >({});
   const lastPreviewScrollKey = useSignal<string | null>(null);
-  const trackTripError = (
-    action: string,
-    message: string,
-    extra?: Record<string, string | number | boolean | null | undefined>,
-  ) => {
-    trackBookingEvent("booking_error", {
-      vertical: "trips",
-      surface: "trip_builder",
-      trip_id: activeTrip.value?.id ?? undefined,
-      action,
-      error_message: message,
-      ...(extra || {}),
-    });
-  };
-  const trackTripAction = (
-    action: string,
-    extra?: Record<string, string | number | boolean | null | undefined>,
-  ) => {
-    trackBookingEvent("booking_trip_action", {
-      vertical: "trips",
-      surface: "trip_builder",
-      trip_id: activeTrip.value?.id ?? undefined,
-      action,
-      ...(extra || {}),
-    });
-  };
+  const trackTripError$ = $(
+    (
+      action: string,
+      message: string,
+      extra?: Record<string, string | number | boolean | null | undefined>,
+    ) => {
+      trackBookingEvent("booking_error", {
+        vertical: "trips",
+        surface: "trip_builder",
+        trip_id: activeTrip.value?.id ?? undefined,
+        action,
+        error_message: message,
+        ...(extra || {}),
+      });
+    },
+  );
+  const trackTripAction$ = $(
+    (
+      action: string,
+      extra?: Record<string, string | number | boolean | null | undefined>,
+    ) => {
+      trackBookingEvent("booking_trip_action", {
+        vertical: "trips",
+        surface: "trip_builder",
+        trip_id: activeTrip.value?.id ?? undefined,
+        action,
+        ...(extra || {}),
+      });
+    },
+  );
 
   // eslint-disable-next-line qwik/no-use-visible-task
   useVisibleTask$(({ track, cleanup }) => {
@@ -419,7 +423,7 @@ export default component$(() => {
           ? cause.message
           : "Failed to revalidate trip.";
       error.value = message;
-      trackTripError("revalidate_trip", message);
+      await trackTripError$("revalidate_trip", message);
       throw new Error(message);
     } finally {
       loading.value = false;
@@ -449,7 +453,7 @@ export default component$(() => {
       };
       editPreview.value = preview;
       previewItemId.value = item.id;
-      trackTripAction("preview_remove_item", {
+      await trackTripAction$("preview_remove_item", {
         item_id: item.id,
       });
     } catch (cause) {
@@ -458,7 +462,7 @@ export default component$(() => {
           ? cause.message
           : "Failed to preview trip item removal.";
       error.value = message;
-      trackTripError("preview_remove_item", message, {
+      await trackTripError$("preview_remove_item", message, {
         item_id: item.id,
       });
     } finally {
@@ -503,7 +507,7 @@ export default component$(() => {
       };
       editPreview.value = preview;
       previewItemId.value = itemId;
-      trackTripAction("preview_reorder_item", {
+      await trackTripAction$("preview_reorder_item", {
         item_id: itemId,
       });
     } catch (cause) {
@@ -512,7 +516,7 @@ export default component$(() => {
           ? cause.message
           : "Failed to preview itinerary reorder.";
       error.value = message;
-      trackTripError("preview_reorder_item", message, {
+      await trackTripError$("preview_reorder_item", message, {
         item_id: itemId,
       });
     } finally {
@@ -525,7 +529,7 @@ export default component$(() => {
     if (!activeTrip.value || loading.value) return;
 
     if (replacementPanelItemId.value === itemId) {
-      trackTripAction("close_replacement_options", {
+      await trackTripAction$("close_replacement_options", {
         item_id: itemId,
       });
       replacementPanelItemId.value = null;
@@ -537,7 +541,7 @@ export default component$(() => {
 
     const cached = replacementOptions.value[itemId];
     if (cached?.length) {
-      trackTripAction("open_replacement_options", {
+      await trackTripAction$("open_replacement_options", {
         item_id: itemId,
         option_count: cached.length,
       });
@@ -564,7 +568,7 @@ export default component$(() => {
         [itemId]: options,
       };
       replacementPanelItemId.value = itemId;
-      trackTripAction("open_replacement_options", {
+      await trackTripAction$("open_replacement_options", {
         item_id: itemId,
         option_count: options.length,
       });
@@ -574,7 +578,7 @@ export default component$(() => {
           ? cause.message
           : "Failed to load replacement options.";
       error.value = message;
-      trackTripError("load_replacement_options", message, {
+      await trackTripError$("load_replacement_options", message, {
         item_id: itemId,
       });
     } finally {
@@ -610,7 +614,7 @@ export default component$(() => {
         };
         editPreview.value = preview;
         previewItemId.value = itemId;
-        trackTripAction("preview_replacement", {
+        await trackTripAction$("preview_replacement", {
           item_id: itemId,
           replacement_inventory_id: option.inventoryId,
         });
@@ -624,7 +628,7 @@ export default component$(() => {
           itemId,
           message,
         };
-        trackTripError("preview_replacement", message, {
+        await trackTripError$("preview_replacement", message, {
           item_id: itemId,
           replacement_inventory_id: option.inventoryId,
         });
@@ -635,7 +639,7 @@ export default component$(() => {
     },
   );
 
-  const onCancelEditPreview$ = $(() => {
+  const onCancelEditPreview$ = $(async () => {
     if (editPreview.value?.bundleImpact) {
       trackBookingEvent("booking_bundle_decision", {
         vertical: "bundles",
@@ -647,7 +651,7 @@ export default component$(() => {
         action_type: editPreview.value.actionType,
       });
     } else if (previewItemId.value != null) {
-      trackTripAction("cancel_preview", {
+      await trackTripAction$("cancel_preview", {
         item_id: previewItemId.value,
       });
     }
@@ -749,7 +753,7 @@ export default component$(() => {
           safety_level: preview.changeSummary.safetyLevel,
         });
       } else {
-        trackTripAction("apply_edit", {
+        await trackTripAction$("apply_edit", {
           item_id: draft.itemId,
           action_type: draft.actionType,
         });
@@ -760,7 +764,7 @@ export default component$(() => {
           ? cause.message
           : "Failed to apply itinerary edit.";
       error.value = message;
-      trackTripError("apply_edit", message, {
+      await trackTripError$("apply_edit", message, {
         item_id: draft.itemId,
         action_type: draft.actionType,
       });
@@ -876,14 +880,14 @@ export default component$(() => {
         title: "Change rolled back",
         message: "The prior itinerary draft was restored.",
       };
-      trackTripAction("rollback_change");
+      await trackTripAction$("rollback_change");
     } catch (cause) {
       const message =
         cause instanceof TripApiError
           ? cause.message
           : "Failed to roll back itinerary change.";
       error.value = message;
-      trackTripError("rollback_change", message);
+      await trackTripError$("rollback_change", message);
     } finally {
       loading.value = false;
       activeAction.value = null;
@@ -922,7 +926,7 @@ export default component$(() => {
           ? cause.message
           : "Failed to add suggested trip item.";
       error.value = message;
-      trackTripError("add_suggested_item", message, {
+      await trackTripError$("add_suggested_item", message, {
         inventory_id: candidate.inventoryId,
       });
     } finally {
@@ -962,7 +966,7 @@ export default component$(() => {
           : "Failed to reload trips.";
       setupError.value = message;
       error.value = message;
-      trackTripError("setup_retry", message);
+      await trackTripError$("setup_retry", message);
     } finally {
       loading.value = false;
       activeAction.value = null;

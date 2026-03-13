@@ -1,4 +1,4 @@
-import { component$, type QRL } from "@builder.io/qwik";
+import { $, component$, type QRL } from "@builder.io/qwik";
 import {
   ResultCardScaffold,
   ResultFactList,
@@ -23,7 +23,7 @@ import type { SavedItem } from "~/types/save-compare/saved-item";
 export const HotelCard = component$((props: HotelCardProps) => {
   const h = props.hotel;
   const detailHref = props.detailHref || buildHotelDetailHref(h.slug);
-  const onOpenDetail$ = () => {
+  const onOpenDetail$ = $(() => {
     if (!props.telemetry) return;
 
     trackBookingEvent("booking_search_result_opened", {
@@ -34,7 +34,7 @@ export const HotelCard = component$((props: HotelCardProps) => {
       target: "detail",
     });
     markBookingStageProgress("search_results");
-  };
+  });
   const whyThis = buildHotelWhyThis(
     {
       rating: h.rating,

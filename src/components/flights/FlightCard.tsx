@@ -1,4 +1,4 @@
-import { component$, type QRL } from "@builder.io/qwik";
+import { $, component$, type QRL } from "@builder.io/qwik";
 import {
   ResultCardScaffold,
   ResultFactGrid,
@@ -21,7 +21,7 @@ import type { SavedItem } from "~/types/save-compare/saved-item";
 
 export const FlightCard = component$((props: FlightCardProps) => {
   const flight = props.result;
-  const onSelectFlight$ = () => {
+  const onSelectFlight$ = $(() => {
     if (!props.telemetry) return;
 
     trackBookingEvent("booking_search_result_opened", {
@@ -32,7 +32,7 @@ export const FlightCard = component$((props: FlightCardProps) => {
       target: "select",
     });
     markBookingStageProgress("search_results");
-  };
+  });
   const whyThis = buildFlightWhyThis(
     {
       stops: flight.stops,

@@ -1,4 +1,4 @@
-import { component$, type QRL } from "@builder.io/qwik";
+import { $, component$, type QRL } from "@builder.io/qwik";
 import {
   ResultCardScaffold,
   ResultFactList,
@@ -26,7 +26,7 @@ export const CarRentalCard = component$((props: CarRentalCardProps) => {
     r.pickupType ||
     (r.pickupArea.toLowerCase().includes("airport") ? "airport" : "city");
   const detailHref = props.detailHref || buildCarRentalDetailHref(r.slug);
-  const onOpenDetail$ = () => {
+  const onOpenDetail$ = $(() => {
     if (!props.telemetry) return;
 
     trackBookingEvent("booking_search_result_opened", {
@@ -37,7 +37,7 @@ export const CarRentalCard = component$((props: CarRentalCardProps) => {
       target: "detail",
     });
     markBookingStageProgress("search_results");
-  };
+  });
   const vehicleTitle = r.vehicleName || r.category || r.name;
   const reviewSummary =
     r.rating > 0
