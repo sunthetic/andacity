@@ -614,7 +614,22 @@ const toBookableEntityFromTripCandidate = (
   )
 }
 
+const readSearchEntityBookableSnapshot = (entity: SearchEntity): BookableEntity | null => {
+  const snapshot = entity.bookableSnapshot
+  if (!isBookableEntity(snapshot)) return null
+  if (snapshot.inventoryId !== entity.inventoryId || snapshot.vertical !== entity.vertical) {
+    return null
+  }
+
+  return snapshot
+}
+
 export const toBookableEntityFromSearchEntity = (entity: SearchEntity): BookableEntity => {
+  const existingSnapshot = readSearchEntityBookableSnapshot(entity)
+  if (existingSnapshot) {
+    return existingSnapshot
+  }
+
   const parsedInventory = assertBookableInventory(entity.inventoryId, entity.vertical)
 
   if (parsedInventory.vertical === 'flight') {

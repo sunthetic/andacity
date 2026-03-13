@@ -4,6 +4,7 @@ import type {
   ProviderRequestOptions,
   ProviderResolveInventoryRecordInput,
 } from '~/lib/providers/providerAdapter'
+import { normalizeSearchResults } from '~/lib/search/normalizeSearchResults'
 import type { ResolvedInventoryRecord } from '~/types/inventory'
 import type { SearchParams } from '~/types/search'
 import {
@@ -21,7 +22,6 @@ import {
   normalizeHotelInventory,
   normalizeHotelPriceQuote,
 } from './normalizeHotelInventory.ts'
-import { normalizeHotelSearchResult } from './normalizeHotelSearchResult.ts'
 
 type CreateHotelProviderAdapterOptions = {
   client?: HotelProviderClient
@@ -95,11 +95,8 @@ export const createHotelProviderAdapter = (
       try {
         const request = mapHotelSearchParams(params)
         const response = await client.search(request, requestOptions)
-        return response.results.flatMap((offer) => {
-          const entity = normalizeHotelSearchResult(offer, params, {
-            providerName,
-          })
-          return entity ? [entity] : []
+        return normalizeSearchResults('hotel', response.results, params, {
+          providerName,
         })
       } catch {
         return []
@@ -125,11 +122,8 @@ export const createHotelProviderAdapter = (
     },
 
     normalizeSearchResponse(response, params: SearchParams) {
-      return response.results.flatMap((offer) => {
-        const entity = normalizeHotelSearchResult(offer, params, {
-          providerName,
-        })
-        return entity ? [entity] : []
+      return normalizeSearchResults('hotel', response.results, params, {
+        providerName,
       })
     },
 

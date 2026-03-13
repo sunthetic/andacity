@@ -104,6 +104,7 @@ export type SearchEntityBase<
   subtitle: string | null;
   imageUrl: string | null;
   href: string | null;
+  bookableSnapshot?: import("~/types/bookable-entity").BookableEntity | null;
   payload: TPayload;
 };
 

@@ -4,7 +4,10 @@ import {
   buildHotelInventoryId,
   parseInventoryId,
 } from '../inventory/inventory-id.ts'
-import { toBookableEntityFromSearchEntity } from '../booking/bookable-entity.ts'
+import {
+  isBookableEntity,
+  toBookableEntityFromSearchEntity,
+} from '../booking/bookable-entity.ts'
 import type {
   BookableEntity,
   CarBookableEntity,
@@ -263,6 +266,21 @@ const assertSearchEntity = <TEntity extends SearchEntity>(entity: TEntity): TEnt
   return entity
 }
 
+const attachBookableSnapshot = <TEntity extends SearchEntity>(entity: TEntity): TEntity => ({
+  ...entity,
+  bookableSnapshot: toBookableEntityFromSearchEntity(entity),
+})
+
+const readBookableSnapshot = (entity: SearchEntity): BookableEntity | null => {
+  const snapshot = entity.bookableSnapshot
+  if (!isBookableEntity(snapshot)) return null
+  if (snapshot.inventoryId !== entity.inventoryId || snapshot.vertical !== entity.vertical) {
+    return null
+  }
+
+  return snapshot
+}
+
 const resolveFlightOriginCode = (source: FlightSearchEntitySource) =>
   toNullableText(source.originCode) ?? extractAirportCode(source.origin)
 
@@ -308,7 +326,8 @@ export const toFlightSearchEntity = (
         : null,
     ])
 
-  return assertSearchEntity({
+  return attachBookableSnapshot(
+    assertSearchEntity({
     inventoryId,
     vertical: 'flight',
     provider: toNullableText(source.airline),
@@ -344,7 +363,8 @@ export const toFlightSearchEntity = (
       durationMinutes:
         toFiniteInteger(context.durationMinutes) ?? parseDurationMinutes(source.duration),
     },
-  })
+    }),
+  )
 }
 
 export const toHotelSearchEntity = (
@@ -380,7 +400,8 @@ export const toHotelSearchEntity = (
     hasNumberOrNull(source.rating) && source.rating != null ? `${source.rating.toFixed(1)}/10` : null,
   ])
 
-  return assertSearchEntity({
+  return attachBookableSnapshot(
+    assertSearchEntity({
     inventoryId,
     vertical: 'hotel',
     provider: toNullableText(context.provider),
@@ -427,7 +448,8 @@ export const toHotelSearchEntity = (
       reviewCount: toFiniteInteger(source.reviewCount),
       neighborhood: toNullableText(source.neighborhood),
     },
-  })
+    }),
+  )
 }
 
 export const toCarSearchEntity = (
@@ -462,7 +484,8 @@ export const toCarSearchEntity = (
     source.transmission,
   ])
 
-  return assertSearchEntity({
+  return attachBookableSnapshot(
+    assertSearchEntity({
     inventoryId,
     vertical: 'car',
     provider: toNullableText(source.name),
@@ -495,7 +518,8 @@ export const toCarSearchEntity = (
       seats: toPositiveInteger(source.seats),
       pickupArea: toNullableText(source.pickupArea),
     },
-  })
+    }),
+  )
 }
 
 export function toBookableEntity(
@@ -513,7 +537,7 @@ export function toBookableEntity<TPayload extends Record<string, unknown>>(
 export function toBookableEntity<TPayload extends Record<string, unknown>>(
   entity: SearchEntity<TPayload>,
 ): BookableEntity {
-  return toBookableEntityFromSearchEntity(entity)
+  return readBookableSnapshot(entity) ?? toBookableEntityFromSearchEntity(entity)
 }
 
 export const isSearchEntity = (value: unknown): value is SearchEntity => {
@@ -548,6 +572,18 @@ export const isSearchEntity = (value: unknown): value is SearchEntity => {
     (value.price.displayText !== undefined && !hasStringOrNull(value.price.displayText))
   ) {
     return false
+  }
+
+  if ('bookableSnapshot' in value) {
+    if (value.bookableSnapshot !== null && value.bookableSnapshot !== undefined) {
+      if (!isBookableEntity(value.bookableSnapshot)) return false
+      if (
+        value.bookableSnapshot.inventoryId !== inventoryId ||
+        value.bookableSnapshot.vertical !== vertical
+      ) {
+        return false
+      }
+    }
   }
 
   if (vertical === 'flight') {

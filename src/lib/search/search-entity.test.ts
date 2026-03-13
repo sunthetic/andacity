@@ -8,6 +8,7 @@ const {
 } = await import(new URL('../inventory/inventory-id.ts', import.meta.url).href)
 const {
   isSearchEntity,
+  toBookableEntity,
   toCarSearchEntity,
   toFlightSearchEntity,
   toHotelSearchEntity,
@@ -59,6 +60,7 @@ test('maps a flight result into a canonical search entity', () => {
   assert.equal(entity.metadata.durationMinutes, 365)
   assert.equal(entity.price.amountCents, 39900)
   assert.equal(entity.price.currency, 'USD')
+  assert.deepEqual(entity.bookableSnapshot, toBookableEntity(entity))
   assert.ok(isSearchEntity(entity))
 })
 
@@ -106,6 +108,7 @@ test('maps a hotel result into a canonical search entity', () => {
   assert.equal(entity.metadata.hotelId, '555')
   assert.equal(entity.metadata.rating, 8.6)
   assert.equal(entity.metadata.reviewCount, 321)
+  assert.deepEqual(entity.bookableSnapshot, toBookableEntity(entity))
   assert.ok(isSearchEntity(entity))
 })
 
@@ -152,6 +155,7 @@ test('maps a car result into a canonical search entity', () => {
   assert.equal(entity.metadata.providerLocationId, 'phx-airport')
   assert.equal(entity.metadata.vehicleClass, 'SUV')
   assert.equal(entity.metadata.seats, 5)
+  assert.deepEqual(entity.bookableSnapshot, toBookableEntity(entity))
   assert.ok(isSearchEntity(entity))
 })
 

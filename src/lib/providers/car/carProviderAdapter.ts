@@ -4,6 +4,7 @@ import type {
   ProviderRequestOptions,
   ProviderResolveInventoryRecordInput,
 } from '~/lib/providers/providerAdapter'
+import { normalizeSearchResults } from '~/lib/search/normalizeSearchResults'
 import type { ResolvedInventoryRecord } from '~/types/inventory'
 import type { SearchParams } from '~/types/search'
 import {
@@ -19,7 +20,6 @@ import {
   normalizeCarInventory,
   normalizeCarPriceQuote,
 } from './normalizeCarInventory.ts'
-import { normalizeCarSearchResult } from './normalizeCarSearchResult.ts'
 
 type CreateCarProviderAdapterOptions = {
   client?: CarProviderClient
@@ -88,11 +88,8 @@ export const createCarProviderAdapter = (
       try {
         const request = mapCarSearchParams(params)
         const response = await client.search(request, requestOptions)
-        return response.results.flatMap((offer) => {
-          const entity = normalizeCarSearchResult(offer, params, {
-            providerName,
-          })
-          return entity ? [entity] : []
+        return normalizeSearchResults('car', response.results, params, {
+          providerName,
         })
       } catch {
         return []
@@ -118,11 +115,8 @@ export const createCarProviderAdapter = (
     },
 
     normalizeSearchResponse(response, params: SearchParams) {
-      return response.results.flatMap((offer) => {
-        const entity = normalizeCarSearchResult(offer, params, {
-          providerName,
-        })
-        return entity ? [entity] : []
+      return normalizeSearchResults('car', response.results, params, {
+        providerName,
       })
     },
 

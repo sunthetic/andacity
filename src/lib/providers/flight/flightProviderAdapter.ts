@@ -4,6 +4,7 @@ import type {
   ProviderRequestOptions,
   ProviderResolveInventoryRecordInput,
 } from '~/lib/providers/providerAdapter'
+import { normalizeSearchResults } from '~/lib/search/normalizeSearchResults'
 import type { ResolvedInventoryRecord } from '~/types/inventory'
 import type { SearchParams } from '~/types/search'
 import {
@@ -19,7 +20,6 @@ import {
   normalizeFlightInventory,
   normalizeFlightPriceQuote,
 } from './normalizeFlightInventory.ts'
-import { normalizeFlightSearchResult } from './normalizeFlightSearchResult.ts'
 
 type CreateFlightProviderAdapterOptions = {
   client?: FlightProviderClient
@@ -91,11 +91,8 @@ export const createFlightProviderAdapter = (
       try {
         const request = mapFlightSearchParams(params)
         const response = await client.search(request, requestOptions)
-        return response.results.flatMap((offer) => {
-          const entity = normalizeFlightSearchResult(offer, params, {
-            providerName,
-          })
-          return entity ? [entity] : []
+        return normalizeSearchResults('flight', response.results, params, {
+          providerName,
         })
       } catch {
         return []
@@ -120,11 +117,8 @@ export const createFlightProviderAdapter = (
     },
 
     normalizeSearchResponse(response, params: SearchParams) {
-      return response.results.flatMap((offer) => {
-        const entity = normalizeFlightSearchResult(offer, params, {
-          providerName,
-        })
-        return entity ? [entity] : []
+      return normalizeSearchResults('flight', response.results, params, {
+        providerName,
       })
     },
 
