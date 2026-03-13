@@ -1,11 +1,17 @@
 import { component$ } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import type { RequestHandler } from '@builder.io/qwik-city'
 import { useLocation } from '@builder.io/qwik-city'
 import { VerticalHeroSearchLayout } from '~/components/search/VerticalHeroSearchLayout'
 import { CarRentalSearchCard } from '~/components/car-rentals/CarRentalSearchCard'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 import { loadCarRentalCitiesFromDb, loadFeaturedCarRentalsFromDb } from '~/lib/queries/car-rentals-pages.server'
+import { resolveLocationFromUrlValues } from '~/lib/location/location-repo.server'
+import {
+  parseLocationSelection,
+  validateLocationSelection,
+} from '~/lib/location/validateLocationSelection'
 
 export const useCarRentalsIndexPage = routeLoader$(async () => {
   const [cityItems, featuredRentals] = await Promise.all([
@@ -19,8 +25,53 @@ export const useCarRentalsIndexPage = routeLoader$(async () => {
   }
 })
 
+export const onGet: RequestHandler = async ({ url, redirect }) => {
+  const isSearchSubmit = String(url.searchParams.get('search') || '').trim() === '1'
+  if (!isSearchSubmit) return
+
+  const pickupLocation = validateLocationSelection({
+    selection: url.searchParams.get('pickupLocation'),
+    rawValue: url.searchParams.get('q'),
+    required: true,
+    fieldLabel: 'pickup location',
+    allowedKinds: ['city', 'airport'],
+  })
+
+  if (!pickupLocation.location) return
+
+  const nextParams = new URLSearchParams()
+  const pickupDate = String(url.searchParams.get('pickupDate') || '').trim()
+  const dropoffDate = String(url.searchParams.get('dropoffDate') || '').trim()
+  const drivers = String(url.searchParams.get('drivers') || '').trim()
+
+  nextParams.set('pickupLocationId', pickupLocation.location.locationId)
+
+  if (pickupDate) nextParams.set('pickupDate', pickupDate)
+  if (dropoffDate) nextParams.set('dropoffDate', dropoffDate)
+  if (drivers) nextParams.set('drivers', drivers)
+
+  const path = `/search/car-rentals/${encodeURIComponent(pickupLocation.location.searchSlug)}/1`
+  const query = nextParams.toString()
+  throw redirect(302, query ? `${path}?${query}` : path)
+}
+
+export const useCarRentalsSearchState = routeLoader$(async ({ url }) => {
+  const selection = parseLocationSelection(url.searchParams.get('pickupLocation'))
+  const pickupLocation =
+    selection ||
+    (await resolveLocationFromUrlValues({
+      locationId: url.searchParams.get('pickupLocationId'),
+      text: url.searchParams.get('q'),
+    }))
+
+  return {
+    pickupLocation,
+  }
+})
+
 export default component$(() => {
   const { cityItems } = useCarRentalsIndexPage().value
+  const { pickupLocation } = useCarRentalsSearchState().value
   const loc = useLocation()
 
   const q = String(loc.url.searchParams.get('q') || '').trim()
@@ -42,7 +93,8 @@ export default component$(() => {
       searchCard={(
         <CarRentalSearchCard
           variant="hero"
-          destinationValue={q}
+          destinationValue={pickupLocation?.displayName || q}
+          initialPickupLocation={pickupLocation}
           pickupDate={pickupDate}
           dropoffDate={dropoffDate}
           drivers={drivers}

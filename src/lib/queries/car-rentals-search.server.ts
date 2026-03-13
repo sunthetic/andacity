@@ -20,6 +20,7 @@ import type {
 } from '~/lib/search/car-rentals/filter-types'
 import { findTopTravelCity } from '~/seed/cities/top-100.js'
 import type { CarRentalResult } from '~/types/car-rentals/search'
+import type { CanonicalLocation } from '~/types/location'
 
 const DEFAULT_PAGE_SIZE = 6
 const FALLBACK_CAR_PICKUP_DATETIME = '1970-01-01T10:00'
@@ -189,6 +190,7 @@ export const EMPTY_CAR_RENTALS_FACETS: CarRentalsSearchFacets = {
 
 export type LoadCarRentalResultsPageInput = {
   citySlug: string
+  location?: CanonicalLocation | null
   query?: string | null
   pickupDate?: string | null
   dropoffDate?: string | null
@@ -234,15 +236,23 @@ export async function loadCarRentalResultsPageFromDb(
   const offset = (requestedPage - 1) * pageSize
   const activeSort = normalizeCarRentalsSort(input.sort)
   const selectedFilters = parseCarRentalsSelectedFilters(input.filters || {})
+  const airportId =
+    input.location?.kind === 'airport' && input.location.airportId
+      ? input.location.airportId
+      : null
+  const effectivePickupType =
+    selectedFilters.pickupType || (input.location?.kind === 'airport' ? 'airport' : '')
   const cacheParams = {
+    locationId: input.location?.locationId,
     citySlug: input.citySlug,
+    airportId,
     pickupDate: input.pickupDate,
     dropoffDate: input.dropoffDate,
     sort: activeSort,
     page: requestedPage,
     pageSize,
     vehicleClasses: selectedFilters.vehicleClasses,
-    pickupType: selectedFilters.pickupType,
+    pickupType: effectivePickupType,
     transmission: selectedFilters.transmission,
     seatsMin: selectedFilters.seatsMin,
     priceBand: selectedFilters.priceBand,
@@ -266,6 +276,7 @@ export async function loadCarRentalResultsPageFromDb(
   const [firstPageResult, facets] = await Promise.all([
     searchCarRentalsPage({
       citySlug: input.citySlug,
+      airportId,
       pickupDate: input.pickupDate || undefined,
       dropoffDate: input.dropoffDate || undefined,
       sort: activeSort,
@@ -273,7 +284,7 @@ export async function loadCarRentalResultsPageFromDb(
       offset,
       filters: {
         vehicleClassKeys: selectedFilters.vehicleClasses,
-        pickupType: selectedFilters.pickupType,
+        pickupType: effectivePickupType,
         transmission: selectedFilters.transmission,
         seatsMin: selectedFilters.seatsMin,
         priceBand: selectedFilters.priceBand,
@@ -281,6 +292,7 @@ export async function loadCarRentalResultsPageFromDb(
     }),
     listCarRentalSearchFacets({
       citySlug: input.citySlug,
+      airportId,
       pickupDate: input.pickupDate || undefined,
       dropoffDate: input.dropoffDate || undefined,
     }),
@@ -295,6 +307,7 @@ export async function loadCarRentalResultsPageFromDb(
   if (totalCount > 0 && page !== requestedPage) {
     const rerun = await searchCarRentalsPage({
       citySlug: input.citySlug,
+      airportId,
       pickupDate: input.pickupDate || undefined,
       dropoffDate: input.dropoffDate || undefined,
       sort: activeSort,
@@ -302,7 +315,7 @@ export async function loadCarRentalResultsPageFromDb(
       offset: effectiveOffset,
       filters: {
         vehicleClassKeys: selectedFilters.vehicleClasses,
-        pickupType: selectedFilters.pickupType,
+        pickupType: effectivePickupType,
         transmission: selectedFilters.transmission,
         seatsMin: selectedFilters.seatsMin,
         priceBand: selectedFilters.priceBand,

@@ -7,6 +7,7 @@ import type {
 } from '~/lib/search/car-rentals/filter-types'
 import type { SearchParams } from '~/types/search'
 import { findTopTravelCity } from '~/seed/cities/top-100.js'
+import type { CanonicalLocation } from '~/types/location'
 
 export type CarProviderSearchRequest = {
   citySlug: string
@@ -93,7 +94,18 @@ const toPriceBand = (value: unknown): CarRentalsPriceBand | '' => {
     : ''
 }
 
-const resolveCity = (value: unknown, fieldName: string) => {
+const resolveCity = (
+  value: unknown,
+  location: CanonicalLocation | null | undefined,
+  fieldName: string,
+) => {
+  if (location?.citySlug) {
+    return {
+      citySlug: location.citySlug,
+      cityName: location.cityName,
+    }
+  }
+
   const text = toNullableText(value)
   if (!text) {
     throw new CarSearchParamsError(`${fieldName} is required for car provider search.`)
@@ -157,6 +169,7 @@ export const mapCarSearchParams = (
 
   const pickupCity = resolveCity(
     params.pickupLocation || params.destination || params.origin,
+    params.pickupLocationData || params.destinationLocation || params.originLocation,
     'pickupLocation',
   )
   const dropoffCity = resolveCity(
@@ -164,6 +177,10 @@ export const mapCarSearchParams = (
       params.pickupLocation ||
       params.destination ||
       params.origin,
+    params.dropoffLocationData ||
+      params.pickupLocationData ||
+      params.destinationLocation ||
+      params.originLocation,
     'dropoffLocation',
   )
 

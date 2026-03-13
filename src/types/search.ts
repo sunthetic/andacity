@@ -1,4 +1,5 @@
 import type { SearchVertical } from '~/types/search-entity'
+import type { CanonicalLocation } from '~/types/location'
 
 export type SearchParamsFilters = {
   priceRange?: Array<string | number> | null
@@ -17,7 +18,9 @@ export type SearchParamsFilters = {
 export type SearchParams = {
   vertical: SearchVertical
   origin?: string
+  originLocation?: CanonicalLocation | null
   destination?: string
+  destinationLocation?: CanonicalLocation | null
   departDate?: string
   returnDate?: string
   checkInDate?: string
@@ -28,7 +31,9 @@ export type SearchParams = {
   children?: number
   rooms?: number
   pickupLocation?: string
+  pickupLocationData?: CanonicalLocation | null
   dropoffLocation?: string
+  dropoffLocationData?: CanonicalLocation | null
   driverAge?: number
   filters?: SearchParamsFilters
 }

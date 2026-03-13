@@ -6,17 +6,29 @@ import {
   BookingValidationSummary,
 } from "~/components/booking-surface/SearchFormPrimitives";
 import { DateField } from "~/components/ui/DateField";
+import { LocationAutosuggestField } from "~/components/ui/LocationAutosuggestField";
 import {
   normalizeFlightItineraryType,
-  slugifyLocation,
   type FlightItineraryTypeSlug,
 } from "~/lib/search/flights/routing";
 import { getTodayIsoDate, normalizeIsoDate } from "~/lib/date/validateDate";
 import { addDays } from "~/lib/trips/date-utils";
+import { validateLocationSelection } from "~/lib/location/validateLocationSelection";
+import type { CanonicalLocation } from "~/types/location";
 
 export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
-  const from = useSignal(props.initialFrom ?? "");
-  const to = useSignal(props.initialTo ?? "");
+  const fromLocation = useSignal<CanonicalLocation | null>(
+    props.initialFromLocation ?? null,
+  );
+  const toLocation = useSignal<CanonicalLocation | null>(
+    props.initialToLocation ?? null,
+  );
+  const from = useSignal(
+    props.initialFromLocation?.displayName || props.initialFrom || "",
+  );
+  const to = useSignal(
+    props.initialToLocation?.displayName || props.initialTo || "",
+  );
   const depart = useSignal(props.initialDepart ?? "");
   const ret = useSignal(props.initialReturn ?? "");
   const itineraryType = useSignal<FlightItineraryTypeSlug>(
@@ -34,6 +46,8 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
   const renderSnapshot: FlightSubmitSnapshot = {
     from: from.value,
     to: to.value,
+    fromLocation: fromLocation.value,
+    toLocation: toLocation.value,
     depart: depart.value,
     ret: ret.value,
     itineraryType: itineraryType.value,
@@ -64,18 +78,13 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
 
           from.value = snapshot.from;
           to.value = snapshot.to;
+          fromLocation.value = snapshot.fromLocation;
+          toLocation.value = snapshot.toLocation;
           depart.value = snapshot.depart;
           ret.value = snapshot.ret;
           itineraryType.value = snapshot.itineraryType;
           travelers.value = snapshot.travelers;
           cabin.value = snapshot.cabin;
-
-          const fromLocationSlug = slugifyLocation(snapshot.from);
-          const toLocationSlug = slugifyLocation(snapshot.to);
-
-          if (!fromLocationSlug || !toLocationSlug) {
-            return;
-          }
 
           formEl.submit();
         }}
@@ -104,25 +113,31 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
           forId="flight-from"
           class="md:col-span-2"
         >
-          <input
+          <LocationAutosuggestField
             id="flight-from"
             name="from"
-            type="text"
-            bind:value={from}
+            selectionName="fromLocation"
+            value={from}
+            selectedLocation={fromLocation}
             placeholder="City or airport"
-            class={BOOKING_SEARCH_CONTROL_CLASS}
+            inputClass={BOOKING_SEARCH_CONTROL_CLASS}
+            ariaLabel="Origin city or airport"
+            required={true}
           />
         </BookingSearchField>
 
         {/* To */}
         <BookingSearchField label="To" forId="flight-to" class="md:col-span-2">
-          <input
+          <LocationAutosuggestField
             id="flight-to"
             name="to"
-            type="text"
-            bind:value={to}
+            selectionName="toLocation"
+            value={to}
+            selectedLocation={toLocation}
             placeholder="City or airport"
-            class={BOOKING_SEARCH_CONTROL_CLASS}
+            inputClass={BOOKING_SEARCH_CONTROL_CLASS}
+            ariaLabel="Destination city or airport"
+            required={true}
           />
         </BookingSearchField>
 
@@ -134,6 +149,7 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
             value={depart}
             required={true}
             minValue={todayIsoDate}
+            class="w-full pr-2"
             inputClass={BOOKING_SEARCH_CONTROL_CLASS}
             iconLabel="Open departure date picker"
             overlayLabel="Departure date picker"
@@ -149,6 +165,7 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
             required={isRoundTrip}
             value={ret}
             minValue={minimumReturnDate}
+            class="w-full pr-2"
             inputClass={BOOKING_SEARCH_CONTROL_CLASS}
             iconLabel="Open return date picker"
             overlayLabel="Return date picker"
@@ -203,7 +220,9 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
 type FlightsSearchCardProps = {
   action?: string;
   initialFrom?: string;
+  initialFromLocation?: CanonicalLocation | null;
   initialTo?: string;
+  initialToLocation?: CanonicalLocation | null;
   initialDepart?: string;
   initialReturn?: string;
   initialItineraryType?: FlightItineraryTypeSlug;
@@ -214,6 +233,8 @@ type FlightsSearchCardProps = {
 type FlightSubmitSnapshot = {
   from: string;
   to: string;
+  fromLocation: CanonicalLocation | null;
+  toLocation: CanonicalLocation | null;
   depart: string;
   ret: string;
   itineraryType: FlightItineraryTypeSlug;
@@ -225,10 +246,26 @@ const readFlightSubmitSnapshot = (
   form: HTMLFormElement,
 ): FlightSubmitSnapshot => {
   const fd = new FormData(form);
+  const fromSelection = validateLocationSelection({
+    selection: fd.get("fromLocation"),
+    rawValue: fd.get("from"),
+    required: true,
+    fieldLabel: "origin city or airport",
+    allowedKinds: ["city", "airport"],
+  });
+  const toSelection = validateLocationSelection({
+    selection: fd.get("toLocation"),
+    rawValue: fd.get("to"),
+    required: true,
+    fieldLabel: "destination city or airport",
+    allowedKinds: ["city", "airport"],
+  });
 
   return {
     from: String(fd.get("from") || "").trim(),
     to: String(fd.get("to") || "").trim(),
+    fromLocation: fromSelection.location,
+    toLocation: toSelection.location,
     depart: String(fd.get("depart") || "").trim(),
     ret: String(fd.get("return") || "").trim(),
     itineraryType: normalizeFlightItineraryType(
@@ -250,19 +287,23 @@ const validateFlightSubmit = (snapshot: FlightSubmitSnapshot) => {
       1,
     ) || todayIsoDate;
 
-  const normalizedFrom = snapshot.from.toLowerCase();
-  const normalizedTo = snapshot.to.toLowerCase();
   const isRoundTrip = snapshot.itineraryType === "round-trip";
 
-  if (!snapshot.from) {
-    validationErrors.push("Enter an origin city or airport.");
+  if (!snapshot.fromLocation) {
+    validationErrors.push("Choose an origin city or airport from the suggestions.");
   }
 
-  if (!snapshot.to) {
-    validationErrors.push("Enter a destination city or airport.");
+  if (!snapshot.toLocation) {
+    validationErrors.push(
+      "Choose a destination city or airport from the suggestions.",
+    );
   }
 
-  if (normalizedFrom && normalizedTo && normalizedFrom === normalizedTo) {
+  if (
+    snapshot.fromLocation &&
+    snapshot.toLocation &&
+    snapshot.fromLocation.locationId === snapshot.toLocation.locationId
+  ) {
     validationErrors.push("Origin and destination must be different.");
   }
 

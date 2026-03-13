@@ -22,6 +22,7 @@ import {
 } from '~/lib/search/flights/filter-types'
 import { findTopTravelCity } from '~/seed/cities/top-100.js'
 import type { FlightResult } from '~/types/flights/search'
+import type { CanonicalLocation } from '~/types/location'
 
 const DEFAULT_PAGE_SIZE = 6
 
@@ -90,6 +91,8 @@ export type { FlightSearchFacets, FlightsSelectedFilters } from '~/lib/search/fl
 export type LoadFlightResultsPageInput = {
   fromLocationSlug: string
   toLocationSlug: string
+  fromLocation?: CanonicalLocation | null
+  toLocation?: CanonicalLocation | null
   itineraryType: 'one-way' | 'round-trip'
   departDate?: string | null
   sort?: string | null
@@ -120,6 +123,8 @@ export async function loadFlightResultsPageFromDb(
   const selectedFilters = parseFlightsSelectedFilters(input.filters || {})
   const priceBand = toPriceBandBounds(selectedFilters.priceBand)
   const cacheParams = {
+    fromLocationId: input.fromLocation?.locationId,
+    toLocationId: input.toLocation?.locationId,
     fromLocationSlug: input.fromLocationSlug,
     toLocationSlug: input.toLocationSlug,
     itineraryType: input.itineraryType,
@@ -148,8 +153,30 @@ export async function loadFlightResultsPageFromDb(
     return cached
   }
 
-  const fromCity = findTopTravelCity(input.fromLocationSlug)
-  const toCity = findTopTravelCity(input.toLocationSlug)
+  const fromCity =
+    input.fromLocation?.citySlug && input.fromLocation.cityName
+      ? {
+          slug: input.fromLocation.citySlug,
+          name: input.fromLocation.cityName,
+          airportCodes: input.fromLocation.primaryAirportCode
+            ? [input.fromLocation.primaryAirportCode]
+            : input.fromLocation.airportCode
+              ? [input.fromLocation.airportCode]
+              : [],
+        }
+      : findTopTravelCity(input.fromLocationSlug)
+  const toCity =
+    input.toLocation?.citySlug && input.toLocation.cityName
+      ? {
+          slug: input.toLocation.citySlug,
+          name: input.toLocation.cityName,
+          airportCodes: input.toLocation.primaryAirportCode
+            ? [input.toLocation.primaryAirportCode]
+            : input.toLocation.airportCode
+              ? [input.toLocation.airportCode]
+              : [],
+        }
+      : findTopTravelCity(input.toLocationSlug)
 
   if (!fromCity || !toCity) {
     return {
@@ -164,8 +191,14 @@ export async function loadFlightResultsPageFromDb(
     }
   }
 
-  const originIata = fromCity.airportCodes[0]
-  const destinationIata = toCity.airportCodes[0]
+  const originIata =
+    input.fromLocation?.airportCode ||
+    input.fromLocation?.primaryAirportCode ||
+    fromCity.airportCodes[0]
+  const destinationIata =
+    input.toLocation?.airportCode ||
+    input.toLocation?.primaryAirportCode ||
+    toCity.airportCodes[0]
   if (!originIata || !destinationIata) {
     return {
       totalCount: 0,

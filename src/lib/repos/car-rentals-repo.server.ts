@@ -21,6 +21,7 @@ import type { CarRentalsSortKey } from '~/lib/search/car-rentals/car-sort-option
 
 export type SearchCarRentalsInput = {
   citySlug: string
+  airportId?: number | null
   pickupDate?: string
   dropoffDate?: string
   limit?: number
@@ -29,6 +30,7 @@ export type SearchCarRentalsInput = {
 
 export type SearchCarRentalsPageInput = {
   citySlug: string
+  airportId?: number | null
   pickupDate?: string
   dropoffDate?: string
   sort?: CarRentalsSortKey
@@ -176,6 +178,7 @@ const PRICE_BAND_CENTS = {
 
 const buildCarRentalBaseConditions = (input: {
   citySlug: string
+  airportId?: number | null
   pickupDate?: string
   dropoffDate?: string
 }): SQL[] => {
@@ -192,6 +195,10 @@ const buildCarRentalBaseConditions = (input: {
     if (pickupWeekday != null) {
       conditions.push(sql`not (${pickupWeekday} = any(${carInventory.blockedWeekdays}))`)
     }
+  }
+
+  if (input.airportId != null && Number.isFinite(input.airportId) && input.airportId > 0) {
+    conditions.push(eq(carLocations.airportId, input.airportId))
   }
 
   return conditions
@@ -516,6 +523,7 @@ export async function searchCarRentalsPage(
 
 export async function listCarRentalSearchFacets(input: {
   citySlug: string
+  airportId?: number | null
   pickupDate?: string
   dropoffDate?: string
 }): Promise<CarRentalsSearchFacets> {

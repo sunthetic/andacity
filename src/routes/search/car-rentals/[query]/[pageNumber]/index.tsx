@@ -15,15 +15,28 @@ import {
   normalizeQuery,
   safeTitleQuery,
 } from "~/lib/search/car-rentals/normalize";
+import { resolveLocationFromUrlValues } from "~/lib/location/location-repo.server";
 import { searchStateFromUrl } from "~/lib/search/url-to-state";
 import { findTopTravelCity } from "~/seed/cities/top-100.js";
 
 export const useSearchCarRentalsPage = routeLoader$(async ({ params, url }) => {
   const query = normalizeQuery(params.query);
   const routePage = clampInt(params.pageNumber, 1, 9999);
-  const matchedCity = findTopTravelCity(query);
+  const pickupLocation = await resolveLocationFromUrlValues({
+    locationId: url.searchParams.get("pickupLocationId"),
+    searchSlug: query,
+  });
+  const matchedCity =
+    pickupLocation?.citySlug && pickupLocation.cityName
+      ? {
+          slug: pickupLocation.citySlug,
+          name: pickupLocation.cityName,
+        }
+      : findTopTravelCity(query);
   const qHuman =
-    matchedCity?.name || safeTitleQuery(query).replaceAll("-", " ");
+    pickupLocation?.displayName ||
+    matchedCity?.name ||
+    safeTitleQuery(query).replaceAll("-", " ");
   const pickupDate =
     String(url.searchParams.get("pickupDate") || "").trim() || null;
   const dropoffDate =
@@ -49,6 +62,7 @@ export const useSearchCarRentalsPage = routeLoader$(async ({ params, url }) => {
   const source = matchedCity
     ? await loadCarRentalResultsPageFromDb({
         citySlug: matchedCity.slug,
+        location: pickupLocation,
         query,
         pickupDate,
         dropoffDate,
@@ -95,8 +109,16 @@ export const useSearchCarRentalsPage = routeLoader$(async ({ params, url }) => {
     (searchState.filters || {}) as Record<string, unknown>,
   );
 
+  const searchAgainHref = buildSearchCarRentalsHref({
+    queryLabel: qHuman,
+    pickupLocationId: pickupLocation?.locationId,
+    pickupDate,
+    dropoffDate,
+    drivers: String(searchState.filters?.drivers || "").trim(),
+  });
+
   return {
-    query,
+    query: pickupLocation?.searchSlug || query,
     qHuman,
     page: source.page,
     totalCount: source.totalCount,
@@ -106,6 +128,7 @@ export const useSearchCarRentalsPage = routeLoader$(async ({ params, url }) => {
     facets: source.facets,
     results: source.results,
     searchState,
+    searchAgainHref,
     loadError,
   };
 });
@@ -144,6 +167,7 @@ export default component$(() => {
           filterFacets={data.facets}
           searchState={data.searchState}
           queryLabel={data.qHuman}
+          editSearchHref={data.searchAgainHref}
           loadError={data.loadError}
           basePath={basePath}
           urlOptions={{
@@ -153,7 +177,7 @@ export default component$(() => {
           }}
           emptyPrimaryAction={{
             label: "Search car rentals again",
-            href: "/car-rentals",
+            href: data.searchAgainHref,
           }}
           emptySecondaryAction={{
             label: "Browse rental cities",
@@ -188,4 +212,23 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
     ],
     links: [{ rel: "canonical", href: canonicalHref }],
   };
+};
+
+const buildSearchCarRentalsHref = (input: {
+  queryLabel: string;
+  pickupLocationId?: string | null;
+  pickupDate?: string | null;
+  dropoffDate?: string | null;
+  drivers?: string | null;
+}) => {
+  const sp = new URLSearchParams();
+  sp.set("q", input.queryLabel);
+  if (input.pickupLocationId) {
+    sp.set("pickupLocationId", input.pickupLocationId);
+  }
+  if (input.pickupDate) sp.set("pickupDate", input.pickupDate);
+  if (input.dropoffDate) sp.set("dropoffDate", input.dropoffDate);
+  if (input.drivers) sp.set("drivers", input.drivers);
+
+  return `/car-rentals?${sp.toString()}`;
 };

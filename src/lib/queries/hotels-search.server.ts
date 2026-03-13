@@ -7,6 +7,7 @@ import { toBookableEntity, toHotelSearchEntity } from '~/lib/search/search-entit
 import { normalizeHotelSort } from '~/lib/search/hotels/hotel-sort-options'
 import { findTopTravelCity } from '~/seed/cities/top-100.js'
 import type { HotelResult } from '~/types/hotels/search'
+import type { CanonicalLocation } from '~/types/location'
 
 const normalizeToken = (value: string) =>
   String(value || '')
@@ -70,6 +71,7 @@ const toGuestRatingMin = (value: string[] | null | undefined) => {
 
 export type LoadHotelResultsInput = {
   query: string
+  location?: CanonicalLocation | null
   checkIn?: string | null
   checkOut?: string | null
   occupancy?: string | number | null
@@ -100,7 +102,13 @@ export async function loadHotelResultsFromDb(
   input: LoadHotelResultsInput,
 ): Promise<LoadHotelResultsOutput> {
   const startedAt = Date.now()
-  const city = findTopTravelCity(input.query)
+  const city =
+    input.location?.citySlug && input.location.cityName
+      ? {
+          slug: input.location.citySlug,
+          name: input.location.cityName,
+        }
+      : findTopTravelCity(input.query)
   const pageSize = Math.max(1, Math.min(60, Number(input.pageSize || 24)))
   const requestedPage = Math.max(1, Number(input.page || 1))
   const offset = (requestedPage - 1) * pageSize
@@ -118,6 +126,7 @@ export async function loadHotelResultsFromDb(
 
   const sort = toSort(input.sort)
   const cacheParams = {
+    locationId: input.location?.locationId,
     citySlug: city.slug,
     checkIn: input.checkIn,
     checkOut: input.checkOut,

@@ -1,8 +1,13 @@
 import type { RequestHandler } from '@builder.io/qwik-city'
+import { resolveLocationFromUrlValues } from '~/lib/location/location-repo.server'
 
 export const onGet: RequestHandler = async ({ redirect, url }) => {
   const pickupLocation = String(url.searchParams.get('q') || '').trim()
-  const query = pickupLocation || 'anywhere'
+  const resolvedLocation = await resolveLocationFromUrlValues({
+    locationId: url.searchParams.get('pickupLocationId'),
+    text: pickupLocation,
+  })
+  const query = resolvedLocation?.searchSlug || pickupLocation || 'anywhere'
   const pickupDate = String(url.searchParams.get('pickupDate') || '').trim()
   const dropoffDate = String(url.searchParams.get('dropoffDate') || '').trim()
   const drivers = String(url.searchParams.get('drivers') || '').trim()
@@ -12,6 +17,9 @@ export const onGet: RequestHandler = async ({ redirect, url }) => {
 
   if (pickupLocation) {
     nextParams.set('q', pickupLocation)
+  }
+  if (resolvedLocation?.locationId) {
+    nextParams.set('pickupLocationId', resolvedLocation.locationId)
   }
 
   if (pickupDate) {

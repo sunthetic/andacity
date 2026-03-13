@@ -21,6 +21,7 @@ import {
 } from "~/lib/pricing/refresh-price-snapshot";
 import type { HotelResult } from "~/types/hotels/search";
 import { loadHotelResultsFromDb } from "~/lib/queries/hotels-search.server";
+import { resolveLocationFromUrlValues } from "~/lib/location/location-repo.server";
 import {
   clampInt,
   normalizeQuery,
@@ -172,6 +173,10 @@ const toggleCheckboxFilterHref = (
 export const useSearchHotelsPage = routeLoader$(async ({ params, url }) => {
   const query = normalizeQuery(params.query);
   const page = clampInt(params.pageNumber, 1, 9999);
+  const destinationLocation = await resolveLocationFromUrlValues({
+    locationId: url.searchParams.get("destinationLocationId"),
+    searchSlug: query,
+  });
   const checkIn = String(url.searchParams.get("checkIn") || "").trim() || null;
   const checkOut =
     String(url.searchParams.get("checkOut") || "").trim() || null;
@@ -190,6 +195,7 @@ export const useSearchHotelsPage = routeLoader$(async ({ params, url }) => {
 
   const source = await loadHotelResultsFromDb({
     query,
+    location: destinationLocation,
     checkIn,
     checkOut,
     occupancy,
@@ -211,12 +217,15 @@ export const useSearchHotelsPage = routeLoader$(async ({ params, url }) => {
   });
 
   const qHuman =
-    source.matchedCity?.name || safeTitleQuery(query).replaceAll("-", " ");
+    destinationLocation?.displayName ||
+    source.matchedCity?.name ||
+    safeTitleQuery(query).replaceAll("-", " ");
 
   return {
-    query,
+    query: destinationLocation?.searchSlug || query,
     page: source.page,
     qHuman,
+    destinationLocationId: destinationLocation?.locationId || null,
     results: source.results,
     totalCount: source.totalCount,
     totalPages: source.totalPages,
@@ -330,6 +339,9 @@ export default component$(() => {
   const searchAgainParams = new URLSearchParams();
   if (destination) {
     searchAgainParams.set("destination", destination);
+  }
+  if (data.destinationLocationId) {
+    searchAgainParams.set("destinationLocationId", data.destinationLocationId);
   }
   if (checkIn) {
     searchAgainParams.set("checkIn", checkIn);

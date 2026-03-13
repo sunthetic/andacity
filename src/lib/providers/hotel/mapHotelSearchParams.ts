@@ -2,6 +2,7 @@ import { normalizeDatePart } from '~/lib/inventory/inventory-id'
 import type { HotelPriceRange, HotelSort } from '~/lib/repos/hotels-repo.server'
 import type { SearchParams } from '~/types/search'
 import { findTopTravelCity } from '~/seed/cities/top-100.js'
+import type { CanonicalLocation } from '~/types/location'
 
 export type HotelProviderSearchRequest = {
   citySlug: string
@@ -84,7 +85,17 @@ const toSort = (value: unknown): HotelSort => {
   return 'recommended'
 }
 
-const resolveCity = (value: unknown) => {
+const resolveCity = (
+  value: unknown,
+  location: CanonicalLocation | null | undefined,
+) => {
+  if (location?.citySlug) {
+    return {
+      citySlug: location.citySlug,
+      cityName: location.cityName || location.displayName,
+    }
+  }
+
   const destination = toNullableText(value)
   if (!destination) {
     throw new HotelSearchParamsError('destination is required for hotel provider search.')
@@ -134,7 +145,10 @@ export const mapHotelSearchParams = (
     )
   }
 
-  const { citySlug, cityName } = resolveCity(params.destination || params.origin)
+  const { citySlug, cityName } = resolveCity(
+    params.destination || params.origin,
+    params.destinationLocation || params.originLocation,
+  )
   const checkInDate = resolveDate(params.checkInDate || params.departDate, 'checkInDate')
   const checkOutDate = resolveDate(params.checkOutDate || params.returnDate, 'checkOutDate')
   if (checkOutDate <= checkInDate) {

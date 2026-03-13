@@ -6,11 +6,21 @@ import {
   BookingValidationSummary,
 } from "~/components/booking-surface/SearchFormPrimitives";
 import { DateField } from "~/components/ui/DateField";
+import { LocationAutosuggestField } from "~/components/ui/LocationAutosuggestField";
 import { getTodayIsoDate, normalizeIsoDate } from "~/lib/date/validateDate";
 import { addDays } from "~/lib/trips/date-utils";
+import { validateLocationSelection } from "~/lib/location/validateLocationSelection";
+import type { CanonicalLocation } from "~/types/location";
 
 export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
-  const destination = useSignal(props.initialDestination ?? "");
+  const destinationLocation = useSignal<CanonicalLocation | null>(
+    props.initialDestinationLocation ?? null,
+  );
+  const destination = useSignal(
+    props.initialDestinationLocation?.displayName ||
+      props.initialDestination ||
+      "",
+  );
   const checkIn = useSignal(props.initialCheckIn ?? "");
   const checkOut = useSignal(props.initialCheckOut ?? "");
   const guests = useSignal(props.initialGuests ?? "2 guests · 1 room");
@@ -23,6 +33,7 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
 
   const errors = validateSnapshot({
     destination: destination.value,
+    destinationLocation: destinationLocation.value,
     checkIn: checkIn.value,
     checkOut: checkOut.value,
     guests: guests.value,
@@ -32,7 +43,7 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
   return (
     <BookingSearchSurface>
       <form
-        action={props.action ?? "/search/hotels/anywhere/1"}
+        action={props.action ?? "/hotels"}
         method="get"
         preventdefault:submit
         noValidate
@@ -43,26 +54,26 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
           if (submitErrors.length) return;
 
           destination.value = snapshot.destination;
+          destinationLocation.value = snapshot.destinationLocation;
           checkIn.value = snapshot.checkIn;
           checkOut.value = snapshot.checkOut;
           guests.value = snapshot.guests;
-
-          const destinationToken = toPathToken(snapshot.destination);
-          if (!destinationToken) return;
-
-          form.action = `/search/hotels/${encodeURIComponent(destinationToken)}/1`;
           form.submit();
         }}
-        class="grid gap-3 md:grid-cols-[minmax(0,2fr)_minmax(11rem,1fr)_minmax(11rem,1fr)_minmax(180px,0.95fr)_auto]"
+        class="grid gap-3 md:grid-cols-[minmax(0,2.65fr)_minmax(10rem,0.95fr)_minmax(10rem,0.95fr)_minmax(170px,0.85fr)_auto]"
       >
+        <input type="hidden" name="search" value="1" />
         <BookingSearchField label="Destination" forId="hotel-destination">
-          <input
+          <LocationAutosuggestField
             id="hotel-destination"
             name="destination"
-            type="text"
-            bind:value={destination}
-            placeholder="City, neighborhood, or hotel"
-            class={BOOKING_SEARCH_CONTROL_CLASS}
+            selectionName="destinationLocation"
+            value={destination}
+            selectedLocation={destinationLocation}
+            placeholder="City or airport"
+            inputClass={BOOKING_SEARCH_CONTROL_CLASS}
+            ariaLabel="Hotel destination"
+            required={true}
           />
         </BookingSearchField>
 
@@ -73,6 +84,7 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
             value={checkIn}
             required={true}
             minValue={todayIsoDate}
+            class="w-full pr-2"
             inputClass={BOOKING_SEARCH_CONTROL_CLASS}
             iconLabel="Open check-in date picker"
             overlayLabel="Check-in date picker"
@@ -86,6 +98,7 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
             value={checkOut}
             required={true}
             minValue={minimumCheckoutDate}
+            class="w-full pr-2"
             inputClass={BOOKING_SEARCH_CONTROL_CLASS}
             iconLabel="Open check-out date picker"
             overlayLabel="Check-out date picker"
@@ -124,6 +137,7 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
 type HotelSearchCardProps = {
   action?: string;
   initialDestination?: string;
+  initialDestinationLocation?: CanonicalLocation | null;
   initialCheckIn?: string;
   initialCheckOut?: string;
   initialGuests?: string;
@@ -131,6 +145,7 @@ type HotelSearchCardProps = {
 
 type HotelSubmitSnapshot = {
   destination: string;
+  destinationLocation: CanonicalLocation | null;
   checkIn: string;
   checkOut: string;
   guests: string;
@@ -138,9 +153,17 @@ type HotelSubmitSnapshot = {
 
 const readSnapshot = (form: HTMLFormElement): HotelSubmitSnapshot => {
   const fd = new FormData(form);
+  const destinationSelection = validateLocationSelection({
+    selection: fd.get("destinationLocation"),
+    rawValue: fd.get("destination"),
+    required: true,
+    fieldLabel: "destination",
+    allowedKinds: ["city", "airport"],
+  });
 
   return {
     destination: String(fd.get("destination") || "").trim(),
+    destinationLocation: destinationSelection.location,
     checkIn: String(fd.get("checkIn") || "").trim(),
     checkOut: String(fd.get("checkOut") || "").trim(),
     guests: String(fd.get("guests") || "").trim(),
@@ -158,8 +181,8 @@ const validateSnapshot = (snapshot: HotelSubmitSnapshot) => {
       1,
     ) || todayIsoDate;
 
-  if (!snapshot.destination) {
-    validationErrors.push("Enter a destination.");
+  if (!snapshot.destinationLocation) {
+    validationErrors.push("Choose a destination from the suggestions.");
   }
 
   if (!checkInDate) {
@@ -175,14 +198,4 @@ const validateSnapshot = (snapshot: HotelSubmitSnapshot) => {
   }
 
   return validationErrors;
-};
-
-const toPathToken = (value: string) => {
-  return String(value || "")
-    .normalize("NFKD")
-    .replaceAll(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, "-")
-    .replaceAll(/(^-|-$)/g, "");
 };

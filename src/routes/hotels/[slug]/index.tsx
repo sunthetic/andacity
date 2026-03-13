@@ -337,8 +337,8 @@ export default component$(() => {
       ) : null}
 
       {/* Hero: hotel name + trust row */}
-      <div class="grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
-        <div>
+      <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
             <span class="t-badge">{h.stars}★</span>
             <span class="t-badge">{h.neighborhood}</span>
@@ -569,7 +569,7 @@ export default component$(() => {
 
         {/* Sticky booking card (primary conversion zone) */}
         <aside
-          class="lg:sticky lg:self-start"
+          class="min-w-0 lg:sticky lg:self-start"
           style={{ top: "var(--sticky-top-offset)" }}
         >
           <div class="t-card p-5 bg-surface" id="stay">
@@ -642,8 +642,8 @@ export default component$(() => {
             </div>
 
             <form method="get" class="mt-4 grid gap-3">
-              <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <div>
+              <div class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <div class="min-w-0">
                   <label
                     for="hotel-detail-check-in"
                     class="text-xs font-medium text-[color:var(--color-text-subtle)]"
@@ -655,12 +655,13 @@ export default component$(() => {
                     name="checkIn"
                     value={stayCheckIn}
                     minValue={todayIsoDate}
+                    class="w-full min-w-0"
                     inputClass="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
                     iconLabel="Open check-in date picker"
                     overlayLabel="Check-in date picker"
                   />
                 </div>
-                <div>
+                <div class="min-w-0">
                   <label
                     for="hotel-detail-check-out"
                     class="text-xs font-medium text-[color:var(--color-text-subtle)]"
@@ -672,6 +673,7 @@ export default component$(() => {
                     name="checkOut"
                     value={stayCheckOut}
                     minValue={minimumCheckoutDate}
+                    class="w-full min-w-0"
                     inputClass="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
                     iconLabel="Open check-out date picker"
                     overlayLabel="Check-out date picker"

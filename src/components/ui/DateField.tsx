@@ -125,7 +125,7 @@ export const DateField = component$((props: DateFieldProps) => {
   });
 
   return (
-    <div ref={rootRef} class={["relative min-w-[11rem]", props.class]}>
+    <div ref={rootRef} class={["relative min-w-[10rem]", props.class]}>
       {props.name ? (
         <input
           type="hidden"
@@ -152,9 +152,9 @@ export const DateField = component$((props: DateFieldProps) => {
           aria-haspopup="dialog"
           aria-invalid={inlineMessage ? "true" : "false"}
           class={[
-            "w-full min-w-0 pr-9",
-            inlineMessage ? "text-[color:var(--color-danger,#b91c1c)]" : null,
             props.inputClass,
+            "w-full min-w-0 pr-10",
+            inlineMessage ? "text-[color:var(--color-danger,#b91c1c)]" : null,
           ]}
           disabled={props.disabled}
           readOnly={pickerOpen.value}
@@ -252,7 +252,7 @@ export const DateField = component$((props: DateFieldProps) => {
         <button
           type="button"
           aria-label={props.iconLabel || "Open date picker"}
-          class="absolute inset-y-0 right-0 inline-flex w-9 items-center justify-center rounded-r-md text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)] disabled:cursor-not-allowed disabled:opacity-60"
+          class="absolute inset-y-1 right-1 inline-flex w-8 items-center justify-center rounded-md text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)] disabled:cursor-not-allowed disabled:opacity-60"
           disabled={props.disabled}
           onClick$={() => {
             if (props.disabled) return;

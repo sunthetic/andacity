@@ -2,6 +2,7 @@ import { normalizeDatePart } from '~/lib/inventory/inventory-id'
 import type { SearchParams } from '~/types/search'
 import type { FlightItineraryType } from '~/types/flights/provider'
 import { findTopTravelCity } from '~/seed/cities/top-100.js'
+import type { CanonicalLocation } from '~/types/location'
 
 export type FlightProviderSearchRequest = {
   originIata: string
@@ -42,7 +43,23 @@ const resolveExplicitAirportCode = (value: string) => {
   return embeddedCode[1].toUpperCase()
 }
 
-const resolveAirportCode = (value: unknown, fieldName: string) => {
+const resolveAirportCodeFromLocation = (location: CanonicalLocation | null | undefined) => {
+  if (!location) return null
+  if (location.airportCode) return location.airportCode.toUpperCase()
+  if (location.primaryAirportCode) return location.primaryAirportCode.toUpperCase()
+  return null
+}
+
+const resolveAirportCode = (
+  value: unknown,
+  location: CanonicalLocation | null | undefined,
+  fieldName: string,
+) => {
+  const canonicalCode = resolveAirportCodeFromLocation(location)
+  if (canonicalCode && AIRPORT_CODE_PATTERN.test(canonicalCode)) {
+    return canonicalCode
+  }
+
   const text = toNullableText(value)
   if (!text) {
     throw new FlightSearchParamsError(`${fieldName} is required for flight provider search.`)
@@ -82,8 +99,16 @@ export const mapFlightSearchParams = (
     )
   }
 
-  const originIata = resolveAirportCode(params.origin, 'origin')
-  const destinationIata = resolveAirportCode(params.destination, 'destination')
+  const originIata = resolveAirportCode(
+    params.origin,
+    params.originLocation,
+    'origin',
+  )
+  const destinationIata = resolveAirportCode(
+    params.destination,
+    params.destinationLocation,
+    'destination',
+  )
   if (originIata === destinationIata) {
     throw new FlightSearchParamsError('Flight provider search requires different origin and destination airports.')
   }
