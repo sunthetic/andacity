@@ -33,6 +33,34 @@ export const TRIP_VALIDATION_SEVERITIES = ["warning", "blocking"] as const;
 export type TripValidationSeverity =
   (typeof TRIP_VALIDATION_SEVERITIES)[number];
 
+export const TRIP_ITEM_ISSUE_CODES = [
+  "inventory_missing",
+  "sold_out",
+  "price_changed",
+  "currency_changed",
+  "date_changed",
+  "inventory_mismatch",
+  "snapshot_incomplete",
+  "revalidation_failed",
+] as const;
+export type TripItemIssueCode = (typeof TRIP_ITEM_ISSUE_CODES)[number];
+
+export type TripItemIssueSeverity = TripValidationSeverity;
+
+export type TripItemIssue = {
+  code: TripItemIssueCode;
+  severity: TripItemIssueSeverity;
+  message: string;
+};
+
+export const TRIP_ITEM_REVALIDATION_STATUSES = [
+  "ok",
+  "warning",
+  "blocking",
+] as const;
+export type TripItemRevalidationStatus =
+  (typeof TRIP_ITEM_REVALIDATION_STATUSES)[number];
+
 export const TRIP_INTELLIGENCE_STATUSES = [
   "valid_itinerary",
   "warnings_present",
@@ -164,6 +192,7 @@ export type TripItem = {
   availabilityStatus: TripItemValidityStatus;
   availabilityCheckedAt: string | null;
   availabilityExpiresAt: string | null;
+  revalidation: TripItemRevalidationResult;
   imageUrl: string | null;
   meta: string[];
   issues: TripValidationIssue[];
@@ -181,6 +210,20 @@ export type TripItem = {
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+};
+
+export type TripItemRevalidationResult = {
+  itemId: number;
+  inventoryId: string | null;
+  checkedAt: string;
+  status: TripItemRevalidationStatus;
+  currentPriceCents: number | null;
+  currentCurrencyCode: string | null;
+  snapshotPriceCents: number | null;
+  snapshotCurrencyCode: string | null;
+  priceDeltaCents: number | null;
+  isAvailable: boolean | null;
+  issues: TripItemIssue[];
 };
 
 export type TripEditingState = {

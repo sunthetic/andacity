@@ -60,10 +60,23 @@ export const createTripApi = async (input: {
   return payload.trip
 }
 
-export const getTripDetailsApi = async (tripId: number): Promise<TripDetails> => {
-  const payload = await requestJson<{ trip: TripDetails }>(`/api/trips/${tripId}`, {
+export const getTripDetailsApi = async (
+  tripId: number,
+  options: {
+    revalidate?: 'auto' | 'force'
+  } = {},
+): Promise<TripDetails> => {
+  const params = new URLSearchParams()
+  if (options.revalidate === 'force') {
+    params.set('revalidate', 'force')
+  }
+
+  const payload = await requestJson<{ trip: TripDetails }>(
+    `/api/trips/${tripId}${params.size ? `?${params.toString()}` : ''}`,
+    {
     method: 'GET',
-  })
+    },
+  )
   return payload.trip
 }
 

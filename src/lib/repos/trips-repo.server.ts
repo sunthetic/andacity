@@ -30,7 +30,9 @@ import {
   carInventory,
   carInventoryImages,
   carLocations,
+  carOffers,
   carProviders,
+  carVehicleClasses,
   cities,
   flightFares,
   flightItineraries,
@@ -60,7 +62,12 @@ import {
   bundlingSuggestionService,
 } from '~/lib/trips/bundling-suggestion-service.server'
 import { readTripBundlingState } from '~/lib/trips/bundle-explainability'
-import { buildTripItemRevalidationIssues } from '~/lib/trips/revalidate-trip-items'
+import {
+  revalidateTripItems,
+  type ResolvedTripItemCurrentInventory,
+  type TripItemRevalidationCandidate,
+  type TripItemRevalidationResolver,
+} from '~/lib/trips/revalidate-trip-items'
 import { buildTripEditBundleImpact } from '~/lib/trips/bundle-swap-impact'
 import { buildTripIntelligenceSummary } from '~/lib/trips/status-aggregation'
 import {
@@ -81,7 +88,9 @@ import {
   type TripItemReplacementOption,
   type TripIntelligenceSummary,
   type TripItem,
+  type TripItemIssue,
   type TripItemCandidate,
+  type TripItemRevalidationResult,
   type TripRollbackDraft,
   type TripRollbackItemSnapshot,
   type TripItemType,
@@ -294,6 +303,20 @@ const toIsoDate = (value: string | null | undefined): string | null => {
   const text = String(value).trim()
   if (!text) return null
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null
+}
+
+const toPositiveInteger = (value: unknown) => {
+  const parsed = Number.parseInt(String(value ?? '').trim(), 10)
+  if (!Number.isFinite(parsed) || parsed < 1) return null
+  return Math.round(parsed)
+}
+
+const toUtcWeekday = (value: string | null | undefined) => {
+  const isoDate = toIsoDate(value)
+  if (!isoDate) return null
+
+  const date = new Date(`${isoDate}T00:00:00.000Z`)
+  return Number.isNaN(date.getTime()) ? null : date.getUTCDay()
 }
 
 const normalizeTripName = (value: string | null | undefined) => {
@@ -1216,6 +1239,466 @@ const readTripItems = async (tripId: number): Promise<TripItemRecord[]> => {
   })
 }
 
+type FlightRevalidationRow = {
+  id: number
+  airlineCode: string | null
+  flightNumber: string | null
+  serviceDate: string
+  originCode: string
+  destinationCode: string
+  currentPriceCents: number
+  currentCurrencyCode: string
+  seatsRemaining: number | null
+}
+
+const readTripItemRecordProviderInventoryId = (item: TripItemRecord) =>
+  resolveStoredProviderInventoryId({
+    itemType: item.itemType,
+    hotelId: item.hotelId,
+    flightItineraryId: item.flightItineraryId,
+    carInventoryId: item.carInventoryId,
+  }) ||
+  toPositiveInteger(item.metadata[TRIP_ITEM_PROVIDER_INVENTORY_ID_KEY]) ||
+  null
+
+const toTripItemRevalidationCandidate = (
+  item: TripItemRecord,
+): TripItemRevalidationCandidate => ({
+  itemId: item.id,
+  itemType: item.itemType,
+  title: item.title,
+  inventoryId: item.inventoryId,
+  snapshotPriceCents: item.snapshotPriceCents,
+  snapshotCurrencyCode: item.snapshotCurrencyCode,
+  snapshotTimestamp: item.snapshotTimestamp,
+  startDate: item.startDate,
+  endDate: item.endDate,
+  metadata: item.metadata,
+  providerInventoryId: readTripItemRecordProviderInventoryId(item),
+})
+
+const buildResolvedHotelInventoryId = (input: {
+  hotelId: number
+  checkInDate: string
+  checkOutDate: string
+  roomType: string
+  occupancy: number
+}) => {
+  try {
+    return buildHotelInventoryId(input)
+  } catch {
+    return null
+  }
+}
+
+const buildResolvedCarInventoryId = (input: {
+  providerLocationId: string | number
+  pickupDateTime: string
+  dropoffDateTime: string
+  vehicleClass: string
+}) => {
+  try {
+    return buildCarInventoryId(input)
+  } catch {
+    return null
+  }
+}
+
+const buildResolvedFlightInventoryId = (input: {
+  airlineCode: string
+  flightNumber: string
+  departDate: string
+  originCode: string
+  destinationCode: string
+}) => {
+  try {
+    return buildFlightInventoryId(input)
+  } catch {
+    return null
+  }
+}
+
+const isHotelInventoryAvailable = (
+  availability:
+    | {
+        checkInStart: string
+        checkInEnd: string
+        minNights: number
+        maxNights: number
+        blockedWeekdays: number[]
+      }
+    | null,
+  checkInDate: string,
+  checkOutDate: string,
+) => {
+  if (!availability) return null
+
+  const nights = computeNights(checkInDate, checkOutDate)
+  if (nights == null) return null
+
+  if (checkInDate < availability.checkInStart || checkInDate > availability.checkInEnd) {
+    return false
+  }
+
+  if (nights < availability.minNights || nights > availability.maxNights) {
+    return false
+  }
+
+  const weekday = toUtcWeekday(checkInDate)
+  if (weekday != null && availability.blockedWeekdays.includes(weekday)) {
+    return false
+  }
+
+  return true
+}
+
+const isCarInventoryAvailable = (
+  availability: {
+    availabilityStart: string
+    availabilityEnd: string
+    minDays: number
+    maxDays: number
+    blockedWeekdays: number[]
+  },
+  pickupDateTime: string,
+  dropoffDateTime: string,
+) => {
+  const pickupDate = toIsoDate(pickupDateTime.slice(0, 10))
+  const dropoffDate = toIsoDate(dropoffDateTime.slice(0, 10))
+  const days = computeDays(pickupDate, dropoffDate)
+  if (!pickupDate || !dropoffDate || days == null) return null
+
+  if (pickupDate < availability.availabilityStart || pickupDate > availability.availabilityEnd) {
+    return false
+  }
+
+  if (days < availability.minDays || days > availability.maxDays) {
+    return false
+  }
+
+  const weekday = toUtcWeekday(pickupDate)
+  if (weekday != null && availability.blockedWeekdays.includes(weekday)) {
+    return false
+  }
+
+  return true
+}
+
+const readFlightRevalidationRowByItineraryId = async (itineraryId: number) => {
+  const db = getDb()
+  const primarySegment = alias(flightSegments, 'trip_item_revalidation_primary_segment')
+  const originAirport = alias(airports, 'trip_item_revalidation_origin_airport')
+  const destinationAirport = alias(airports, 'trip_item_revalidation_destination_airport')
+  const standardFare = alias(flightFares, 'trip_item_revalidation_standard_fare')
+
+  const rows = await db
+    .select({
+      id: flightItineraries.id,
+      airlineCode: airlines.iataCode,
+      flightNumber: primarySegment.operatingFlightNumber,
+      serviceDate: flightItineraries.serviceDate,
+      originCode: originAirport.iataCode,
+      destinationCode: destinationAirport.iataCode,
+      currentPriceCents:
+        sql<number>`coalesce(${standardFare.priceCents}, ${flightItineraries.basePriceCents})`,
+      currentCurrencyCode:
+        sql<string>`coalesce(${standardFare.currencyCode}, ${flightItineraries.currencyCode})`,
+      seatsRemaining:
+        sql<number | null>`coalesce(${standardFare.seatsRemaining}, ${flightItineraries.seatsRemaining})`,
+    })
+    .from(flightItineraries)
+    .innerJoin(flightRoutes, eq(flightItineraries.routeId, flightRoutes.id))
+    .innerJoin(airlines, eq(flightItineraries.airlineId, airlines.id))
+    .innerJoin(originAirport, eq(flightRoutes.originAirportId, originAirport.id))
+    .innerJoin(destinationAirport, eq(flightRoutes.destinationAirportId, destinationAirport.id))
+    .leftJoin(
+      primarySegment,
+      and(
+        eq(primarySegment.itineraryId, flightItineraries.id),
+        eq(primarySegment.segmentOrder, 0),
+      ),
+    )
+    .leftJoin(
+      standardFare,
+      and(
+        eq(standardFare.itineraryId, flightItineraries.id),
+        eq(standardFare.fareCode, 'standard'),
+        eq(standardFare.cabinClass, flightItineraries.cabinClass),
+      ),
+    )
+    .where(eq(flightItineraries.id, itineraryId))
+    .limit(1)
+
+  return rows[0] || null
+}
+
+const readFlightRevalidationRowByCanonical = async (input: {
+  airlineCode: string
+  flightNumber: string
+  serviceDate: string
+  originCode: string
+  destinationCode: string
+}) => {
+  const db = getDb()
+  const primarySegment = alias(flightSegments, 'trip_item_revalidation_match_segment')
+  const originAirport = alias(airports, 'trip_item_revalidation_match_origin_airport')
+  const destinationAirport = alias(airports, 'trip_item_revalidation_match_destination_airport')
+  const standardFare = alias(flightFares, 'trip_item_revalidation_match_standard_fare')
+
+  const rows = await db
+    .select({
+      id: flightItineraries.id,
+      airlineCode: airlines.iataCode,
+      flightNumber: primarySegment.operatingFlightNumber,
+      serviceDate: flightItineraries.serviceDate,
+      originCode: originAirport.iataCode,
+      destinationCode: destinationAirport.iataCode,
+      currentPriceCents:
+        sql<number>`coalesce(${standardFare.priceCents}, ${flightItineraries.basePriceCents})`,
+      currentCurrencyCode:
+        sql<string>`coalesce(${standardFare.currencyCode}, ${flightItineraries.currencyCode})`,
+      seatsRemaining:
+        sql<number | null>`coalesce(${standardFare.seatsRemaining}, ${flightItineraries.seatsRemaining})`,
+    })
+    .from(flightItineraries)
+    .innerJoin(flightRoutes, eq(flightItineraries.routeId, flightRoutes.id))
+    .innerJoin(airlines, eq(flightItineraries.airlineId, airlines.id))
+    .innerJoin(originAirport, eq(flightRoutes.originAirportId, originAirport.id))
+    .innerJoin(destinationAirport, eq(flightRoutes.destinationAirportId, destinationAirport.id))
+    .leftJoin(
+      primarySegment,
+      and(
+        eq(primarySegment.itineraryId, flightItineraries.id),
+        eq(primarySegment.segmentOrder, 0),
+      ),
+    )
+    .leftJoin(
+      standardFare,
+      and(
+        eq(standardFare.itineraryId, flightItineraries.id),
+        eq(standardFare.fareCode, 'standard'),
+        eq(standardFare.cabinClass, flightItineraries.cabinClass),
+      ),
+    )
+    .where(
+      and(
+        eq(flightItineraries.serviceDate, input.serviceDate),
+        eq(airlines.iataCode, input.airlineCode),
+        eq(originAirport.iataCode, input.originCode),
+        eq(destinationAirport.iataCode, input.destinationCode),
+        eq(primarySegment.operatingFlightNumber, input.flightNumber),
+      ),
+    )
+    .orderBy(asc(flightItineraries.id))
+    .limit(1)
+
+  return rows[0] || null
+}
+
+const toResolvedFlightCurrentInventory = (
+  item: TripItemRevalidationCandidate,
+  row: FlightRevalidationRow | null,
+): ResolvedTripItemCurrentInventory | null => {
+  if (!row) return null
+
+  const inventoryId =
+    row.airlineCode &&
+      row.flightNumber &&
+      row.originCode &&
+      row.destinationCode &&
+      row.serviceDate
+      ? buildResolvedFlightInventoryId({
+        airlineCode: row.airlineCode,
+        flightNumber: row.flightNumber,
+        departDate: row.serviceDate,
+        originCode: row.originCode,
+        destinationCode: row.destinationCode,
+      })
+      : null
+
+  return {
+    inventoryId,
+    currentPriceCents: resolveComparablePriceCents(row.currentPriceCents, item.metadata),
+    currentCurrencyCode: row.currentCurrencyCode,
+    isAvailable: row.seatsRemaining == null ? true : row.seatsRemaining > 0,
+  }
+}
+
+const tripItemRevalidationResolver: TripItemRevalidationResolver = {
+  hotel: async ({ item, parsedInventory, checkedAt }) => {
+    const parsedHotelId = toPositiveInteger(parsedInventory.hotelId)
+    const hotelId = item.providerInventoryId || parsedHotelId
+    if (!hotelId) return null
+
+    const db = getDb()
+    const rows = await db
+      .select({
+        id: hotels.id,
+        currentPriceCents: hotels.fromNightlyCents,
+        currentCurrencyCode: hotels.currencyCode,
+      })
+      .from(hotels)
+      .where(eq(hotels.id, hotelId))
+      .limit(1)
+
+    const row = rows[0]
+    if (!row) {
+      return parsedHotelId && parsedHotelId !== hotelId
+        ? tripItemRevalidationResolver.hotel({
+          item: {
+            ...item,
+            providerInventoryId: parsedHotelId,
+          },
+          parsedInventory,
+          checkedAt,
+        })
+        : null
+    }
+
+    const hotelAvailability =
+      (await readLatestHotelAvailabilitySnapshots([row.id])).get(row.id) || null
+
+    return {
+      inventoryId:
+        buildResolvedHotelInventoryId({
+          hotelId: row.id,
+          checkInDate: parsedInventory.checkInDate,
+          checkOutDate: parsedInventory.checkOutDate,
+          roomType: parsedInventory.roomType,
+          occupancy: parsedInventory.occupancy,
+        }) || item.inventoryId,
+      currentPriceCents: resolveComparablePriceCents(row.currentPriceCents, item.metadata),
+      currentCurrencyCode: row.currentCurrencyCode,
+      isAvailable: isHotelInventoryAvailable(
+        hotelAvailability,
+        parsedInventory.checkInDate,
+        parsedInventory.checkOutDate,
+      ),
+    }
+  },
+  flight: async ({ item, parsedInventory }) => {
+    const providerInventoryId = item.providerInventoryId
+    const providerMatch =
+      providerInventoryId != null
+        ? await readFlightRevalidationRowByItineraryId(providerInventoryId)
+        : null
+
+    if (providerMatch) {
+      return toResolvedFlightCurrentInventory(item, providerMatch)
+    }
+
+    const canonicalMatch = await readFlightRevalidationRowByCanonical({
+      airlineCode: parsedInventory.airlineCode,
+      flightNumber: parsedInventory.flightNumber,
+      serviceDate: parsedInventory.departDate,
+      originCode: parsedInventory.originCode,
+      destinationCode: parsedInventory.destinationCode,
+    })
+
+    return toResolvedFlightCurrentInventory(item, canonicalMatch)
+  },
+  car: async ({ item, parsedInventory }) => {
+    const db = getDb()
+    const parsedLocationId = toPositiveInteger(parsedInventory.providerLocationId)
+    const providerInventoryId = item.providerInventoryId
+    const selectCarRow = () =>
+      db
+        .select({
+          id: carInventory.id,
+          locationId: carInventory.locationId,
+          currentPriceCents: carInventory.fromDailyCents,
+          currentCurrencyCode: carInventory.currencyCode,
+          availabilityStart: carInventory.availabilityStart,
+          availabilityEnd: carInventory.availabilityEnd,
+          minDays: carInventory.minDays,
+          maxDays: carInventory.maxDays,
+          blockedWeekdays: carInventory.blockedWeekdays,
+        })
+        .from(carInventory)
+
+    const rowByInventoryId =
+      providerInventoryId != null
+        ? (
+          await selectCarRow()
+            .where(eq(carInventory.id, providerInventoryId))
+            .limit(1)
+        )[0] || null
+        : null
+
+    const rowByLocationId =
+      parsedLocationId != null
+        ? (
+          await selectCarRow()
+            .where(eq(carInventory.locationId, parsedLocationId))
+            .orderBy(asc(carInventory.fromDailyCents), asc(carInventory.id))
+            .limit(1)
+        )[0] || null
+        : null
+
+    const row = rowByInventoryId || rowByLocationId
+
+    if (!row) return null
+
+    const matchedVehicleClassRows = await db
+      .select({
+        vehicleClass: carVehicleClasses.key,
+      })
+      .from(carOffers)
+      .innerJoin(carVehicleClasses, eq(carOffers.vehicleClassId, carVehicleClasses.id))
+      .where(
+        and(
+          eq(carOffers.inventoryId, row.id),
+          eq(carVehicleClasses.key, parsedInventory.vehicleClass),
+        ),
+      )
+      .limit(1)
+
+    const fallbackVehicleClassRows = await db
+      .select({
+        vehicleClass: carVehicleClasses.key,
+      })
+      .from(carOffers)
+      .innerJoin(carVehicleClasses, eq(carOffers.vehicleClassId, carVehicleClasses.id))
+      .where(eq(carOffers.inventoryId, row.id))
+      .orderBy(asc(carOffers.priceDailyCents), asc(carOffers.id))
+      .limit(1)
+
+    const resolvedVehicleClass =
+      matchedVehicleClassRows[0]?.vehicleClass ||
+      fallbackVehicleClassRows[0]?.vehicleClass ||
+      parsedInventory.vehicleClass
+    const resolvedLocationToken =
+      parsedLocationId != null &&
+        row.locationId !== parsedLocationId &&
+        row.id !== parsedLocationId
+        ? String(row.locationId)
+        : parsedInventory.providerLocationId
+
+    return {
+      inventoryId:
+        buildResolvedCarInventoryId({
+          providerLocationId: resolvedLocationToken,
+          pickupDateTime: parsedInventory.pickupDateTime,
+          dropoffDateTime: parsedInventory.dropoffDateTime,
+          vehicleClass: resolvedVehicleClass,
+        }) || item.inventoryId,
+      currentPriceCents: resolveComparablePriceCents(row.currentPriceCents, item.metadata),
+      currentCurrencyCode: row.currentCurrencyCode,
+      isAvailable: isCarInventoryAvailable(
+        {
+          availabilityStart: row.availabilityStart,
+          availabilityEnd: row.availabilityEnd,
+          minDays: row.minDays,
+          maxDays: row.maxDays,
+          blockedWeekdays: toIntList(row.blockedWeekdays),
+        },
+        parsedInventory.pickupDateTime,
+        parsedInventory.dropoffDateTime,
+      ),
+    }
+  },
+}
+
 const dedupeIssues = (issues: TripValidationIssue[]) => {
   const seen = new Set<string>()
   const next: TripValidationIssue[] = []
@@ -1558,9 +2041,97 @@ const getIssuesForTripItem = (
   dedupeIssues([
     ...availabilityIssues,
     ...itineraryIssues.filter(
-      (issue) => issue.itemId === itemId || issue.relatedItemIds?.includes(itemId),
+        (issue) => issue.itemId === itemId || issue.relatedItemIds?.includes(itemId),
     ),
   ])
+
+type CoreTripItemValidityStatus = Exclude<TripItemValidityStatus, 'price_only_changed'>
+
+const BLOCKING_REVALIDATION_CODES = new Set<TripItemIssue['code']>([
+  'inventory_missing',
+  'inventory_mismatch',
+  'sold_out',
+])
+
+const STALE_REVALIDATION_CODES = new Set<TripItemIssue['code']>([
+  'date_changed',
+  'snapshot_incomplete',
+  'revalidation_failed',
+])
+
+const toTripValidationIssue = (
+  itemId: number,
+  issue: TripItemIssue,
+): TripValidationIssue => ({
+  code: issue.code,
+  scope: 'availability',
+  severity: issue.severity,
+  message: issue.message,
+  itemId,
+})
+
+const toTripValidationIssues = (revalidation: TripItemRevalidationResult | undefined) =>
+  revalidation ? revalidation.issues.map((issue) => toTripValidationIssue(revalidation.itemId, issue)) : []
+
+const buildFallbackTripItemRevalidation = (
+  item: TripItemRecord,
+  availability: TripItemAvailabilityValidationResult,
+): TripItemRevalidationResult => ({
+  itemId: item.id,
+  inventoryId: item.inventoryId,
+  checkedAt: availability.checkedAt || item.snapshotTimestamp,
+  status: 'ok',
+  currentPriceCents: item.currentPriceCents,
+  currentCurrencyCode: item.currentCurrencyCode,
+  snapshotPriceCents: item.snapshotPriceCents,
+  snapshotCurrencyCode: item.snapshotCurrencyCode,
+  priceDeltaCents: item.priceDriftCents,
+  isAvailable: availability.status === 'unavailable' ? false : availability.status === 'stale' ? null : true,
+  issues: [],
+})
+
+const applyRevalidationStatus = (
+  status: CoreTripItemValidityStatus,
+  revalidation: TripItemRevalidationResult,
+): CoreTripItemValidityStatus => {
+  if (revalidation.issues.some((issue) => BLOCKING_REVALIDATION_CODES.has(issue.code))) {
+    return 'unavailable'
+  }
+
+  if (
+    status !== 'unavailable' &&
+    revalidation.issues.some((issue) => STALE_REVALIDATION_CODES.has(issue.code))
+  ) {
+    return 'stale'
+  }
+
+  return status
+}
+
+const resolveTripItemPricingFromRevalidation = (
+  item: TripItemRecord,
+  revalidation: TripItemRevalidationResult,
+) => {
+  const currentPriceCents = revalidation.currentPriceCents
+  const currentCurrencyCode = revalidation.currentCurrencyCode
+
+  return {
+    currentPriceCents,
+    currentCurrencyCode,
+    priceDriftStatus: getPriceDriftStatus(
+      item.snapshotPriceCents,
+      item.snapshotCurrencyCode,
+      currentPriceCents,
+      currentCurrencyCode,
+    ),
+    priceDriftCents: getPriceDriftCents(
+      item.snapshotPriceCents,
+      item.snapshotCurrencyCode,
+      currentPriceCents,
+      currentCurrencyCode,
+    ),
+  }
+}
 
 const PARTIAL_AVAILABILITY_CODES = new Set(['flight_date_needs_confirmation'])
 const REVALIDATION_FAILURE_CODES = new Set([
@@ -1597,6 +2168,7 @@ const toTripItem = (
   item: TripItemRecord,
   availability: TripItemAvailabilityValidationResult | undefined,
   itineraryIssues: TripValidationIssue[],
+  revalidation: TripItemRevalidationResult | undefined,
 ): TripItem => {
   const resolvedAvailability =
     availability ||
@@ -1633,15 +2205,29 @@ const toTripItem = (
           },
       new Date(),
     )
-  const availabilityStatus = applyPriceDriftToAvailabilityStatus(
+  const resolvedRevalidation =
+    revalidation || buildFallbackTripItemRevalidation(item, resolvedAvailability)
+  const resolvedPricing = resolveTripItemPricingFromRevalidation(item, resolvedRevalidation)
+  const coreAvailabilityStatus = applyRevalidationStatus(
     resolvedAvailability.status,
-    item.priceDriftStatus,
+    resolvedRevalidation,
+  )
+  const availabilityStatus = applyPriceDriftToAvailabilityStatus(
+    coreAvailabilityStatus,
+    resolvedPricing.priceDriftStatus,
   )
   const freshness = buildInventoryFreshness({
-    checkedAt: resolvedAvailability.checkedAt || item.snapshotTimestamp,
+    checkedAt:
+      resolvedRevalidation.checkedAt ||
+      resolvedAvailability.checkedAt ||
+      item.snapshotTimestamp,
     profile: 'availability_revalidation',
   })
-  const issues = getIssuesForTripItem(item.id, resolvedAvailability.issues, itineraryIssues)
+  const issues = getIssuesForTripItem(
+    item.id,
+    [...resolvedAvailability.issues, ...toTripValidationIssues(resolvedRevalidation)],
+    itineraryIssues,
+  )
 
   return {
     id: item.id,
@@ -1657,10 +2243,10 @@ const toTripItem = (
     snapshotPriceCents: item.snapshotPriceCents,
     snapshotCurrencyCode: item.snapshotCurrencyCode,
     snapshotTimestamp: item.snapshotTimestamp,
-    currentPriceCents: item.currentPriceCents,
-    currentCurrencyCode: item.currentCurrencyCode,
-    priceDriftStatus: item.priceDriftStatus,
-    priceDriftCents: item.priceDriftCents,
+    currentPriceCents: resolvedPricing.currentPriceCents,
+    currentCurrencyCode: resolvedPricing.currentCurrencyCode,
+    priceDriftStatus: resolvedPricing.priceDriftStatus,
+    priceDriftCents: resolvedPricing.priceDriftCents,
     availabilityConfidence: buildTripItemConfidence({
       availabilityStatus,
       freshness,
@@ -1668,8 +2254,9 @@ const toTripItem = (
     }),
     freshness,
     availabilityStatus,
-    availabilityCheckedAt: resolvedAvailability.checkedAt,
+    availabilityCheckedAt: resolvedRevalidation.checkedAt || resolvedAvailability.checkedAt,
     availabilityExpiresAt: resolvedAvailability.expiresAt,
+    revalidation: resolvedRevalidation,
     imageUrl: item.imageUrl,
     meta: item.meta,
     issues,
@@ -1817,28 +2404,52 @@ const buildTripDetailsFromRecords = async (
       workingItems,
       options.revalidate === 'force' ? 'force' : 'auto',
     )
+  const revalidationByItemId = new Map<number, TripItemRevalidationResult>(
+    (
+      await revalidateTripItems(
+        workingItems.map(toTripItemRevalidationCandidate),
+        tripItemRevalidationResolver,
+      )
+    ).map((result) => [result.itemId, result]),
+  )
   const itinerary = validateTripItineraryCoherence({
     tripStartDate: base.startDate,
     tripEndDate: base.endDate,
     items: workingItems.map((item) => {
       const availability = availabilityByItemId.get(item.id)
-      const fallbackStatus = availability
-        ? applyPriceDriftToAvailabilityStatus(availability.status, item.priceDriftStatus)
-        : 'stale'
+      const revalidation =
+        revalidationByItemId.get(item.id) ||
+        (availability ? buildFallbackTripItemRevalidation(item, availability) : undefined)
+      const pricing = revalidation
+        ? resolveTripItemPricingFromRevalidation(item, revalidation)
+        : {
+          currentPriceCents: item.currentPriceCents,
+          currentCurrencyCode: item.currentCurrencyCode,
+          priceDriftStatus: item.priceDriftStatus,
+          priceDriftCents: item.priceDriftCents,
+        }
+      const coreStatus =
+        availability && revalidation
+          ? applyRevalidationStatus(availability.status, revalidation)
+          : availability?.status || 'stale'
+      const fallbackStatus = applyPriceDriftToAvailabilityStatus(
+        coreStatus,
+        pricing.priceDriftStatus,
+      )
 
       return toItineraryValidationItem(item, fallbackStatus)
     }),
   })
   const items = workingItems.map((item) =>
-    toTripItem(item, availabilityByItemId.get(item.id), itinerary.issues),
+    toTripItem(
+      item,
+      availabilityByItemId.get(item.id),
+      itinerary.issues,
+      revalidationByItemId.get(item.id),
+    ),
   )
-  const revalidationIssues = buildTripItemRevalidationIssues(items)
-  const enrichedItems = items.map((item) => ({
-    ...item,
-    issues: dedupeIssues([...item.issues, ...(revalidationIssues.get(item.id) || [])]),
-  }))
-  const pricing = buildTripPricingSummary(enrichedItems)
-  const intelligence = buildTripIntelligenceSummary({ items: enrichedItems })
+  const pricing = buildTripPricingSummary(items)
+  const intelligence = buildTripIntelligenceSummary({ items })
   const bundling = await bundlingSuggestionService.buildTripBundlingSummary({
     tripStartDate: base.startDate,
     tripEndDate: base.endDate,
@@ -1860,7 +2471,7 @@ const buildTripDetailsFromRecords = async (
     notes: base.notes,
     metadata: base.metadata,
     updatedAt: base.updatedAt,
-    items: enrichedItems,
+    items,
     intelligence,
     bundling,
   })
