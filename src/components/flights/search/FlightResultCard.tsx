@@ -1,4 +1,4 @@
-import { component$ } from '@builder.io/qwik'
+import { $, component$ } from '@builder.io/qwik'
 import {
   ResultCardScaffold,
   ResultFactGrid,
@@ -14,7 +14,7 @@ import { buildFlightPriceDisplay } from '~/lib/pricing/price-display'
 import type { FlightResult } from '~/types/flights/search'
 
 export const FlightResultCard = component$(({ flight, telemetry }: FlightResultCardProps) => {
-  const onSelectFlight$ = () => {
+  const onSelectFlight$ = $(() => {
     if (!telemetry) return
 
     trackBookingEvent('booking_search_result_opened', {
@@ -25,7 +25,7 @@ export const FlightResultCard = component$(({ flight, telemetry }: FlightResultC
       target: 'select',
     })
     markBookingStageProgress('search_results')
-  }
+  })
   const priceDisplay = buildFlightPriceDisplay({
     currencyCode: flight.currency,
     fare: flight.price,

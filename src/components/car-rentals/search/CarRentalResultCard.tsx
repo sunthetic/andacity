@@ -1,4 +1,4 @@
-import { component$ } from '@builder.io/qwik'
+import { $, component$ } from '@builder.io/qwik'
 import {
   ResultCardScaffold,
   ResultFactList,
@@ -15,7 +15,7 @@ import type { CarRentalResult } from '~/types/car-rentals/search'
 
 export const CarRentalResultCard = component$(({ r, days, detailHref, telemetry }: CarRentalResultCardProps) => {
   const href = detailHref || `/car-rentals/${encodeURIComponent(r.slug)}`
-  const onOpenDetail$ = () => {
+  const onOpenDetail$ = $(() => {
     if (!telemetry) return
 
     trackBookingEvent('booking_search_result_opened', {
@@ -26,7 +26,7 @@ export const CarRentalResultCard = component$(({ r, days, detailHref, telemetry 
       target: 'detail',
     })
     markBookingStageProgress('search_results')
-  }
+  })
   const priceDisplay = buildCarPriceDisplay({
     currencyCode: r.currency,
     dailyRate: r.priceFrom,

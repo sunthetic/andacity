@@ -1,4 +1,4 @@
-import { component$ } from "@builder.io/qwik";
+import { $, component$ } from "@builder.io/qwik";
 import {
   ResultCardScaffold,
   ResultFactList,
@@ -31,7 +31,7 @@ export const HotelResultCard = component$(
         nights,
       });
     const href = detailHref || `/hotels/${encodeURIComponent(h.slug)}`;
-    const onOpenDetail$ = () => {
+    const onOpenDetail$ = $(() => {
       if (!telemetry) return;
 
       trackBookingEvent("booking_search_result_opened", {
@@ -42,7 +42,7 @@ export const HotelResultCard = component$(
         target: "detail",
       });
       markBookingStageProgress("search_results");
-    };
+    });
     const whyThis = buildHotelWhyThis(
       {
         rating: h.rating,
