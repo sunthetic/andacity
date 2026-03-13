@@ -4,14 +4,12 @@ Welcome to the development space for [andacity.com](https://andacity.com), an ex
 
 ## Release Info
 
-* Version **`0.4.0`**
+* Version **`0.5.0`**
 * Released on `2026-03-13`
 
-### v0.4.0 Highlights
+### v0.5.0 Highlights
 
-- Canonical inventory identifiers now back search entities, saved items, and trip candidates.
-- Search loaders emit normalized `SearchEntity` and `BookableEntity` shapes with in-memory caching and metrics logging.
-- Trip previews surface canonical revalidation issues for price, currency, and sold-out inventory changes.
+This release introduces canonical inventory IDs, normalized search and bookable entities, provider adapter infrastructure for flights/hotels/cars, live inventory resolution, price drift detection, trip revalidation, and a booking session engine. It also standardizes date entry and location autosuggest/normalization across the app, giving Andacity a much more deterministic, provider-safe, and extensible platform foundation.
 
 ## Project Documentation
 
