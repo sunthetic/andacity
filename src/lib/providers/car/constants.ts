@@ -1,0 +1,6 @@
+export const CAR_PROVIDER_NAME = 'car-default'
+export const CAR_PROVIDER_REGISTRY_ALIAS = 'car'
+
+export const DEFAULT_CAR_PROVIDER_SEARCH_LIMIT = 24
+export const DEFAULT_CAR_PROVIDER_TIMEOUT_MS = 5_000
+export const DEFAULT_CAR_PROVIDER_RETRIES = 0

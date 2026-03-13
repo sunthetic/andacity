@@ -13,15 +13,17 @@ const sendJson = (
   send(status, JSON.stringify(body))
 }
 
-export const onGet: RequestHandler = async ({ params, headers, send }) => {
+export const onGet: RequestHandler = async ({ params, headers, query, send }) => {
   const tripId = parseTripIdParam(params.tripId)
   if (!tripId) {
     sendJson(headers, send, 400, { error: 'Invalid trip id.' })
     return
   }
 
+  const revalidateMode = query.get('revalidate') === 'force' ? 'force' : 'auto'
+
   try {
-    const trip = await getTripDetails(tripId)
+    const trip = await getTripDetails(tripId, { revalidate: revalidateMode })
     if (!trip) {
       sendJson(headers, send, 404, { error: 'Trip not found.' })
       return

@@ -20,7 +20,7 @@ jobs:
           echo "  User ${{ secrets.EC2_SERVER_USER }}" >> ~/.ssh/config
           echo "  IdentityFile ~/.ssh/id_rsa" >> ~/.ssh/config
           echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-      - id: run-script-via-ssh-to-ec2
+      - id: run-ec2-deploy-script-via-ssh
         name: Run Deployment Script
         run: |
           ssh -t myserver \

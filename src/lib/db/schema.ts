@@ -657,6 +657,7 @@ export const tripItems = dbTable(
       .notNull()
       .references(() => trips.id, { onDelete: 'cascade' }),
     itemType: tripItemTypeEnum('item_type').notNull(),
+    inventoryId: text('inventory_id').notNull(),
     position: integer('position').notNull().default(0),
     hotelId: bigint('hotel_id', { mode: 'number' }).references(() => hotels.id, {
       onDelete: 'restrict',
@@ -690,6 +691,7 @@ export const tripItems = dbTable(
   (table) => ({
     tripIdx: index('trip_items_trip_idx').on(table.tripId),
     tripTypeIdx: index('trip_items_trip_type_idx').on(table.tripId, table.itemType),
+    inventoryIdx: index('trip_items_inventory_idx').on(table.inventoryId),
     hotelIdx: index('trip_items_hotel_idx').on(table.hotelId),
     flightIdx: index('trip_items_flight_idx').on(table.flightItineraryId),
     carIdx: index('trip_items_car_idx').on(table.carInventoryId),
@@ -700,6 +702,19 @@ export const tripItems = dbTable(
     datesCheck: check(
       'trip_items_dates_ck',
       sql`${table.startDate} is null or ${table.endDate} is null or ${table.startDate} <= ${table.endDate}`,
+    ),
+    inventoryIdCheck: check(
+      'trip_items_inventory_id_ck',
+      sql`(
+          ${table.itemType} = 'hotel'
+          and ${table.inventoryId} like 'hotel:%'
+        ) or (
+          ${table.itemType} = 'flight'
+          and ${table.inventoryId} like 'flight:%'
+        ) or (
+          ${table.itemType} = 'car'
+          and ${table.inventoryId} like 'car:%'
+        )`,
     ),
     inventoryRefCheck: check(
       'trip_items_inventory_ref_ck',

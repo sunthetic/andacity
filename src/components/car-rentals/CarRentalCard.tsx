@@ -6,6 +6,7 @@ import {
   ResultReasonCallout,
   ResultTrustBar,
 } from "~/components/results/ResultCardScaffold";
+import { ResultCardHeader } from "~/components/results/ResultCardHeader";
 import { buildCarWhyThis } from "~/components/results/result-card-copy";
 import { CompareButton } from "~/components/save-compare/CompareButton";
 import { SaveButton } from "~/components/save-compare/SaveButton";
@@ -83,16 +84,14 @@ export const CarRentalCard = component$((props: CarRentalCardProps) => {
       </a>
 
       <div q:slot="identity">
-        <a
+        <ResultCardHeader
+          title={r.name}
+          subtitle={[vehicleTitle, reviewSummary].filter(Boolean).join(" · ")}
+          price={r.priceFrom}
+          currency={r.currency}
           href={detailHref}
-          class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
           onClick$={onOpenDetail$}
-        >
-          {r.name}
-        </a>
-        <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-          {[vehicleTitle, reviewSummary].filter(Boolean).join(" · ")}
-        </p>
+        />
         <div class="mt-3 flex flex-wrap gap-2">
           {r.category ? <span class="t-badge">{r.category}</span> : null}
           {r.transmission ? (

@@ -1,5 +1,10 @@
 import type { AvailabilityConfidenceModel } from "~/lib/inventory/availability-confidence";
 import type { InventoryFreshnessModel } from "~/lib/inventory/freshness";
+import type { FlightBookableEntity } from "~/types/bookable-entity";
+import type {
+  FlightSearchEntity,
+  FlightSearchEntityPayload,
+} from "~/types/search-entity";
 
 export type FlightCabinClass =
   | "economy"
@@ -15,10 +20,15 @@ export type FlightTimeWindow =
 export type FlightResult = {
   id: string;
   itineraryId?: number;
+  canonicalInventoryId?: string;
   serviceDate?: string;
   airline: string;
+  airlineCode?: string;
+  flightNumber?: string | null;
   origin: string;
   destination: string;
+  originCode?: string;
+  destinationCode?: string;
   departureTime: string;
   arrivalTime: string;
   departureMinutes: number;
@@ -39,4 +49,6 @@ export type FlightResult = {
   requestedServiceDate?: string;
   availabilityConfidence?: AvailabilityConfidenceModel;
   freshness?: InventoryFreshnessModel;
+  searchEntity?: FlightSearchEntity<FlightSearchEntityPayload>;
+  bookableEntity?: FlightBookableEntity;
 };

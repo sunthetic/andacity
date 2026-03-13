@@ -1,9 +1,13 @@
 import { buildAvailabilityConfidence } from '~/lib/inventory/availability-confidence'
 import { searchHotels, type HotelPriceRange, type HotelSort } from '~/lib/repos/hotels-repo.server'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
+import { emitSearchMetrics } from '~/lib/metrics/search-metrics'
+import { getCachedResults, getSearchCacheKey, setCachedResults } from '~/lib/search/search-cache'
+import { toBookableEntity, toHotelSearchEntity } from '~/lib/search/search-entity'
 import { normalizeHotelSort } from '~/lib/search/hotels/hotel-sort-options'
 import { findTopTravelCity } from '~/seed/cities/top-100.js'
 import type { HotelResult } from '~/types/hotels/search'
+import type { CanonicalLocation } from '~/types/location'
 
 const normalizeToken = (value: string) =>
   String(value || '')
@@ -20,6 +24,26 @@ const normalizeOptions = (value: string[] | null | undefined) =>
   )
 
 const toPriceAmount = (cents: number) => Math.max(0, Math.round(Number(cents || 0) / 100))
+const DEFAULT_HOTEL_OCCUPANCY = 2
+const FALLBACK_HOTEL_CHECK_IN_DATE = '1970-01-01'
+const FALLBACK_HOTEL_CHECK_OUT_DATE = '1970-01-02'
+
+const toOccupancy = (value: string | number | null | undefined) => {
+  const parsed = Number.parseInt(String(value ?? '').trim(), 10)
+  if (!Number.isFinite(parsed) || parsed < 1) return null
+  return parsed
+}
+
+const buildHotelResultHref = (slug: string, input: LoadHotelResultsInput) => {
+  const base = `/hotels/${encodeURIComponent(slug)}`
+  const searchParams = new URLSearchParams()
+
+  if (input.checkIn) searchParams.set('checkIn', input.checkIn)
+  if (input.checkOut) searchParams.set('checkOut', input.checkOut)
+
+  const query = searchParams.toString()
+  return query ? `${base}?${query}` : base
+}
 
 const toSort = (value: string | null | undefined): HotelSort => {
   return normalizeHotelSort(value)
@@ -47,8 +71,10 @@ const toGuestRatingMin = (value: string[] | null | undefined) => {
 
 export type LoadHotelResultsInput = {
   query: string
+  location?: CanonicalLocation | null
   checkIn?: string | null
   checkOut?: string | null
+  occupancy?: string | number | null
   sort?: string | null
   page?: number
   pageSize?: number
@@ -75,7 +101,14 @@ export type LoadHotelResultsOutput = {
 export async function loadHotelResultsFromDb(
   input: LoadHotelResultsInput,
 ): Promise<LoadHotelResultsOutput> {
-  const city = findTopTravelCity(input.query)
+  const startedAt = Date.now()
+  const city =
+    input.location?.citySlug && input.location.cityName
+      ? {
+          slug: input.location.citySlug,
+          name: input.location.cityName,
+        }
+      : findTopTravelCity(input.query)
   const pageSize = Math.max(1, Math.min(60, Number(input.pageSize || 24)))
   const requestedPage = Math.max(1, Number(input.page || 1))
   const offset = (requestedPage - 1) * pageSize
@@ -92,11 +125,40 @@ export async function loadHotelResultsFromDb(
   }
 
   const sort = toSort(input.sort)
+  const cacheParams = {
+    locationId: input.location?.locationId,
+    citySlug: city.slug,
+    checkIn: input.checkIn,
+    checkOut: input.checkOut,
+    occupancy: input.occupancy,
+    sort,
+    page: requestedPage,
+    pageSize,
+    priceRange: input.filters?.priceRange,
+    starRating: input.filters?.starRating,
+    guestRating: input.filters?.guestRating,
+    amenities: input.filters?.amenities,
+  }
+  const searchKey = getSearchCacheKey('hotel', cacheParams)
+  const cached = getCachedResults<LoadHotelResultsOutput>(searchKey)
+  if (cached) {
+    emitSearchMetrics({
+      vertical: 'hotel',
+      searchKey,
+      searchTimeMs: Date.now() - startedAt,
+      providerTimeMs: 0,
+      cacheHit: true,
+      resultsCount: cached.results.length,
+    })
+    return cached
+  }
+
   const amenities = normalizeOptions(input.filters?.amenities)
   const stars = toStarRatings(input.filters?.starRating)
   const priceRanges = toPriceRanges(input.filters?.priceRange)
   const ratingMin = toGuestRatingMin(input.filters?.guestRating)
 
+  const providerStartedAt = Date.now()
   const firstPageResult = await searchHotels({
     citySlug: city.slug,
     checkIn: input.checkIn || undefined,
@@ -134,7 +196,14 @@ export async function loadHotelResultsFromDb(
   const q = normalizeToken(input.query)
   const hasExactDates = Boolean(input.checkIn && input.checkOut)
 
-  return {
+  const providerTimeMs = Date.now() - providerStartedAt
+  const snapshotTimestamp = new Date().toISOString()
+  const requestedOccupancy = toOccupancy(input.occupancy)
+  const occupancy = requestedOccupancy ?? DEFAULT_HOTEL_OCCUPANCY
+  const checkInDate = input.checkIn || FALLBACK_HOTEL_CHECK_IN_DATE
+  const checkOutDate = input.checkOut || input.checkIn || FALLBACK_HOTEL_CHECK_OUT_DATE
+
+  const result = {
     matchedCity: {
       slug: city.slug,
       name: city.name,
@@ -152,9 +221,14 @@ export async function loadHotelResultsFromDb(
         (row.freeCancellation ? 0.25 : 0) +
         (Math.max(0, 240 - priceFrom) / 240) * 0.4
 
-      return {
+      const freshness = buildInventoryFreshness({
+        checkedAt: row.freshnessTimestamp,
+        profile: 'inventory_snapshot',
+      })
+      const hotelResult: Omit<HotelResult, 'searchEntity' | 'bookableEntity'> = {
         id: `hotel-${row.slug}-${effectiveOffset + index}`,
         inventoryId: row.id,
+        canonicalInventoryId: undefined,
         slug: row.slug,
         name: row.name,
         neighborhood: row.neighborhood,
@@ -172,18 +246,47 @@ export async function loadHotelResultsFromDb(
           q && row.citySlug.includes(q) ? 'Great match' : 'Popular',
         ].slice(0, 3),
         score,
-        freshness: buildInventoryFreshness({
-          checkedAt: row.freshnessTimestamp,
-          profile: 'inventory_snapshot',
-        }),
+        freshness,
         availabilityConfidence: buildAvailabilityConfidence({
-          freshness: buildInventoryFreshness({
-            checkedAt: row.freshnessTimestamp,
-            profile: 'inventory_snapshot',
-          }),
+          freshness,
           match: hasExactDates ? 'exact' : 'unknown',
         }),
       }
+      const searchEntity = toHotelSearchEntity(hotelResult, {
+        checkInDate,
+        checkOutDate,
+        occupancy,
+        roomType: 'standard',
+        priceAmountCents: row.fromNightlyCents,
+        snapshotTimestamp:
+          row.freshnessTimestamp instanceof Date
+            ? row.freshnessTimestamp.toISOString()
+            : String(row.freshnessTimestamp || snapshotTimestamp),
+        href: buildHotelResultHref(row.slug, input),
+        imageUrl: row.imageUrl || '/img/demo/hotel-1.jpg',
+        assumedStayDates: !input.checkIn || !input.checkOut,
+        assumedOccupancy: requestedOccupancy == null,
+      })
+
+      return {
+        ...hotelResult,
+        canonicalInventoryId: searchEntity.inventoryId,
+        searchEntity,
+        bookableEntity: toBookableEntity(searchEntity),
+      }
     }),
   }
+
+  setCachedResults('hotel', searchKey, cacheParams, result.results, {
+    value: result,
+  })
+  emitSearchMetrics({
+    vertical: 'hotel',
+    searchKey,
+    searchTimeMs: Date.now() - startedAt,
+    providerTimeMs,
+    cacheHit: false,
+    resultsCount: result.results.length,
+  })
+  return result
 }

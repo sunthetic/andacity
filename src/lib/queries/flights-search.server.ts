@@ -8,6 +8,9 @@ import {
   type FlightSort,
 } from '~/lib/repos/flights-repo.server'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
+import { emitSearchMetrics } from '~/lib/metrics/search-metrics'
+import { getCachedResults, getSearchCacheKey, setCachedResults } from '~/lib/search/search-cache'
+import { toBookableEntity, toFlightSearchEntity } from '~/lib/search/search-entity'
 import {
   EMPTY_FLIGHT_SEARCH_FACETS,
   normalizeFlightSort,
@@ -19,6 +22,7 @@ import {
 } from '~/lib/search/flights/filter-types'
 import { findTopTravelCity } from '~/seed/cities/top-100.js'
 import type { FlightResult } from '~/types/flights/search'
+import type { CanonicalLocation } from '~/types/location'
 
 const DEFAULT_PAGE_SIZE = 6
 
@@ -87,6 +91,8 @@ export type { FlightSearchFacets, FlightsSelectedFilters } from '~/lib/search/fl
 export type LoadFlightResultsPageInput = {
   fromLocationSlug: string
   toLocationSlug: string
+  fromLocation?: CanonicalLocation | null
+  toLocation?: CanonicalLocation | null
   itineraryType: 'one-way' | 'round-trip'
   departDate?: string | null
   sort?: string | null
@@ -109,14 +115,68 @@ export type LoadFlightResultsPageOutput = {
 export async function loadFlightResultsPageFromDb(
   input: LoadFlightResultsPageInput,
 ): Promise<LoadFlightResultsPageOutput> {
+  const startedAt = Date.now()
   const pageSize = Math.max(1, Math.min(60, Number(input.pageSize || DEFAULT_PAGE_SIZE)))
   const requestedPage = Math.max(1, Number(input.page || 1))
   const offset = (requestedPage - 1) * pageSize
   const activeSort = normalizeFlightSort(input.sort)
   const selectedFilters = parseFlightsSelectedFilters(input.filters || {})
   const priceBand = toPriceBandBounds(selectedFilters.priceBand)
-  const fromCity = findTopTravelCity(input.fromLocationSlug)
-  const toCity = findTopTravelCity(input.toLocationSlug)
+  const cacheParams = {
+    fromLocationId: input.fromLocation?.locationId,
+    toLocationId: input.toLocation?.locationId,
+    fromLocationSlug: input.fromLocationSlug,
+    toLocationSlug: input.toLocationSlug,
+    itineraryType: input.itineraryType,
+    departDate: input.departDate,
+    sort: activeSort,
+    page: requestedPage,
+    pageSize,
+    maxStops: selectedFilters.maxStops,
+    cabinClass: selectedFilters.cabinClass,
+    departureWindows: selectedFilters.departureWindows,
+    arrivalWindows: selectedFilters.arrivalWindows,
+    priceBand: selectedFilters.priceBand,
+  }
+  const searchKey = getSearchCacheKey('flight', cacheParams)
+  const cached = getCachedResults<LoadFlightResultsPageOutput>(searchKey)
+
+  if (cached) {
+    emitSearchMetrics({
+      vertical: 'flight',
+      searchKey,
+      searchTimeMs: Date.now() - startedAt,
+      providerTimeMs: 0,
+      cacheHit: true,
+      resultsCount: cached.results.length,
+    })
+    return cached
+  }
+
+  const fromCity =
+    input.fromLocation?.citySlug && input.fromLocation.cityName
+      ? {
+          slug: input.fromLocation.citySlug,
+          name: input.fromLocation.cityName,
+          airportCodes: input.fromLocation.primaryAirportCode
+            ? [input.fromLocation.primaryAirportCode]
+            : input.fromLocation.airportCode
+              ? [input.fromLocation.airportCode]
+              : [],
+        }
+      : findTopTravelCity(input.fromLocationSlug)
+  const toCity =
+    input.toLocation?.citySlug && input.toLocation.cityName
+      ? {
+          slug: input.toLocation.citySlug,
+          name: input.toLocation.cityName,
+          airportCodes: input.toLocation.primaryAirportCode
+            ? [input.toLocation.primaryAirportCode]
+            : input.toLocation.airportCode
+              ? [input.toLocation.airportCode]
+              : [],
+        }
+      : findTopTravelCity(input.toLocationSlug)
 
   if (!fromCity || !toCity) {
     return {
@@ -131,8 +191,14 @@ export async function loadFlightResultsPageFromDb(
     }
   }
 
-  const originIata = fromCity.airportCodes[0]
-  const destinationIata = toCity.airportCodes[0]
+  const originIata =
+    input.fromLocation?.airportCode ||
+    input.fromLocation?.primaryAirportCode ||
+    fromCity.airportCodes[0]
+  const destinationIata =
+    input.toLocation?.airportCode ||
+    input.toLocation?.primaryAirportCode ||
+    toCity.airportCodes[0]
   if (!originIata || !destinationIata) {
     return {
       totalCount: 0,
@@ -146,6 +212,7 @@ export async function loadFlightResultsPageFromDb(
     }
   }
 
+  const providerStartedAt = Date.now()
   const runSearch = async (serviceDate?: string) => {
     const [pageResult, facets] = await Promise.all([
       searchFlightsPage({
@@ -211,7 +278,10 @@ export async function loadFlightResultsPageFromDb(
     rows = rerun.rows
   }
 
-  return {
+  const providerTimeMs = Date.now() - providerStartedAt
+  const snapshotTimestamp = new Date().toISOString()
+
+  const result = {
     totalCount,
     page,
     pageSize,
@@ -230,14 +300,21 @@ export async function loadFlightResultsPageFromDb(
         actualServiceDate: row.serviceDate,
       })
 
-      return {
+      const flightNumber =
+        String(row.flightNumber || '').trim() || String(row.seedKey || row.id).split('-').pop() || String(row.id)
+      const flightResult: Omit<FlightResult, 'searchEntity' | 'bookableEntity'> = {
         id: row.seedKey || `flight-${row.id}-${effectiveOffset + index}`,
         itineraryId: row.id,
+        canonicalInventoryId: undefined,
         serviceDate: row.serviceDate,
         requestedServiceDate: input.departDate || undefined,
         airline: row.airline,
+        airlineCode: row.airlineCode || undefined,
+        flightNumber,
         origin: `${fromCity.name} (${row.originIata})`,
         destination: `${toCity.name} (${row.destinationIata})`,
+        originCode: row.originIata,
+        destinationCode: row.destinationIata,
         departureTime: toClock(row.departureMinutes),
         arrivalTime: toClock(row.arrivalMinutes),
         departureMinutes: row.departureMinutes,
@@ -261,6 +338,35 @@ export async function loadFlightResultsPageFromDb(
         }),
         freshness,
       }
+      const searchEntity = toFlightSearchEntity(flightResult, {
+        departDate: input.departDate || row.serviceDate,
+        priceAmountCents: row.priceCents,
+        snapshotTimestamp:
+          row.freshnessTimestamp instanceof Date
+            ? row.freshnessTimestamp.toISOString()
+            : String(row.freshnessTimestamp || snapshotTimestamp),
+        durationMinutes: row.durationMinutes,
+      })
+
+      return {
+        ...flightResult,
+        canonicalInventoryId: searchEntity.inventoryId,
+        searchEntity,
+        bookableEntity: toBookableEntity(searchEntity),
+      }
     }),
   }
+
+  setCachedResults('flight', searchKey, cacheParams, result.results, {
+    value: result,
+  })
+  emitSearchMetrics({
+    vertical: 'flight',
+    searchKey,
+    searchTimeMs: Date.now() - startedAt,
+    providerTimeMs,
+    cacheHit: false,
+    resultsCount: result.results.length,
+  })
+  return result
 }

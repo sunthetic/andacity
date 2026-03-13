@@ -5,6 +5,7 @@ import {
   ResultPricePanel,
   ResultTrustBar,
 } from '~/components/results/ResultCardScaffold'
+import { ResultCardHeader } from '~/components/results/ResultCardHeader'
 import {
   markBookingStageProgress,
   trackBookingEvent,
@@ -40,12 +41,12 @@ export const FlightResultCard = component$(({ flight, telemetry }: FlightResultC
       hasTrust={Boolean(flight.availabilityConfidence || flight.freshness)}
     >
       <div q:slot="identity">
-        <div class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)]">
-          {flight.airline}
-        </div>
-        <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-          {flight.origin} to {flight.destination}
-        </p>
+        <ResultCardHeader
+          title={flight.searchEntity?.title || flight.airline}
+          subtitle={flight.searchEntity?.subtitle || `${flight.origin} to ${flight.destination}`}
+          price={flight.price}
+          currency={flight.currency}
+        />
       </div>
 
       <ResultFactGrid

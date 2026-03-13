@@ -1,6 +1,6 @@
 {
   "name": "@sunthetic/andacity",
-  "version": "0.3.1",
+  "version": "0.5.0",
   "description": "An experience-driven travel booking and discovery-first travel planning site offering search modes for destinations, hotels, car rentals, and flights.",
   "license": "SEE LICENSE IN LICENSE.md",
   "repository": {
@@ -81,6 +81,7 @@
     "qa:guided-booking": "node scripts/validate/guided-booking-qa.mjs",
     "smoke:trips": "node scripts/validate/trip-pricing-smoke.mjs",
     "start": "vite --open --mode ssr",
+    "test": "node --experimental-strip-types --loader ./scripts/test/ts-path-loader.mjs --test src/lib/date/date-input.test.ts src/lib/search/search-entity.test.ts src/lib/search/normalizeSearchResults.test.ts src/lib/search/search-cache.test.ts src/lib/booking/bookable-entity.test.ts src/lib/booking/bookingSession.test.ts src/lib/inventory/resolveInventory.test.ts src/lib/inventory/detectPriceDrift.test.ts src/lib/providers/flight/flightProviderAdapter.test.ts src/lib/providers/hotel/hotelProviderAdapter.test.ts src/lib/providers/car/carProviderAdapter.test.ts src/lib/trips/trip-item-snapshot.test.ts src/lib/trips/revalidate-trip-items.test.ts",
     "qwik": "qwik"
   },
   "devDependencies": {

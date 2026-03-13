@@ -16,13 +16,14 @@ import {
   normalizeFlightItineraryType,
   slugifyLocation,
 } from "~/lib/search/flights/routing";
+import { resolveLocationFromUrlValues } from "~/lib/location/location-repo.server";
 import { searchStateFromUrl } from "~/lib/search/url-to-state";
 import { findTopTravelCity } from "~/seed/cities/top-100.js";
 
 export const useSearchFlightsPage = routeLoader$(async ({ params, url }) => {
-  const fromLocationSlug =
+  const routeFromLocationSlug =
     slugifyLocation(String(params.fromLocationSlug || "").trim()) || "anywhere";
-  const toLocationSlug =
+  const routeToLocationSlug =
     slugifyLocation(String(params.toLocationSlug || "").trim()) || "anywhere";
   const itineraryType = normalizeFlightItineraryType(
     String(params.itineraryTypeSlug || "")
@@ -31,12 +32,31 @@ export const useSearchFlightsPage = routeLoader$(async ({ params, url }) => {
   );
   const routePage = clampInt(params.pageNumber, 1, 9999);
 
-  const fromCity = findTopTravelCity(fromLocationSlug);
-  const toCity = findTopTravelCity(toLocationSlug);
+  const [fromLocation, toLocation] = await Promise.all([
+    resolveLocationFromUrlValues({
+      locationId: url.searchParams.get("fromLocationId"),
+      searchSlug: routeFromLocationSlug,
+    }),
+    resolveLocationFromUrlValues({
+      locationId: url.searchParams.get("toLocationId"),
+      searchSlug: routeToLocationSlug,
+    }),
+  ]);
+  const fromLocationSlug = fromLocation?.searchSlug || routeFromLocationSlug;
+  const toLocationSlug = toLocation?.searchSlug || routeToLocationSlug;
+  const fromCity = findTopTravelCity(fromLocation?.citySlug || fromLocationSlug);
+  const toCity = findTopTravelCity(toLocation?.citySlug || toLocationSlug);
 
   const from =
-    fromCity?.name || humanizeLocationSlug(fromLocationSlug) || "Anywhere";
-  const to = toCity?.name || humanizeLocationSlug(toLocationSlug) || "Anywhere";
+    fromLocation?.displayName ||
+    fromCity?.name ||
+    humanizeLocationSlug(fromLocationSlug) ||
+    "Anywhere";
+  const to =
+    toLocation?.displayName ||
+    toCity?.name ||
+    humanizeLocationSlug(toLocationSlug) ||
+    "Anywhere";
 
   const searchState = searchStateFromUrl(url, {
     query: `${from} to ${to}`,
@@ -63,6 +83,8 @@ export const useSearchFlightsPage = routeLoader$(async ({ params, url }) => {
   const source = await loadFlightResultsPageFromDb({
     fromLocationSlug,
     toLocationSlug,
+    fromLocation,
+    toLocation,
     itineraryType,
     departDate: searchState.dates?.checkIn,
     sort: String(searchState.sort || "recommended"),
@@ -97,6 +119,8 @@ export const useSearchFlightsPage = routeLoader$(async ({ params, url }) => {
   const searchAgainHref = buildSearchFlightsHref({
     from,
     to,
+    fromLocationId: fromLocation?.locationId,
+    toLocationId: toLocation?.locationId,
     itineraryType,
     depart: searchState.dates?.checkIn,
     ret:
@@ -110,6 +134,8 @@ export const useSearchFlightsPage = routeLoader$(async ({ params, url }) => {
     toLocationSlug,
     itineraryType,
     page: source.page,
+    fromLocationId: fromLocation?.locationId || null,
+    toLocationId: toLocation?.locationId || null,
     from,
     to,
     totalCount: source.totalCount,
@@ -222,6 +248,8 @@ const clampInt = (value: string | undefined, min: number, max: number) => {
 const buildSearchFlightsHref = (input: {
   from: string;
   to: string;
+  fromLocationId?: string | null;
+  toLocationId?: string | null;
   itineraryType: "round-trip" | "one-way";
   depart?: string;
   ret?: string;
@@ -232,6 +260,8 @@ const buildSearchFlightsHref = (input: {
   sp.set("itineraryType", input.itineraryType);
   sp.set("from", input.from);
   sp.set("to", input.to);
+  if (input.fromLocationId) sp.set("fromLocationId", input.fromLocationId);
+  if (input.toLocationId) sp.set("toLocationId", input.toLocationId);
 
   if (input.depart) sp.set("depart", input.depart);
   if (input.itineraryType === "round-trip" && input.ret)

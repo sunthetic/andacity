@@ -515,7 +515,7 @@ const buildSuggestionCandidateMetadata = (
   suggestionType: TripBundlingSuggestionType,
   generatedAt: string,
   explanation: TripBundlingExplanation,
-  inventoryId: number,
+  providerInventoryId: number,
 ) => ({
   smartBundling: {
     generatedAt,
@@ -524,8 +524,8 @@ const buildSuggestionCandidateMetadata = (
     relatedItemIds: gap.relatedItemIds,
     suggestionType,
     selectionMode: 'recommended',
-    originalInventoryId: inventoryId,
-    currentInventoryId: inventoryId,
+    originalInventoryId: providerInventoryId,
+    currentInventoryId: providerInventoryId,
     context: {
       priority: gap.priority,
       itemType: gap.targetItemType,
@@ -590,6 +590,7 @@ const buildHotelSuggestion = async (
   const tripCandidate: TripItemCandidate = {
     itemType: 'hotel',
     inventoryId: inventory.inventoryId,
+    providerInventoryId: inventory.providerInventoryId,
     startDate: gap.startDate,
     endDate: gap.endDate,
     priceCents: displayedBaseCents,
@@ -604,7 +605,7 @@ const buildHotelSuggestion = async (
         suggestionType,
         generatedAt,
         explanation,
-        inventory.inventoryId,
+        inventory.providerInventoryId,
       ),
       'hotel',
       priceDisplay,
@@ -671,6 +672,7 @@ const buildCarSuggestion = async (
   const tripCandidate: TripItemCandidate = {
     itemType: 'car',
     inventoryId: inventory.inventoryId,
+    providerInventoryId: inventory.providerInventoryId,
     startDate: gap.startDate,
     endDate: dropoffDate,
     priceCents: displayedBaseCents,
@@ -685,7 +687,7 @@ const buildCarSuggestion = async (
         suggestionType,
         generatedAt,
         explanation,
-        inventory.inventoryId,
+        inventory.providerInventoryId,
       ),
       'car',
       priceDisplay,
@@ -752,6 +754,7 @@ const buildFlightSuggestion = async (
   const tripCandidate: TripItemCandidate = {
     itemType: 'flight',
     inventoryId: inventory.inventoryId,
+    providerInventoryId: inventory.providerInventoryId,
     startDate: serviceDate,
     endDate: serviceDate,
     priceCents: displayedBaseCents,
@@ -765,7 +768,7 @@ const buildFlightSuggestion = async (
         suggestionType,
         generatedAt,
         explanation,
-        inventory.inventoryId,
+        inventory.providerInventoryId,
       ),
       'flight',
       priceDisplay,

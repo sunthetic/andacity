@@ -1,19 +1,70 @@
 import { component$ } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
+import type { RequestHandler } from '@builder.io/qwik-city'
 import { useLocation } from '@builder.io/qwik-city'
 import { HotelSearchCard } from '~/components/hotels/search/HotelSearchCard'
 import { VerticalHeroSearchLayout } from '~/components/search/VerticalHeroSearchLayout'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 import { loadHotelCitiesFromDb } from '~/lib/queries/hotels-pages.server'
+import { resolveLocationFromUrlValues } from '~/lib/location/location-repo.server'
+import {
+  parseLocationSelection,
+  validateLocationSelection,
+} from '~/lib/location/validateLocationSelection'
 
 export const useHotelsIndexPage = routeLoader$(async () => {
   const items = await loadHotelCitiesFromDb()
   return { items }
 })
 
+export const onGet: RequestHandler = async ({ url, redirect }) => {
+  const isSearchSubmit = String(url.searchParams.get('search') || '').trim() === '1'
+  if (!isSearchSubmit) return
+
+  const destination = validateLocationSelection({
+    selection: url.searchParams.get('destinationLocation'),
+    rawValue: url.searchParams.get('destination'),
+    required: true,
+    fieldLabel: 'destination',
+    allowedKinds: ['city', 'airport'],
+  })
+
+  if (!destination.location) return
+
+  const nextParams = new URLSearchParams()
+  const checkIn = String(url.searchParams.get('checkIn') || '').trim()
+  const checkOut = String(url.searchParams.get('checkOut') || '').trim()
+  const guests = String(url.searchParams.get('guests') || '').trim()
+
+  nextParams.set('destinationLocationId', destination.location.locationId)
+
+  if (checkIn) nextParams.set('checkIn', checkIn)
+  if (checkOut) nextParams.set('checkOut', checkOut)
+  if (guests) nextParams.set('guests', guests)
+
+  const path = `/search/hotels/${encodeURIComponent(destination.location.searchSlug)}/1`
+  const query = nextParams.toString()
+  throw redirect(302, query ? `${path}?${query}` : path)
+}
+
+export const useHotelsSearchState = routeLoader$(async ({ url }) => {
+  const selection = parseLocationSelection(url.searchParams.get('destinationLocation'))
+  const destinationLocation =
+    selection ||
+    (await resolveLocationFromUrlValues({
+      locationId: url.searchParams.get('destinationLocationId'),
+      text: url.searchParams.get('destination'),
+    }))
+
+  return {
+    destinationLocation,
+  }
+})
+
 export default component$(() => {
   const { items } = useHotelsIndexPage().value
+  const { destinationLocation } = useHotelsSearchState().value
   const location = useLocation()
   const destination = String(location.url.searchParams.get('destination') || '').trim()
   const checkIn = String(location.url.searchParams.get('checkIn') || '').trim()
@@ -33,7 +84,8 @@ export default component$(() => {
       heroOverlay="base"
       searchCard={(
         <HotelSearchCard
-          initialDestination={destination}
+          initialDestination={destinationLocation?.displayName || destination}
+          initialDestinationLocation={destinationLocation}
           initialCheckIn={checkIn}
           initialCheckOut={checkOut}
           initialGuests={guests}

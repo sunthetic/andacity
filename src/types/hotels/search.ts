@@ -1,5 +1,10 @@
 import type { AvailabilityConfidenceModel } from "~/lib/inventory/availability-confidence";
 import type { InventoryFreshnessModel } from "~/lib/inventory/freshness";
+import type { HotelBookableEntity } from "~/types/bookable-entity";
+import type {
+  HotelSearchEntity,
+  HotelSearchEntityPayload,
+} from "~/types/search-entity";
 
 export type SortKey =
   | "relevance"
@@ -26,6 +31,7 @@ export type ActiveFilters = {
 export type HotelResult = {
   id: string;
   inventoryId?: number;
+  canonicalInventoryId?: string;
   slug: string;
   name: string;
   neighborhood: string;
@@ -41,6 +47,8 @@ export type HotelResult = {
   score: number;
   availabilityConfidence?: AvailabilityConfidenceModel;
   freshness?: InventoryFreshnessModel;
+  searchEntity?: HotelSearchEntity<HotelSearchEntityPayload>;
+  bookableEntity?: HotelBookableEntity;
 };
 
 export type HotelResultCardProps = {

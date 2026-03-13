@@ -46,6 +46,11 @@ const toSafeInt = (value: unknown) => {
   return Number.isFinite(n) ? n : undefined
 }
 
+const toSafeInventoryId = (value: unknown) => {
+  const text = toNonEmptyString(value)
+  return text || undefined
+}
+
 const toTripItemType = (value: unknown): TripItemType | null => {
   const token = String(value || '').trim().toLowerCase()
   return TRIP_ITEM_TYPES.includes(token as TripItemType) ? (token as TripItemType) : null
@@ -62,8 +67,9 @@ const sanitizeTripItemCandidate = (value: unknown): TripItemCandidate | undefine
   if (!obj) return undefined
 
   const itemType = toTripItemType(obj.itemType)
-  const inventoryId = toSafeInt(obj.inventoryId)
-  if (!itemType || inventoryId == null || inventoryId < 1) return undefined
+  const inventoryId = toSafeInventoryId(obj.inventoryId)
+  const providerInventoryId = toSafeInt(obj.providerInventoryId ?? obj.inventoryId)
+  if (!itemType || !inventoryId) return undefined
 
   const startDate = toSafeDate(obj.startDate)
   const endDate = toSafeDate(obj.endDate)
@@ -78,6 +84,10 @@ const sanitizeTripItemCandidate = (value: unknown): TripItemCandidate | undefine
   return {
     itemType,
     inventoryId,
+    providerInventoryId:
+      providerInventoryId == null || providerInventoryId < 1
+        ? undefined
+        : providerInventoryId,
     startDate,
     endDate,
     priceCents: priceCents == null ? undefined : Math.max(0, priceCents),

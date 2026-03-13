@@ -5,6 +5,7 @@ import {
   ResultPricePanel,
   ResultTrustBar,
 } from '~/components/results/ResultCardScaffold'
+import { ResultCardHeader } from '~/components/results/ResultCardHeader'
 import {
   markBookingStageProgress,
   trackBookingEvent,
@@ -14,7 +15,7 @@ import { buildCarPriceDisplay } from '~/lib/pricing/price-display'
 import type { CarRentalResult } from '~/types/car-rentals/search'
 
 export const CarRentalResultCard = component$(({ r, days, detailHref, telemetry }: CarRentalResultCardProps) => {
-  const href = detailHref || `/car-rentals/${encodeURIComponent(r.slug)}`
+  const href = r.searchEntity?.href || detailHref || `/car-rentals/${encodeURIComponent(r.slug)}`
   const onOpenDetail$ = $(() => {
     if (!telemetry) return
 
@@ -55,18 +56,19 @@ export const CarRentalResultCard = component$(({ r, days, detailHref, telemetry 
       </a>
 
       <div q:slot="identity">
-        <a
-          class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
+        <ResultCardHeader
+          title={r.searchEntity?.title || r.name}
+          subtitle={
+            r.searchEntity?.subtitle ||
+            [r.pickupArea, r.category, r.transmission, r.seats != null ? `${r.seats} seats` : '']
+              .filter(Boolean)
+              .join(' · ')
+          }
+          price={r.priceFrom}
+          currency={r.currency}
           href={href}
           onClick$={onOpenDetail$}
-        >
-          {r.name}
-        </a>
-        <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-          {[r.pickupArea, r.category, r.transmission, r.seats != null ? `${r.seats} seats` : '']
-            .filter(Boolean)
-            .join(' · ')}
-        </p>
+        />
       </div>
 
       <ResultFactList

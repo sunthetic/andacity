@@ -75,6 +75,11 @@ const toOptionalInt = (value: unknown): number | undefined => {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
+const toOptionalInventoryId = (value: unknown): string | undefined => {
+  const text = toTrimmedString(value)
+  return text ? text : undefined
+}
+
 const toOptionalCurrencyCode = (value: unknown): string | undefined => {
   const token = toTrimmedString(value).toUpperCase()
   return /^[A-Z]{3}$/.test(token) ? token : undefined
@@ -157,12 +162,18 @@ export const parseTripItemCandidateInput = (body: unknown): TripItemCandidate | 
     ? (itemTypeToken as TripItemCandidate['itemType'])
     : null
 
-  const inventoryId = toOptionalInt(obj.inventoryId)
-  if (!itemType || inventoryId == null || inventoryId < 1) return null
+  const inventoryId = toOptionalInventoryId(obj.inventoryId)
+  if (!itemType || !inventoryId) return null
+
+  const providerInventoryId = toOptionalInt(obj.providerInventoryId ?? obj.inventoryId)
 
   return {
     itemType,
     inventoryId,
+    providerInventoryId:
+      providerInventoryId == null || providerInventoryId < 1
+        ? undefined
+        : providerInventoryId,
     startDate: toOptionalIsoDate(obj.startDate) || undefined,
     endDate: toOptionalIsoDate(obj.endDate) || undefined,
     priceCents: toOptionalInt(obj.priceCents),
@@ -245,6 +256,7 @@ export const parseTripRollbackDraftInput = (body: unknown): TripRollbackDraft | 
         ? (itemTypeToken as TripItemCandidate['itemType'])
         : null
       const id = toOptionalInt(entry.id)
+      const inventoryId = toOptionalInventoryId(entry.inventoryId)
       const position = toOptionalInt(entry.position)
       const snapshotPriceCents = toOptionalInt(entry.snapshotPriceCents)
       const snapshotCurrencyCode = toOptionalCurrencyCode(entry.snapshotCurrencyCode)
@@ -258,6 +270,7 @@ export const parseTripRollbackDraftInput = (body: unknown): TripRollbackDraft | 
         !itemType ||
         id == null ||
         id < 1 ||
+        !inventoryId ||
         position == null ||
         position < 0 ||
         snapshotPriceCents == null ||
@@ -288,6 +301,7 @@ export const parseTripRollbackDraftInput = (body: unknown): TripRollbackDraft | 
       return {
         id,
         itemType,
+        inventoryId,
         position,
         hotelId,
         flightItineraryId,

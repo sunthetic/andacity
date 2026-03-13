@@ -4,6 +4,9 @@ import {
   searchCarRentalsPage,
 } from '~/lib/repos/car-rentals-repo.server'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
+import { emitSearchMetrics } from '~/lib/metrics/search-metrics'
+import { getCachedResults, getSearchCacheKey, setCachedResults } from '~/lib/search/search-cache'
+import { toBookableEntity, toCarSearchEntity } from '~/lib/search/search-entity'
 import {
   normalizeCarRentalsSortValue,
   type CarRentalsSortKey,
@@ -17,8 +20,11 @@ import type {
 } from '~/lib/search/car-rentals/filter-types'
 import { findTopTravelCity } from '~/seed/cities/top-100.js'
 import type { CarRentalResult } from '~/types/car-rentals/search'
+import type { CanonicalLocation } from '~/types/location'
 
 const DEFAULT_PAGE_SIZE = 6
+const FALLBACK_CAR_PICKUP_DATETIME = '1970-01-01T10:00'
+const FALLBACK_CAR_DROPOFF_DATETIME = '1970-01-02T10:00'
 
 const normalizeToken = (value: string) =>
   String(value || '')
@@ -184,6 +190,7 @@ export const EMPTY_CAR_RENTALS_FACETS: CarRentalsSearchFacets = {
 
 export type LoadCarRentalResultsPageInput = {
   citySlug: string
+  location?: CanonicalLocation | null
   query?: string | null
   pickupDate?: string | null
   dropoffDate?: string | null
@@ -204,18 +211,72 @@ export type LoadCarRentalResultsPageOutput = {
   facets: CarRentalsSearchFacets
 }
 
+const toSearchDateTime = (value: string | null | undefined, fallback: string) => {
+  const text = String(value || '').trim()
+  return text ? `${text}T10:00` : fallback
+}
+
+const buildCarRentalResultHref = (slug: string, input: LoadCarRentalResultsPageInput) => {
+  const base = `/car-rentals/${encodeURIComponent(slug)}`
+  const searchParams = new URLSearchParams()
+
+  if (input.pickupDate) searchParams.set('pickupDate', input.pickupDate)
+  if (input.dropoffDate) searchParams.set('dropoffDate', input.dropoffDate)
+
+  const query = searchParams.toString()
+  return query ? `${base}?${query}` : base
+}
+
 export async function loadCarRentalResultsPageFromDb(
   input: LoadCarRentalResultsPageInput,
 ): Promise<LoadCarRentalResultsPageOutput> {
+  const startedAt = Date.now()
   const pageSize = Math.max(1, Math.min(60, Number(input.pageSize || DEFAULT_PAGE_SIZE)))
   const requestedPage = Math.max(1, Number(input.page || 1))
   const offset = (requestedPage - 1) * pageSize
   const activeSort = normalizeCarRentalsSort(input.sort)
   const selectedFilters = parseCarRentalsSelectedFilters(input.filters || {})
+  const airportId =
+    input.location?.kind === 'airport' && input.location.airportId
+      ? input.location.airportId
+      : null
+  const effectivePickupType =
+    selectedFilters.pickupType || (input.location?.kind === 'airport' ? 'airport' : '')
+  const cacheParams = {
+    locationId: input.location?.locationId,
+    citySlug: input.citySlug,
+    airportId,
+    pickupDate: input.pickupDate,
+    dropoffDate: input.dropoffDate,
+    sort: activeSort,
+    page: requestedPage,
+    pageSize,
+    vehicleClasses: selectedFilters.vehicleClasses,
+    pickupType: effectivePickupType,
+    transmission: selectedFilters.transmission,
+    seatsMin: selectedFilters.seatsMin,
+    priceBand: selectedFilters.priceBand,
+  }
+  const searchKey = getSearchCacheKey('car', cacheParams)
 
+  const cached = getCachedResults<LoadCarRentalResultsPageOutput>(searchKey)
+  if (cached) {
+    emitSearchMetrics({
+      vertical: 'car',
+      searchKey,
+      searchTimeMs: Date.now() - startedAt,
+      providerTimeMs: 0,
+      cacheHit: true,
+      resultsCount: cached.results.length,
+    })
+    return cached
+  }
+
+  const providerStartedAt = Date.now()
   const [firstPageResult, facets] = await Promise.all([
     searchCarRentalsPage({
       citySlug: input.citySlug,
+      airportId,
       pickupDate: input.pickupDate || undefined,
       dropoffDate: input.dropoffDate || undefined,
       sort: activeSort,
@@ -223,7 +284,7 @@ export async function loadCarRentalResultsPageFromDb(
       offset,
       filters: {
         vehicleClassKeys: selectedFilters.vehicleClasses,
-        pickupType: selectedFilters.pickupType,
+        pickupType: effectivePickupType,
         transmission: selectedFilters.transmission,
         seatsMin: selectedFilters.seatsMin,
         priceBand: selectedFilters.priceBand,
@@ -231,6 +292,7 @@ export async function loadCarRentalResultsPageFromDb(
     }),
     listCarRentalSearchFacets({
       citySlug: input.citySlug,
+      airportId,
       pickupDate: input.pickupDate || undefined,
       dropoffDate: input.dropoffDate || undefined,
     }),
@@ -245,6 +307,7 @@ export async function loadCarRentalResultsPageFromDb(
   if (totalCount > 0 && page !== requestedPage) {
     const rerun = await searchCarRentalsPage({
       citySlug: input.citySlug,
+      airportId,
       pickupDate: input.pickupDate || undefined,
       dropoffDate: input.dropoffDate || undefined,
       sort: activeSort,
@@ -252,7 +315,7 @@ export async function loadCarRentalResultsPageFromDb(
       offset: effectiveOffset,
       filters: {
         vehicleClassKeys: selectedFilters.vehicleClasses,
-        pickupType: selectedFilters.pickupType,
+        pickupType: effectivePickupType,
         transmission: selectedFilters.transmission,
         seatsMin: selectedFilters.seatsMin,
         priceBand: selectedFilters.priceBand,
@@ -263,8 +326,10 @@ export async function loadCarRentalResultsPageFromDb(
 
   const q = normalizeToken(String(input.query || input.citySlug || ''))
   const hasExactDates = Boolean(input.pickupDate && input.dropoffDate)
+  const providerTimeMs = Date.now() - providerStartedAt
+  const snapshotTimestamp = new Date().toISOString()
 
-  return {
+  const result = {
     totalCount,
     page,
     pageSize,
@@ -275,19 +340,25 @@ export async function loadCarRentalResultsPageFromDb(
     results: rows.map((row, index) => {
       const priceFrom = toPriceAmount(row.fromDailyCents)
       const rating = Number(row.rating)
+      const pickupDateTime = toSearchDateTime(input.pickupDate, FALLBACK_CAR_PICKUP_DATETIME)
+      const dropoffDateTime = toSearchDateTime(
+        input.dropoffDate,
+        input.pickupDate ? `${input.pickupDate}T10:00` : FALLBACK_CAR_DROPOFF_DATETIME,
+      )
 
       const freshness = buildInventoryFreshness({
         checkedAt: row.freshnessTimestamp,
         profile: 'inventory_snapshot',
       })
-
-      return {
+      const carResult: Omit<CarRentalResult, 'searchEntity' | 'bookableEntity'> = {
         id: `car-${row.slug}-${effectiveOffset + index}`,
         inventoryId: row.id,
+        canonicalInventoryId: undefined,
         slug: row.slug,
         name: row.providerName,
         city: row.cityName,
         pickupArea: row.pickupArea,
+        locationId: row.locationId,
         vehicleName: row.vehicleName,
         category: row.category,
         transmission: row.transmission ? titleCase(row.transmission) : null,
@@ -320,8 +391,42 @@ export async function loadCarRentalResultsPageFromDb(
         }),
         freshness,
       }
+      const searchEntity = toCarSearchEntity(carResult, {
+        providerLocationId: row.locationId ?? row.id,
+        pickupDateTime,
+        dropoffDateTime,
+        vehicleClass: row.category || row.vehicleName || 'standard',
+        priceAmountCents: row.fromDailyCents,
+        snapshotTimestamp:
+          row.freshnessTimestamp instanceof Date
+            ? row.freshnessTimestamp.toISOString()
+            : String(row.freshnessTimestamp || snapshotTimestamp),
+        href: buildCarRentalResultHref(row.slug, input),
+        imageUrl: row.imageUrl || '/img/demo/car-1.jpg',
+        assumedRentalWindow: !input.pickupDate || !input.dropoffDate,
+      })
+
+      return {
+        ...carResult,
+        canonicalInventoryId: searchEntity.inventoryId,
+        searchEntity,
+        bookableEntity: toBookableEntity(searchEntity),
+      }
     }),
   }
+
+  setCachedResults('car', searchKey, cacheParams, result.results, {
+    value: result,
+  })
+  emitSearchMetrics({
+    vertical: 'car',
+    searchKey,
+    searchTimeMs: Date.now() - startedAt,
+    providerTimeMs,
+    cacheHit: false,
+    resultsCount: result.results.length,
+  })
+  return result
 }
 
 export type LoadCarRentalResultsInput = {

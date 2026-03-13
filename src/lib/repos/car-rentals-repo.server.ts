@@ -21,6 +21,7 @@ import type { CarRentalsSortKey } from '~/lib/search/car-rentals/car-sort-option
 
 export type SearchCarRentalsInput = {
   citySlug: string
+  airportId?: number | null
   pickupDate?: string
   dropoffDate?: string
   limit?: number
@@ -29,6 +30,7 @@ export type SearchCarRentalsInput = {
 
 export type SearchCarRentalsPageInput = {
   citySlug: string
+  airportId?: number | null
   pickupDate?: string
   dropoffDate?: string
   sort?: CarRentalsSortKey
@@ -53,6 +55,7 @@ export type CarRentalSearchRow = {
   slug: string
   citySlug: string
   cityName: string
+  locationId: number
   providerName: string
   pickupArea: string
   pickupType: 'airport' | 'city'
@@ -175,6 +178,7 @@ const PRICE_BAND_CENTS = {
 
 const buildCarRentalBaseConditions = (input: {
   citySlug: string
+  airportId?: number | null
   pickupDate?: string
   dropoffDate?: string
 }): SQL[] => {
@@ -191,6 +195,10 @@ const buildCarRentalBaseConditions = (input: {
     if (pickupWeekday != null) {
       conditions.push(sql`not (${pickupWeekday} = any(${carInventory.blockedWeekdays}))`)
     }
+  }
+
+  if (input.airportId != null && Number.isFinite(input.airportId) && input.airportId > 0) {
+    conditions.push(eq(carLocations.airportId, input.airportId))
   }
 
   return conditions
@@ -270,6 +278,7 @@ export async function searchCarRentals(
       slug: carInventory.slug,
       citySlug: cities.slug,
       cityName: cities.name,
+      locationId: carInventory.locationId,
       providerName: carProviders.name,
       pickupArea: carLocations.name,
       pickupType: carLocations.locationType,
@@ -334,6 +343,7 @@ export async function searchCarRentals(
       slug: row.slug,
       citySlug: row.citySlug,
       cityName: row.cityName,
+      locationId: row.locationId,
       providerName: row.providerName,
       pickupArea: row.pickupArea,
       pickupType: row.pickupType,
@@ -460,6 +470,7 @@ export async function searchCarRentalsPage(
       slug: carInventory.slug,
       citySlug: cities.slug,
       cityName: cities.name,
+      locationId: carInventory.locationId,
       providerName: carProviders.name,
       pickupArea: carLocations.name,
       pickupType: carLocations.locationType,
@@ -512,6 +523,7 @@ export async function searchCarRentalsPage(
 
 export async function listCarRentalSearchFacets(input: {
   citySlug: string
+  airportId?: number | null
   pickupDate?: string
   dropoffDate?: string
 }): Promise<CarRentalsSearchFacets> {

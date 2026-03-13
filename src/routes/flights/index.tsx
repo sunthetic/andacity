@@ -2,28 +2,52 @@ import { component$ } from '@builder.io/qwik'
 import type { DocumentHead } from '@builder.io/qwik-city'
 import type { RequestHandler } from '@builder.io/qwik-city'
 import { useLocation } from '@builder.io/qwik-city'
+import { routeLoader$ } from '@builder.io/qwik-city'
 import { VerticalHeroSearchLayout } from '~/components/search/VerticalHeroSearchLayout'
 import { FlightsSearchCard } from '~/components/flights/search/FlightsSearchCard'
-import { buildFlightsSearchPath, normalizeFlightItineraryType, slugifyLocation } from '~/lib/search/flights/routing'
+import { buildFlightsSearchPath, normalizeFlightItineraryType } from '~/lib/search/flights/routing'
+import { resolveLocationFromUrlValues } from '~/lib/location/location-repo.server'
+import {
+  parseLocationSelection,
+  validateLocationSelection,
+} from '~/lib/location/validateLocationSelection'
 
 export const onGet: RequestHandler = async ({ url, redirect }) => {
   const isSearchSubmit = String(url.searchParams.get('search') || '').trim() === '1'
   if (!isSearchSubmit) return
 
   const itineraryType = normalizeFlightItineraryType(String(url.searchParams.get('itineraryType') || '').trim())
-  const from = String(url.searchParams.get('from') || '').trim()
-  const to = String(url.searchParams.get('to') || '').trim()
-  const fromSlug = slugifyLocation(from)
-  const toSlug = slugifyLocation(to)
+  const from = validateLocationSelection({
+    selection: url.searchParams.get('fromLocation'),
+    rawValue: url.searchParams.get('from'),
+    required: true,
+    fieldLabel: 'origin city or airport',
+    allowedKinds: ['city', 'airport'],
+  })
+  const to = validateLocationSelection({
+    selection: url.searchParams.get('toLocation'),
+    rawValue: url.searchParams.get('to'),
+    required: true,
+    fieldLabel: 'destination city or airport',
+    allowedKinds: ['city', 'airport'],
+  })
 
-  if (!fromSlug || !toSlug) return
+  if (!from.location || !to.location) return
 
-  const path = buildFlightsSearchPath(fromSlug, toSlug, itineraryType, 1)
+  const path = buildFlightsSearchPath(
+    from.location.searchSlug,
+    to.location.searchSlug,
+    itineraryType,
+    1,
+  )
   const params = new URLSearchParams()
   const depart = String(url.searchParams.get('depart') || '').trim()
   const ret = String(url.searchParams.get('return') || '').trim()
   const travelers = String(url.searchParams.get('travelers') || '').trim()
   const cabin = String(url.searchParams.get('cabin') || '').trim()
+
+  params.set('fromLocationId', from.location.locationId)
+  params.set('toLocationId', to.location.locationId)
 
   if (depart) {
     params.set('depart', depart)
@@ -45,7 +69,30 @@ export const onGet: RequestHandler = async ({ url, redirect }) => {
   throw redirect(302, query ? `${path}?${query}` : path)
 }
 
+export const useFlightsIndexPage = routeLoader$(async ({ url }) => {
+  const fromSelection = parseLocationSelection(url.searchParams.get('fromLocation'))
+  const toSelection = parseLocationSelection(url.searchParams.get('toLocation'))
+  const [fromLocation, toLocation] = await Promise.all([
+    fromSelection ||
+      resolveLocationFromUrlValues({
+        locationId: url.searchParams.get('fromLocationId'),
+        text: url.searchParams.get('from'),
+      }),
+    toSelection ||
+      resolveLocationFromUrlValues({
+        locationId: url.searchParams.get('toLocationId'),
+        text: url.searchParams.get('to'),
+      }),
+  ])
+
+  return {
+    fromLocation,
+    toLocation,
+  }
+})
+
 export default component$(() => {
+  const data = useFlightsIndexPage().value
   const location = useLocation()
 
   const itineraryType = normalizeFlightItineraryType(String(location.url.searchParams.get('itineraryType') || '').trim())
@@ -70,8 +117,10 @@ export default component$(() => {
       searchCard={(
         <FlightsSearchCard
           initialItineraryType={itineraryType}
-          initialFrom={from}
-          initialTo={to}
+          initialFrom={data.fromLocation?.displayName || from}
+          initialFromLocation={data.fromLocation}
+          initialTo={data.toLocation?.displayName || to}
+          initialToLocation={data.toLocation}
           initialDepart={depart}
           initialReturn={ret}
           initialTravelers={travelers}
