@@ -1,51 +1,68 @@
 export type InventoryVertical = 'flight' | 'hotel' | 'car'
 
-export type FlightInventoryIdInput = {
-  airlineCode: string
-  flightNumber: string
-  departDate: string
-  originCode: string
-  destinationCode: string
+export class InventoryIdValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'InventoryIdValidationError'
+  }
 }
 
-export type HotelInventoryIdInput = {
+export type BuildFlightInventoryIdInput = {
+  carrier?: string
+  airlineCode?: string
+  flightNumber: string | number
+  departDate: string
+  origin?: string
+  originCode?: string
+  destination?: string
+  destinationCode?: string
+}
+
+export type BuildHotelInventoryIdInput = {
   hotelId: string | number
   checkInDate: string
   checkOutDate: string
-  roomType?: string | null
-  occupancy?: string | number | null
+  roomType: string
+  occupancy: string | number
 }
 
-export type CarInventoryIdInput = {
+export type BuildCarInventoryIdInput = {
   providerLocationId: string | number
   pickupDateTime: string
   dropoffDateTime: string
-  vehicleClass?: string | null
+  vehicleClass: string
 }
 
-export type ParsedFlightInventoryId = {
-  vertical: 'flight'
+export type FlightInventoryIdInput = BuildFlightInventoryIdInput
+export type HotelInventoryIdInput = BuildHotelInventoryIdInput
+export type CarInventoryIdInput = BuildCarInventoryIdInput
+
+type ParsedInventoryBase<TVertical extends InventoryVertical> = {
+  vertical: TVertical
+  raw: string
   inventoryId: string
+}
+
+export type ParsedFlightInventoryId = ParsedInventoryBase<'flight'> & {
+  carrier: string
   airlineCode: string
   flightNumber: string
   departDate: string
+  origin: string
   originCode: string
+  destination: string
   destinationCode: string
 }
 
-export type ParsedHotelInventoryId = {
-  vertical: 'hotel'
-  inventoryId: string
+export type ParsedHotelInventoryId = ParsedInventoryBase<'hotel'> & {
   hotelId: string
   checkInDate: string
   checkOutDate: string
   roomType: string
-  occupancy: string
+  occupancy: number
 }
 
-export type ParsedCarInventoryId = {
-  vertical: 'car'
-  inventoryId: string
+export type ParsedCarInventoryId = ParsedInventoryBase<'car'> & {
   providerLocationId: string
   pickupDateTime: string
   dropoffDateTime: string
@@ -57,87 +74,378 @@ export type ParsedInventoryId =
   | ParsedHotelInventoryId
   | ParsedCarInventoryId
 
-const normalizeToken = (value: string | number | null | undefined) =>
-  String(value ?? '')
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, '-')
-    .replaceAll(/(^-|-$)/g, '') || 'unknown'
+const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+const ISO_DATETIME_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2})([:\-])(\d{2})(?:(:\d{2})(?:\.\d{1,3})?)?$/
 
-const normalizeCode = (value: string | null | undefined) =>
-  String(value ?? '')
-    .trim()
-    .toUpperCase() || 'UNKNOWN'
+const toDisplayValue = (value: unknown) =>
+  typeof value === 'string' ? JSON.stringify(value) : String(value)
 
-const normalizeFlightNumber = (value: string | null | undefined) =>
-  String(value ?? '')
-    .trim()
-    .toUpperCase()
-    .replaceAll(/\s+/g, '') || 'UNKNOWN'
-
-const normalizeDate = (value: string | null | undefined, fallback: string) => {
-  const text = String(value ?? '').trim()
-  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : fallback
+const failValidation = (message: string): never => {
+  throw new InventoryIdValidationError(message)
 }
 
-const normalizeDateTime = (value: string | null | undefined, fallback: string) => {
+const requireValue = (value: unknown, fieldName: string) => {
   const text = String(value ?? '').trim()
-  if (!text) return fallback
+  if (!text) {
+    failValidation(`${fieldName} is required.`)
+  }
 
-  const parsed = new Date(text)
-  if (Number.isNaN(parsed.getTime())) return fallback
   return text
 }
 
-const encodePart = (value: string) => encodeURIComponent(value)
+const selectRequiredAlias = (
+  fieldName: string,
+  options: Array<string | number | null | undefined>,
+): string => {
+  for (const option of options) {
+    const text = String(option ?? '').trim()
+    if (text) return text
+  }
 
-const decodePart = (value: string) => {
-  try {
-    return decodeURIComponent(value)
-  } catch {
-    return value
+  return failValidation(`${fieldName} is required.`)
+}
+
+const normalizeSlugSource = (value: string, fieldName: string) => {
+  const normalized = value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+  const slug = normalized
+    .toLowerCase()
+    .replace(/[^a-z0-9\s_-]+/g, ' ')
+    .replace(/[_\s-]+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+
+  if (!slug) {
+    failValidation(`${fieldName} must contain at least one alphanumeric character.`)
+  }
+
+  return slug
+}
+
+const normalizeUpperToken = (value: string, fieldName: string) => {
+  const normalized = value
+    .trim()
+    .toUpperCase()
+    .replace(/[_\s-]+/g, '')
+    .replace(/[^A-Z0-9]/g, '')
+
+  if (!normalized) {
+    failValidation(`${fieldName} must contain at least one alphanumeric character.`)
+  }
+
+  return normalized
+}
+
+const isValidDateParts = (year: number, month: number, day: number) => {
+  const date = new Date(Date.UTC(year, month - 1, day))
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  )
+}
+
+const validateHourMinute = (hour: number, minute: number, fieldName: string) => {
+  if (hour < 0 || hour > 23) {
+    failValidation(`${fieldName} hour must be between 00 and 23.`)
+  }
+
+  if (minute < 0 || minute > 59) {
+    failValidation(`${fieldName} minute must be between 00 and 59.`)
   }
 }
 
-export const buildFlightInventoryId = (input: FlightInventoryIdInput) => {
-  const airlineCode = normalizeCode(input.airlineCode)
+const normalizePositiveIntegerToken = (value: string | number, fieldName: string) => {
+  const text = requireValue(value, fieldName)
+  if (!/^\d+$/.test(text)) {
+    failValidation(`${fieldName} must be a positive integer.`)
+  }
+
+  const parsed = Number.parseInt(text, 10)
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    failValidation(`${fieldName} must be a positive integer.`)
+  }
+
+  return String(parsed)
+}
+
+export const normalizeInventoryToken = (value: string | number, fieldName = 'inventory token') =>
+  normalizeSlugSource(requireValue(value, fieldName), fieldName)
+
+export const normalizeAirportCode = (value: string, fieldName = 'airport code') =>
+  normalizeUpperToken(requireValue(value, fieldName), fieldName)
+
+export const normalizeCarrierCode = (value: string, fieldName = 'carrier') =>
+  normalizeUpperToken(requireValue(value, fieldName), fieldName)
+
+export const normalizeFlightNumber = (
+  value: string | number,
+  fieldName = 'flight number',
+) => {
+  const normalized = requireValue(value, fieldName)
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/[^A-Z0-9]/g, '')
+
+  if (!normalized) {
+    failValidation(`${fieldName} must contain at least one alphanumeric character.`)
+  }
+
+  return normalized
+}
+
+export const normalizeDatePart = (value: string, fieldName = 'date') => {
+  const text = requireValue(value, fieldName)
+  const match = ISO_DATE_PATTERN.exec(text)
+  if (!match) {
+    failValidation(`${fieldName} must be an ISO date in YYYY-MM-DD format.`)
+  }
+
+  const [, yearText, monthText, dayText] = match as RegExpExecArray
+  const year = Number.parseInt(yearText, 10)
+  const month = Number.parseInt(monthText, 10)
+  const day = Number.parseInt(dayText, 10)
+
+  if (!isValidDateParts(year, month, day)) {
+    failValidation(`${fieldName} must be a valid calendar date.`)
+  }
+
+  return `${yearText}-${monthText}-${dayText}`
+}
+
+export const normalizeDateTimePart = (value: string, fieldName = 'datetime') => {
+  const text = requireValue(value, fieldName)
+  const match = ISO_DATETIME_PATTERN.exec(text)
+  if (!match) {
+    failValidation(
+      `${fieldName} must be an ISO-like datetime in YYYY-MM-DDTHH:mm or YYYY-MM-DDTHH-mm format.`,
+    )
+  }
+
+  const [, yearText, monthText, dayText, hourText, , minuteText, secondsText] =
+    match as RegExpExecArray
+  const year = Number.parseInt(yearText, 10)
+  const month = Number.parseInt(monthText, 10)
+  const day = Number.parseInt(dayText, 10)
+  const hour = Number.parseInt(hourText, 10)
+  const minute = Number.parseInt(minuteText, 10)
+
+  if (!isValidDateParts(year, month, day)) {
+    failValidation(`${fieldName} must contain a valid calendar date.`)
+  }
+
+  validateHourMinute(hour, minute, fieldName)
+
+  if (secondsText && secondsText !== ':00') {
+    failValidation(
+      `${fieldName} must not include non-zero seconds because canonical inventory IDs store minute precision only.`,
+    )
+  }
+
+  return `${yearText}-${monthText}-${dayText}T${hourText}-${minuteText}`
+}
+
+const buildParsedBase = <TVertical extends InventoryVertical>(
+  vertical: TVertical,
+  raw: string,
+): ParsedInventoryBase<TVertical> => ({
+  vertical,
+  raw,
+  inventoryId: raw,
+})
+
+const validateCanonicalSegment = (
+  rawSegment: string,
+  normalize: (value: string) => string,
+  fieldName: string,
+) => {
+  const canonical = normalize(rawSegment)
+  if (canonical !== rawSegment) {
+    failValidation(`${fieldName} segment is not canonical: ${toDisplayValue(rawSegment)}.`)
+  }
+
+  return rawSegment
+}
+
+const parseFlightInventoryId = (raw: string, segments: string[]): ParsedFlightInventoryId | null => {
+  if (segments.length !== 6) return null
+
+  try {
+    const [, rawCarrier, rawFlightNumber, rawDepartDate, rawOrigin, rawDestination] = segments
+    const carrier = validateCanonicalSegment(
+      rawCarrier,
+      (value) => normalizeCarrierCode(value, 'carrier'),
+      'carrier',
+    )
+    const flightNumber = validateCanonicalSegment(
+      rawFlightNumber,
+      (value) => normalizeFlightNumber(value, 'flight number'),
+      'flight number',
+    )
+    const departDate = validateCanonicalSegment(
+      rawDepartDate,
+      (value) => normalizeDatePart(value, 'depart date'),
+      'depart date',
+    )
+    const origin = validateCanonicalSegment(
+      rawOrigin,
+      (value) => normalizeAirportCode(value, 'origin'),
+      'origin',
+    )
+    const destination = validateCanonicalSegment(
+      rawDestination,
+      (value) => normalizeAirportCode(value, 'destination'),
+      'destination',
+    )
+
+    return {
+      ...buildParsedBase('flight', raw),
+      carrier,
+      airlineCode: carrier,
+      flightNumber,
+      departDate,
+      origin,
+      originCode: origin,
+      destination,
+      destinationCode: destination,
+    }
+  } catch (error) {
+    if (error instanceof InventoryIdValidationError) {
+      return null
+    }
+
+    throw error
+  }
+}
+
+const parseHotelInventoryId = (raw: string, segments: string[]): ParsedHotelInventoryId | null => {
+  if (segments.length !== 6) return null
+
+  try {
+    const [, rawHotelId, rawCheckInDate, rawCheckOutDate, rawRoomType, rawOccupancy] = segments
+    const hotelId = validateCanonicalSegment(
+      rawHotelId,
+      (value) => normalizeInventoryToken(value, 'hotel token'),
+      'hotel token',
+    )
+    const checkInDate = validateCanonicalSegment(
+      rawCheckInDate,
+      (value) => normalizeDatePart(value, 'check-in date'),
+      'check-in date',
+    )
+    const checkOutDate = validateCanonicalSegment(
+      rawCheckOutDate,
+      (value) => normalizeDatePart(value, 'check-out date'),
+      'check-out date',
+    )
+    const roomType = validateCanonicalSegment(
+      rawRoomType,
+      (value) => normalizeInventoryToken(value, 'room type'),
+      'room type',
+    )
+    const occupancyToken = validateCanonicalSegment(
+      rawOccupancy,
+      (value) => normalizePositiveIntegerToken(value, 'occupancy'),
+      'occupancy',
+    )
+
+    return {
+      ...buildParsedBase('hotel', raw),
+      hotelId,
+      checkInDate,
+      checkOutDate,
+      roomType,
+      occupancy: Number.parseInt(occupancyToken, 10),
+    }
+  } catch (error) {
+    if (error instanceof InventoryIdValidationError) {
+      return null
+    }
+
+    throw error
+  }
+}
+
+const parseCarInventoryId = (raw: string, segments: string[]): ParsedCarInventoryId | null => {
+  if (segments.length !== 5) return null
+
+  try {
+    const [, rawProviderLocationId, rawPickupDateTime, rawDropoffDateTime, rawVehicleClass] = segments
+    const providerLocationId = validateCanonicalSegment(
+      rawProviderLocationId,
+      (value) => normalizeInventoryToken(value, 'provider location'),
+      'provider location',
+    )
+    const pickupDateTime = validateCanonicalSegment(
+      rawPickupDateTime,
+      (value) => normalizeDateTimePart(value, 'pickup datetime'),
+      'pickup datetime',
+    )
+    const dropoffDateTime = validateCanonicalSegment(
+      rawDropoffDateTime,
+      (value) => normalizeDateTimePart(value, 'dropoff datetime'),
+      'dropoff datetime',
+    )
+    const vehicleClass = validateCanonicalSegment(
+      rawVehicleClass,
+      (value) => normalizeInventoryToken(value, 'vehicle class'),
+      'vehicle class',
+    )
+
+    return {
+      ...buildParsedBase('car', raw),
+      providerLocationId,
+      pickupDateTime,
+      dropoffDateTime,
+      vehicleClass,
+    }
+  } catch (error) {
+    if (error instanceof InventoryIdValidationError) {
+      return null
+    }
+
+    throw error
+  }
+}
+
+export const buildFlightInventoryId = (input: BuildFlightInventoryIdInput) => {
+  const carrier = normalizeCarrierCode(
+    selectRequiredAlias('carrier', [input.carrier, input.airlineCode]),
+  )
   const flightNumber = normalizeFlightNumber(input.flightNumber)
-  const departDate = normalizeDate(input.departDate, '1970-01-01')
-  const originCode = normalizeCode(input.originCode)
-  const destinationCode = normalizeCode(input.destinationCode)
+  const departDate = normalizeDatePart(input.departDate, 'depart date')
+  const origin = normalizeAirportCode(
+    selectRequiredAlias('origin', [input.origin, input.originCode]),
+    'origin',
+  )
+  const destination = normalizeAirportCode(
+    selectRequiredAlias('destination', [input.destination, input.destinationCode]),
+    'destination',
+  )
 
-  return [
-    'flight',
-    airlineCode,
-    flightNumber,
-    departDate,
-    originCode,
-    destinationCode,
-  ].map(encodePart).join(':')
+  return ['flight', carrier, flightNumber, departDate, origin, destination].join(':')
 }
 
-export const buildHotelInventoryId = (input: HotelInventoryIdInput) => {
-  const hotelId = normalizeToken(input.hotelId)
-  const checkInDate = normalizeDate(input.checkInDate, '1970-01-01')
-  const checkOutDate = normalizeDate(input.checkOutDate, checkInDate)
-  const roomType = normalizeToken(input.roomType || 'standard')
-  const occupancy = normalizeToken(input.occupancy || '2')
+export const buildHotelInventoryId = (input: BuildHotelInventoryIdInput) => {
+  const hotelId = normalizeInventoryToken(input.hotelId, 'hotel token')
+  const checkInDate = normalizeDatePart(input.checkInDate, 'check-in date')
+  const checkOutDate = normalizeDatePart(input.checkOutDate, 'check-out date')
+  const roomType = normalizeInventoryToken(input.roomType, 'room type')
+  const occupancy = normalizePositiveIntegerToken(input.occupancy, 'occupancy')
 
-  return [
-    'hotel',
-    hotelId,
-    checkInDate,
-    checkOutDate,
-    roomType,
-    occupancy,
-  ].map(encodePart).join(':')
+  return ['hotel', hotelId, checkInDate, checkOutDate, roomType, occupancy].join(':')
 }
 
-export const buildCarInventoryId = (input: CarInventoryIdInput) => {
-  const providerLocationId = normalizeToken(input.providerLocationId)
-  const pickupDateTime = normalizeDateTime(input.pickupDateTime, '1970-01-01T00:00')
-  const dropoffDateTime = normalizeDateTime(input.dropoffDateTime, pickupDateTime)
-  const vehicleClass = normalizeToken(input.vehicleClass || 'standard')
+export const buildCarInventoryId = (input: BuildCarInventoryIdInput) => {
+  const providerLocationId = normalizeInventoryToken(
+    input.providerLocationId,
+    'provider location',
+  )
+  const pickupDateTime = normalizeDateTimePart(input.pickupDateTime, 'pickup datetime')
+  const dropoffDateTime = normalizeDateTimePart(input.dropoffDateTime, 'dropoff datetime')
+  const vehicleClass = normalizeInventoryToken(input.vehicleClass, 'vehicle class')
 
   return [
     'car',
@@ -145,68 +453,32 @@ export const buildCarInventoryId = (input: CarInventoryIdInput) => {
     pickupDateTime,
     dropoffDateTime,
     vehicleClass,
-  ].map(encodePart).join(':')
+  ].join(':')
 }
 
 export const parseInventoryId = (value: string | null | undefined): ParsedInventoryId | null => {
-  const inventoryId = String(value ?? '').trim()
-  if (!inventoryId) return null
-
-  const parts = inventoryId.split(':').map(decodePart)
-  const [vertical, ...rest] = parts
-
-  if (vertical === 'flight' && rest.length === 5) {
-    const [airlineCode, flightNumber, departDate, originCode, destinationCode] = rest
-    return {
-      vertical,
-      inventoryId,
-      airlineCode,
-      flightNumber,
-      departDate,
-      originCode,
-      destinationCode,
-    }
+  const raw = String(value ?? '').trim()
+  if (!raw || /\s/.test(raw)) {
+    return null
   }
 
-  if (vertical === 'hotel' && rest.length === 5) {
-    const [hotelId, checkInDate, checkOutDate, roomType, occupancy] = rest
-    return {
-      vertical,
-      inventoryId,
-      hotelId,
-      checkInDate,
-      checkOutDate,
-      roomType,
-      occupancy,
-    }
+  const segments = raw.split(':')
+  const vertical = segments[0]
+
+  if (vertical === 'flight') {
+    return parseFlightInventoryId(raw, segments)
   }
 
-  if (vertical === 'car' && rest.length >= 4) {
-    const providerLocationId = rest[0]
-    const vehicleClass = rest.at(-1) || 'standard'
-    const dateTimeParts = rest.slice(1, -1)
+  if (vertical === 'hotel') {
+    return parseHotelInventoryId(raw, segments)
+  }
 
-    let pickupDateTime = dateTimeParts[0] || '1970-01-01T00:00'
-    let dropoffDateTime = dateTimeParts[1] || pickupDateTime
-
-    if (dateTimeParts.length === 4) {
-      pickupDateTime = `${dateTimeParts[0]}:${dateTimeParts[1]}`
-      dropoffDateTime = `${dateTimeParts[2]}:${dateTimeParts[3]}`
-    } else if (dateTimeParts.length > 2) {
-      const midpoint = Math.ceil(dateTimeParts.length / 2)
-      pickupDateTime = dateTimeParts.slice(0, midpoint).join(':')
-      dropoffDateTime = dateTimeParts.slice(midpoint).join(':')
-    }
-
-    return {
-      vertical,
-      inventoryId,
-      providerLocationId,
-      pickupDateTime,
-      dropoffDateTime,
-      vehicleClass,
-    }
+  if (vertical === 'car') {
+    return parseCarInventoryId(raw, segments)
   }
 
   return null
 }
+
+export const isInventoryId = (value: unknown): value is string =>
+  typeof value === 'string' && parseInventoryId(value) !== null

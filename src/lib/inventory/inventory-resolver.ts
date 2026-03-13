@@ -20,7 +20,7 @@ export type ResolvedHotelInventory = {
     checkInDate: string
     checkOutDate: string
     roomType: string
-    occupancy: string
+    occupancy: number
   }
 }
 
@@ -47,13 +47,13 @@ export const resolveInventory = (inventoryId: string): ResolvedInventory | null 
   if (parsed.vertical === 'flight') {
     return {
       vertical: parsed.vertical,
-      inventoryId: parsed.inventoryId,
+      inventoryId: parsed.raw,
       providerQuery: {
-        airlineCode: parsed.airlineCode,
+        airlineCode: parsed.carrier,
         flightNumber: parsed.flightNumber,
         departDate: parsed.departDate,
-        originCode: parsed.originCode,
-        destinationCode: parsed.destinationCode,
+        originCode: parsed.origin,
+        destinationCode: parsed.destination,
       },
     }
   }
@@ -61,7 +61,7 @@ export const resolveInventory = (inventoryId: string): ResolvedInventory | null 
   if (parsed.vertical === 'hotel') {
     return {
       vertical: parsed.vertical,
-      inventoryId: parsed.inventoryId,
+      inventoryId: parsed.raw,
       providerQuery: {
         hotelId: parsed.hotelId,
         checkInDate: parsed.checkInDate,
@@ -74,7 +74,7 @@ export const resolveInventory = (inventoryId: string): ResolvedInventory | null 
 
   return {
     vertical: parsed.vertical,
-    inventoryId: parsed.inventoryId,
+    inventoryId: parsed.raw,
     providerQuery: {
       providerLocationId: parsed.providerLocationId,
       pickupDateTime: parsed.pickupDateTime,
