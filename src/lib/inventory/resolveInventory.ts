@@ -29,6 +29,7 @@ export const resolveInventoryRecord = async (
 
   return resolveInventoryViaProvider({
     inventoryId,
+    provider: input.provider,
     parsedInventory,
     providerInventoryId: input.providerInventoryId,
     checkedAt: normalizeResolutionTimestamp(input.checkedAt),
@@ -54,7 +55,10 @@ export const resolveInventoryWithSnapshot = async (
   }
 }
 
-export async function resolveInventory(inventoryId: string): Promise<BookableEntity | null> {
-  const record = await resolveInventoryRecord({ inventoryId })
+export async function resolveInventory(
+  inventoryId: string,
+  provider?: string | null,
+): Promise<BookableEntity | null> {
+  const record = await resolveInventoryRecord({ inventoryId, provider })
   return record?.entity || null
 }

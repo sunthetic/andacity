@@ -49,6 +49,7 @@ export type InventoryProviderResolvers = {
 
 export type ResolveInventoryRecordInput = {
   inventoryId: string
+  provider?: string | null
   providerInventoryId?: number | null
   checkedAt?: string | Date | null
 }

@@ -81,6 +81,11 @@ const buildInventoryMetadata = (parsed: ParsedInventoryId): Record<string, unkno
   if (parsed.vertical === 'hotel') {
     return {
       hotelId: parsed.hotelId,
+      provider: parsed.provider,
+      providerOfferId: parsed.providerOfferId,
+      ratePlanId: parsed.ratePlanId,
+      boardType: parsed.boardType,
+      cancellationPolicy: parsed.cancellationPolicy,
       roomType: parsed.roomType,
       occupancy: parsed.occupancy,
       checkInDate: parsed.checkInDate,

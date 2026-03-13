@@ -10,6 +10,9 @@ const searchEntityModule: typeof import('../search/search-entity.ts') = await im
 const bookableEntityModule: typeof import('../booking/bookable-entity.ts') = await import(
   new URL('../booking/bookable-entity.ts', import.meta.url).href
 )
+const providerRegistryModule: typeof import('../providers/providerRegistry.ts') = await import(
+  new URL('../providers/providerRegistry.ts', import.meta.url).href
+)
 const resolveInventoryModule: typeof import('./resolveInventory.ts') = await import(
   new URL('./resolveInventory.ts', import.meta.url).href
 )
@@ -27,6 +30,12 @@ const {
 } = searchEntityModule
 
 const { toBookableEntityFromSearchEntity } = bookableEntityModule
+const {
+  clearProviderRegistry,
+  getProvider,
+  registerProvider,
+  resetProviderRegistry,
+} = providerRegistryModule
 const {
   resolveInventory,
   resolveInventoryRecord,
@@ -297,4 +306,141 @@ test('computes snapshot validation statuses for valid, price-changed, and unavai
   assert.equal(valid?.snapshotStatus, 'valid')
   assert.equal(priceChanged?.snapshotStatus, 'price_changed')
   assert.equal(unavailable?.snapshotStatus, 'unavailable')
+})
+
+test('registers providers and resolves them from the provider registry', () => {
+  clearProviderRegistry()
+
+  try {
+    const adapter = {
+      provider: 'Mock-Hotel',
+      async search() {
+        return []
+      },
+      async resolveInventory() {
+        return null
+      },
+      async fetchPrice() {
+        return null
+      },
+    }
+
+    registerProvider(adapter)
+
+    assert.equal(getProvider('mock-hotel'), adapter)
+    assert.equal(getProvider(' MOCK-HOTEL '), adapter)
+    assert.equal(getProvider('missing-provider'), null)
+  } finally {
+    resetProviderRegistry()
+  }
+})
+
+test('default registry exposes the concrete flight provider and the legacy flight alias', () => {
+  assert.equal(getProvider('flight-default')?.provider, 'flight-default')
+  assert.equal(getProvider('flight')?.provider, 'flight')
+})
+
+test('resolveInventoryRecord uses a registered provider adapter when one is specified', async () => {
+  clearProviderRegistry()
+
+  try {
+    const inventoryId = buildHotelInventoryId({
+      hotelId: 555,
+      checkInDate: '2026-04-01',
+      checkOutDate: '2026-04-05',
+      roomType: 'suite',
+      occupancy: 2,
+    })
+    let adapterCalls = 0
+
+    registerProvider({
+      provider: 'mock-hotel',
+      async search() {
+        return []
+      },
+      async resolveInventory() {
+        return null
+      },
+      async fetchPrice() {
+        return null
+      },
+      async resolveInventoryRecord(input) {
+        adapterCalls += 1
+        assert.equal(input.inventoryId, inventoryId)
+        assert.equal(input.providerInventoryId, 555)
+        assert.equal(input.checkedAt, '2026-03-13T20:00:00.000Z')
+
+        return {
+          entity: buildHotelEntity(),
+          checkedAt: input.checkedAt || '2026-03-13T20:00:00.000Z',
+          isAvailable: false,
+        }
+      },
+    })
+
+    const record = await resolveInventoryRecord({
+      inventoryId,
+      provider: 'mock-hotel',
+      providerInventoryId: 555,
+      checkedAt: '2026-03-13T20:00:00.000Z',
+    })
+
+    assert.equal(adapterCalls, 1)
+    assert.equal(record?.entity.vertical, 'hotel')
+    assert.equal(record?.isAvailable, false)
+  } finally {
+    resetProviderRegistry()
+  }
+})
+
+test('resolveInventory delegates to the registry adapter and fails safely for unknown providers', async () => {
+  clearProviderRegistry()
+
+  try {
+    const inventoryId = buildHotelInventoryId({
+      hotelId: 555,
+      checkInDate: '2026-04-01',
+      checkOutDate: '2026-04-05',
+      roomType: 'suite',
+      occupancy: 2,
+    })
+    const entity = buildHotelEntity()
+    let adapterCalls = 0
+
+    registerProvider({
+      provider: 'mock-resolve-only',
+      async search() {
+        return []
+      },
+      async resolveInventory(candidateInventoryId) {
+        adapterCalls += 1
+        assert.equal(candidateInventoryId, inventoryId)
+        return entity
+      },
+      async fetchPrice() {
+        return {
+          currency: 'USD',
+          amount: 189,
+        }
+      },
+    })
+
+    assert.equal(await resolveInventory(inventoryId, 'mock-resolve-only'), entity)
+    assert.equal(adapterCalls, 1)
+    assert.equal(await resolveInventory(inventoryId, 'missing-provider'), null)
+  } finally {
+    resetProviderRegistry()
+  }
+})
+
+test('resolveInventory fails safely when a mismatched provider is requested', async () => {
+  const inventoryId = buildFlightInventoryId({
+    airlineCode: 'DL',
+    flightNumber: '123',
+    departDate: '2026-04-01',
+    originCode: 'JFK',
+    destinationCode: 'LAX',
+  })
+
+  assert.equal(await resolveInventory(inventoryId, 'hotel'), null)
 })

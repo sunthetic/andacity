@@ -16,11 +16,16 @@ export type ResolvedHotelInventory = {
   vertical: 'hotel'
   inventoryId: string
   providerQuery: {
+    provider?: string | null
     hotelId: string
     checkInDate: string
     checkOutDate: string
     roomType: string
     occupancy: number
+    providerOfferId?: string | null
+    ratePlanId?: string | null
+    boardType?: string | null
+    cancellationPolicy?: string | null
   }
 }
 
@@ -63,11 +68,16 @@ export const resolveInventory = (inventoryId: string): ResolvedInventory | null 
       vertical: parsed.vertical,
       inventoryId: parsed.raw,
       providerQuery: {
+        provider: parsed.provider,
         hotelId: parsed.hotelId,
         checkInDate: parsed.checkInDate,
         checkOutDate: parsed.checkOutDate,
         roomType: parsed.roomType,
         occupancy: parsed.occupancy,
+        providerOfferId: parsed.providerOfferId,
+        ratePlanId: parsed.ratePlanId,
+        boardType: parsed.boardType,
+        cancellationPolicy: parsed.cancellationPolicy,
       },
     }
   }

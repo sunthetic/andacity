@@ -24,6 +24,12 @@ export type BuildHotelInventoryIdInput = {
   checkOutDate: string
   roomType: string
   occupancy: string | number
+  provider?: string | null
+  providerOfferId?: string | null
+  ratePlanId?: string | null
+  ratePlan?: string | null
+  boardType?: string | null
+  cancellationPolicy?: string | null
 }
 
 export type BuildCarInventoryIdInput = {
@@ -60,6 +66,13 @@ export type ParsedHotelInventoryId = ParsedInventoryBase<'hotel'> & {
   checkOutDate: string
   roomType: string
   occupancy: number
+  provider: string | null
+  providerOfferId: string | null
+  ratePlanId: string | null
+  boardType: string | null
+  cancellationPolicy: string | null
+  variantToken: string | null
+  isProviderScoped: boolean
 }
 
 export type ParsedCarInventoryId = ParsedInventoryBase<'car'> & {
@@ -77,6 +90,12 @@ export type ParsedInventoryId =
 const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 const ISO_DATETIME_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2})([:\-])(\d{2})(?:(:\d{2})(?:\.\d{1,3})?)?$/
+const HOTEL_PROVIDER_VARIANT_VERSION = 'v1'
+const HOTEL_PROVIDER_VARIANT_PART_SEPARATOR = '.'
+const DEFAULT_HOTEL_RATE_PLAN_TOKEN = 'standard-rate'
+const DEFAULT_HOTEL_BOARD_TOKEN = 'room-only'
+const DEFAULT_HOTEL_CANCELLATION_TOKEN = 'standard-cancel'
+const DEFAULT_HOTEL_OFFER_TOKEN = 'offer'
 
 const toDisplayValue = (value: unknown) =>
   typeof value === 'string' ? JSON.stringify(value) : String(value)
@@ -173,6 +192,11 @@ const normalizePositiveIntegerToken = (value: string | number, fieldName: string
 
 export const normalizeInventoryToken = (value: string | number, fieldName = 'inventory token') =>
   normalizeSlugSource(requireValue(value, fieldName), fieldName)
+
+export const normalizeProviderNameToken = (
+  value: string | number,
+  fieldName = 'provider',
+) => normalizeInventoryToken(value, fieldName)
 
 export const normalizeAirportCode = (value: string, fieldName = 'airport code') =>
   normalizeUpperToken(requireValue(value, fieldName), fieldName)
@@ -321,9 +345,9 @@ const parseFlightInventoryId = (raw: string, segments: string[]): ParsedFlightIn
 }
 
 const parseHotelInventoryId = (raw: string, segments: string[]): ParsedHotelInventoryId | null => {
-  if (segments.length !== 6) return null
+  const parseLegacyHotelInventoryId = () => {
+    if (segments.length !== 6) return null
 
-  try {
     const [, rawHotelId, rawCheckInDate, rawCheckOutDate, rawRoomType, rawOccupancy] = segments
     const hotelId = validateCanonicalSegment(
       rawHotelId,
@@ -358,7 +382,130 @@ const parseHotelInventoryId = (raw: string, segments: string[]): ParsedHotelInve
       checkOutDate,
       roomType,
       occupancy: Number.parseInt(occupancyToken, 10),
+      provider: null,
+      providerOfferId: null,
+      ratePlanId: null,
+      boardType: null,
+      cancellationPolicy: null,
+      variantToken: null,
+      isProviderScoped: false,
+    } satisfies ParsedHotelInventoryId
+  }
+
+  const parseProviderScopedHotelInventoryId = () => {
+    if (segments.length !== 3) return null
+
+    const [, rawProvider, rawVariantToken] = segments
+    const provider = validateCanonicalSegment(
+      rawProvider,
+      (value) => normalizeProviderNameToken(value, 'hotel provider'),
+      'hotel provider',
+    )
+
+    const variantParts = rawVariantToken.split(HOTEL_PROVIDER_VARIANT_PART_SEPARATOR)
+    if (variantParts.length !== 10) {
+      return null
     }
+
+    const [
+      version,
+      rawHotelId,
+      rawCheckInDate,
+      rawCheckOutDate,
+      rawRoomType,
+      rawOccupancy,
+      rawRatePlanId,
+      rawBoardType,
+      rawCancellationPolicy,
+      rawProviderOfferId,
+    ] = variantParts
+
+    if (version !== HOTEL_PROVIDER_VARIANT_VERSION) {
+      return null
+    }
+
+    const hotelId = validateCanonicalSegment(
+      rawHotelId,
+      (value) => normalizeInventoryToken(value, 'hotel token'),
+      'hotel token',
+    )
+    const checkInDate = validateCanonicalSegment(
+      rawCheckInDate,
+      (value) => normalizeDatePart(value, 'check-in date'),
+      'check-in date',
+    )
+    const checkOutDate = validateCanonicalSegment(
+      rawCheckOutDate,
+      (value) => normalizeDatePart(value, 'check-out date'),
+      'check-out date',
+    )
+    const roomType = validateCanonicalSegment(
+      rawRoomType,
+      (value) => normalizeInventoryToken(value, 'room type'),
+      'room type',
+    )
+    const occupancyToken = validateCanonicalSegment(
+      rawOccupancy,
+      (value) => normalizePositiveIntegerToken(value, 'occupancy'),
+      'occupancy',
+    )
+    const ratePlanId = validateCanonicalSegment(
+      rawRatePlanId,
+      (value) => normalizeInventoryToken(value, 'rate plan'),
+      'rate plan',
+    )
+    const boardType = validateCanonicalSegment(
+      rawBoardType,
+      (value) => normalizeInventoryToken(value, 'board type'),
+      'board type',
+    )
+    const cancellationPolicy = validateCanonicalSegment(
+      rawCancellationPolicy,
+      (value) => normalizeInventoryToken(value, 'cancellation policy'),
+      'cancellation policy',
+    )
+    const providerOfferId = validateCanonicalSegment(
+      rawProviderOfferId,
+      (value) => normalizeInventoryToken(value, 'provider offer'),
+      'provider offer',
+    )
+
+    const canonicalVariantToken = [
+      HOTEL_PROVIDER_VARIANT_VERSION,
+      hotelId,
+      checkInDate,
+      checkOutDate,
+      roomType,
+      occupancyToken,
+      ratePlanId,
+      boardType,
+      cancellationPolicy,
+      providerOfferId,
+    ].join(HOTEL_PROVIDER_VARIANT_PART_SEPARATOR)
+
+    if (canonicalVariantToken !== rawVariantToken) {
+      return null
+    }
+
+    return {
+      ...buildParsedBase('hotel', raw),
+      hotelId,
+      checkInDate,
+      checkOutDate,
+      roomType,
+      occupancy: Number.parseInt(occupancyToken, 10),
+      provider,
+      providerOfferId,
+      ratePlanId,
+      boardType,
+      cancellationPolicy,
+      variantToken: canonicalVariantToken,
+      isProviderScoped: true,
+    } satisfies ParsedHotelInventoryId
+  }
+
+  try {
+    return parseLegacyHotelInventoryId() || parseProviderScopedHotelInventoryId()
   } catch (error) {
     if (error instanceof InventoryIdValidationError) {
       return null
@@ -434,6 +581,42 @@ export const buildHotelInventoryId = (input: BuildHotelInventoryIdInput) => {
   const checkOutDate = normalizeDatePart(input.checkOutDate, 'check-out date')
   const roomType = normalizeInventoryToken(input.roomType, 'room type')
   const occupancy = normalizePositiveIntegerToken(input.occupancy, 'occupancy')
+
+  const provider = String(input.provider || '').trim()
+  if (provider) {
+    const providerToken = normalizeProviderNameToken(provider, 'hotel provider')
+    const ratePlanId = normalizeInventoryToken(
+      input.ratePlanId || input.ratePlan || DEFAULT_HOTEL_RATE_PLAN_TOKEN,
+      'rate plan',
+    )
+    const boardType = normalizeInventoryToken(
+      input.boardType || DEFAULT_HOTEL_BOARD_TOKEN,
+      'board type',
+    )
+    const cancellationPolicy = normalizeInventoryToken(
+      input.cancellationPolicy || DEFAULT_HOTEL_CANCELLATION_TOKEN,
+      'cancellation policy',
+    )
+    const providerOfferId = normalizeInventoryToken(
+      input.providerOfferId || input.ratePlanId || input.ratePlan || DEFAULT_HOTEL_OFFER_TOKEN,
+      'provider offer',
+    )
+
+    const variantToken = [
+      HOTEL_PROVIDER_VARIANT_VERSION,
+      hotelId,
+      checkInDate,
+      checkOutDate,
+      roomType,
+      occupancy,
+      ratePlanId,
+      boardType,
+      cancellationPolicy,
+      providerOfferId,
+    ].join(HOTEL_PROVIDER_VARIANT_PART_SEPARATOR)
+
+    return ['hotel', providerToken, variantToken].join(':')
+  }
 
   return ['hotel', hotelId, checkInDate, checkOutDate, roomType, occupancy].join(':')
 }

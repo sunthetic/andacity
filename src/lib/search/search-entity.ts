@@ -21,6 +21,11 @@ import type {
   SearchEntity,
   SearchEntityPrice,
 } from '../../types/search-entity'
+import type {
+  HotelPolicySummary,
+  HotelPriceSummary,
+  HotelProviderMetadata,
+} from '../../types/hotels/provider'
 
 type SearchRecord = Record<string, unknown>
 
@@ -72,6 +77,16 @@ export type HotelSearchEntityContext = {
   checkOutDate?: string | null
   occupancy?: number | string | null
   roomType?: string | null
+  providerName?: string | null
+  providerOfferId?: string | null
+  ratePlanId?: string | null
+  ratePlan?: string | null
+  boardType?: string | null
+  cancellationPolicy?: string | null
+  policy?: HotelPolicySummary | null
+  priceSummary?: HotelPriceSummary | null
+  inclusions?: string[] | null
+  providerMetadata?: HotelProviderMetadata | null
   priceAmountCents?: number | null
   snapshotTimestamp?: string | null
   imageUrl?: string | null
@@ -190,6 +205,32 @@ const toTruthyStrings = (parts: Array<unknown>) =>
   parts
     .map((part) => toNullableText(part))
     .filter((part): part is string => Boolean(part))
+
+const cloneStringArray = (value: string[] | null | undefined) => {
+  if (!Array.isArray(value)) return value == null ? null : undefined
+  return value.map((entry) => String(entry))
+}
+
+const cloneHotelPolicy = (
+  value: HotelPolicySummary | null | undefined,
+): HotelPolicySummary | null => {
+  if (!value) return null
+  return { ...value }
+}
+
+const cloneHotelPriceSummary = (
+  value: HotelPriceSummary | null | undefined,
+): HotelPriceSummary | null => {
+  if (!value) return null
+  return { ...value }
+}
+
+const cloneHotelProviderMetadata = (
+  value: HotelProviderMetadata | null | undefined,
+): HotelProviderMetadata | null => {
+  if (!value) return null
+  return { ...value }
+}
 
 export const buildSearchEntityPrice = (input: {
   amountCents?: unknown
@@ -326,6 +367,11 @@ export const toHotelSearchEntity = (
     checkOutDate: checkOutDate || '',
     roomType,
     occupancy: occupancy ?? '',
+    provider: toNullableText(context.providerName),
+    providerOfferId: toNullableText(context.providerOfferId),
+    ratePlanId: toNullableText(context.ratePlanId) ?? toNullableText(context.ratePlan),
+    boardType: toNullableText(context.boardType),
+    cancellationPolicy: toNullableText(context.cancellationPolicy),
   })
   const title = buildSearchEntityTitle(source.name) || hotelId
   const subtitle = buildSearchEntitySubtitle([
@@ -356,6 +402,15 @@ export const toHotelSearchEntity = (
       checkOutDate,
       roomType,
       occupancy,
+      providerOfferId: toNullableText(context.providerOfferId),
+      ratePlanId: toNullableText(context.ratePlanId),
+      ratePlan: toNullableText(context.ratePlan),
+      boardType: toNullableText(context.boardType),
+      cancellationPolicy: toNullableText(context.cancellationPolicy),
+      policy: cloneHotelPolicy(context.policy),
+      priceSummary: cloneHotelPriceSummary(context.priceSummary),
+      inclusions: cloneStringArray(context.inclusions),
+      providerMetadata: cloneHotelProviderMetadata(context.providerMetadata),
       assumedStayDates: context.assumedStayDates || undefined,
       assumedOccupancy: context.assumedOccupancy || undefined,
     },

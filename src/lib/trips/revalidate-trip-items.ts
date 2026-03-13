@@ -153,7 +153,12 @@ const compareHotelInventories = (
   currentInventory: ParsedHotelInventoryId,
 ) => {
   if (
+    snapshotInventory.provider !== currentInventory.provider ||
     snapshotInventory.hotelId !== currentInventory.hotelId ||
+    snapshotInventory.providerOfferId !== currentInventory.providerOfferId ||
+    snapshotInventory.ratePlanId !== currentInventory.ratePlanId ||
+    snapshotInventory.boardType !== currentInventory.boardType ||
+    snapshotInventory.cancellationPolicy !== currentInventory.cancellationPolicy ||
     snapshotInventory.roomType !== currentInventory.roomType ||
     snapshotInventory.occupancy !== currentInventory.occupancy
   ) {

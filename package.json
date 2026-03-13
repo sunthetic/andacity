@@ -81,7 +81,7 @@
     "qa:guided-booking": "node scripts/validate/guided-booking-qa.mjs",
     "smoke:trips": "node scripts/validate/trip-pricing-smoke.mjs",
     "start": "vite --open --mode ssr",
-    "test": "node --experimental-strip-types --loader ./scripts/test/ts-path-loader.mjs --test src/lib/search/search-entity.test.ts src/lib/search/search-cache.test.ts src/lib/booking/bookable-entity.test.ts src/lib/inventory/resolveInventory.test.ts src/lib/trips/trip-item-snapshot.test.ts src/lib/trips/revalidate-trip-items.test.ts",
+    "test": "node --experimental-strip-types --loader ./scripts/test/ts-path-loader.mjs --test src/lib/search/search-entity.test.ts src/lib/search/search-cache.test.ts src/lib/booking/bookable-entity.test.ts src/lib/inventory/resolveInventory.test.ts src/lib/providers/flight/flightProviderAdapter.test.ts src/lib/providers/hotel/hotelProviderAdapter.test.ts src/lib/trips/trip-item-snapshot.test.ts src/lib/trips/revalidate-trip-items.test.ts",
     "qwik": "qwik"
   },
   "devDependencies": {
