@@ -16,6 +16,8 @@ import { CompareSheet } from "~/components/save-compare/CompareSheet";
 import { CompareTray } from "~/components/save-compare/CompareTray";
 import { SaveButton } from "~/components/save-compare/SaveButton";
 import { AddToTripButton } from "~/components/trips/AddToTripButton";
+import { DateField } from "~/components/ui/DateField";
+import { getTodayIsoDate, normalizeIsoDate } from "~/lib/date/validateDate";
 import {
   resolveAvailabilityAsyncState,
   summarizeAvailabilitySignals,
@@ -46,6 +48,7 @@ import {
   type DecisionSummaryBlock,
   type DecisionSummaryCaveat,
 } from "~/components/decision/DecisionSummarySection";
+import { addDays } from "~/lib/trips/date-utils";
 import type { Hotel } from "~/data/hotels";
 import { loadHotelBySlugFromDb } from "~/lib/queries/hotels-pages.server";
 import { Page } from "~/components/site/Page";
@@ -145,6 +148,15 @@ export default component$(() => {
   const data = useHotelPage().value;
   const h = data.hotel;
   const location = useLocation();
+  const stayCheckIn = useSignal(data.active.checkIn || "");
+  const stayCheckOut = useSignal(data.active.checkOut || "");
+  const todayIsoDate = getTodayIsoDate();
+  const tomorrowIsoDate = addDays(todayIsoDate, 1) || todayIsoDate;
+  const minimumCheckoutDate =
+    addDays(
+      stayCheckIn.value >= todayIsoDate ? stayCheckIn.value : todayIsoDate,
+      1,
+    ) || tomorrowIsoDate;
   useBookingAbandonmentTelemetry({
     vertical: "hotels",
     stage: "detail",
@@ -589,10 +601,7 @@ export default component$(() => {
                   }}
                   onToggle$={onToggleCompare$}
                 />
-                <AddToTripButton
-                  item={decisionItem}
-                  telemetrySource="detail"
-                />
+                <AddToTripButton item={decisionItem} telemetrySource="detail" />
               </div>
             </div>
 
@@ -633,37 +642,54 @@ export default component$(() => {
             </div>
 
             <form method="get" class="mt-4 grid gap-3">
-              <div class="grid grid-cols-2 gap-2">
+              <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
-                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                  <label
+                    for="hotel-detail-check-in"
+                    class="text-xs font-medium text-[color:var(--color-text-subtle)]"
+                  >
                     Check-in
                   </label>
-                  <input
+                  <DateField
+                    id="hotel-detail-check-in"
                     name="checkIn"
-                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-                    placeholder="YYYY-MM-DD"
-                    value={data.active.checkIn || ""}
+                    value={stayCheckIn}
+                    minValue={todayIsoDate}
+                    inputClass="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    iconLabel="Open check-in date picker"
+                    overlayLabel="Check-in date picker"
                   />
                 </div>
                 <div>
-                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                  <label
+                    for="hotel-detail-check-out"
+                    class="text-xs font-medium text-[color:var(--color-text-subtle)]"
+                  >
                     Check-out
                   </label>
-                  <input
+                  <DateField
+                    id="hotel-detail-check-out"
                     name="checkOut"
-                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
-                    placeholder="YYYY-MM-DD"
-                    value={data.active.checkOut || ""}
+                    value={stayCheckOut}
+                    minValue={minimumCheckoutDate}
+                    inputClass="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    iconLabel="Open check-out date picker"
+                    overlayLabel="Check-out date picker"
+                    overlayPosition="right"
                   />
                 </div>
               </div>
 
               <div class="grid grid-cols-2 gap-2">
                 <div>
-                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                  <label
+                    for="hotel-detail-adults"
+                    class="text-xs font-medium text-[color:var(--color-text-subtle)]"
+                  >
                     Adults
                   </label>
                   <input
+                    id="hotel-detail-adults"
                     name="adults"
                     class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
                     placeholder="2"
@@ -675,10 +701,14 @@ export default component$(() => {
                   />
                 </div>
                 <div>
-                  <label class="text-xs font-medium text-[color:var(--color-text-subtle)]">
+                  <label
+                    for="hotel-detail-rooms"
+                    class="text-xs font-medium text-[color:var(--color-text-subtle)]"
+                  >
                     Rooms
                   </label>
                   <input
+                    id="hotel-detail-rooms"
                     name="rooms"
                     class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
                     placeholder="1"
@@ -1308,13 +1338,6 @@ const buildSearchHotelsHref = (d: {
 /* -----------------------------
    Helpers
 ----------------------------- */
-
-const normalizeIsoDate = (raw: string | null) => {
-  if (!raw) return null;
-  const s = String(raw).trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
-  return s;
-};
 
 const computeNights = (checkIn: string | null, checkOut: string | null) => {
   if (!checkIn || !checkOut) return null;
