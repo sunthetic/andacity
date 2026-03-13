@@ -1,5 +1,8 @@
 import type { AvailabilityConfidenceModel } from '~/lib/inventory/availability-confidence'
 import type { InventoryFreshnessModel } from '~/lib/inventory/freshness'
+import type { CarSearchEntityPayload } from '~/lib/search/search-entities'
+import type { BookableEntity } from '~/types/bookable-entity'
+import type { SearchEntity } from '~/types/search-entity'
 
 export type SortKey = 'relevance' | 'price-asc' | 'price-desc' | 'rating-desc' | 'reviewcount-desc'
 
@@ -23,10 +26,12 @@ export type ActiveFilters = {
 export type CarRentalResult = {
   id: string
   inventoryId?: number
+  canonicalInventoryId?: string
   slug: string
   name: string
   city: string
   pickupArea: string
+  locationId?: number | null
 
   vehicleName?: string | null
   category: string | null
@@ -49,6 +54,8 @@ export type CarRentalResult = {
   score: number
   availabilityConfidence?: AvailabilityConfidenceModel
   freshness?: InventoryFreshnessModel
+  searchEntity?: SearchEntity<CarSearchEntityPayload>
+  bookableEntity?: BookableEntity<CarSearchEntityPayload>
 }
 
 export type Facets = {

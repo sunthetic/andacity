@@ -8,6 +8,7 @@ import {
   flightFares,
   flightItineraries,
   flightRoutes,
+  flightSegments,
   flightTimeWindowEnum,
 } from '~/lib/db/schema'
 
@@ -42,6 +43,8 @@ export type FlightSearchRow = {
   id: number
   seedKey: string
   airline: string
+  airlineCode: string | null
+  flightNumber: string | null
   originIata: string
   destinationIata: string
   itineraryType: 'one-way' | 'round-trip'
@@ -203,6 +206,7 @@ export async function searchFlightsPage(input: SearchFlightsInput): Promise<Sear
   const db = getDb()
   const originAirport = alias(airports, 'origin_airport')
   const destinationAirport = alias(airports, 'destination_airport')
+  const primarySegment = alias(flightSegments, 'primary_flight_segment')
   const conditions = buildSearchConditions(input, originAirport, destinationAirport)
 
   const rows = await db
@@ -210,6 +214,8 @@ export async function searchFlightsPage(input: SearchFlightsInput): Promise<Sear
       id: flightItineraries.id,
       seedKey: flightItineraries.seedKey,
       airline: airlines.name,
+      airlineCode: airlines.iataCode,
+      flightNumber: primarySegment.operatingFlightNumber,
       originIata: originAirport.iataCode,
       destinationIata: destinationAirport.iataCode,
       itineraryType: flightItineraries.itineraryType,
@@ -237,6 +243,13 @@ export async function searchFlightsPage(input: SearchFlightsInput): Promise<Sear
     .innerJoin(originAirport, eq(flightRoutes.originAirportId, originAirport.id))
     .innerJoin(destinationAirport, eq(flightRoutes.destinationAirportId, destinationAirport.id))
     .innerJoin(airlines, eq(flightItineraries.airlineId, airlines.id))
+    .leftJoin(
+      primarySegment,
+      and(
+        eq(primarySegment.itineraryId, flightItineraries.id),
+        eq(primarySegment.segmentOrder, 0),
+      ),
+    )
     .leftJoin(
       flightFares,
       and(

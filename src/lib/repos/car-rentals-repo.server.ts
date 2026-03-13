@@ -53,6 +53,7 @@ export type CarRentalSearchRow = {
   slug: string
   citySlug: string
   cityName: string
+  locationId: number
   providerName: string
   pickupArea: string
   pickupType: 'airport' | 'city'
@@ -270,6 +271,7 @@ export async function searchCarRentals(
       slug: carInventory.slug,
       citySlug: cities.slug,
       cityName: cities.name,
+      locationId: carInventory.locationId,
       providerName: carProviders.name,
       pickupArea: carLocations.name,
       pickupType: carLocations.locationType,
@@ -334,6 +336,7 @@ export async function searchCarRentals(
       slug: row.slug,
       citySlug: row.citySlug,
       cityName: row.cityName,
+      locationId: row.locationId,
       providerName: row.providerName,
       pickupArea: row.pickupArea,
       pickupType: row.pickupType,
@@ -460,6 +463,7 @@ export async function searchCarRentalsPage(
       slug: carInventory.slug,
       citySlug: cities.slug,
       cityName: cities.name,
+      locationId: carInventory.locationId,
       providerName: carProviders.name,
       pickupArea: carLocations.name,
       pickupType: carLocations.locationType,

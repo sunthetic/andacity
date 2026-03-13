@@ -5,6 +5,11 @@ import {
   buildAvailabilityConfidence,
   evaluateFlightAvailabilityContext,
 } from '~/lib/inventory/availability-confidence'
+import {
+  buildCarInventoryId,
+  buildFlightInventoryId,
+  buildHotelInventoryId,
+} from '~/lib/inventory/inventory-id'
 import { buildInventoryFreshness, type InventoryFreshnessModel } from '~/lib/inventory/freshness'
 import { buildFlightsSearchPath, slugifyLocation } from '~/lib/search/flights/routing'
 import { computeNights } from '~/lib/search/hotels/dates'
@@ -21,13 +26,15 @@ import {
   flightFares,
   flightItineraries,
   flightRoutes,
+  flightSegments,
   hotelAvailabilitySnapshots,
   hotelImages,
   hotels,
 } from '~/lib/db/schema'
 
 type RecommendationInventoryMatch = {
-  inventoryId: number
+  inventoryId: string
+  providerInventoryId: number
   title: string
   subtitle: string | null
   imageUrl: string | null
@@ -198,7 +205,14 @@ const findHotelRecommendation = async (
   })
 
   return {
-    inventoryId: row.id,
+    inventoryId: buildHotelInventoryId({
+      hotelId: row.id,
+      checkInDate: input.checkIn,
+      checkOutDate: input.checkOut,
+      roomType: 'standard',
+      occupancy: '2',
+    }),
+    providerInventoryId: row.id,
     title: row.name,
     subtitle: `${row.neighborhood} · ${row.cityName}`,
     imageUrl: row.imageUrl,
@@ -301,7 +315,13 @@ const readCarRecommendation = async (
   })
 
   return {
-    inventoryId: row.id,
+    inventoryId: buildCarInventoryId({
+      providerLocationId: row.id,
+      pickupDateTime: `${input.pickupDate}T10:00`,
+      dropoffDateTime: `${input.dropoffDate}T10:00`,
+      vehicleClass: 'standard',
+    }),
+    providerInventoryId: row.id,
     title: row.providerName,
     subtitle: `${row.locationName} · ${row.cityName}`,
     imageUrl: row.imageUrl,
@@ -345,6 +365,7 @@ const readFlightRecommendationForDate = async (
   const destinationAirport = alias(airports, 'trip_bundle_destination_airport')
   const originCity = alias(cities, 'trip_bundle_origin_city')
   const destinationCity = alias(cities, 'trip_bundle_destination_city')
+  const primarySegment = alias(flightSegments, 'trip_bundle_primary_segment')
   const standardFare = alias(flightFares, 'trip_bundle_standard_fare')
   const priceSql = sql<number>`coalesce(${standardFare.priceCents}, ${flightItineraries.basePriceCents})`
   const currencySql = sql<string>`coalesce(${standardFare.currencyCode}, ${flightItineraries.currencyCode})`
@@ -358,6 +379,8 @@ const readFlightRecommendationForDate = async (
       serviceDate: flightItineraries.serviceDate,
       itineraryType: flightItineraries.itineraryType,
       airlineName: airlines.name,
+      airlineCode: airlines.iataCode,
+      flightNumber: primarySegment.operatingFlightNumber,
       originCityName: originCity.name,
       destinationCityName: destinationCity.name,
       originIata: originAirport.iataCode,
@@ -377,6 +400,13 @@ const readFlightRecommendationForDate = async (
     .innerJoin(destinationCity, eq(flightRoutes.destinationCityId, destinationCity.id))
     .innerJoin(originAirport, eq(flightRoutes.originAirportId, originAirport.id))
     .innerJoin(destinationAirport, eq(flightRoutes.destinationAirportId, destinationAirport.id))
+    .leftJoin(
+      primarySegment,
+      and(
+        eq(primarySegment.itineraryId, flightItineraries.id),
+        eq(primarySegment.segmentOrder, 0),
+      ),
+    )
     .leftJoin(
       standardFare,
       and(
@@ -435,7 +465,14 @@ const readFlightRecommendationForDate = async (
   })
 
   return {
-    inventoryId: row.id,
+    inventoryId: buildFlightInventoryId({
+      airlineCode: row.airlineCode || row.airlineName,
+      flightNumber: row.flightNumber || String(row.id),
+      departDate: row.serviceDate,
+      originCode: row.originIata,
+      destinationCode: row.destinationIata,
+    }),
+    providerInventoryId: row.id,
     title: row.airlineName,
     subtitle: `${row.originCityName} → ${row.destinationCityName}`,
     imageUrl: null,

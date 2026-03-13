@@ -5,6 +5,7 @@ import {
   ResultPricePanel,
   ResultReasonCallout,
 } from "~/components/results/ResultCardScaffold";
+import { ResultCardHeader } from "~/components/results/ResultCardHeader";
 import { buildFlightWhyThis } from "~/components/results/result-card-copy";
 import { CompareButton } from "~/components/save-compare/CompareButton";
 import { SaveButton } from "~/components/save-compare/SaveButton";
@@ -54,12 +55,12 @@ export const FlightCard = component$((props: FlightCardProps) => {
       hasTrust={true}
     >
       <div q:slot="identity">
-        <div class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)]">
-          {flight.airline}
-        </div>
-        <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-          {flight.origin} to {flight.destination}
-        </p>
+        <ResultCardHeader
+          title={flight.airline}
+          subtitle={`${flight.origin} to ${flight.destination}`}
+          price={flight.price}
+          currency={flight.currency}
+        />
       </div>
 
       <ResultFactGrid

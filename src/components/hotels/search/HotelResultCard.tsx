@@ -6,6 +6,7 @@ import {
   ResultReasonCallout,
   ResultTrustBar,
 } from "~/components/results/ResultCardScaffold";
+import { ResultCardHeader } from "~/components/results/ResultCardHeader";
 import {
   markBookingStageProgress,
   trackBookingEvent,
@@ -78,16 +79,14 @@ export const HotelResultCard = component$(
         </a>
 
         <div q:slot="identity">
-          <a
-            class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
+          <ResultCardHeader
+            title={h.searchEntity?.provider || h.name}
+            subtitle={h.neighborhood}
+            price={h.searchEntity?.price ?? h.priceFrom}
+            currency={h.currency}
             href={href}
             onClick$={onOpenDetail$}
-          >
-            {h.name}
-          </a>
-          <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-            {h.neighborhood}
-          </p>
+          />
         </div>
 
         <ResultFactList

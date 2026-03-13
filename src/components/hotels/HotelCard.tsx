@@ -6,6 +6,7 @@ import {
   ResultReasonCallout,
   ResultTrustBar,
 } from "~/components/results/ResultCardScaffold";
+import { ResultCardHeader } from "~/components/results/ResultCardHeader";
 import { buildHotelWhyThis } from "~/components/results/result-card-copy";
 import { CompareButton } from "~/components/save-compare/CompareButton";
 import { SaveButton } from "~/components/save-compare/SaveButton";
@@ -83,16 +84,14 @@ export const HotelCard = component$((props: HotelCardProps) => {
       </a>
 
       <div q:slot="identity">
-        <a
-          class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
+        <ResultCardHeader
+          title={h.name}
+          subtitle={[locationSummary, ratingSummary].filter(Boolean).join(" · ")}
+          price={h.fromNightly}
+          currency={h.currency}
           href={detailHref}
           onClick$={onOpenDetail$}
-        >
-          {h.name}
-        </a>
-        <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-          {[locationSummary, ratingSummary].filter(Boolean).join(" · ")}
-        </p>
+        />
         <div class="mt-3 flex flex-wrap gap-2">
           {h.policies.freeCancellation ? (
             <span class="t-badge t-badge--deal">Free cancellation</span>

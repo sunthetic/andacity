@@ -1,5 +1,10 @@
 import type { CarRental } from '~/data/car-rentals'
 import type { Hotel } from '~/data/hotels'
+import {
+  buildCarInventoryId,
+  buildFlightInventoryId,
+  buildHotelInventoryId,
+} from '~/lib/inventory/inventory-id'
 import type { AvailabilityConfidenceModel } from '~/lib/inventory/availability-confidence'
 import {
   formatMoney,
@@ -67,11 +72,21 @@ export const buildHotelSavedItem = (
   priceDisplay: PriceDisplayContract,
   href = buildHotelDetailHref(hotel.slug),
 ): SavedItem => {
+  const inventoryId =
+    hotel.inventoryId != null
+      ? buildHotelInventoryId({
+          hotelId: hotel.inventoryId,
+          checkInDate: toOptionalDate(dates?.checkIn) || '1970-01-01',
+          checkOutDate: toOptionalDate(dates?.checkOut) || toOptionalDate(dates?.checkIn) || '1970-01-02',
+          roomType: hotel.rooms[0]?.name || 'standard',
+          occupancy: '2',
+        })
+      : null
   const price = buildPrimaryPrice(priceDisplay, hotel.currency)
   const availability = formatAvailabilityLabel(hotel.availabilityConfidence)
 
   return {
-    id: hotel.slug,
+    id: inventoryId || hotel.slug,
     vertical: HOTELS_VERTICAL,
     title: hotel.name,
     subtitle: `${hotel.neighborhood} · ${hotel.stars}★ · ${hotel.rating.toFixed(1)}`,
@@ -95,10 +110,11 @@ export const buildHotelSavedItem = (
       availability,
     },
     tripCandidate:
-      hotel.inventoryId != null
+      hotel.inventoryId != null && inventoryId
         ? {
             itemType: 'hotel',
-            inventoryId: hotel.inventoryId,
+            inventoryId,
+            providerInventoryId: hotel.inventoryId,
             startDate: toOptionalDate(dates?.checkIn),
             endDate: toOptionalDate(dates?.checkOut),
             priceCents: Math.round((priceDisplay.baseTotalAmount ?? priceDisplay.baseAmount ?? 0) * 100),
@@ -125,6 +141,16 @@ export const buildCarResultSavedItem = (
   priceDisplay: PriceDisplayContract,
   href = buildCarRentalDetailHref(result.slug),
 ): SavedItem => {
+  const inventoryId =
+    result.searchEntity?.inventoryId ||
+    (result.inventoryId != null
+      ? buildCarInventoryId({
+          providerLocationId: result.inventoryId,
+          pickupDateTime: toPickupDateTime(dates?.checkIn),
+          dropoffDateTime: toPickupDateTime(dates?.checkOut, dates?.checkIn),
+          vehicleClass: result.category || result.vehicleName || 'standard',
+        })
+      : null)
   const price = buildPrimaryPrice(priceDisplay, result.currency)
   const availability = formatAvailabilityLabel(result.availabilityConfidence)
   const pickupType =
@@ -132,7 +158,7 @@ export const buildCarResultSavedItem = (
     (result.pickupArea.toLowerCase().includes('airport') ? 'Airport pickup' : 'City pickup')
 
   return {
-    id: result.slug,
+    id: inventoryId || result.slug,
     vertical: CARS_VERTICAL,
     title: result.name,
     subtitle: result.vehicleName || result.category || 'Standard car',
@@ -164,10 +190,11 @@ export const buildCarResultSavedItem = (
       availability,
     },
     tripCandidate:
-      result.inventoryId != null
+      result.inventoryId != null && inventoryId
         ? {
             itemType: 'car',
-            inventoryId: result.inventoryId,
+            inventoryId,
+            providerInventoryId: result.inventoryId,
             startDate: toOptionalDate(dates?.checkIn),
             endDate: toOptionalDate(dates?.checkOut),
             priceCents: Math.round((priceDisplay.baseTotalAmount ?? priceDisplay.baseAmount ?? 0) * 100),
@@ -193,11 +220,20 @@ export const buildCarDetailSavedItem = (
   href = buildCarRentalDetailHref(rental.slug),
 ): SavedItem => {
   const headlineOffer = rental.offers[0] || null
+  const inventoryId =
+    rental.inventoryId != null
+      ? buildCarInventoryId({
+          providerLocationId: rental.inventoryId,
+          pickupDateTime: toPickupDateTime(dates?.pickupDate),
+          dropoffDateTime: toPickupDateTime(dates?.dropoffDate, dates?.pickupDate),
+          vehicleClass: headlineOffer?.category || 'standard',
+        })
+      : null
   const price = buildPrimaryPrice(priceDisplay, rental.currency)
   const availability = formatAvailabilityLabel(rental.availabilityConfidence)
 
   return {
-    id: rental.slug,
+    id: inventoryId || rental.slug,
     vertical: CARS_VERTICAL,
     title: rental.name,
     subtitle: headlineOffer?.category || rental.pickupArea,
@@ -227,10 +263,11 @@ export const buildCarDetailSavedItem = (
       availability,
     },
     tripCandidate:
-      rental.inventoryId != null
+      rental.inventoryId != null && inventoryId
         ? {
             itemType: 'car',
-            inventoryId: rental.inventoryId,
+            inventoryId,
+            providerInventoryId: rental.inventoryId,
             startDate: toOptionalDate(dates?.pickupDate),
             endDate: toOptionalDate(dates?.dropoffDate),
             priceCents: Math.round((priceDisplay.baseTotalAmount ?? priceDisplay.baseAmount ?? 0) * 100),
@@ -254,13 +291,22 @@ export const buildFlightSavedItem = (
   priceDisplay: PriceDisplayContract,
   href: string,
 ): SavedItem => {
-  const compareId =
-    result.itineraryId != null ? `flight-${result.itineraryId}` : result.id
+  const inventoryId =
+    result.searchEntity?.inventoryId ||
+    (result.itineraryId != null
+      ? buildFlightInventoryId({
+          airlineCode: result.airlineCode || result.airline,
+          flightNumber: result.flightNumber || String(result.itineraryId),
+          departDate: result.requestedServiceDate || result.serviceDate || '1970-01-01',
+          originCode: result.originCode || result.origin,
+          destinationCode: result.destinationCode || result.destination,
+        })
+      : null)
   const price = buildPrimaryPrice(priceDisplay, result.currency)
   const availability = formatAvailabilityLabel(result.availabilityConfidence)
 
   return {
-    id: compareId,
+    id: inventoryId || result.id,
     vertical: FLIGHTS_VERTICAL,
     title: result.airline,
     subtitle: `${result.origin} → ${result.destination}`,
@@ -285,10 +331,11 @@ export const buildFlightSavedItem = (
       availability,
     },
     tripCandidate:
-      result.itineraryId != null
+      result.itineraryId != null && inventoryId
         ? {
             itemType: 'flight',
-            inventoryId: result.itineraryId,
+            inventoryId,
+            providerInventoryId: result.itineraryId,
             startDate: result.requestedServiceDate || result.serviceDate,
             endDate: result.requestedServiceDate || result.serviceDate,
             priceCents: Math.round((priceDisplay.baseTotalAmount ?? priceDisplay.baseAmount ?? 0) * 100),
@@ -350,4 +397,12 @@ const formatFlightDate = (value: string | undefined) => {
 const toOptionalDate = (value: string | null | undefined) => {
   const text = String(value || '').trim()
   return text || undefined
+}
+
+const toPickupDateTime = (
+  value: string | null | undefined,
+  fallbackDate?: string | null | undefined,
+) => {
+  const date = toOptionalDate(value) || toOptionalDate(fallbackDate) || '1970-01-01'
+  return `${date}T10:00`
 }

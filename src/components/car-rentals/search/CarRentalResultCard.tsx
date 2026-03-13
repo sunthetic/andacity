@@ -5,6 +5,7 @@ import {
   ResultPricePanel,
   ResultTrustBar,
 } from '~/components/results/ResultCardScaffold'
+import { ResultCardHeader } from '~/components/results/ResultCardHeader'
 import {
   markBookingStageProgress,
   trackBookingEvent,
@@ -55,18 +56,16 @@ export const CarRentalResultCard = component$(({ r, days, detailHref, telemetry 
       </a>
 
       <div q:slot="identity">
-        <a
-          class="text-lg font-semibold leading-6 text-[color:var(--color-text-strong)] hover:text-[color:var(--color-action)]"
-          href={href}
-          onClick$={onOpenDetail$}
-        >
-          {r.name}
-        </a>
-        <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-          {[r.pickupArea, r.category, r.transmission, r.seats != null ? `${r.seats} seats` : '']
+        <ResultCardHeader
+          title={r.searchEntity?.provider || r.name}
+          subtitle={[r.pickupArea, r.category, r.transmission, r.seats != null ? `${r.seats} seats` : '']
             .filter(Boolean)
             .join(' · ')}
-        </p>
+          price={r.searchEntity?.price ?? r.priceFrom}
+          currency={r.currency}
+          href={href}
+          onClick$={onOpenDetail$}
+        />
       </div>
 
       <ResultFactList

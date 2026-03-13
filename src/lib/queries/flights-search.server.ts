@@ -8,6 +8,9 @@ import {
   type FlightSort,
 } from '~/lib/repos/flights-repo.server'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
+import { emitSearchMetrics } from '~/lib/metrics/search-metrics'
+import { getCachedResults, setCachedResults } from '~/lib/search/search-cache'
+import { buildFlightSearchEntity, toBookableEntity } from '~/lib/search/search-entities'
 import {
   EMPTY_FLIGHT_SEARCH_FACETS,
   normalizeFlightSort,
@@ -106,15 +109,53 @@ export type LoadFlightResultsPageOutput = {
   results: FlightResult[]
 }
 
+const stableFlightFilterKey = (values: string[] | undefined) =>
+  (values || []).slice().sort().join(',') || 'any'
+
+const buildFlightSearchCacheKey = (input: LoadFlightResultsPageInput) => {
+  const selectedFilters = parseFlightsSelectedFilters(input.filters || {})
+  return [
+    'flights',
+    input.fromLocationSlug,
+    input.toLocationSlug,
+    input.itineraryType,
+    input.departDate || 'any',
+    `sort=${normalizeFlightSort(input.sort)}`,
+    `page=${Math.max(1, Number(input.page || 1))}`,
+    `size=${Math.max(1, Math.min(60, Number(input.pageSize || DEFAULT_PAGE_SIZE)))}`,
+    `stops=${selectedFilters.maxStops ?? 'any'}`,
+    `cabin=${selectedFilters.cabinClass || 'any'}`,
+    `depart=${stableFlightFilterKey(selectedFilters.departureWindows)}`,
+    `arrive=${stableFlightFilterKey(selectedFilters.arrivalWindows)}`,
+    `price=${selectedFilters.priceBand || 'any'}`,
+  ].join(':')
+}
+
 export async function loadFlightResultsPageFromDb(
   input: LoadFlightResultsPageInput,
 ): Promise<LoadFlightResultsPageOutput> {
+  const startedAt = Date.now()
   const pageSize = Math.max(1, Math.min(60, Number(input.pageSize || DEFAULT_PAGE_SIZE)))
   const requestedPage = Math.max(1, Number(input.page || 1))
   const offset = (requestedPage - 1) * pageSize
   const activeSort = normalizeFlightSort(input.sort)
   const selectedFilters = parseFlightsSelectedFilters(input.filters || {})
   const priceBand = toPriceBandBounds(selectedFilters.priceBand)
+  const searchKey = buildFlightSearchCacheKey(input)
+  const cached = getCachedResults<LoadFlightResultsPageOutput>(searchKey)
+
+  if (cached) {
+    emitSearchMetrics({
+      vertical: 'flight',
+      searchKey,
+      searchTimeMs: Date.now() - startedAt,
+      providerTimeMs: 0,
+      cacheHit: true,
+      resultsCount: cached.results.length,
+    })
+    return cached
+  }
+
   const fromCity = findTopTravelCity(input.fromLocationSlug)
   const toCity = findTopTravelCity(input.toLocationSlug)
 
@@ -146,6 +187,7 @@ export async function loadFlightResultsPageFromDb(
     }
   }
 
+  const providerStartedAt = Date.now()
   const runSearch = async (serviceDate?: string) => {
     const [pageResult, facets] = await Promise.all([
       searchFlightsPage({
@@ -211,7 +253,10 @@ export async function loadFlightResultsPageFromDb(
     rows = rerun.rows
   }
 
-  return {
+  const providerTimeMs = Date.now() - providerStartedAt
+  const snapshotTimestamp = new Date().toISOString()
+
+  const result = {
     totalCount,
     page,
     pageSize,
@@ -230,14 +275,39 @@ export async function loadFlightResultsPageFromDb(
         actualServiceDate: row.serviceDate,
       })
 
+      const flightNumber =
+        String(row.flightNumber || '').trim() || String(row.seedKey || row.id).split('-').pop() || String(row.id)
+      const searchEntity = buildFlightSearchEntity({
+        providerInventoryId: row.id,
+        price: toPriceAmount(row.priceCents),
+        currency: row.currencyCode,
+        provider: row.airline,
+        snapshotTimestamp:
+          row.freshnessTimestamp instanceof Date
+            ? row.freshnessTimestamp.toISOString()
+            : String(row.freshnessTimestamp || snapshotTimestamp),
+        airlineCode: row.airlineCode || row.airline,
+        flightNumber,
+        departDate: row.serviceDate,
+        originCode: row.originIata,
+        destinationCode: row.destinationIata,
+        cabinClass: row.cabinClass,
+        fareCode: row.fareCode,
+      })
+
       return {
         id: row.seedKey || `flight-${row.id}-${effectiveOffset + index}`,
         itineraryId: row.id,
+        canonicalInventoryId: searchEntity.inventoryId,
         serviceDate: row.serviceDate,
         requestedServiceDate: input.departDate || undefined,
         airline: row.airline,
+        airlineCode: row.airlineCode || undefined,
+        flightNumber,
         origin: `${fromCity.name} (${row.originIata})`,
         destination: `${toCity.name} (${row.destinationIata})`,
+        originCode: row.originIata,
+        destinationCode: row.destinationIata,
         departureTime: toClock(row.departureMinutes),
         arrivalTime: toClock(row.arrivalMinutes),
         departureMinutes: row.departureMinutes,
@@ -260,7 +330,20 @@ export async function loadFlightResultsPageFromDb(
           ...flightAssessment,
         }),
         freshness,
+        searchEntity,
+        bookableEntity: toBookableEntity(searchEntity),
       }
     }),
   }
+
+  setCachedResults(searchKey, result)
+  emitSearchMetrics({
+    vertical: 'flight',
+    searchKey,
+    searchTimeMs: Date.now() - startedAt,
+    providerTimeMs,
+    cacheHit: false,
+    resultsCount: result.results.length,
+  })
+  return result
 }

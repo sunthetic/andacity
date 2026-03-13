@@ -93,7 +93,8 @@ export type TripValidationIssue = {
 
 export type TripItemCandidate = {
   itemType: TripItemType;
-  inventoryId: number;
+  inventoryId: string;
+  providerInventoryId?: number;
   startDate?: string;
   endDate?: string;
   priceCents?: number;
@@ -144,6 +145,7 @@ export type TripItem = {
   id: number;
   tripId: number;
   itemType: TripItemType;
+  inventoryId: string;
   position: number;
   locked: boolean;
   title: string;
@@ -217,7 +219,8 @@ export type TripBundlingGap = {
 };
 
 export type TripBundlingInventoryReference = {
-  inventoryId: number;
+  inventoryId: string;
+  providerInventoryId?: number;
   title: string;
   subtitle: string | null;
   imageUrl: string | null;
@@ -298,7 +301,8 @@ export type TripDetails = TripListItem & {
 };
 
 export type TripItemReplacementOption = {
-  inventoryId: number;
+  inventoryId: string;
+  providerInventoryId?: number;
   itemType: TripItemType;
   title: string;
   subtitle: string | null;
@@ -327,6 +331,7 @@ export type TripChangeSummary = {
 export type TripRollbackItemSnapshot = {
   id: number;
   itemType: TripItemType;
+  inventoryId: string;
   position: number;
   hotelId: number | null;
   flightItineraryId: number | null;

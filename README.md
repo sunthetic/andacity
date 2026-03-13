@@ -4,8 +4,14 @@ Welcome to the development space for [andacity.com](https://andacity.com), an ex
 
 ## Release Info
 
-* Version **`0.3.1`**
-* Released on `2026-03-12`
+* Version **`0.4.0`**
+* Released on `2026-03-13`
+
+### v0.4.0 Highlights
+
+- Canonical inventory identifiers now back search entities, saved items, and trip candidates.
+- Search loaders emit normalized `SearchEntity` and `BookableEntity` shapes with in-memory caching and metrics logging.
+- Trip previews surface canonical revalidation issues for price, currency, and sold-out inventory changes.
 
 ## Project Documentation
 

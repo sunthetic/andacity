@@ -175,6 +175,7 @@ export const useSearchHotelsPage = routeLoader$(async ({ params, url }) => {
   const checkIn = String(url.searchParams.get("checkIn") || "").trim() || null;
   const checkOut =
     String(url.searchParams.get("checkOut") || "").trim() || null;
+  const occupancy = String(url.searchParams.get("guests") || "").trim() || null;
 
   const filters = {
     priceRange: parseMultiValue(url, "priceRange"),
@@ -191,6 +192,7 @@ export const useSearchHotelsPage = routeLoader$(async ({ params, url }) => {
     query,
     checkIn,
     checkOut,
+    occupancy,
     sort,
     page,
     pageSize: 24,

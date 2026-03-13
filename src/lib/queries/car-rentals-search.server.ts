@@ -4,6 +4,9 @@ import {
   searchCarRentalsPage,
 } from '~/lib/repos/car-rentals-repo.server'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
+import { emitSearchMetrics } from '~/lib/metrics/search-metrics'
+import { getCachedResults, setCachedResults } from '~/lib/search/search-cache'
+import { buildCarSearchEntity, toBookableEntity } from '~/lib/search/search-entities'
 import {
   normalizeCarRentalsSortValue,
   type CarRentalsSortKey,
@@ -204,15 +207,54 @@ export type LoadCarRentalResultsPageOutput = {
   facets: CarRentalsSearchFacets
 }
 
+const buildCarRentalSearchCacheKey = (input: LoadCarRentalResultsPageInput) => {
+  const selected = parseCarRentalsSelectedFilters(input.filters || {})
+  return [
+    'cars',
+    input.citySlug,
+    input.pickupDate || 'any',
+    input.dropoffDate || 'any',
+    `sort=${normalizeCarRentalsSort(input.sort)}`,
+    `page=${Math.max(1, Number(input.page || 1))}`,
+    `size=${Math.max(1, Math.min(60, Number(input.pageSize || DEFAULT_PAGE_SIZE)))}`,
+    `class=${selected.vehicleClasses.slice().sort().join(',') || 'any'}`,
+    `pickup=${selected.pickupType || 'any'}`,
+    `transmission=${selected.transmission || 'any'}`,
+    `seats=${selected.seatsMin ?? 'any'}`,
+    `price=${selected.priceBand || 'any'}`,
+  ].join(':')
+}
+
+const toSearchDateTime = (value: string | null | undefined, fallback: string) => {
+  const text = String(value || '').trim()
+  return text ? `${text}T10:00` : fallback
+}
+
 export async function loadCarRentalResultsPageFromDb(
   input: LoadCarRentalResultsPageInput,
 ): Promise<LoadCarRentalResultsPageOutput> {
+  const startedAt = Date.now()
   const pageSize = Math.max(1, Math.min(60, Number(input.pageSize || DEFAULT_PAGE_SIZE)))
   const requestedPage = Math.max(1, Number(input.page || 1))
   const offset = (requestedPage - 1) * pageSize
   const activeSort = normalizeCarRentalsSort(input.sort)
   const selectedFilters = parseCarRentalsSelectedFilters(input.filters || {})
+  const searchKey = buildCarRentalSearchCacheKey(input)
 
+  const cached = getCachedResults<LoadCarRentalResultsPageOutput>(searchKey)
+  if (cached) {
+    emitSearchMetrics({
+      vertical: 'car',
+      searchKey,
+      searchTimeMs: Date.now() - startedAt,
+      providerTimeMs: 0,
+      cacheHit: true,
+      resultsCount: cached.results.length,
+    })
+    return cached
+  }
+
+  const providerStartedAt = Date.now()
   const [firstPageResult, facets] = await Promise.all([
     searchCarRentalsPage({
       citySlug: input.citySlug,
@@ -263,8 +305,10 @@ export async function loadCarRentalResultsPageFromDb(
 
   const q = normalizeToken(String(input.query || input.citySlug || ''))
   const hasExactDates = Boolean(input.pickupDate && input.dropoffDate)
+  const providerTimeMs = Date.now() - providerStartedAt
+  const snapshotTimestamp = new Date().toISOString()
 
-  return {
+  const result = {
     totalCount,
     page,
     pageSize,
@@ -280,14 +324,33 @@ export async function loadCarRentalResultsPageFromDb(
         checkedAt: row.freshnessTimestamp,
         profile: 'inventory_snapshot',
       })
+      const searchEntity = buildCarSearchEntity({
+        providerInventoryId: row.id,
+        price: priceFrom,
+        currency: row.currencyCode,
+        provider: row.providerName,
+        snapshotTimestamp:
+          row.freshnessTimestamp instanceof Date
+            ? row.freshnessTimestamp.toISOString()
+            : String(row.freshnessTimestamp || snapshotTimestamp),
+        providerLocationId: row.id,
+        pickupDateTime: toSearchDateTime(input.pickupDate, '1970-01-01T10:00'),
+        dropoffDateTime: toSearchDateTime(
+          input.dropoffDate,
+          input.pickupDate ? `${input.pickupDate}T10:00` : '1970-01-02T10:00',
+        ),
+        vehicleClass: row.category || row.vehicleName || 'standard',
+      })
 
       return {
         id: `car-${row.slug}-${effectiveOffset + index}`,
         inventoryId: row.id,
+        canonicalInventoryId: searchEntity.inventoryId,
         slug: row.slug,
         name: row.providerName,
         city: row.cityName,
         pickupArea: row.pickupArea,
+        locationId: row.locationId,
         vehicleName: row.vehicleName,
         category: row.category,
         transmission: row.transmission ? titleCase(row.transmission) : null,
@@ -319,9 +382,22 @@ export async function loadCarRentalResultsPageFromDb(
           match: hasExactDates ? 'exact' : 'unknown',
         }),
         freshness,
+        searchEntity,
+        bookableEntity: toBookableEntity(searchEntity),
       }
     }),
   }
+
+  setCachedResults(searchKey, result)
+  emitSearchMetrics({
+    vertical: 'car',
+    searchKey,
+    searchTimeMs: Date.now() - startedAt,
+    providerTimeMs,
+    cacheHit: false,
+    resultsCount: result.results.length,
+  })
+  return result
 }
 
 export type LoadCarRentalResultsInput = {

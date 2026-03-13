@@ -7,6 +7,11 @@ import {
   evaluateFlightAvailabilityContext,
   evaluateHotelAvailabilityContext,
 } from '~/lib/inventory/availability-confidence'
+import {
+  buildCarInventoryId,
+  buildFlightInventoryId,
+  buildHotelInventoryId,
+} from '~/lib/inventory/inventory-id'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import {
   buildCarPriceDisplay,
@@ -21,6 +26,7 @@ import { computeDays } from '~/lib/search/car-rentals/dates'
 import { computeNights } from '~/lib/search/hotels/dates'
 import {
   airlines,
+  airports,
   carInventory,
   carInventoryImages,
   carLocations,
@@ -29,6 +35,7 @@ import {
   flightFares,
   flightItineraries,
   flightRoutes,
+  flightSegments,
   hotelAvailabilitySnapshots,
   hotelImages,
   hotels,
@@ -53,6 +60,7 @@ import {
   bundlingSuggestionService,
 } from '~/lib/trips/bundling-suggestion-service.server'
 import { readTripBundlingState } from '~/lib/trips/bundle-explainability'
+import { buildTripItemRevalidationIssues } from '~/lib/trips/revalidate-trip-items'
 import { buildTripEditBundleImpact } from '~/lib/trips/bundle-swap-impact'
 import { buildTripIntelligenceSummary } from '~/lib/trips/status-aggregation'
 import type { TripGapAnalyzerItem } from '~/lib/trips/trip-gap-analyzer'
@@ -120,6 +128,7 @@ type UpdateTripMetadataInput = {
 
 type ResolvedTripItemSnapshot = {
   itemType: TripItemType
+  inventoryId: string
   hotelId: number | null
   flightItineraryId: number | null
   carInventoryId: number | null
@@ -140,6 +149,7 @@ type TripItemRecord = {
   id: number
   tripId: number
   itemType: TripItemType
+  inventoryId: string
   position: number
   title: string
   subtitle: string | null
@@ -198,6 +208,8 @@ const DEFAULT_CURRENCY = 'USD'
 const LATEST_TRIP_MIGRATION = '0003_trip_price_snapshots.sql'
 const TRIP_ITEM_LOCKED_KEY = 'locked'
 const TRIP_AUTO_REBALANCE_KEY = 'autoRebalance'
+const TRIP_ITEM_INVENTORY_ID_KEY = 'inventoryId'
+const TRIP_ITEM_PROVIDER_INVENTORY_ID_KEY = 'providerInventoryId'
 
 const TRIP_SCHEMA_IDENTIFIERS = [
   'trip_items',
@@ -338,6 +350,84 @@ const normalizeCandidateMetadata = (value: unknown) => {
     delete metadata[key]
   }
   return metadata
+}
+
+const readProviderInventoryId = (candidate: TripItemCandidate) => {
+  if (
+    candidate.providerInventoryId != null &&
+    Number.isFinite(candidate.providerInventoryId) &&
+    candidate.providerInventoryId > 0
+  ) {
+    return Math.round(candidate.providerInventoryId)
+  }
+
+  const legacyId = Number.parseInt(String(candidate.inventoryId || '').trim(), 10)
+  if (Number.isFinite(legacyId) && legacyId > 0 && String(legacyId) === String(candidate.inventoryId).trim()) {
+    return legacyId
+  }
+
+  const metadataProviderInventoryId = Number.parseInt(
+    String(normalizeMetadata(candidate.metadata)[TRIP_ITEM_PROVIDER_INVENTORY_ID_KEY] || ''),
+    10,
+  )
+  if (Number.isFinite(metadataProviderInventoryId) && metadataProviderInventoryId > 0) {
+    return metadataProviderInventoryId
+  }
+
+  return null
+}
+
+const writeTripItemInventoryMetadata = (
+  metadata: Record<string, unknown>,
+  candidate: TripItemCandidate,
+  providerInventoryId: number | null,
+) => {
+  const next = { ...metadata }
+  next[TRIP_ITEM_INVENTORY_ID_KEY] = candidate.inventoryId
+  if (providerInventoryId != null) {
+    next[TRIP_ITEM_PROVIDER_INVENTORY_ID_KEY] = providerInventoryId
+  }
+  return next
+}
+
+const readTripItemInventoryId = (input: {
+  itemType: TripItemType
+  metadata: Record<string, unknown>
+  hotelId: number | null
+  flightItineraryId: number | null
+  carInventoryId: number | null
+  startDate: string | null
+  endDate: string | null
+}) => {
+  const stored = String(input.metadata[TRIP_ITEM_INVENTORY_ID_KEY] || '').trim()
+  if (stored) return stored
+
+  if (input.itemType === 'hotel' && input.hotelId != null) {
+    return buildHotelInventoryId({
+      hotelId: input.hotelId,
+      checkInDate: input.startDate || '1970-01-01',
+      checkOutDate: input.endDate || input.startDate || '1970-01-02',
+      roomType: 'standard',
+      occupancy: '2',
+    })
+  }
+
+  if (input.itemType === 'car' && input.carInventoryId != null) {
+    return buildCarInventoryId({
+      providerLocationId: input.carInventoryId,
+      pickupDateTime: `${input.startDate || '1970-01-01'}T10:00`,
+      dropoffDateTime: `${input.endDate || input.startDate || '1970-01-02'}T10:00`,
+      vehicleClass: 'standard',
+    })
+  }
+
+  return buildFlightInventoryId({
+    airlineCode: 'UNKNOWN',
+    flightNumber: String(input.flightItineraryId || 'unknown'),
+    departDate: input.startDate || '1970-01-01',
+    originCode: 'UNKNOWN',
+    destinationCode: 'UNKNOWN',
+  })
 }
 
 const readTripItemLocked = (value: unknown) => {
@@ -690,6 +780,14 @@ const resolveHotelTripItem = async (
   tx: any,
   candidate: TripItemCandidate,
 ): Promise<ResolvedTripItemSnapshot> => {
+  const providerInventoryId = readProviderInventoryId(candidate)
+  if (providerInventoryId == null) {
+    throw new TripRepoError(
+      'inventory_not_found',
+      `Hotel inventory ${candidate.inventoryId} could not be resolved to a provider record.`,
+    )
+  }
+
   const rows = await tx
     .select({
       id: hotels.id,
@@ -702,7 +800,7 @@ const resolveHotelTripItem = async (
     })
     .from(hotels)
     .innerJoin(cities, eq(hotels.cityId, cities.id))
-    .where(eq(hotels.id, candidate.inventoryId))
+    .where(eq(hotels.id, providerInventoryId))
     .limit(1)
 
   const row = rows[0]
@@ -719,6 +817,7 @@ const resolveHotelTripItem = async (
 
   return {
     itemType: 'hotel',
+    inventoryId: candidate.inventoryId,
     hotelId: row.id,
     flightItineraryId: null,
     carInventoryId: null,
@@ -732,7 +831,11 @@ const resolveHotelTripItem = async (
     subtitle: String(candidate.subtitle || '').trim() || fallbackSubtitle,
     imageUrl: String(candidate.imageUrl || '').trim() || null,
     meta: normalizeMeta(candidate.meta),
-    metadata: normalizeCandidateMetadata(candidate.metadata),
+    metadata: writeTripItemInventoryMetadata(
+      normalizeCandidateMetadata(candidate.metadata),
+      candidate,
+      providerInventoryId,
+    ),
   }
 }
 
@@ -740,6 +843,14 @@ const resolveCarTripItem = async (
   tx: any,
   candidate: TripItemCandidate,
 ): Promise<ResolvedTripItemSnapshot> => {
+  const providerInventoryId = readProviderInventoryId(candidate)
+  if (providerInventoryId == null) {
+    throw new TripRepoError(
+      'inventory_not_found',
+      `Car inventory ${candidate.inventoryId} could not be resolved to a provider record.`,
+    )
+  }
+
   const rows = await tx
     .select({
       id: carInventory.id,
@@ -754,7 +865,7 @@ const resolveCarTripItem = async (
     .innerJoin(cities, eq(carInventory.cityId, cities.id))
     .innerJoin(carProviders, eq(carInventory.providerId, carProviders.id))
     .innerJoin(carLocations, eq(carInventory.locationId, carLocations.id))
-    .where(eq(carInventory.id, candidate.inventoryId))
+    .where(eq(carInventory.id, providerInventoryId))
     .limit(1)
 
   const row = rows[0]
@@ -771,6 +882,7 @@ const resolveCarTripItem = async (
 
   return {
     itemType: 'car',
+    inventoryId: candidate.inventoryId,
     hotelId: null,
     flightItineraryId: null,
     carInventoryId: row.id,
@@ -784,7 +896,11 @@ const resolveCarTripItem = async (
     subtitle: String(candidate.subtitle || '').trim() || fallbackSubtitle,
     imageUrl: String(candidate.imageUrl || '').trim() || null,
     meta: normalizeMeta(candidate.meta),
-    metadata: normalizeCandidateMetadata(candidate.metadata),
+    metadata: writeTripItemInventoryMetadata(
+      normalizeCandidateMetadata(candidate.metadata),
+      candidate,
+      providerInventoryId,
+    ),
   }
 }
 
@@ -792,6 +908,14 @@ const resolveFlightTripItem = async (
   tx: any,
   candidate: TripItemCandidate,
 ): Promise<ResolvedTripItemSnapshot> => {
+  const providerInventoryId = readProviderInventoryId(candidate)
+  if (providerInventoryId == null) {
+    throw new TripRepoError(
+      'inventory_not_found',
+      `Flight inventory ${candidate.inventoryId} could not be resolved to a provider record.`,
+    )
+  }
+
   const originCity = alias(cities, 'trip_origin_city')
   const destinationCity = alias(cities, 'trip_destination_city')
   const standardFare = alias(flightFares, 'trip_snapshot_standard_fare')
@@ -823,7 +947,7 @@ const resolveFlightTripItem = async (
         eq(standardFare.cabinClass, flightItineraries.cabinClass),
       ),
     )
-    .where(eq(flightItineraries.id, candidate.inventoryId))
+    .where(eq(flightItineraries.id, providerInventoryId))
     .limit(1)
 
   const row = rows[0]
@@ -841,6 +965,7 @@ const resolveFlightTripItem = async (
 
   return {
     itemType: 'flight',
+    inventoryId: candidate.inventoryId,
     hotelId: null,
     flightItineraryId: row.id,
     carInventoryId: null,
@@ -857,7 +982,11 @@ const resolveFlightTripItem = async (
     subtitle: String(candidate.subtitle || '').trim() || fallbackSubtitle,
     imageUrl: String(candidate.imageUrl || '').trim() || null,
     meta: normalizedMeta.length ? normalizedMeta : fallbackMeta,
-    metadata: normalizeCandidateMetadata(candidate.metadata),
+    metadata: writeTripItemInventoryMetadata(
+      normalizeCandidateMetadata(candidate.metadata),
+      candidate,
+      providerInventoryId,
+    ),
   }
 }
 
@@ -1000,6 +1129,15 @@ const readTripItems = async (tripId: number): Promise<TripItemRecord[]> => {
       id: row.id,
       tripId: row.tripId,
       itemType: row.itemType,
+      inventoryId: readTripItemInventoryId({
+        itemType: row.itemType,
+        metadata,
+        hotelId: row.hotelId,
+        flightItineraryId: row.flightItineraryId,
+        carInventoryId: row.carInventoryId,
+        startDate: row.startDate,
+        endDate: row.endDate,
+      }),
       position: row.position,
       title: row.title,
       subtitle: row.subtitle,
@@ -1499,6 +1637,7 @@ const toTripItem = (
     id: item.id,
     tripId: item.tripId,
     itemType: item.itemType,
+    inventoryId: item.inventoryId,
     position: item.position,
     locked: readTripItemLocked(item.metadata),
     title: item.title,
@@ -1625,6 +1764,7 @@ const toTripRollbackItemSnapshot = (
 ): TripRollbackItemSnapshot => ({
   id: item.id,
   itemType: item.itemType,
+  inventoryId: item.inventoryId,
   position: item.position,
   hotelId: item.hotelId,
   flightItineraryId: item.flightItineraryId,
@@ -1682,8 +1822,13 @@ const buildTripDetailsFromRecords = async (
   const items = workingItems.map((item) =>
     toTripItem(item, availabilityByItemId.get(item.id), itinerary.issues),
   )
-  const pricing = buildTripPricingSummary(items)
-  const intelligence = buildTripIntelligenceSummary({ items })
+  const revalidationIssues = buildTripItemRevalidationIssues(items)
+  const enrichedItems = items.map((item) => ({
+    ...item,
+    issues: dedupeIssues([...item.issues, ...(revalidationIssues.get(item.id) || [])]),
+  }))
+  const pricing = buildTripPricingSummary(enrichedItems)
+  const intelligence = buildTripIntelligenceSummary({ items: enrichedItems })
   const bundling = await bundlingSuggestionService.buildTripBundlingSummary({
     tripStartDate: base.startDate,
     tripEndDate: base.endDate,
@@ -1705,7 +1850,7 @@ const buildTripDetailsFromRecords = async (
     notes: base.notes,
     metadata: base.metadata,
     updatedAt: base.updatedAt,
-    items,
+    items: enrichedItems,
     intelligence,
     bundling,
   })
@@ -2000,6 +2145,7 @@ const buildReplacementTripItemRecord = async (
   return {
     ...existingItem,
     itemType: snapshot.itemType,
+    inventoryId: snapshot.inventoryId,
     title: snapshot.title,
     subtitle: snapshot.subtitle,
     startDate: snapshot.startDate,
@@ -2236,6 +2382,13 @@ const buildHotelReplacementOptions = async (item: TripItemRecord): Promise<TripI
         selectedLocationType: null,
       },
     })
+    const inventoryId = buildHotelInventoryId({
+      hotelId: row.id,
+      checkInDate: item.startDate || '1970-01-01',
+      checkOutDate: item.endDate || item.startDate || '1970-01-02',
+      roomType: 'standard',
+      occupancy: '2',
+    })
     const reasons = [
       'Same city',
       item.startDate && item.endDate
@@ -2246,7 +2399,8 @@ const buildHotelReplacementOptions = async (item: TripItemRecord): Promise<TripI
     ].filter((entry): entry is string => Boolean(entry))
 
     return [{
-      inventoryId: row.id,
+      inventoryId,
+      providerInventoryId: row.id,
       itemType: 'hotel' as const,
       title: row.name,
       subtitle: `${row.neighborhood} · ${row.cityName}`,
@@ -2258,7 +2412,8 @@ const buildHotelReplacementOptions = async (item: TripItemRecord): Promise<TripI
       endDate: item.endDate,
       candidate: {
         itemType: 'hotel' as const,
-        inventoryId: row.id,
+        inventoryId,
+        providerInventoryId: row.id,
         startDate: item.startDate || undefined,
         endDate: item.endDate || undefined,
         priceCents: displayedBaseCents,
@@ -2408,6 +2563,12 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
         selectedLocationType: row.locationType,
       },
     })
+    const inventoryId = buildCarInventoryId({
+      providerLocationId: row.id,
+      pickupDateTime: `${item.startDate || '1970-01-01'}T10:00`,
+      dropoffDateTime: `${item.endDate || item.startDate || '1970-01-02'}T10:00`,
+      vehicleClass: 'standard',
+    })
     const reasons = [
       'Same city',
       pickupLabel,
@@ -2418,7 +2579,8 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
     ].filter((entry): entry is string => Boolean(entry))
 
     return [{
-      inventoryId: row.id,
+      inventoryId,
+      providerInventoryId: row.id,
       itemType: 'car' as const,
       title: row.providerName,
       subtitle: `${row.locationName} · ${row.cityName}`,
@@ -2430,7 +2592,8 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
       endDate: item.endDate,
       candidate: {
         itemType: 'car' as const,
-        inventoryId: row.id,
+        inventoryId,
+        providerInventoryId: row.id,
         startDate: item.startDate || undefined,
         endDate: item.endDate || undefined,
         priceCents: displayedBaseCents,
@@ -2453,6 +2616,9 @@ const buildFlightReplacementOptions = async (item: TripItemRecord): Promise<Trip
   const standardFare = alias(flightFares, 'trip_replace_standard_fare')
   const originCity = alias(cities, 'trip_replace_origin_city')
   const destinationCity = alias(cities, 'trip_replace_destination_city')
+  const originAirport = alias(airports, 'trip_replace_origin_airport')
+  const destinationAirport = alias(airports, 'trip_replace_destination_airport')
+  const primarySegment = alias(flightSegments, 'trip_replace_primary_segment')
   const freshnessSql =
     sql<Date | string | null>`coalesce(${standardFare.updatedAt}, ${flightItineraries.updatedAt})`
   const conditions = [
@@ -2474,8 +2640,12 @@ const buildFlightReplacementOptions = async (item: TripItemRecord): Promise<Trip
     .select({
       id: flightItineraries.id,
       airlineName: airlines.name,
+      airlineCode: airlines.iataCode,
+      flightNumber: primarySegment.operatingFlightNumber,
       originCityName: originCity.name,
       destinationCityName: destinationCity.name,
+      originIata: originAirport.iataCode,
+      destinationIata: destinationAirport.iataCode,
       itineraryType: flightItineraries.itineraryType,
       serviceDate: flightItineraries.serviceDate,
       departureAtUtc: flightItineraries.departureAtUtc,
@@ -2492,6 +2662,15 @@ const buildFlightReplacementOptions = async (item: TripItemRecord): Promise<Trip
     .innerJoin(airlines, eq(flightItineraries.airlineId, airlines.id))
     .innerJoin(originCity, eq(flightRoutes.originCityId, originCity.id))
     .innerJoin(destinationCity, eq(flightRoutes.destinationCityId, destinationCity.id))
+    .innerJoin(originAirport, eq(flightRoutes.originAirportId, originAirport.id))
+    .innerJoin(destinationAirport, eq(flightRoutes.destinationAirportId, destinationAirport.id))
+    .leftJoin(
+      primarySegment,
+      and(
+        eq(primarySegment.itineraryId, flightItineraries.id),
+        eq(primarySegment.segmentOrder, 0),
+      ),
+    )
     .leftJoin(
       standardFare,
       and(
@@ -2575,6 +2754,13 @@ const buildFlightReplacementOptions = async (item: TripItemRecord): Promise<Trip
         selectedLocationType: null,
       },
     })
+    const inventoryId = buildFlightInventoryId({
+      airlineCode: row.airlineCode || row.airlineName,
+      flightNumber: row.flightNumber || String(row.id),
+      departDate: row.serviceDate,
+      originCode: row.originIata,
+      destinationCode: row.destinationIata,
+    })
     const reasons = [
       'Same route',
       serviceDate ? 'Same travel date' : 'Closest matching schedule',
@@ -2583,7 +2769,8 @@ const buildFlightReplacementOptions = async (item: TripItemRecord): Promise<Trip
     ].filter((entry): entry is string => Boolean(entry))
 
     return [{
-      inventoryId: row.id,
+      inventoryId,
+      providerInventoryId: row.id,
       itemType: 'flight' as const,
       title: row.airlineName,
       subtitle,
@@ -2595,7 +2782,8 @@ const buildFlightReplacementOptions = async (item: TripItemRecord): Promise<Trip
       endDate: row.serviceDate,
       candidate: {
         itemType: 'flight' as const,
-        inventoryId: row.id,
+        inventoryId,
+        providerInventoryId: row.id,
         startDate: row.serviceDate,
         endDate: row.serviceDate,
         priceCents: displayedBaseCents,
@@ -3361,7 +3549,10 @@ export async function restoreTripRollbackDraft(
             subtitle: item.subtitle,
             imageUrl: item.imageUrl,
             meta: item.meta,
-            metadata: item.metadata,
+            metadata: {
+              ...normalizeMetadata(item.metadata),
+              [TRIP_ITEM_INVENTORY_ID_KEY]: item.inventoryId,
+            },
           })),
         )
       }
