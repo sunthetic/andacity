@@ -134,6 +134,7 @@ const normalizeFlightSearchParamsForCache = (params: SearchCacheParams) => {
       getNestedValue(params, 'destination', 'destinationCode', 'toLocationSlug', 'to', 'toSlug'),
     ),
     departDate: normalizeOptionalToken(getNestedValue(params, 'departDate', 'serviceDate')),
+    returnDate: normalizeOptionalToken(getNestedValue(params, 'returnDate')),
     itineraryType: normalizeOptionalToken(getNestedValue(params, 'itineraryType')),
     passengers: toInteger(getNestedValue(params, 'passengers', 'travelers'), 1, {
       min: 1,
@@ -254,6 +255,7 @@ export const getSearchCacheKey = (vertical: SearchCacheVertical, params: SearchC
       normalized.origin,
       normalized.destination,
       normalized.departDate,
+      `return=${normalized.returnDate}`,
       `pax=${normalized.passengers}`,
       `trip=${normalized.itineraryType}`,
       `cabin=${normalized.cabinClass}`,

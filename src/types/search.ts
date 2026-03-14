@@ -1,5 +1,42 @@
 import type { SearchVertical } from '~/types/search-entity'
+import type { SearchEntity } from '~/types/search-entity'
 import type { CanonicalLocation } from '~/types/location'
+
+export type SearchRequest = {
+  type: SearchVertical
+  origin?: string
+  destination?: string
+  city?: string
+  airport?: string
+  departDate?: string
+  returnDate?: string
+  checkIn?: string
+  checkOut?: string
+}
+
+export type SearchRequestErrorCode =
+  | 'internal_error'
+  | 'invalid_date'
+  | 'invalid_location_code'
+  | 'location_not_found'
+  | 'malformed_route'
+  | 'provider_unavailable'
+  | 'unsupported_search_type'
+
+export type SearchRequestError = {
+  code: SearchRequestErrorCode
+  message: string
+  field?: string
+  value?: string | null
+}
+
+export type NormalizedSearchResults = {
+  request: SearchRequest
+  searchKey: string
+  cacheHit: boolean
+  provider: string | null
+  results: SearchEntity[]
+}
 
 export type SearchParamsFilters = {
   priceRange?: Array<string | number> | null

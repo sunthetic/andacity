@@ -137,9 +137,24 @@ test('builds deterministic flight cache keys from normalized inputs', () => {
 
   assert.equal(
     first,
-    'flights:jfk:lax:2026-04-01:pax=1:trip=any:cabin=economy:sort=recommended:page=1:size=6:stops=any:depart=evening,morning:arrive=any:price=200-400',
+    'flights:jfk:lax:2026-04-01:return=any:pax=1:trip=any:cabin=economy:sort=recommended:page=1:size=6:stops=any:depart=evening,morning:arrive=any:price=200-400',
   )
   assert.equal(first, second)
+})
+
+test('includes the flight return date in round-trip cache keys', () => {
+  const key = getSearchCacheKey('flight', {
+    origin: 'JFK',
+    destination: 'LAX',
+    departDate: '2026-04-01',
+    returnDate: '2026-04-05',
+    itineraryType: 'round-trip',
+  })
+
+  assert.equal(
+    key,
+    'flights:jfk:lax:2026-04-01:return=2026-04-05:pax=1:trip=round-trip:cabin=any:sort=recommended:page=1:size=6:stops=any:depart=any:arrive=any:price=any',
+  )
 })
 
 test('ignores irrelevant hotel UI state and normalizes list filters', () => {
