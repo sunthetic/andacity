@@ -99,6 +99,16 @@ test('returns invalid date errors for impossible or inverted date ranges', () =>
   )
 
   assert.throws(
+    () => parseSearchRoute('/hotels/search/las-vegas-nv-us/2026-05-15/2026-05-10'),
+    (error: unknown) => {
+      assert.ok(error instanceof SearchRouteError)
+      assert.equal(error.code, 'invalid_date')
+      assert.equal(error.field, 'checkOut')
+      return true
+    },
+  )
+
+  assert.throws(
     () => parseSearchRoute('/flights/search/ORL-LAX/2026-05-10/return/2026-05-09'),
     (error: unknown) => {
       assert.ok(error instanceof SearchRouteError)
@@ -126,6 +136,16 @@ test('returns invalid location errors for malformed location tokens', () => {
       assert.ok(error instanceof SearchRouteError)
       assert.equal(error.code, 'invalid_location_code')
       assert.equal(error.field, 'origin')
+      return true
+    },
+  )
+
+  assert.throws(
+    () => parseSearchRoute('/hotels/search/las_vegas/2026-05-10/2026-05-15'),
+    (error: unknown) => {
+      assert.ok(error instanceof SearchRouteError)
+      assert.equal(error.code, 'invalid_location_code')
+      assert.equal(error.field, 'city')
       return true
     },
   )
