@@ -257,9 +257,9 @@ test('creates an active booking session with canonical entity, live price, and p
   assert.equal(session.price.amount, 876)
   assert.equal(session.providerMetadata.providerOfferId, 'ace-flex-king')
   assert.equal(session.providerMetadata.ratePlanId, 'flex-king')
-  assert.equal(validateBookingSession(session), true)
+  assert.equal(validateBookingSession(session, { now: CHECKED_AT }), true)
 
-  const stored = await getBookingSession('session-hotel', { store })
+  const stored = await getBookingSession('session-hotel', { store, now: CHECKED_AT })
   assert.deepEqual(stored, session)
 })
 
