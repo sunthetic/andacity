@@ -1,14 +1,5 @@
 import type { RequestHandler } from "@builder.io/qwik-city";
-import { buildSearchRequest } from "~/server/search/buildSearchRequest";
-import {
-  SearchRouteError,
-  isSearchRouteError,
-  parseSearchRoute,
-} from "~/server/search/routeParser";
-import {
-  executeSearchRequest,
-  isSearchExecutionError,
-} from "~/server/search/searchService";
+import { loadSearchResultsApiResponse } from "~/server/search/searchResultsApi";
 
 const sendJson = (
   headers: Headers,
@@ -22,67 +13,7 @@ const sendJson = (
   send(status, JSON.stringify(body));
 };
 
-const getRequestFromUrl = (url: URL) => {
-  const route = String(url.searchParams.get("route") || "").trim();
-  if (route) {
-    return parseSearchRoute(route);
-  }
-
-  const result = buildSearchRequest(url.searchParams);
-  if (result.ok) {
-    return result.data;
-  }
-
-  throw new SearchRouteError(result.error.code, result.error.message, {
-    field: result.error.field,
-    value: result.error.value,
-  });
-};
-
-const toErrorResponse = (error: unknown) => {
-  if (isSearchExecutionError(error)) {
-    return {
-      status: error.status,
-      body: {
-        error: error.toJSON(),
-      },
-    };
-  }
-
-  if (isSearchRouteError(error)) {
-    return {
-      status: error.status,
-      body: {
-        error: error.toJSON(),
-      },
-    };
-  }
-
-  return {
-    status: 500,
-    body: {
-      error: {
-        code: "INTERNAL_ERROR",
-        message: "Failed to execute search.",
-      },
-    },
-  };
-};
-
 export const onGet: RequestHandler = async ({ headers, send, url }) => {
-  try {
-    const request = getRequestFromUrl(url);
-    const response = await executeSearchRequest(request);
-
-    sendJson(
-      headers,
-      send,
-      200,
-      response,
-      "public, max-age=60, stale-while-revalidate=240",
-    );
-  } catch (error) {
-    const failure = toErrorResponse(error);
-    sendJson(headers, send, failure.status, failure.body);
-  }
+  const response = await loadSearchResultsApiResponse(url);
+  sendJson(headers, send, response.status, response.body);
 };

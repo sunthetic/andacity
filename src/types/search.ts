@@ -58,6 +58,43 @@ export type SearchRequestResult =
       error: SearchRequestError;
     };
 
+export type SearchResultsApiErrorCode =
+  | "INVALID_SEARCH_TYPE"
+  | "MISSING_REQUIRED_FIELD"
+  | "INVALID_LOCATION_CODE"
+  | "INVALID_CITY_SLUG"
+  | "INVALID_DATE"
+  | "INVALID_DATE_RANGE"
+  | "SEARCH_EXECUTION_FAILED";
+
+export type SearchResultsApiMetadata = {
+  vertical: SearchRequest["type"];
+  totalResults: number;
+  providersQueried: string[];
+  cacheHit: boolean;
+  searchTimeMs: number;
+};
+
+export type SearchResultsApiResponse<
+  TResult extends SearchEntity = SearchEntity,
+> = {
+  ok: true;
+  data: {
+    request: SearchRequest;
+    results: TResult[];
+    metadata: SearchResultsApiMetadata;
+  };
+};
+
+export type SearchResultsApiError = {
+  ok: false;
+  error: {
+    code: SearchResultsApiErrorCode;
+    field?: string;
+    message: string;
+  };
+};
+
 export type SearchMetadata = {
   totalResults: number;
   providersQueried: string[];
