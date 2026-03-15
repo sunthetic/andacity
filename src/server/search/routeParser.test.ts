@@ -97,6 +97,16 @@ test('returns invalid date errors for impossible or inverted date ranges', () =>
       return true
     },
   )
+
+  assert.throws(
+    () => parseSearchRoute('/flights/search/ORL-LAX/2026-05-10/return/2026-05-09'),
+    (error: unknown) => {
+      assert.ok(error instanceof SearchRouteError)
+      assert.equal(error.code, 'invalid_date')
+      assert.equal(error.field, 'returnDate')
+      return true
+    },
+  )
 })
 
 test('returns invalid location errors for malformed location tokens', () => {
@@ -106,6 +116,16 @@ test('returns invalid location errors for malformed location tokens', () => {
       assert.ok(error instanceof SearchRouteError)
       assert.equal(error.code, 'invalid_location_code')
       assert.equal(error.field, 'airport')
+      return true
+    },
+  )
+
+  assert.throws(
+    () => parseSearchRoute('/flights/search/ORLL-LAX/2026-05-10'),
+    (error: unknown) => {
+      assert.ok(error instanceof SearchRouteError)
+      assert.equal(error.code, 'invalid_location_code')
+      assert.equal(error.field, 'origin')
       return true
     },
   )
@@ -124,6 +144,18 @@ test('returns invalid location errors for malformed location tokens', () => {
       assert.ok(error instanceof SearchRouteError)
       assert.equal(error.code, 'invalid_location_code')
       assert.equal(error.field, 'destination')
+      return true
+    },
+  )
+})
+
+test('returns malformed route errors for invalid canonical flight route tokens', () => {
+  assert.throws(
+    () => parseSearchRoute('/flights/search/INVALID/2026-05-10'),
+    (error: unknown) => {
+      assert.ok(error instanceof SearchRouteError)
+      assert.equal(error.code, 'malformed_route')
+      assert.equal(error.field, 'route')
       return true
     },
   )
