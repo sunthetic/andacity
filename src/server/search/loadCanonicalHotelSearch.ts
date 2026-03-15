@@ -54,7 +54,7 @@ const requireHotelRequest = (request: SearchRequest): HotelSearchRequest => {
   }
 
   throw new SearchRouteError(
-    'unsupported_search_type',
+    'INVALID_SEARCH_TYPE',
     'Canonical hotel search route only supports hotel searches.',
     {
       field: 'type',
@@ -90,7 +90,7 @@ const toErrorResult = (error: unknown): CanonicalHotelSearchFailure => {
   return {
     status: 500,
     error: {
-      code: 'internal_error',
+      code: 'INTERNAL_ERROR',
       message: 'Failed to load canonical hotel search.',
     },
   }

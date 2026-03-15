@@ -2,26 +2,44 @@ import type { SearchVertical } from "~/types/search-entity";
 import type { SearchEntity } from "~/types/search-entity";
 import type { CanonicalLocation } from "~/types/location";
 
-export type SearchRequest = {
-  type: SearchVertical;
-  origin?: string;
-  destination?: string;
-  city?: string;
-  airport?: string;
-  departDate?: string;
+export type FlightSearchRequest = {
+  type: "flight";
+  origin: string;
+  destination: string;
+  departDate: string;
   returnDate?: string;
-  checkIn?: string;
-  checkOut?: string;
 };
 
+export type HotelSearchRequest = {
+  type: "hotel";
+  city: string;
+  checkIn: string;
+  checkOut: string;
+};
+
+export type CarSearchRequest = {
+  type: "car";
+  airport: string;
+  pickupDate: string;
+  dropoffDate: string;
+};
+
+export type SearchRequest =
+  | FlightSearchRequest
+  | HotelSearchRequest
+  | CarSearchRequest;
+
 export type SearchRequestErrorCode =
-  | "internal_error"
-  | "invalid_date"
-  | "invalid_location_code"
-  | "location_not_found"
-  | "malformed_route"
-  | "provider_unavailable"
-  | "unsupported_search_type";
+  | "INTERNAL_ERROR"
+  | "INVALID_CITY_SLUG"
+  | "INVALID_DATE"
+  | "INVALID_DATE_RANGE"
+  | "INVALID_LOCATION_CODE"
+  | "INVALID_SEARCH_TYPE"
+  | "LOCATION_NOT_FOUND"
+  | "MALFORMED_ROUTE"
+  | "MISSING_REQUIRED_FIELD"
+  | "PROVIDER_UNAVAILABLE";
 
 export type SearchRequestError = {
   code: SearchRequestErrorCode;
@@ -29,6 +47,16 @@ export type SearchRequestError = {
   field?: string;
   value?: string | null;
 };
+
+export type SearchRequestResult =
+  | {
+      ok: true;
+      data: SearchRequest;
+    }
+  | {
+      ok: false;
+      error: SearchRequestError;
+    };
 
 export type SearchMetadata = {
   totalResults: number;
@@ -75,6 +103,8 @@ export type SearchParams = {
   returnDate?: string;
   checkInDate?: string;
   checkOutDate?: string;
+  pickupDate?: string;
+  dropoffDate?: string;
   passengers?: number;
   occupancy?: number;
   adults?: number;

@@ -182,9 +182,9 @@ test('returns structured validation errors for invalid hotel dates', async () =>
   assert.deepEqual(response, {
     status: 400,
     error: {
-      code: 'invalid_date',
+      code: 'INVALID_DATE',
       field: 'checkIn',
-      message: 'checkIn must be a valid ISO date.',
+      message: 'checkIn must be a valid ISO date in YYYY-MM-DD format.',
       value: '2026-02-30',
     },
   })
@@ -199,9 +199,9 @@ test('returns structured validation errors for malformed hotel city slugs', asyn
   assert.deepEqual(response, {
     status: 400,
     error: {
-      code: 'invalid_location_code',
+      code: 'INVALID_CITY_SLUG',
       field: 'city',
-      message: 'city must be a lowercase city slug.',
+      message: 'city must be a lowercase kebab-case city slug.',
       value: 'las_vegas',
     },
   })

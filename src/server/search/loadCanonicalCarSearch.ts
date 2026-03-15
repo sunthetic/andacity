@@ -13,49 +13,49 @@ import type {
   SearchRequest,
   SearchRequestError,
 } from '~/types/search'
-import type { FlightSearchEntity } from '~/types/search-entity'
+import type { CarSearchEntity } from '~/types/search-entity'
 
-type FlightSearchRequest = SearchRequest & {
-  type: 'flight'
+type CarSearchRequest = SearchRequest & {
+  type: 'car'
 }
 
-type LoadCanonicalFlightSearchDependencies = {
+type LoadCanonicalCarSearchDependencies = {
   parseSearchRoute?: (input: string | URL) => SearchRequest
   executeSearchRequest?: (request: SearchRequest) => Promise<NormalizedSearchResults>
   now?: () => number
 }
 
-export type CanonicalFlightSearchSuccess = CanonicalSearchResponse<FlightSearchEntity> & {
+export type CanonicalCarSearchSuccess = CanonicalSearchResponse<CarSearchEntity> & {
   status: 200
-  request: FlightSearchRequest
+  request: CarSearchRequest
 }
 
-export type CanonicalFlightSearchFailure = {
+export type CanonicalCarSearchFailure = {
   status: number
   error: SearchRequestError
 }
 
-export type CanonicalFlightSearchResult =
-  | CanonicalFlightSearchSuccess
-  | CanonicalFlightSearchFailure
+export type CanonicalCarSearchResult =
+  | CanonicalCarSearchSuccess
+  | CanonicalCarSearchFailure
 
-const defaultDependencies: Required<LoadCanonicalFlightSearchDependencies> = {
+const defaultDependencies: Required<LoadCanonicalCarSearchDependencies> = {
   parseSearchRoute,
   executeSearchRequest: (request) => executeSearchRequest(request),
   now: () => Date.now(),
 }
 
-const isFlightSearchEntity = (value: unknown): value is FlightSearchEntity =>
-  typeof value === 'object' && value !== null && 'vertical' in value && value.vertical === 'flight'
+const isCarSearchEntity = (value: unknown): value is CarSearchEntity =>
+  typeof value === 'object' && value !== null && 'vertical' in value && value.vertical === 'car'
 
-const requireFlightRequest = (request: SearchRequest): FlightSearchRequest => {
-  if (request.type === 'flight') {
-    return request as FlightSearchRequest
+const requireCarRequest = (request: SearchRequest): CarSearchRequest => {
+  if (request.type === 'car') {
+    return request as CarSearchRequest
   }
 
   throw new SearchRouteError(
     'INVALID_SEARCH_TYPE',
-    'Canonical flight search route only supports flight searches.',
+    'Canonical car search route only supports car searches.',
     {
       field: 'type',
       value: request.type,
@@ -64,15 +64,15 @@ const requireFlightRequest = (request: SearchRequest): FlightSearchRequest => {
   )
 }
 
-const toFlightResults = (results: NormalizedSearchResults['results']) => {
-  if (!results.every((result) => isFlightSearchEntity(result))) {
-    throw new Error('Canonical flight search returned non-flight results.')
+const toCarResults = (results: NormalizedSearchResults['results']) => {
+  if (!results.every((result) => isCarSearchEntity(result))) {
+    throw new Error('Canonical car search returned non-car results.')
   }
 
-  return results as FlightSearchEntity[]
+  return results as CarSearchEntity[]
 }
 
-const toErrorResult = (error: unknown): CanonicalFlightSearchFailure => {
+const toErrorResult = (error: unknown): CanonicalCarSearchFailure => {
   if (isSearchExecutionError(error)) {
     return {
       status: error.status,
@@ -91,15 +91,15 @@ const toErrorResult = (error: unknown): CanonicalFlightSearchFailure => {
     status: 500,
     error: {
       code: 'INTERNAL_ERROR',
-      message: 'Failed to load canonical flight search.',
+      message: 'Failed to load canonical car search.',
     },
   }
 }
 
-export const loadCanonicalFlightSearch = async (
+export const loadCanonicalCarSearch = async (
   input: string | URL,
-  overrides: LoadCanonicalFlightSearchDependencies = {},
-): Promise<CanonicalFlightSearchResult> => {
+  overrides: LoadCanonicalCarSearchDependencies = {},
+): Promise<CanonicalCarSearchResult> => {
   const dependencies = {
     ...defaultDependencies,
     ...overrides,
@@ -108,9 +108,9 @@ export const loadCanonicalFlightSearch = async (
 
   try {
     const parsedRequest = dependencies.parseSearchRoute(input)
-    const request = requireFlightRequest(parsedRequest)
+    const request = requireCarRequest(parsedRequest)
     const response = await dependencies.executeSearchRequest(request)
-    const results = toFlightResults(response.results)
+    const results = toCarResults(response.results)
 
     return {
       status: 200,

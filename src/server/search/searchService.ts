@@ -80,6 +80,8 @@ const toSearchParams = async (
   const airportLocation = request.airport
     ? await dependencies.resolveLocationBySearchSlug(request.airport)
     : null
+  const pickupDate = request.pickupDate
+  const dropoffDate = request.dropoffDate
 
   return {
     vertical: 'car',
@@ -87,21 +89,23 @@ const toSearchParams = async (
     dropoffLocation: request.airport,
     pickupLocationData: airportLocation,
     dropoffLocationData: airportLocation,
-    departDate: request.departDate,
-    returnDate: request.returnDate,
+    pickupDate,
+    dropoffDate,
+    departDate: pickupDate,
+    returnDate: dropoffDate,
   }
 }
 
 const getErrorCodeFromValidationMessage = (message: string): SearchRequestErrorCode => {
   if (message.includes('date') || message.includes('Date')) {
-    return 'invalid_date'
+    return 'INVALID_DATE'
   }
 
   if (message.includes('could not be mapped')) {
-    return 'location_not_found'
+    return 'LOCATION_NOT_FOUND'
   }
 
-  return 'invalid_location_code'
+  return 'INVALID_LOCATION_CODE'
 }
 
 const toExecutionError = (error: unknown) => {
@@ -111,7 +115,7 @@ const toExecutionError = (error: unknown) => {
     error instanceof CarSearchParamsError
   ) {
     const code = getErrorCodeFromValidationMessage(error.message)
-    const status = code === 'location_not_found' ? 404 : 400
+    const status = code === 'LOCATION_NOT_FOUND' ? 404 : 400
     return new SearchExecutionError(code, error.message, { status })
   }
 
@@ -209,7 +213,7 @@ export class SearchExecutionError extends Error {
     this.value = options.value
     this.status =
       options.status ??
-      (code === 'location_not_found' ? 404 : code === 'provider_unavailable' ? 503 : 400)
+      (code === 'LOCATION_NOT_FOUND' ? 404 : code === 'PROVIDER_UNAVAILABLE' ? 503 : 400)
   }
 
   toJSON(): SearchRequestError {
@@ -253,7 +257,7 @@ export const executeSearchRequest = async (
 
   if (!provider) {
     throw new SearchExecutionError(
-      'provider_unavailable',
+      'PROVIDER_UNAVAILABLE',
       `No provider adapter is registered for ${request.type} search.`,
       {
         field: 'type',

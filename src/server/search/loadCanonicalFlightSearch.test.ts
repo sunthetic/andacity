@@ -201,7 +201,7 @@ test('returns structured validation errors for invalid canonical flight routes',
   assert.deepEqual(response, {
     status: 400,
     error: {
-      code: 'invalid_location_code',
+      code: 'INVALID_LOCATION_CODE',
       field: 'origin',
       message: 'origin must be a 3-letter airport code.',
       value: 'ORLL',
