@@ -107,7 +107,10 @@ export const resolveFlightResultsRendererModel = (
     currentPath?: string;
   } = {},
 ): FlightResultsRendererModel => {
-  if (options.isLoading) {
+  const progressStatus =
+    "error" in page ? null : (page.progress?.status ?? "complete");
+
+  if (options.isLoading && progressStatus === "complete") {
     return {
       state: "loading",
       loading: buildLoadingModel(),
@@ -123,6 +126,22 @@ export const resolveFlightResultsRendererModel = (
         request: page.request,
         currentPath: options.currentPath,
       }),
+    };
+  }
+
+  if (progressStatus === "loading") {
+    return {
+      state: "loading",
+      loading: buildLoadingModel(),
+    };
+  }
+
+  if (progressStatus === "partial") {
+    return {
+      state: "partial",
+      summary: page.ui.summary,
+      cards: page.ui.cards,
+      loading: buildLoadingModel(),
     };
   }
 

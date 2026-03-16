@@ -1,5 +1,6 @@
 import { DEFAULT_PROVIDER_ADAPTERS } from '~/lib/providers/defaultProviderAdapters'
 import type { ProviderAdapter } from '~/lib/providers/providerAdapter'
+import type { SearchVertical } from '~/types/search-entity'
 
 const providers: Record<string, ProviderAdapter> = {}
 
@@ -19,6 +20,19 @@ export function getProvider(provider: string): ProviderAdapter | null {
 
 export function listProviders(): ProviderAdapter[] {
   return Object.values(providers)
+}
+
+export function listSearchProviders(
+  vertical: SearchVertical,
+  options: {
+    includeAliases?: boolean
+  } = {},
+): ProviderAdapter[] {
+  return listProviders().filter((provider) => {
+    if (provider.vertical !== vertical) return false
+    if (options.includeAliases === true) return true
+    return !provider.aliasOf
+  })
 }
 
 export function clearProviderRegistry() {

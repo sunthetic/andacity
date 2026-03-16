@@ -54,6 +54,7 @@ const buildFlightEntity = (serviceDate = '2026-05-10') =>
 test('loads one-way canonical flight searches into a page-friendly response shape', async () => {
   const provider: ProviderAdapter = {
     provider: 'flight-test-provider',
+    vertical: 'flight',
     async search(params) {
       assert.equal(params.vertical, 'flight')
       assert.equal(params.origin, 'ORL')
@@ -106,6 +107,7 @@ test('treats round-trip canonical flight searches as distinct from one-way searc
   let searchCalls = 0
   const provider: ProviderAdapter = {
     provider: 'flight-test-provider',
+    vertical: 'flight',
     async search(params) {
       searchCalls += 1
       assert.equal(params.vertical, 'flight')
@@ -157,6 +159,7 @@ test('reuses shared search cache results for repeated canonical flight routes', 
   let searchCalls = 0
   const provider: ProviderAdapter = {
     provider: 'flight-test-provider',
+    vertical: 'flight',
     async search() {
       searchCalls += 1
       return [buildFlightEntity()]

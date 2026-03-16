@@ -2,6 +2,7 @@ import type { BookableEntity } from '~/types/bookable-entity'
 import type { ResolvedInventoryRecord } from '~/types/inventory'
 import type { PriceQuote } from '~/types/pricing'
 import type { SearchEntity } from '~/types/search-entity'
+import type { SearchVertical } from '~/types/search-entity'
 import type { SearchParams } from '~/types/search'
 
 export type ProviderRequestOptions = {
@@ -20,6 +21,8 @@ export interface ProviderAdapter<
   TRawPriceResponse = unknown,
 > {
   provider: string
+  vertical?: SearchVertical
+  aliasOf?: string
   search(params: SearchParams, options?: ProviderRequestOptions): Promise<SearchEntity[]>
   resolveInventory(
     inventoryId: string,

@@ -84,6 +84,12 @@ export type FlightResultsRendererModel =
       loading: FlightResultsLoadingStateModel;
     }
   | {
+      state: "partial";
+      summary: FlightSearchSummaryModel;
+      cards: FlightResultCardModel[];
+      loading: FlightResultsLoadingStateModel;
+    }
+  | {
       state: "error";
       error: FlightResultsErrorStateModel;
     }
@@ -178,6 +184,12 @@ export type HotelResultsLoadingStateModel = {
 export type HotelResultsRendererModel =
   | {
       state: "loading";
+      loading: HotelResultsLoadingStateModel;
+    }
+  | {
+      state: "partial";
+      summary: HotelSearchSummaryModel;
+      cards: HotelResultCardModel[];
       loading: HotelResultsLoadingStateModel;
     }
   | {
@@ -278,6 +290,12 @@ export type CarResultsLoadingStateModel = {
 export type CarResultsRendererModel =
   | {
       state: "loading";
+      loading: CarResultsLoadingStateModel;
+    }
+  | {
+      state: "partial";
+      summary: CarSearchSummaryModel;
+      cards: CarResultCardModel[];
       loading: CarResultsLoadingStateModel;
     }
   | {

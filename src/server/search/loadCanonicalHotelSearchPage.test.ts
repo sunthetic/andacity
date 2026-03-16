@@ -117,6 +117,7 @@ const withSearchApi = (provider: ProviderAdapter) => ({
 test("loads canonical hotel pages through the shared /api/search response path", async () => {
   const provider: ProviderAdapter = {
     provider: "hotel-test-provider",
+    vertical: "hotel",
     async search(params) {
       assert.equal(params.vertical, "hotel");
       assert.equal(params.destination, "las-vegas-nv-us");
@@ -157,6 +158,7 @@ test("loads canonical hotel pages through the shared /api/search response path",
 test("returns an empty renderer-ready UI model when no canonical hotel results are found", async () => {
   const provider: ProviderAdapter = {
     provider: "hotel-test-provider",
+    vertical: "hotel",
     async search() {
       return [];
     },
@@ -188,6 +190,7 @@ test("marks cached canonical hotel responses in the renderer-facing summary", as
   let searchCalls = 0;
   const provider: ProviderAdapter = {
     provider: "hotel-test-provider",
+    vertical: "hotel",
     async search() {
       searchCalls += 1;
       return [buildHotelEntity()];
@@ -244,6 +247,7 @@ test("returns structured validation failures for invalid canonical hotel routes"
 test("returns a safe execution error when the canonical hotel search cannot load results", async () => {
   const provider: ProviderAdapter = {
     provider: "hotel-test-provider",
+    vertical: "hotel",
     async search() {
       throw new Error("provider failed");
     },

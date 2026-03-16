@@ -75,6 +75,35 @@ export type SearchResultsApiMetadata = {
   searchTimeMs: number;
 };
 
+export type SearchResultsLoadState = "loading" | "partial" | "complete";
+
+export type SearchResultsIncrementalBatch<
+  TResult extends SearchEntity = SearchEntity,
+> = {
+  cursor: number;
+  provider: string;
+  providerIndex: number;
+  receivedAt: string;
+  totalResults: number;
+  results: TResult[];
+};
+
+export type SearchResultsIncrementalMetadata = SearchResultsApiMetadata & {
+  searchKey: string;
+  status: SearchResultsLoadState;
+  cursor: number;
+  batchCount: number;
+  providersCompleted: string[];
+  providersPending: string[];
+};
+
+export type SearchResultsPageProgress = {
+  endpoint: string;
+  searchKey: string;
+  status: SearchResultsLoadState;
+  cursor: number;
+};
+
 export type SearchResultsApiResponse<
   TResult extends SearchEntity = SearchEntity,
 > = {
@@ -83,6 +112,18 @@ export type SearchResultsApiResponse<
     request: SearchRequest;
     results: TResult[];
     metadata: SearchResultsApiMetadata;
+  };
+};
+
+export type SearchResultsIncrementalApiResponse<
+  TResult extends SearchEntity = SearchEntity,
+> = {
+  ok: true;
+  data: {
+    request: SearchRequest;
+    results: TResult[];
+    batches: SearchResultsIncrementalBatch<TResult>[];
+    metadata: SearchResultsIncrementalMetadata;
   };
 };
 
@@ -112,7 +153,7 @@ export type NormalizedSearchResults = {
   request: SearchRequest;
   searchKey: string;
   cacheHit: boolean;
-  provider: string | null;
+  providers: string[];
   results: SearchEntity[];
 };
 

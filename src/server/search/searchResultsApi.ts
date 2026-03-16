@@ -6,6 +6,8 @@ import {
 } from '~/server/search/routeParser'
 import {
   executeSearchRequest,
+  getIncrementalSearchSnapshot,
+  type IncrementalSearchSnapshot,
   isSearchExecutionError,
 } from '~/server/search/searchService'
 import type {
@@ -14,6 +16,7 @@ import type {
   SearchRequestError,
   SearchResultsApiError,
   SearchResultsApiErrorCode,
+  SearchResultsIncrementalApiResponse,
   SearchResultsApiResponse,
 } from '~/types/search'
 
@@ -21,12 +24,21 @@ type SearchResultsApiDependencies = {
   buildSearchRequest?: typeof buildSearchRequest
   parseSearchRoute?: typeof parseSearchRoute
   executeSearchRequest?: (request: SearchRequest) => Promise<NormalizedSearchResults>
+  getIncrementalSearchSnapshot?: (
+    request: SearchRequest,
+    cursor: number,
+  ) => Promise<IncrementalSearchSnapshot>
   now?: () => number
 }
 
 export type SearchResultsApiHttpResponse = {
   status: number
   body: SearchResultsApiResponse | SearchResultsApiError
+}
+
+export type SearchResultsIncrementalApiHttpResponse = {
+  status: number
+  body: SearchResultsIncrementalApiResponse | SearchResultsApiError
 }
 
 const SEARCH_EXECUTION_FAILED_MESSAGE = 'Search execution failed. Please try again.'
@@ -36,6 +48,7 @@ const defaultDependencies: Required<SearchResultsApiDependencies> = {
   buildSearchRequest,
   parseSearchRoute,
   executeSearchRequest: (request) => executeSearchRequest(request),
+  getIncrementalSearchSnapshot: (request, cursor) => getIncrementalSearchSnapshot(request, cursor),
   now: () => Date.now(),
 }
 
@@ -195,14 +208,25 @@ const toSuccessResponse = (
       metadata: {
         vertical: response.request.type,
         totalResults: response.results.length,
-        providersQueried: response.cacheHit
-          ? []
-          : response.provider
-            ? [response.provider]
-            : [],
+        providersQueried: response.cacheHit ? [] : response.providers,
         cacheHit: response.cacheHit,
         searchTimeMs: Math.max(0, Math.round(searchTimeMs)),
       },
+    },
+  }),
+})
+
+const toIncrementalSuccessResponse = (
+  response: IncrementalSearchSnapshot,
+): SearchResultsIncrementalApiHttpResponse => ({
+  status: 200,
+  body: toJsonSafe({
+    ok: true,
+    data: {
+      request: response.request,
+      results: response.results,
+      batches: response.batches,
+      metadata: response.metadata,
     },
   }),
 })
@@ -225,5 +249,29 @@ export const loadSearchResultsApiResponse = async (
     return toSuccessResponse(response, dependencies.now() - startedAt)
   } catch (error) {
     return toErrorResponse(error, request)
+  }
+}
+
+export const loadIncrementalSearchResultsApiResponse = async (
+  input: string | URL,
+  overrides: SearchResultsApiDependencies = {},
+): Promise<SearchResultsIncrementalApiHttpResponse> => {
+  const dependencies = {
+    ...defaultDependencies,
+    ...overrides,
+  }
+  const url = toUrl(input)
+  let request: SearchRequest | null = null
+
+  try {
+    request = resolveRequestFromUrl(url, dependencies)
+    const cursor = Number.parseInt(String(url.searchParams.get('cursor') || '0'), 10)
+    const response = await dependencies.getIncrementalSearchSnapshot(
+      request,
+      Number.isFinite(cursor) ? Math.max(0, cursor) : 0,
+    )
+    return toIncrementalSuccessResponse(response)
+  } catch (error) {
+    return toErrorResponse(error, request) as SearchResultsIncrementalApiHttpResponse
   }
 }

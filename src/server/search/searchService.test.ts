@@ -16,19 +16,25 @@ const searchServiceModule: typeof import('./searchService.ts') = await import(
 
 const { clearSearchCache } = cacheModule
 const { toCarSearchEntity, toFlightSearchEntity } = searchEntityModule
-const { SearchExecutionError, executeSearchRequest } = searchServiceModule
+const {
+  SearchExecutionError,
+  clearIncrementalSearchSessions,
+  executeSearchRequest,
+  getIncrementalSearchSnapshot,
+} = searchServiceModule
 
 test.beforeEach(() => {
   clearSearchCache()
+  clearIncrementalSearchSessions()
 })
 
-const buildFlightEntity = () =>
+const buildFlightEntity = (flightNumber = '432', price = 318) =>
   toFlightSearchEntity(
     {
       itineraryId: 732,
       airline: 'Delta',
       airlineCode: 'DL',
-      flightNumber: '432',
+      flightNumber,
       serviceDate: '2026-05-10',
       origin: 'New York (JFK)',
       destination: 'Los Angeles (LAX)',
@@ -38,12 +44,12 @@ const buildFlightEntity = () =>
       duration: '6h 3m',
       cabinClass: 'economy',
       fareCode: 'Y',
-      price: 318,
+      price,
       currency: 'usd',
     },
     {
       departDate: '2026-05-10',
-      priceAmountCents: 31800,
+      priceAmountCents: price * 100,
       snapshotTimestamp: '2026-03-14T12:00:00.000Z',
     },
   )
@@ -97,6 +103,7 @@ test('executes canonical searches through provider adapters and reuses cache hit
   let searchCalls = 0
   const provider: ProviderAdapter = {
     provider: 'flight-test-provider',
+    vertical: 'flight',
     async search(params) {
       searchCalls += 1
       assert.equal(params.vertical, 'flight')
@@ -131,7 +138,8 @@ test('executes canonical searches through provider adapters and reuses cache hit
 
   assert.equal(first.cacheHit, false)
   assert.equal(second.cacheHit, true)
-  assert.equal(first.provider, 'flight-test-provider')
+  assert.deepEqual(first.providers, ['flight-test-provider'])
+  assert.deepEqual(second.providers, [])
   assert.equal(first.results.length, 1)
   assert.deepEqual(second.results, first.results)
   assert.equal(first.searchKey, second.searchKey)
@@ -142,6 +150,7 @@ test('returns structured location errors before provider execution when a canoni
   let searchCalls = 0
   const provider: ProviderAdapter = {
     provider: 'hotel-test-provider',
+    vertical: 'hotel',
     async search() {
       searchCalls += 1
       return []
@@ -183,6 +192,7 @@ test('uses airport pickup dates to build canonical car cache keys and reuse car 
   let searchCalls = 0
   const provider: ProviderAdapter = {
     provider: 'car-test-provider',
+    vertical: 'car',
     async search(params) {
       searchCalls += 1
       assert.equal(params.vertical, 'car')
@@ -221,7 +231,8 @@ test('uses airport pickup dates to build canonical car cache keys and reuse car 
 
   assert.equal(first.cacheHit, false)
   assert.equal(second.cacheHit, true)
-  assert.equal(first.provider, 'car-test-provider')
+  assert.deepEqual(first.providers, ['car-test-provider'])
+  assert.deepEqual(second.providers, [])
   assert.equal(first.searchKey, 'car:LAX:2026-05-10:2026-05-15')
   assert.equal(second.searchKey, first.searchKey)
   assert.equal(searchCalls, 1)
@@ -250,4 +261,77 @@ test('returns provider_unavailable when no adapter is registered for the search 
       return true
     },
   )
+})
+
+test('returns incremental provider batches as providers finish', async () => {
+  const fastProvider: ProviderAdapter = {
+    provider: 'flight-fast',
+    vertical: 'flight',
+    async search() {
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      return [buildFlightEntity('101', 299)]
+    },
+    async resolveInventory() {
+      return null
+    },
+    async fetchPrice() {
+      return null
+    },
+  }
+
+  const slowProvider: ProviderAdapter = {
+    provider: 'flight-slow',
+    vertical: 'flight',
+    async search() {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      return [buildFlightEntity('202', 349)]
+    },
+    async resolveInventory() {
+      return null
+    },
+    async fetchPrice() {
+      return null
+    },
+  }
+
+  const request = {
+    type: 'flight' as const,
+    origin: 'JFK',
+    destination: 'LAX',
+    departDate: '2026-05-10',
+  }
+
+  const first = await getIncrementalSearchSnapshot(request, 0, {
+    getProviders: () => [slowProvider, fastProvider],
+    resolveLocationBySearchSlug: async () => null,
+  })
+
+  assert.equal(first.metadata.status, 'loading')
+  assert.equal(first.batches.length, 0)
+
+  await new Promise((resolve) => setTimeout(resolve, 10))
+
+  const partial = await getIncrementalSearchSnapshot(request, 0, {
+    getProviders: () => [slowProvider, fastProvider],
+    resolveLocationBySearchSlug: async () => null,
+  })
+
+  assert.equal(partial.metadata.status, 'partial')
+  assert.equal(partial.batches.length, 1)
+  assert.equal(partial.batches[0]?.provider, 'flight-fast')
+  assert.equal(partial.results.length, 1)
+
+  await new Promise((resolve) => setTimeout(resolve, 20))
+
+  const complete = await getIncrementalSearchSnapshot(request, partial.metadata.cursor, {
+    getProviders: () => [slowProvider, fastProvider],
+    resolveLocationBySearchSlug: async () => null,
+  })
+
+  assert.equal(complete.metadata.status, 'complete')
+  assert.equal(complete.batches.length, 1)
+  assert.equal(complete.batches[0]?.provider, 'flight-slow')
+  assert.equal(complete.metadata.totalResults, 2)
+  assert.deepEqual(complete.metadata.providersCompleted, ['flight-fast', 'flight-slow'])
+  assert.equal(complete.results.length, 2)
 })

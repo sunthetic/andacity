@@ -23,6 +23,7 @@ const buildSuccessPage = (cardCount = 1) => ({
     cacheHit: false,
     searchTimeMs: 9,
   },
+  results: [],
   ui: {
     summary: {
       routeTitle: "ORL -> LAX",
@@ -102,6 +103,31 @@ test("returns an empty renderer state with revise-search actions", () => {
       href: "/flights",
     },
   });
+});
+
+test("returns a partial renderer state while more provider batches are loading", () => {
+  const model = resolveFlightResultsRendererModel(
+    {
+      ...buildSuccessPage(2),
+      progress: {
+        endpoint: "/api/search?incremental=1&route=%2Fflights%2Fsearch%2FORL-LAX%2F2026-05-10",
+        searchKey: "flights:orl:lax:2026-05-10",
+        status: "partial" as const,
+        cursor: 1,
+      },
+    },
+    {
+      currentPath: "/flights/search/ORL-LAX/2026-05-10/return/2026-05-15",
+    },
+  );
+
+  assert.equal(model.state, "partial");
+  if (model.state !== "partial") {
+    assert.fail("expected a partial renderer state");
+  }
+
+  assert.equal(model.cards.length, 2);
+  assert.equal(model.loading.title, "Loading flight results");
 });
 
 test("returns a safe error renderer state for malformed route failures", () => {

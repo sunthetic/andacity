@@ -1,17 +1,26 @@
 import { mapFlightResultsForUi } from "~/server/search/mapFlightResultsForUi";
 import { parseSearchRoute } from "~/server/search/routeParser";
-import { loadSearchResultsApiResponse } from "~/server/search/searchResultsApi";
-import type { FlightSearchRequest } from "~/types/search";
-import type { SearchResultsApiError } from "~/types/search";
-import type { SearchResultsApiMetadata } from "~/types/search";
-import type { SearchResultsApiResponse } from "~/types/search";
+import {
+  loadIncrementalSearchResultsApiResponse,
+  loadSearchResultsApiResponse,
+} from "~/server/search/searchResultsApi";
+import type {
+  FlightSearchRequest,
+  SearchResultsApiError,
+  SearchResultsApiMetadata,
+  SearchResultsApiResponse,
+  SearchResultsIncrementalApiResponse,
+  SearchResultsPageProgress,
+} from "~/types/search";
 import type { FlightSearchEntity } from "~/types/search-entity";
 import type { FlightResultsPageUiModel } from "~/types/search-ui";
 
 type SearchApiLoader = typeof loadSearchResultsApiResponse;
+type ProgressiveSearchApiLoader = typeof loadIncrementalSearchResultsApiResponse;
 
 type LoadCanonicalFlightSearchPageDependencies = {
   loadSearchResultsApiResponse?: SearchApiLoader;
+  loadIncrementalSearchResultsApiResponse?: ProgressiveSearchApiLoader;
   parseSearchRoute?: typeof parseSearchRoute;
   mapFlightResultsForUi?: typeof mapFlightResultsForUi;
 };
@@ -20,7 +29,9 @@ export type CanonicalFlightSearchPageSuccess = {
   status: 200;
   request: FlightSearchRequest;
   metadata: SearchResultsApiMetadata;
+  results: FlightSearchEntity[];
   ui: FlightResultsPageUiModel;
+  progress?: SearchResultsPageProgress;
 };
 
 export type CanonicalFlightSearchPageFailure = {
@@ -35,6 +46,7 @@ export type CanonicalFlightSearchPageResult =
 
 const defaultDependencies: Required<LoadCanonicalFlightSearchPageDependencies> = {
   loadSearchResultsApiResponse,
+  loadIncrementalSearchResultsApiResponse,
   parseSearchRoute,
   mapFlightResultsForUi,
 };
@@ -67,6 +79,12 @@ const buildApiUrl = (url: URL) => {
   return apiUrl;
 };
 
+const buildIncrementalApiUrl = (url: URL) => {
+  const apiUrl = buildApiUrl(url);
+  apiUrl.searchParams.set("incremental", "1");
+  return apiUrl;
+};
+
 const readAttemptedRequest = (
   url: URL,
   parseRoute: typeof parseSearchRoute,
@@ -93,6 +111,24 @@ const isFlightSearchSuccessResponse = (
   if (value.data.request.type !== "flight") return false;
   return value.data.results.every((result) => isFlightSearchEntity(result));
 };
+
+const isFlightSearchIncrementalSuccessResponse = (
+  value: SearchResultsIncrementalApiResponse | SearchResultsApiError,
+): value is SearchResultsIncrementalApiResponse<FlightSearchEntity> => {
+  if (!value.ok) return false;
+  if (value.data.request.type !== "flight") return false;
+  return value.data.results.every((result) => isFlightSearchEntity(result));
+};
+
+const toProgress = (
+  endpoint: URL,
+  metadata: SearchResultsIncrementalApiResponse<FlightSearchEntity>["data"]["metadata"],
+): SearchResultsPageProgress => ({
+  endpoint: `${endpoint.pathname}${endpoint.search}`,
+  searchKey: metadata.searchKey,
+  status: metadata.status,
+  cursor: metadata.cursor,
+});
 
 export const loadCanonicalFlightSearchPage = async (
   input: string | URL,
@@ -122,7 +158,48 @@ export const loadCanonicalFlightSearchPage = async (
   return {
     status: 200,
     request,
+    results: response.body.data.results,
     metadata: response.body.data.metadata,
+    ui: dependencies.mapFlightResultsForUi({
+      request,
+      results: response.body.data.results,
+      metadata: response.body.data.metadata,
+    }),
+  };
+};
+
+export const loadCanonicalFlightSearchProgressivePage = async (
+  input: string | URL,
+  overrides: LoadCanonicalFlightSearchPageDependencies = {},
+): Promise<CanonicalFlightSearchPageResult> => {
+  const dependencies = {
+    ...defaultDependencies,
+    ...overrides,
+  };
+  const url = toUrl(input);
+  const attemptedRequest = readAttemptedRequest(url, dependencies.parseSearchRoute);
+  const apiUrl = buildIncrementalApiUrl(url);
+  const response = await dependencies.loadIncrementalSearchResultsApiResponse(apiUrl);
+
+  if (!response.body.ok) {
+    return {
+      status: response.status,
+      error: response.body.error,
+      request: attemptedRequest,
+    };
+  }
+
+  if (!isFlightSearchIncrementalSuccessResponse(response.body)) {
+    return toInternalError();
+  }
+
+  const request = response.body.data.request as FlightSearchRequest;
+  return {
+    status: 200,
+    request,
+    results: response.body.data.results,
+    metadata: response.body.data.metadata,
+    progress: toProgress(apiUrl, response.body.data.metadata),
     ui: dependencies.mapFlightResultsForUi({
       request,
       results: response.body.data.results,

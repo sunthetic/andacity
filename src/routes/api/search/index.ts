@@ -1,5 +1,8 @@
 import type { RequestHandler } from "@builder.io/qwik-city";
-import { loadSearchResultsApiResponse } from "~/server/search/searchResultsApi";
+import {
+  loadIncrementalSearchResultsApiResponse,
+  loadSearchResultsApiResponse,
+} from "~/server/search/searchResultsApi";
 
 const sendJson = (
   headers: Headers,
@@ -14,6 +17,9 @@ const sendJson = (
 };
 
 export const onGet: RequestHandler = async ({ headers, send, url }) => {
-  const response = await loadSearchResultsApiResponse(url);
+  const response =
+    url.searchParams.get("incremental") === "1"
+      ? await loadIncrementalSearchResultsApiResponse(url)
+      : await loadSearchResultsApiResponse(url);
   sendJson(headers, send, response.status, response.body);
 };

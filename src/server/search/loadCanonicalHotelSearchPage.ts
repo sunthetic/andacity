@@ -1,19 +1,26 @@
 import { mapHotelResultsForUi } from "~/server/search/mapHotelResultsForUi";
 import { parseSearchRoute } from "~/server/search/routeParser";
-import { loadSearchResultsApiResponse } from "~/server/search/searchResultsApi";
+import {
+  loadIncrementalSearchResultsApiResponse,
+  loadSearchResultsApiResponse,
+} from "~/server/search/searchResultsApi";
 import type {
   HotelSearchRequest,
   SearchResultsApiError,
   SearchResultsApiMetadata,
   SearchResultsApiResponse,
+  SearchResultsIncrementalApiResponse,
+  SearchResultsPageProgress,
 } from "~/types/search";
 import type { HotelSearchEntity } from "~/types/search-entity";
 import type { HotelResultsPageUiModel } from "~/types/search-ui";
 
 type SearchApiLoader = typeof loadSearchResultsApiResponse;
+type ProgressiveSearchApiLoader = typeof loadIncrementalSearchResultsApiResponse;
 
 type LoadCanonicalHotelSearchPageDependencies = {
   loadSearchResultsApiResponse?: SearchApiLoader;
+  loadIncrementalSearchResultsApiResponse?: ProgressiveSearchApiLoader;
   parseSearchRoute?: typeof parseSearchRoute;
   mapHotelResultsForUi?: typeof mapHotelResultsForUi;
 };
@@ -22,7 +29,9 @@ export type CanonicalHotelSearchPageSuccess = {
   status: 200;
   request: HotelSearchRequest;
   metadata: SearchResultsApiMetadata;
+  results: HotelSearchEntity[];
   ui: HotelResultsPageUiModel;
+  progress?: SearchResultsPageProgress;
 };
 
 export type CanonicalHotelSearchPageFailure = {
@@ -37,6 +46,7 @@ export type CanonicalHotelSearchPageResult =
 
 const defaultDependencies: Required<LoadCanonicalHotelSearchPageDependencies> = {
   loadSearchResultsApiResponse,
+  loadIncrementalSearchResultsApiResponse,
   parseSearchRoute,
   mapHotelResultsForUi,
 };
@@ -69,6 +79,12 @@ const buildApiUrl = (url: URL) => {
   return apiUrl;
 };
 
+const buildIncrementalApiUrl = (url: URL) => {
+  const apiUrl = buildApiUrl(url);
+  apiUrl.searchParams.set("incremental", "1");
+  return apiUrl;
+};
+
 const readAttemptedRequest = (url: URL, parseRoute: typeof parseSearchRoute) => {
   try {
     return toCanonicalHotelRequest(parseRoute(url)) || undefined;
@@ -92,6 +108,24 @@ const isHotelSearchSuccessResponse = (
   if (value.data.request.type !== "hotel") return false;
   return value.data.results.every((result) => isHotelSearchEntity(result));
 };
+
+const isHotelSearchIncrementalSuccessResponse = (
+  value: SearchResultsIncrementalApiResponse | SearchResultsApiError,
+): value is SearchResultsIncrementalApiResponse<HotelSearchEntity> => {
+  if (!value.ok) return false;
+  if (value.data.request.type !== "hotel") return false;
+  return value.data.results.every((result) => isHotelSearchEntity(result));
+};
+
+const toProgress = (
+  endpoint: URL,
+  metadata: SearchResultsIncrementalApiResponse<HotelSearchEntity>["data"]["metadata"],
+): SearchResultsPageProgress => ({
+  endpoint: `${endpoint.pathname}${endpoint.search}`,
+  searchKey: metadata.searchKey,
+  status: metadata.status,
+  cursor: metadata.cursor,
+});
 
 export const loadCanonicalHotelSearchPage = async (
   input: string | URL,
@@ -121,7 +155,48 @@ export const loadCanonicalHotelSearchPage = async (
   return {
     status: 200,
     request,
+    results: response.body.data.results,
     metadata: response.body.data.metadata,
+    ui: dependencies.mapHotelResultsForUi({
+      request,
+      results: response.body.data.results,
+      metadata: response.body.data.metadata,
+    }),
+  };
+};
+
+export const loadCanonicalHotelSearchProgressivePage = async (
+  input: string | URL,
+  overrides: LoadCanonicalHotelSearchPageDependencies = {},
+): Promise<CanonicalHotelSearchPageResult> => {
+  const dependencies = {
+    ...defaultDependencies,
+    ...overrides,
+  };
+  const url = toUrl(input);
+  const attemptedRequest = readAttemptedRequest(url, dependencies.parseSearchRoute);
+  const apiUrl = buildIncrementalApiUrl(url);
+  const response = await dependencies.loadIncrementalSearchResultsApiResponse(apiUrl);
+
+  if (!response.body.ok) {
+    return {
+      status: response.status,
+      error: response.body.error,
+      request: attemptedRequest,
+    };
+  }
+
+  if (!isHotelSearchIncrementalSuccessResponse(response.body)) {
+    return toInternalError();
+  }
+
+  const request = response.body.data.request as HotelSearchRequest;
+  return {
+    status: 200,
+    request,
+    results: response.body.data.results,
+    metadata: response.body.data.metadata,
+    progress: toProgress(apiUrl, response.body.data.metadata),
     ui: dependencies.mapHotelResultsForUi({
       request,
       results: response.body.data.results,

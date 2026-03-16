@@ -1,19 +1,26 @@
 import { mapCarResultsForUi } from "~/server/search/mapCarResultsForUi";
 import { parseSearchRoute } from "~/server/search/routeParser";
-import { loadSearchResultsApiResponse } from "~/server/search/searchResultsApi";
+import {
+  loadIncrementalSearchResultsApiResponse,
+  loadSearchResultsApiResponse,
+} from "~/server/search/searchResultsApi";
 import type {
   CarSearchRequest,
   SearchResultsApiError,
   SearchResultsApiMetadata,
   SearchResultsApiResponse,
+  SearchResultsIncrementalApiResponse,
+  SearchResultsPageProgress,
 } from "~/types/search";
 import type { CarSearchEntity } from "~/types/search-entity";
 import type { CarResultsPageUiModel } from "~/types/search-ui";
 
 type SearchApiLoader = typeof loadSearchResultsApiResponse;
+type ProgressiveSearchApiLoader = typeof loadIncrementalSearchResultsApiResponse;
 
 type LoadCanonicalCarSearchPageDependencies = {
   loadSearchResultsApiResponse?: SearchApiLoader;
+  loadIncrementalSearchResultsApiResponse?: ProgressiveSearchApiLoader;
   parseSearchRoute?: typeof parseSearchRoute;
   mapCarResultsForUi?: typeof mapCarResultsForUi;
 };
@@ -22,7 +29,9 @@ export type CanonicalCarSearchPageSuccess = {
   status: 200;
   request: CarSearchRequest;
   metadata: SearchResultsApiMetadata;
+  results: CarSearchEntity[];
   ui: CarResultsPageUiModel;
+  progress?: SearchResultsPageProgress;
 };
 
 export type CanonicalCarSearchPageFailure = {
@@ -37,6 +46,7 @@ export type CanonicalCarSearchPageResult =
 
 const defaultDependencies: Required<LoadCanonicalCarSearchPageDependencies> = {
   loadSearchResultsApiResponse,
+  loadIncrementalSearchResultsApiResponse,
   parseSearchRoute,
   mapCarResultsForUi,
 };
@@ -69,6 +79,12 @@ const buildApiUrl = (url: URL) => {
   return apiUrl;
 };
 
+const buildIncrementalApiUrl = (url: URL) => {
+  const apiUrl = buildApiUrl(url);
+  apiUrl.searchParams.set("incremental", "1");
+  return apiUrl;
+};
+
 const readAttemptedRequest = (url: URL, parseRoute: typeof parseSearchRoute) => {
   try {
     return toCanonicalCarRequest(parseRoute(url)) || undefined;
@@ -92,6 +108,24 @@ const isCarSearchSuccessResponse = (
   if (value.data.request.type !== "car") return false;
   return value.data.results.every((result) => isCarSearchEntity(result));
 };
+
+const isCarSearchIncrementalSuccessResponse = (
+  value: SearchResultsIncrementalApiResponse | SearchResultsApiError,
+): value is SearchResultsIncrementalApiResponse<CarSearchEntity> => {
+  if (!value.ok) return false;
+  if (value.data.request.type !== "car") return false;
+  return value.data.results.every((result) => isCarSearchEntity(result));
+};
+
+const toProgress = (
+  endpoint: URL,
+  metadata: SearchResultsIncrementalApiResponse<CarSearchEntity>["data"]["metadata"],
+): SearchResultsPageProgress => ({
+  endpoint: `${endpoint.pathname}${endpoint.search}`,
+  searchKey: metadata.searchKey,
+  status: metadata.status,
+  cursor: metadata.cursor,
+});
 
 export const loadCanonicalCarSearchPage = async (
   input: string | URL,
@@ -121,7 +155,48 @@ export const loadCanonicalCarSearchPage = async (
   return {
     status: 200,
     request,
+    results: response.body.data.results,
     metadata: response.body.data.metadata,
+    ui: dependencies.mapCarResultsForUi({
+      request,
+      results: response.body.data.results,
+      metadata: response.body.data.metadata,
+    }),
+  };
+};
+
+export const loadCanonicalCarSearchProgressivePage = async (
+  input: string | URL,
+  overrides: LoadCanonicalCarSearchPageDependencies = {},
+): Promise<CanonicalCarSearchPageResult> => {
+  const dependencies = {
+    ...defaultDependencies,
+    ...overrides,
+  };
+  const url = toUrl(input);
+  const attemptedRequest = readAttemptedRequest(url, dependencies.parseSearchRoute);
+  const apiUrl = buildIncrementalApiUrl(url);
+  const response = await dependencies.loadIncrementalSearchResultsApiResponse(apiUrl);
+
+  if (!response.body.ok) {
+    return {
+      status: response.status,
+      error: response.body.error,
+      request: attemptedRequest,
+    };
+  }
+
+  if (!isCarSearchIncrementalSuccessResponse(response.body)) {
+    return toInternalError();
+  }
+
+  const request = response.body.data.request as CarSearchRequest;
+  return {
+    status: 200,
+    request,
+    results: response.body.data.results,
+    metadata: response.body.data.metadata,
+    progress: toProgress(apiUrl, response.body.data.metadata),
     ui: dependencies.mapCarResultsForUi({
       request,
       results: response.body.data.results,

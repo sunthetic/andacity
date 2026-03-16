@@ -1,4 +1,4 @@
-import { component$ } from "@builder.io/qwik";
+import { component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import {
   routeLoader$,
   useLocation,
@@ -8,22 +8,132 @@ import {
 import { HotelResultsRenderer } from "~/components/search/hotels/HotelResultsRenderer";
 import { resolveHotelResultsRendererModel } from "~/components/search/hotels/hotelResultsRendererModel";
 import { Page } from "~/components/site/Page";
-import { loadCanonicalHotelSearchPage } from "~/server/search/loadCanonicalHotelSearchPage";
+import { mapHotelResultsForUi } from "~/server/search/mapHotelResultsForUi";
+import {
+  loadCanonicalHotelSearchProgressivePage,
+  type CanonicalHotelSearchPageResult,
+} from "~/server/search/loadCanonicalHotelSearchPage";
+import {
+  buildIncrementalSearchRequestUrl,
+  isIncrementalSearchApiError,
+  mergeIncrementalSearchResponse,
+} from "~/lib/search/incrementalSearchClient";
+import type {
+  SearchResultsApiError,
+  SearchResultsIncrementalApiResponse,
+  SearchResultsIncrementalBatch,
+} from "~/types/search";
+import type { HotelSearchEntity } from "~/types/search-entity";
 
 export const onRequest: RequestHandler = ({ headers }) => {
   headers.set("x-robots-tag", "noindex, follow");
 };
 
 export const useCanonicalHotelSearchPage = routeLoader$(async ({ status, url }) => {
-  const result = await loadCanonicalHotelSearchPage(url);
+  const result = await loadCanonicalHotelSearchProgressivePage(url);
   status(result.status);
   return result;
 });
 
 export default component$(() => {
-  const data = useCanonicalHotelSearchPage().value;
+  const loader = useCanonicalHotelSearchPage();
+  const pageState = useSignal<CanonicalHotelSearchPageResult>(loader.value);
+  const batchesState = useSignal<SearchResultsIncrementalBatch<HotelSearchEntity>[]>([]);
   const location = useLocation();
   const currentPath = `${location.url.pathname}${location.url.search}`;
+
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ track }) => {
+    const nextPage = track(() => loader.value);
+    pageState.value = nextPage;
+    batchesState.value = [];
+  });
+
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ track, cleanup }) => {
+    const initialPage = track(() => loader.value);
+    if ("error" in initialPage) return;
+    if (!initialPage.progress || initialPage.progress.status === "complete") return;
+
+    let stopped = false;
+    let timeoutId = 0;
+    let cursor = initialPage.progress.cursor;
+    let batches = batchesState.value.slice();
+    let results = initialPage.results.slice();
+
+    const poll = async () => {
+      if (stopped) return;
+
+      try {
+        const response = await fetch(
+          buildIncrementalSearchRequestUrl(initialPage.progress?.endpoint || currentPath, cursor),
+          {
+            cache: "no-store",
+          },
+        );
+        const body = (await response.json()) as
+          | SearchResultsIncrementalApiResponse<HotelSearchEntity>
+          | SearchResultsApiError;
+
+        if (isIncrementalSearchApiError(body)) {
+          pageState.value = {
+            status: response.status,
+            error: body.error,
+            request: initialPage.request,
+          };
+          return;
+        }
+
+        if (body.data.request.type !== "hotel") {
+          return;
+        }
+
+        const merged = mergeIncrementalSearchResponse(results, batches, body);
+        results = merged.results;
+        batches = merged.batches;
+        batchesState.value = batches;
+        cursor = body.data.metadata.cursor;
+
+        pageState.value = {
+          status: 200,
+          request: body.data.request,
+          results,
+          metadata: body.data.metadata,
+          progress: {
+            endpoint: initialPage.progress?.endpoint || currentPath,
+            searchKey: body.data.metadata.searchKey,
+            status: body.data.metadata.status,
+            cursor: body.data.metadata.cursor,
+          },
+          ui: mapHotelResultsForUi({
+            request: body.data.request,
+            results,
+            metadata: body.data.metadata,
+          }),
+        };
+
+        if (body.data.metadata.status === "complete") {
+          return;
+        }
+      } catch {
+        // Keep the current partial state on transient polling failures.
+      }
+
+      if (stopped) return;
+      timeoutId = window.setTimeout(() => {
+        void poll();
+      }, 250);
+    };
+
+    void poll();
+
+    cleanup(() => {
+      stopped = true;
+      window.clearTimeout(timeoutId);
+    });
+  });
+
+  const data = pageState.value;
   const rendererModel = resolveHotelResultsRendererModel(data, {
     isLoading: location.isNavigating,
     currentPath,

@@ -108,6 +108,7 @@ const withSearchApi = (provider: ProviderAdapter) => ({
 test("loads one-way canonical flight pages through the shared /api/search response path", async () => {
   const provider: ProviderAdapter = {
     provider: "flight-test-provider",
+    vertical: "flight",
     async search(params) {
       assert.equal(params.vertical, "flight");
       assert.equal(params.origin, "ORL");
@@ -146,6 +147,7 @@ test("loads one-way canonical flight pages through the shared /api/search respon
 test("loads round-trip canonical flight pages and preserves the return date in the summary", async () => {
   const provider: ProviderAdapter = {
     provider: "flight-test-provider",
+    vertical: "flight",
     async search(params) {
       assert.equal(params.returnDate, "2026-05-15");
       return [buildFlightEntity(params.departDate || "2026-05-10")];
@@ -178,6 +180,7 @@ test("loads round-trip canonical flight pages and preserves the return date in t
 test("returns an empty renderer-ready UI model when no canonical flight results are found", async () => {
   const provider: ProviderAdapter = {
     provider: "flight-test-provider",
+    vertical: "flight",
     async search() {
       return [];
     },
@@ -206,6 +209,7 @@ test("marks cached canonical flight responses in the renderer-facing summary", a
   let searchCalls = 0;
   const provider: ProviderAdapter = {
     provider: "flight-test-provider",
+    vertical: "flight",
     async search() {
       searchCalls += 1;
       return [buildFlightEntity()];
@@ -254,6 +258,7 @@ test("returns structured validation failures for invalid canonical flight routes
 test("returns a safe execution error when the canonical flight search cannot load results", async () => {
   const provider: ProviderAdapter = {
     provider: "flight-test-provider",
+    vertical: "flight",
     async search() {
       throw new Error("provider failed");
     },

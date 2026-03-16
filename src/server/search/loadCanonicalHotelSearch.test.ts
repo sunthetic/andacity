@@ -76,6 +76,7 @@ const buildHotelEntity = () =>
 test('loads canonical hotel searches into a page-friendly response shape', async () => {
   const provider: ProviderAdapter = {
     provider: 'hotel-test-provider',
+    vertical: 'hotel',
     async search(params) {
       assert.equal(params.vertical, 'hotel')
       assert.equal(params.destination, 'las-vegas-nv-us')
@@ -130,6 +131,7 @@ test('reuses shared search cache results for repeated canonical hotel routes', a
   let searchCalls = 0
   const provider: ProviderAdapter = {
     provider: 'hotel-test-provider',
+    vertical: 'hotel',
     async search() {
       searchCalls += 1
       return [buildHotelEntity()]

@@ -147,6 +147,7 @@ const withSearchApi = (provider: ProviderAdapter) => ({
 test("loads canonical car pages through the shared /api/search response path", async () => {
   const provider: ProviderAdapter = {
     provider: "car-test-provider",
+    vertical: "car",
     async search(params) {
       assert.equal(params.vertical, "car");
       assert.equal(params.pickupLocation, "LAX");
@@ -185,6 +186,7 @@ test("loads canonical car pages through the shared /api/search response path", a
 test("returns an empty renderer-ready UI model when no canonical car results are found", async () => {
   const provider: ProviderAdapter = {
     provider: "car-test-provider",
+    vertical: "car",
     async search() {
       return [];
     },
@@ -213,6 +215,7 @@ test("marks cached canonical car responses in the renderer-facing summary", asyn
   let searchCalls = 0;
   const provider: ProviderAdapter = {
     provider: "car-test-provider",
+    vertical: "car",
     async search() {
       searchCalls += 1;
       return [buildCarEntity()];

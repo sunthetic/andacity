@@ -118,7 +118,7 @@ export const loadCanonicalHotelSearch = async (
       results,
       metadata: {
         totalResults: results.length,
-        providersQueried: response.provider ? [response.provider] : [],
+        providersQueried: response.providers,
         searchTime: Math.max(0, dependencies.now() - startedAt),
       },
     }

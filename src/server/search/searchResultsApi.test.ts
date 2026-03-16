@@ -18,12 +18,17 @@ const searchServiceModule: typeof import('./searchService.ts') = await import(
 )
 
 const { clearSearchCache } = cacheModule
-const { loadSearchResultsApiResponse } = helperModule
+const { loadIncrementalSearchResultsApiResponse, loadSearchResultsApiResponse } = helperModule
 const { toCarSearchEntity, toFlightSearchEntity, toHotelSearchEntity } = searchEntityModule
-const { executeSearchRequest } = searchServiceModule
+const {
+  clearIncrementalSearchSessions,
+  executeSearchRequest,
+  getIncrementalSearchSnapshot,
+} = searchServiceModule
 
 test.beforeEach(() => {
   clearSearchCache()
+  clearIncrementalSearchSessions()
 })
 
 const buildAirportLocation = (
@@ -164,9 +169,29 @@ const withSearchService = (
     }),
 })
 
+const withSearchProviders = (
+  providers: ProviderAdapter[],
+  resolveLocationBySearchSlug: (searchSlug: string) => Promise<CanonicalLocation | null>,
+) => ({
+  executeSearchRequest: (request: Parameters<typeof executeSearchRequest>[0]) =>
+    executeSearchRequest(request, {
+      getProviders: () => providers,
+      resolveLocationBySearchSlug,
+    }),
+  getIncrementalSearchSnapshot: (
+    request: Parameters<typeof getIncrementalSearchSnapshot>[0],
+    cursor: number,
+  ) =>
+    getIncrementalSearchSnapshot(request, cursor, {
+      getProviders: () => providers,
+      resolveLocationBySearchSlug,
+    }),
+})
+
 test('returns normalized flight one-way search results', async () => {
   const provider: ProviderAdapter = {
     provider: 'flight-test-provider',
+    vertical: 'flight',
     async search(params) {
       assert.equal(params.vertical, 'flight')
       assert.equal(params.origin, 'ORL')
@@ -226,6 +251,7 @@ test('returns normalized flight one-way search results', async () => {
 test('returns normalized flight round-trip search results', async () => {
   const provider: ProviderAdapter = {
     provider: 'flight-test-provider',
+    vertical: 'flight',
     async search(params) {
       assert.equal(params.vertical, 'flight')
       assert.equal(params.returnDate, '2026-05-15')
@@ -270,6 +296,7 @@ test('returns normalized flight round-trip search results', async () => {
 test('returns normalized hotel search results', async () => {
   const provider: ProviderAdapter = {
     provider: 'hotel-test-provider',
+    vertical: 'hotel',
     async search(params) {
       assert.equal(params.vertical, 'hotel')
       assert.equal(params.destination, 'las-vegas-nv-us')
@@ -318,6 +345,7 @@ test('returns normalized hotel search results', async () => {
 test('returns normalized car search results', async () => {
   const provider: ProviderAdapter = {
     provider: 'car-test-provider',
+    vertical: 'car',
     async search(params) {
       assert.equal(params.vertical, 'car')
       assert.equal(params.pickupLocation, 'LAX')
@@ -365,6 +393,7 @@ test('marks cache misses in the search metadata', async () => {
   let searchCalls = 0
   const provider: ProviderAdapter = {
     provider: 'flight-test-provider',
+    vertical: 'flight',
     async search() {
       searchCalls += 1
       return [buildFlightEntity()]
@@ -402,6 +431,7 @@ test('marks cache hits in the search metadata', async () => {
   let searchCalls = 0
   const provider: ProviderAdapter = {
     provider: 'hotel-test-provider',
+    vertical: 'hotel',
     async search() {
       searchCalls += 1
       return [buildHotelEntity()]
@@ -442,6 +472,122 @@ test('marks cache hits in the search metadata', async () => {
   assert.deepEqual(second.body.data.request, first.body.data.request)
 })
 
+test('returns incremental batches and cursor metadata for progressive polling', async () => {
+  const fastProvider: ProviderAdapter = {
+    provider: 'flight-fast',
+    vertical: 'flight',
+    async search() {
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      return [buildFlightEntity()]
+    },
+    async resolveInventory() {
+      return null
+    },
+    async fetchPrice() {
+      return null
+    },
+  }
+
+  const slowProvider: ProviderAdapter = {
+    provider: 'flight-slow',
+    vertical: 'flight',
+    async search() {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      return [
+        toFlightSearchEntity(
+          {
+            itineraryId: 999,
+            airline: 'United',
+            airlineCode: 'UA',
+            flightNumber: '999',
+            serviceDate: '2026-05-10',
+            origin: 'Orlando (ORL)',
+            destination: 'Los Angeles (LAX)',
+            originCode: 'ORL',
+            destinationCode: 'LAX',
+            stops: 0,
+            duration: '5h 30m',
+            cabinClass: 'economy',
+            fareCode: 'Y',
+            price: 355,
+            currency: 'usd',
+          },
+          {
+            departDate: '2026-05-10',
+            priceAmountCents: 35500,
+            snapshotTimestamp: '2026-03-14T12:00:00.000Z',
+          },
+        ),
+      ]
+    },
+    async resolveInventory() {
+      return null
+    },
+    async fetchPrice() {
+      return null
+    },
+  }
+
+  const overrides = withSearchProviders(
+    [slowProvider, fastProvider],
+    async (searchSlug) => {
+      const token = searchSlug.toUpperCase()
+      if (token === 'ORL') return buildAirportLocation('ORL', 'orlando-fl-us', 'Orlando')
+      if (token === 'LAX') return buildAirportLocation('LAX', 'los-angeles-ca-us', 'Los Angeles')
+      return null
+    },
+  )
+
+  const first = await loadIncrementalSearchResultsApiResponse(
+    '/api/search?incremental=1&type=flight&origin=ORL&destination=LAX&departDate=2026-05-10',
+    overrides,
+  )
+
+  assert.equal(first.status, 200)
+  assert.equal(first.body.ok, true)
+  if (!first.body.ok) {
+    assert.fail('expected an incremental search bootstrap response')
+  }
+
+  assert.equal(first.body.data.metadata.status, 'loading')
+  assert.equal(first.body.data.batches.length, 0)
+
+  await new Promise((resolve) => setTimeout(resolve, 10))
+
+  const partial = await loadIncrementalSearchResultsApiResponse(
+    '/api/search?incremental=1&type=flight&origin=ORL&destination=LAX&departDate=2026-05-10&cursor=0',
+    overrides,
+  )
+
+  assert.equal(partial.status, 200)
+  assert.equal(partial.body.ok, true)
+  if (!partial.body.ok) {
+    assert.fail('expected a partial incremental search response')
+  }
+
+  assert.equal(partial.body.data.metadata.status, 'partial')
+  assert.equal(partial.body.data.metadata.cursor, 1)
+  assert.equal(partial.body.data.batches[0]?.provider, 'flight-fast')
+
+  await new Promise((resolve) => setTimeout(resolve, 20))
+
+  const complete = await loadIncrementalSearchResultsApiResponse(
+    `/api/search?incremental=1&type=flight&origin=ORL&destination=LAX&departDate=2026-05-10&cursor=${partial.body.data.metadata.cursor}`,
+    overrides,
+  )
+
+  assert.equal(complete.status, 200)
+  assert.equal(complete.body.ok, true)
+  if (!complete.body.ok) {
+    assert.fail('expected a completed incremental search response')
+  }
+
+  assert.equal(complete.body.data.metadata.status, 'complete')
+  assert.equal(complete.body.data.batches.length, 1)
+  assert.equal(complete.body.data.batches[0]?.provider, 'flight-slow')
+  assert.equal(complete.body.data.metadata.totalResults, 2)
+})
+
 test('returns structured errors for invalid search types', async () => {
   const response = await loadSearchResultsApiResponse('/api/search?type=cruise&airport=LAX')
 
@@ -475,6 +621,7 @@ test('returns structured errors for missing required fields', async () => {
 test('returns structured errors for invalid location codes', async () => {
   const provider: ProviderAdapter = {
     provider: 'car-test-provider',
+    vertical: 'car',
     async search() {
       assert.fail('provider search should not run for invalid car airport input')
     },
@@ -505,6 +652,7 @@ test('returns structured errors for invalid location codes', async () => {
 test('returns structured errors for invalid city slugs', async () => {
   const provider: ProviderAdapter = {
     provider: 'hotel-test-provider',
+    vertical: 'hotel',
     async search() {
       assert.fail('provider search should not run for invalid hotel city input')
     },
@@ -551,6 +699,7 @@ test('returns structured errors for invalid date ranges', async () => {
 test('returns stable execution failures when provider search fails', async () => {
   const provider: ProviderAdapter = {
     provider: 'flight-test-provider',
+    vertical: 'flight',
     async search() {
       throw new Error('provider timeout')
     },

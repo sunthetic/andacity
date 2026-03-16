@@ -84,6 +84,7 @@ export const createFlightProviderAdapter = (
 
   return {
     provider: providerName,
+    vertical: 'flight',
 
     async search(params, requestOptions) {
       if (params.vertical !== 'flight') return []

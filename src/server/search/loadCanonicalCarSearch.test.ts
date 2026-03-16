@@ -75,6 +75,7 @@ const buildCarEntity = () =>
 test('loads canonical car searches into a page-friendly response shape', async () => {
   const provider: ProviderAdapter = {
     provider: 'car-test-provider',
+    vertical: 'car',
     async search(params) {
       assert.equal(params.vertical, 'car')
       assert.equal(params.pickupLocation, 'LAX')
@@ -128,6 +129,7 @@ test('reuses shared search cache results for repeated canonical car routes', asy
   let searchCalls = 0
   const provider: ProviderAdapter = {
     provider: 'car-test-provider',
+    vertical: 'car',
     async search() {
       searchCalls += 1
       return [buildCarEntity()]
