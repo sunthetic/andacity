@@ -4,7 +4,7 @@ import {
   type DocumentHead,
   type RequestHandler,
 } from "@builder.io/qwik-city";
-import { BookableEntityPage } from "~/components/entities/BookableEntityPage";
+import { FlightEntityPage } from "~/components/entities/flights/FlightEntityPage";
 import { buildBookableEntityDocumentHead } from "~/lib/entities/metadata";
 import { loadBookableEntityPage } from "~/server/entities/loadBookableEntityPage";
 
@@ -23,7 +23,9 @@ export const useFlightEntityPage = routeLoader$(async ({ status, url }) => {
 });
 
 export default component$(() => {
-  return <BookableEntityPage page={useFlightEntityPage().value} />;
+  const page = useFlightEntityPage().value;
+
+  return <FlightEntityPage page={page} />;
 });
 
 export const head: DocumentHead = ({ resolveValue, url }) =>

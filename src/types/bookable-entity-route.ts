@@ -62,6 +62,14 @@ export type BookableEntityPageNotFoundResult = BookableEntityRouteBase & {
   requestedInventoryId: string;
 };
 
+export type BookableEntityPageResolutionErrorResult =
+  BookableEntityRouteBase & {
+    kind: "resolution_error";
+    reason: "inventory_resolution_failed";
+    requestedInventoryId: string;
+    message: string | null;
+  };
+
 export type BookableEntityPageInvalidRouteResult = {
   kind: "invalid_route";
   vertical: BookableVertical;
@@ -75,4 +83,5 @@ export type BookableEntityPageLoadResult =
   | BookableEntityPageUnavailableResult
   | BookableEntityPageRevalidationRequiredResult
   | BookableEntityPageNotFoundResult
+  | BookableEntityPageResolutionErrorResult
   | BookableEntityPageInvalidRouteResult;

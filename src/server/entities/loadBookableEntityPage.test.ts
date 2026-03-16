@@ -155,6 +155,37 @@ test("returns not_found when the canonical route parses but live inventory does 
   assert.equal(result.requestedInventoryId, inventoryId);
 });
 
+test("returns resolution_error when live inventory resolution throws unexpectedly", async () => {
+  const inventoryId = buildFlightInventoryId({
+    airlineCode: "DL",
+    flightNumber: "123",
+    departDate: "2026-04-01",
+    originCode: "JFK",
+    destinationCode: "LAX",
+  });
+
+  const result = await loadBookableEntityPage(
+    {
+      vertical: "flight",
+      route: buildFlightEntityHref(inventoryId),
+    },
+    {
+      resolveRecord: async () => {
+        throw new Error("resolver offline");
+      },
+    },
+  );
+
+  assert.equal(result.kind, "resolution_error");
+  if (result.kind !== "resolution_error") {
+    assert.fail("expected a resolution_error entity page result");
+  }
+
+  assert.equal(result.status, 503);
+  assert.equal(result.requestedInventoryId, inventoryId);
+  assert.equal(result.message, "resolver offline");
+});
+
 test("returns unavailable when the exact canonical entity resolves but inventory is not bookable", async () => {
   const entity = buildFlightEntity();
   const result = await loadBookableEntityPage(

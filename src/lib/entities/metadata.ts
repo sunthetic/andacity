@@ -75,7 +75,7 @@ const resolveResolvedDescription = (
     return `The requested ${singularLabel} is currently unavailable. Review the canonical route and return to search for a fresh option.`;
   }
 
-  return `Inspect the canonical ${singularLabel} route, live inventory resolution status, and provider-agnostic entity shell for ${entityTitle}.`;
+  return `Inspect the canonical ${singularLabel} route, live inventory resolution status, and provider-agnostic detail view for ${entityTitle}.`;
 };
 
 const resolveTitle = (page: BookableEntityPageLoadResult) => {
@@ -85,6 +85,10 @@ const resolveTitle = (page: BookableEntityPageLoadResult) => {
 
   if (page.kind === "not_found") {
     return `${SINGULAR_LABELS[page.vertical][0].toUpperCase()}${SINGULAR_LABELS[page.vertical].slice(1)} not found | Andacity`;
+  }
+
+  if (page.kind === "resolution_error") {
+    return `${SINGULAR_LABELS[page.vertical][0].toUpperCase()}${SINGULAR_LABELS[page.vertical].slice(1)} temporarily unavailable | Andacity`;
   }
 
   return resolveResolvedTitle(page);
@@ -97,6 +101,10 @@ const resolveDescription = (page: BookableEntityPageLoadResult) => {
 
   if (page.kind === "not_found") {
     return `The requested canonical ${SINGULAR_LABELS[page.vertical]} could not be resolved through live inventory.`;
+  }
+
+  if (page.kind === "resolution_error") {
+    return `The requested canonical ${SINGULAR_LABELS[page.vertical]} could not be revalidated because live inventory resolution is temporarily unavailable.`;
   }
 
   return resolveResolvedDescription(page);

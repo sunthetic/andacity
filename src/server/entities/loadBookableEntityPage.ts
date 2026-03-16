@@ -28,9 +28,26 @@ export const loadBookableEntityPage = async (
 
   try {
     const route = parseRoute(input.vertical, input.route);
-    const resolution = await resolveRecord({
-      inventoryId: route.inventoryId,
-    });
+    let resolution: ResolvedInventoryRecord | null;
+
+    try {
+      resolution = await resolveRecord({
+        inventoryId: route.inventoryId,
+      });
+    } catch (error) {
+      return {
+        kind: "resolution_error",
+        vertical: input.vertical,
+        status: 503,
+        route,
+        reason: "inventory_resolution_failed",
+        requestedInventoryId: route.inventoryId,
+        message:
+          error instanceof Error && error.message
+            ? error.message
+            : "Inventory Resolver could not complete the live check.",
+      };
+    }
 
     if (!resolution) {
       return {

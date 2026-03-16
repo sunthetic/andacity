@@ -71,6 +71,15 @@ const resolvePageCopy = (page: BookableEntityPageLoadResult) => {
     };
   }
 
+  if (page.kind === "resolution_error") {
+    return {
+      badge: "Temporary resolution error",
+      title: `This ${singularLabel} could not be revalidated right now.`,
+      description:
+        "The canonical route parsed correctly, but the live inventory check failed before a canonical entity could be returned.",
+    };
+  }
+
   if (page.kind === "unavailable") {
     return {
       badge: "Unavailable",
@@ -217,6 +226,67 @@ export const BookableEntityPage = component$(
               >
                 Browse {verticalLabel.toLowerCase()}
               </a>
+            </div>
+          </section>
+        ) : page.kind === "resolution_error" ? (
+          <section class="mt-6 grid gap-4 lg:grid-cols-[2fr,1fr]">
+            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+              <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
+                Temporary resolution failure
+              </h2>
+              <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)]">
+                Inventory Resolver could not finish the live check for this
+                canonical route.
+              </p>
+              <dl class="mt-5 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+                    Requested inventory ID
+                  </dt>
+                  <dd class="mt-1 break-all text-sm text-[color:var(--color-text)]">
+                    {page.requestedInventoryId}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+                    Canonical route
+                  </dt>
+                  <dd class="mt-1 break-all text-sm text-[color:var(--color-text)]">
+                    {page.route.canonicalPath}
+                  </dd>
+                </div>
+              </dl>
+
+              {page.message ? (
+                <p class="mt-5 rounded-2xl bg-[color:var(--color-surface-muted)] px-4 py-3 text-sm leading-6 text-[color:var(--color-text)]">
+                  {page.message}
+                </p>
+              ) : null}
+            </div>
+
+            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+              <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
+                Next step
+              </h2>
+              <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)]">
+                Retry this canonical route in a moment, or return to search for
+                a fresh result.
+              </p>
+              <div class="mt-5 grid gap-3">
+                <a
+                  class="t-btn-primary inline-flex min-h-11 items-center justify-center px-5 text-sm font-semibold"
+                  href={page.route.canonicalPath}
+                >
+                  Try again
+                </a>
+                <a
+                  class="inline-flex min-h-11 items-center justify-center rounded-full border border-[color:var(--color-border)] px-5 text-sm font-semibold text-[color:var(--color-action)] transition hover:border-[color:var(--color-action)]"
+                  href={searchHref}
+                >
+                  Browse {verticalLabel.toLowerCase()}
+                </a>
+              </div>
             </div>
           </section>
         ) : hasResolvedEntity ? (
