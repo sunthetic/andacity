@@ -5,9 +5,11 @@ import type {
   FlightSegmentSummary,
 } from "~/types/flights/provider";
 import type {
+  HotelPropertySummary,
   HotelPolicySummary,
   HotelPriceSummary,
   HotelProviderMetadata,
+  HotelRoomSummary,
 } from "~/types/hotels/provider";
 import type {
   CarPolicySummary,
@@ -82,6 +84,8 @@ export type HotelBookableEntityPayload = {
   cancellationPolicy?: string | null;
   policy?: HotelPolicySummary | null;
   priceSummary?: HotelPriceSummary | null;
+  propertySummary?: HotelPropertySummary | null;
+  roomSummary?: HotelRoomSummary | null;
   inclusions?: string[] | null;
   providerMetadata?: HotelProviderMetadata | null;
   assumedStayDates?: boolean;

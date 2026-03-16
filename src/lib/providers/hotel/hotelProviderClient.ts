@@ -34,14 +34,18 @@ type HotelProviderHotelContextRow = {
   citySlug: string
   cityName: string
   neighborhood: string
+  addressLine: string
   stars: number
   rating: string
   reviewCount: number
   propertyType: string
+  summary: string
   currencyCode: string
   freeCancellation: boolean
   payLater: boolean
   noResortFees: boolean
+  checkInTime: string | null
+  checkOutTime: string | null
   cancellationBlurb: string | null
   paymentBlurb: string | null
   feesBlurb: string | null
@@ -92,6 +96,9 @@ export type HotelProviderRawOffer = {
   nights: number
   roomType: string
   roomTypeToken: string
+  roomSleeps: number
+  beds: string | null
+  sizeSqft: number | null
   providerOfferId: string
   ratePlanId: string
   ratePlan: string
@@ -100,7 +107,14 @@ export type HotelProviderRawOffer = {
   refundable: boolean
   freeCancellation: boolean
   payLater: boolean
+  noResortFees: boolean
+  offerBadges: string[]
+  offerFeatures: string[]
   inclusions: string[]
+  addressLine: string | null
+  checkInTime: string | null
+  checkOutTime: string | null
+  summary: string | null
   nightlyBaseCents: number
   totalBaseCents: number
   taxesCents: number | null
@@ -439,6 +453,9 @@ const toRawOffer = (
     nights,
     roomType: offer.name,
     roomTypeToken,
+    roomSleeps: offer.sleeps,
+    beds: offer.beds,
+    sizeSqft: offer.sizeSqft,
     providerOfferId,
     ratePlanId,
     ratePlan: buildRatePlanLabel(offer),
@@ -447,7 +464,14 @@ const toRawOffer = (
     refundable: offer.refundable,
     freeCancellation: hotel.freeCancellation || offer.refundable,
     payLater: offer.payLater || hotel.payLater,
+    noResortFees: hotel.noResortFees,
+    offerBadges: normalizeStringArray(offer.badges),
+    offerFeatures: normalizeStringArray(offer.features),
     inclusions: buildInclusions(offer),
+    addressLine: hotel.addressLine,
+    checkInTime: hotel.checkInTime,
+    checkOutTime: hotel.checkOutTime,
+    summary: hotel.summary,
     nightlyBaseCents: offer.priceNightlyCents,
     totalBaseCents,
     taxesCents,
@@ -471,14 +495,18 @@ const fetchHotelContexts = async (hotelIds: number[]) => {
       citySlug: cities.slug,
       cityName: cities.name,
       neighborhood: hotels.neighborhood,
+      addressLine: hotels.addressLine,
       stars: hotels.stars,
       rating: hotels.rating,
       reviewCount: hotels.reviewCount,
       propertyType: hotels.propertyType,
+      summary: hotels.summary,
       currencyCode: hotels.currencyCode,
       freeCancellation: hotels.freeCancellation,
       payLater: hotels.payLater,
       noResortFees: hotels.noResortFees,
+      checkInTime: hotels.checkInTime,
+      checkOutTime: hotels.checkOutTime,
       cancellationBlurb: hotels.cancellationBlurb,
       paymentBlurb: hotels.paymentBlurb,
       feesBlurb: hotels.feesBlurb,

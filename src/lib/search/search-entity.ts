@@ -31,9 +31,11 @@ import type {
   SearchEntityPrice,
 } from '../../types/search-entity'
 import type {
+  HotelPropertySummary,
   HotelPolicySummary,
   HotelPriceSummary,
   HotelProviderMetadata,
+  HotelRoomSummary,
 } from '../../types/hotels/provider'
 
 type SearchRecord = Record<string, unknown>
@@ -94,6 +96,8 @@ export type HotelSearchEntityContext = {
   cancellationPolicy?: string | null
   policy?: HotelPolicySummary | null
   priceSummary?: HotelPriceSummary | null
+  propertySummary?: HotelPropertySummary | null
+  roomSummary?: HotelRoomSummary | null
   inclusions?: string[] | null
   providerMetadata?: HotelProviderMetadata | null
   priceAmountCents?: number | null
@@ -232,6 +236,28 @@ const cloneHotelPriceSummary = (
 ): HotelPriceSummary | null => {
   if (!value) return null
   return { ...value }
+}
+
+const cloneHotelPropertySummary = (
+  value: HotelPropertySummary | null | undefined,
+): HotelPropertySummary | null => {
+  if (!value) return null
+  return {
+    ...value,
+    amenities: cloneStringArray(value.amenities) || null,
+    notes: cloneStringArray(value.notes) || null,
+  }
+}
+
+const cloneHotelRoomSummary = (
+  value: HotelRoomSummary | null | undefined,
+): HotelRoomSummary | null => {
+  if (!value) return null
+  return {
+    ...value,
+    features: cloneStringArray(value.features) || null,
+    badges: cloneStringArray(value.badges) || null,
+  }
 }
 
 const cloneHotelProviderMetadata = (
@@ -445,6 +471,8 @@ export const toHotelSearchEntity = (
       cancellationPolicy: toNullableText(context.cancellationPolicy),
       policy: cloneHotelPolicy(context.policy),
       priceSummary: cloneHotelPriceSummary(context.priceSummary),
+      propertySummary: cloneHotelPropertySummary(context.propertySummary),
+      roomSummary: cloneHotelRoomSummary(context.roomSummary),
       inclusions: cloneStringArray(context.inclusions),
       providerMetadata: cloneHotelProviderMetadata(context.providerMetadata),
       assumedStayDates: context.assumedStayDates || undefined,
