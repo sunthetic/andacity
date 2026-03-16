@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const helperModule: typeof import("./flightResultsRendererModel.ts") = await import(
-  new URL("./flightResultsRendererModel.ts", import.meta.url).href
-);
+const helperModule: typeof import("./flightResultsRendererModel.ts") =
+  await import(
+    new URL("./flightResultsRendererModel.ts", import.meta.url).href
+  );
 
 const { resolveFlightResultsRendererModel } = helperModule;
 
@@ -57,9 +58,9 @@ const buildSuccessPage = (cardCount = 1) => ({
         currency: "USD",
         display: "$318",
       },
-      ctaLabel: "Select flight",
-      ctaHref: null,
-      ctaDisabled: true,
+      ctaLabel: "View flight",
+      ctaHref: "/flights/itinerary/DL/1/2026-05-10/ORL/LAX",
+      ctaDisabled: false,
     })),
   },
 });
@@ -110,7 +111,8 @@ test("returns a partial renderer state while more provider batches are loading",
     {
       ...buildSuccessPage(2),
       progress: {
-        endpoint: "/api/search?incremental=1&route=%2Fflights%2Fsearch%2FORL-LAX%2F2026-05-10",
+        endpoint:
+          "/api/search?incremental=1&route=%2Fflights%2Fsearch%2FORL-LAX%2F2026-05-10",
         searchKey: "flights:orl:lax:2026-05-10",
         status: "partial" as const,
         cursor: 1,
@@ -150,7 +152,8 @@ test("returns a safe error renderer state for malformed route failures", () => {
     state: "error",
     error: {
       title: "This flight search link is incomplete.",
-      description: "The URL did not match a supported Andacity flight search route.",
+      description:
+        "The URL did not match a supported Andacity flight search route.",
       statusLabel: "HTTP 400",
       routeLabel: null,
       retryHref: "/flights/search/not-a-valid-route",
@@ -173,5 +176,5 @@ test("returns a results renderer state with stable card count and summary", () =
 
   assert.equal(model.summary.routeTitle, "ORL -> LAX");
   assert.equal(model.cards.length, 2);
-  assert.ok(model.cards.every((card) => card.ctaLabel === "Select flight"));
+  assert.ok(model.cards.every((card) => card.ctaLabel === "View flight"));
 });

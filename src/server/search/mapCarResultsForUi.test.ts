@@ -9,9 +9,13 @@ const searchEntityModule: typeof import("~/lib/search/search-entity.ts") = await
 const helperModule: typeof import("./mapCarResultsForUi.ts") = await import(
   new URL("./mapCarResultsForUi.ts", import.meta.url).href
 );
+const routingModule: typeof import("~/lib/entities/routing.ts") = await import(
+  new URL("../../lib/entities/routing.ts", import.meta.url).href
+);
 
 const { toCarSearchEntity } = searchEntityModule;
 const { mapCarResultsForUi } = helperModule;
+const { buildCarEntityHref } = routingModule;
 
 const buildCarEntity = (
   overrides: Omit<Partial<CarSearchEntity>, "payload" | "metadata"> & {
@@ -132,6 +136,7 @@ test("maps canonical car results into summary and card models", () => {
   assert.ok(ui.summary.metadataBadges.includes("Source: car-test-provider"));
 
   assert.equal(ui.cards.length, 1);
+  const detailHref = buildCarEntityHref(buildCarEntity());
   assert.deepEqual(ui.cards[0], {
     id: ui.cards[0]?.id,
     vehicleName: "Toyota RAV4",
@@ -154,9 +159,9 @@ test("maps canonical car results into summary and card models", () => {
       totalDisplay: "$427 total",
       supportingDisplay: "$67 / day base rate",
     },
-    ctaLabel: "Select car",
-    ctaHref: null,
-    ctaDisabled: true,
+    ctaLabel: "View rental",
+    ctaHref: detailHref,
+    ctaDisabled: false,
   });
 });
 
@@ -253,5 +258,5 @@ test("maps partial normalized car entities without crashing", () => {
   assert.equal(ui.cards[0]?.baggageLabel, "Baggage capacity unavailable");
   assert.equal(ui.cards[0]?.cancellationSummary, "Cancellation terms unavailable");
   assert.equal(ui.cards[0]?.price.totalDisplay, "Price unavailable");
-  assert.equal(ui.cards[0]?.ctaDisabled, true);
+  assert.equal(ui.cards[0]?.ctaDisabled, false);
 });

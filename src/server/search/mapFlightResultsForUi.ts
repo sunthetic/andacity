@@ -1,3 +1,4 @@
+import { buildFlightEntityHref } from "~/lib/entities/routing";
 import { formatMoneyFromCents, toAmountFromCents } from "~/lib/pricing/price-display";
 import type { SearchResultsApiMetadata } from "~/types/search";
 import type { FlightSearchRequest } from "~/types/search";
@@ -246,6 +247,7 @@ export const mapFlightResultCardForUi = (result: FlightSearchEntity): FlightResu
     toText(result.payload.destinationCode ?? result.route.destination) || "Destination unavailable";
   const stopCount = deriveStopCount(result);
   const stopAirports = deriveStopAirports(result);
+  const detailHref = toText(result.href) || buildFlightEntityHref(result);
 
   return {
     id: result.inventoryId,
@@ -264,9 +266,9 @@ export const mapFlightResultCardForUi = (result: FlightSearchEntity): FlightResu
     cabinLabel: buildCabinLabel(result),
     itinerarySummary: buildItinerarySummary(result),
     price: buildPriceModel(result),
-    ctaLabel: "Select flight",
-    ctaHref: null,
-    ctaDisabled: true,
+    ctaLabel: "View flight",
+    ctaHref: detailHref,
+    ctaDisabled: false,
   };
 };
 

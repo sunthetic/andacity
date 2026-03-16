@@ -141,7 +141,7 @@ test("loads one-way canonical flight pages through the shared /api/search respon
   assert.equal(response.ui.summary.routeTitle, "ORL -> LAX");
   assert.equal(response.ui.summary.resultCountLabel, "1 result");
   assert.equal(response.ui.cards.length, 1);
-  assert.equal(response.ui.cards[0]?.ctaLabel, "Select flight");
+  assert.equal(response.ui.cards[0]?.ctaLabel, "View flight");
 });
 
 test("loads round-trip canonical flight pages and preserves the return date in the summary", async () => {

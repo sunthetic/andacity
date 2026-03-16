@@ -13,6 +13,9 @@ const searchEntityModule: typeof import('./search-entity.ts') = await import(
 const normalizeModule: typeof import('./normalizeSearchResults.ts') = await import(
   new URL('./normalizeSearchResults.ts', import.meta.url).href
 )
+const routingModule: typeof import('../entities/routing.ts') = await import(
+  new URL('../entities/routing.ts', import.meta.url).href
+)
 const flightConstantsModule: typeof import('../providers/flight/constants.ts') = await import(
   new URL('../providers/flight/constants.ts', import.meta.url).href
 )
@@ -27,6 +30,7 @@ const { buildCarInventoryId, buildFlightInventoryId, buildHotelInventoryId } = i
 const { getCachedResults, getSearchCacheKey, setCachedResults, clearSearchCache } = cacheModule
 const { toBookableEntity } = searchEntityModule
 const { normalizeSearchResults } = normalizeModule
+const { buildCarEntityHref, buildFlightEntityHref, buildHotelEntityHref } = routingModule
 const { FLIGHT_PROVIDER_NAME } = flightConstantsModule
 const { HOTEL_PROVIDER_NAME } = hotelConstantsModule
 const { CAR_PROVIDER_NAME } = carConstantsModule
@@ -208,6 +212,7 @@ test('routes raw provider offers into canonical entities for every vertical', ()
       destinationCode: 'LAX',
     }),
   )
+  assert.equal(flightResults[0]?.href, buildFlightEntityHref(flightResults[0]!))
   assert.deepEqual(flightResults[0]?.bookableSnapshot, toBookableEntity(flightResults[0]!))
 
   const hotelResults = normalizeSearchResults(
@@ -242,6 +247,7 @@ test('routes raw provider offers into canonical entities for every vertical', ()
     }),
   )
   assert.equal(hotelResults[0]?.payload.providerMetadata?.providerOfferId, 'ace-flex-king')
+  assert.equal(hotelResults[0]?.href, buildHotelEntityHref(hotelResults[0]!))
 
   const carResults = normalizeSearchResults(
     'car',
@@ -270,6 +276,7 @@ test('routes raw provider offers into canonical entities for every vertical', ()
     }),
   )
   assert.equal(carResults[0]?.payload.providerMetadata?.providerLocationId, 'phx-airport')
+  assert.equal(carResults[0]?.href, buildCarEntityHref(carResults[0]!))
 })
 
 test('remains deterministic and cache-safe across repeated normalizations', () => {

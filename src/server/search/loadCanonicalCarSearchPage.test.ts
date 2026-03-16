@@ -180,7 +180,7 @@ test("loads canonical car pages through the shared /api/search response path", a
   assert.equal(response.ui.summary.searchTitle, "LAX airport car rentals");
   assert.equal(response.ui.summary.rentalLengthLabel, "5 days");
   assert.equal(response.ui.cards.length, 1);
-  assert.equal(response.ui.cards[0]?.ctaLabel, "Select car");
+  assert.equal(response.ui.cards[0]?.ctaLabel, "View rental");
 });
 
 test("returns an empty renderer-ready UI model when no canonical car results are found", async () => {

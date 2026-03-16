@@ -5,6 +5,12 @@ import {
   parseInventoryId,
 } from '../inventory/inventory-id.ts'
 import {
+  buildCarEntityHref,
+  buildFlightEntityHref,
+  buildHotelEntityHref,
+  isBookableEntityPath,
+} from '../entities/routing.ts'
+import {
   isBookableEntity,
   toBookableEntityFromSearchEntity,
 } from '../booking/bookable-entity.ts'
@@ -257,6 +263,15 @@ export const buildSearchEntitySubtitle = (
   return subtitle || null
 }
 
+const resolveCanonicalHref = (href: unknown, fallback: () => string) => {
+  const normalizedHref = toNullableText(href)
+  if (normalizedHref && isBookableEntityPath(normalizedHref)) {
+    return normalizedHref
+  }
+
+  return fallback()
+}
+
 const assertSearchEntity = <TEntity extends SearchEntity>(entity: TEntity): TEntity => {
   const vertical = entity.vertical
   if (!isSearchEntity(entity)) {
@@ -340,7 +355,7 @@ export const toFlightSearchEntity = (
     title,
     subtitle,
     imageUrl: toNullableText(context.imageUrl),
-    href: toNullableText(context.href),
+    href: resolveCanonicalHref(context.href, () => buildFlightEntityHref(inventoryId)),
     payload: {
       providerInventoryId: toFiniteInteger(source.itineraryId),
       airlineCode: carrier,
@@ -414,7 +429,7 @@ export const toHotelSearchEntity = (
     title,
     subtitle,
     imageUrl: toNullableText(context.imageUrl) ?? toNullableText(source.image),
-    href: toNullableText(context.href),
+    href: resolveCanonicalHref(context.href, () => buildHotelEntityHref(inventoryId)),
     payload: {
       providerInventoryId: toFiniteInteger(source.inventoryId),
       hotelId,
@@ -498,7 +513,7 @@ export const toCarSearchEntity = (
     title,
     subtitle,
     imageUrl: toNullableText(context.imageUrl) ?? toNullableText(source.image),
-    href: toNullableText(context.href),
+    href: resolveCanonicalHref(context.href, () => buildCarEntityHref(inventoryId)),
     payload: {
       providerInventoryId: toFiniteInteger(source.inventoryId),
       providerLocationId,

@@ -1,3 +1,4 @@
+import { buildHotelEntityHref } from "~/lib/entities/routing";
 import { formatMoneyFromCents, toAmountFromCents } from "~/lib/pricing/price-display";
 import { computeNights } from "~/lib/search/hotels/dates";
 import type { HotelSearchRequest, SearchResultsApiMetadata } from "~/types/search";
@@ -153,8 +154,7 @@ const buildPriceModel = (result: HotelSearchEntity) => {
 
 const buildDetailHref = (result: HotelSearchEntity) => {
   if (toText(result.href)) return result.href;
-  const hotelSlug = toText(result.payload.hotelSlug);
-  return hotelSlug ? `/hotels/${encodeURIComponent(hotelSlug)}` : null;
+  return buildHotelEntityHref(result);
 };
 
 export const mapHotelSearchSummaryForUi = (

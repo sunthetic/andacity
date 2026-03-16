@@ -1,3 +1,4 @@
+import { buildCarEntityHref } from "~/lib/entities/routing";
 import { formatMoneyFromCents, toAmountFromCents } from "~/lib/pricing/price-display";
 import { computeDays } from "~/lib/search/car-rentals/dates";
 import type { CarSearchRequest, SearchResultsApiMetadata } from "~/types/search";
@@ -192,26 +193,30 @@ export const mapCarSearchSummaryForUi = (
 export const mapCarResultCardForUi = (
   result: CarSearchEntity,
   request: CarSearchRequest,
-): CarResultCardModel => ({
-  id: result.inventoryId,
-  vehicleName: buildVehicleName(result),
-  categoryLabel: buildCategoryLabel(result),
-  brandLabel: buildBrandLabel(result),
-  providerLabel: toText(result.payload.providerMetadata?.providerName),
-  pickupCode: request.airport,
-  dropoffCode: request.airport,
-  pickupDateLabel: formatIsoDateLabel(request.pickupDate),
-  dropoffDateLabel: formatIsoDateLabel(request.dropoffDate),
-  rentalLengthLabel: buildRentalLengthLabel(computeDays(request.pickupDate, request.dropoffDate)),
-  transmissionLabel: buildTransmissionLabel(result),
-  passengerLabel: buildPassengerLabel(result),
-  baggageLabel: buildBaggageLabel(result),
-  cancellationSummary: buildCancellationSummary(result),
-  price: buildPriceModel(result),
-  ctaLabel: "Select car",
-  ctaHref: null,
-  ctaDisabled: true,
-});
+): CarResultCardModel => {
+  const detailHref = toText(result.href) || buildCarEntityHref(result);
+
+  return {
+    id: result.inventoryId,
+    vehicleName: buildVehicleName(result),
+    categoryLabel: buildCategoryLabel(result),
+    brandLabel: buildBrandLabel(result),
+    providerLabel: toText(result.payload.providerMetadata?.providerName),
+    pickupCode: request.airport,
+    dropoffCode: request.airport,
+    pickupDateLabel: formatIsoDateLabel(request.pickupDate),
+    dropoffDateLabel: formatIsoDateLabel(request.dropoffDate),
+    rentalLengthLabel: buildRentalLengthLabel(computeDays(request.pickupDate, request.dropoffDate)),
+    transmissionLabel: buildTransmissionLabel(result),
+    passengerLabel: buildPassengerLabel(result),
+    baggageLabel: buildBaggageLabel(result),
+    cancellationSummary: buildCancellationSummary(result),
+    price: buildPriceModel(result),
+    ctaLabel: "View rental",
+    ctaHref: detailHref,
+    ctaDisabled: false,
+  };
+};
 
 export const mapCarResultsForUi = (input: {
   request: CarSearchRequest;

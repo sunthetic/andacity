@@ -9,9 +9,13 @@ const searchEntityModule: typeof import("~/lib/search/search-entity.ts") = await
 const helperModule: typeof import("./mapFlightResultsForUi.ts") = await import(
   new URL("./mapFlightResultsForUi.ts", import.meta.url).href
 );
+const routingModule: typeof import("~/lib/entities/routing.ts") = await import(
+  new URL("../../lib/entities/routing.ts", import.meta.url).href
+);
 
 const { toFlightSearchEntity } = searchEntityModule;
 const { mapFlightResultsForUi } = helperModule;
+const { buildFlightEntityHref } = routingModule;
 
 const buildFlightEntity = (
   overrides: Omit<Partial<FlightSearchEntity>, "payload" | "metadata"> & {
@@ -111,6 +115,7 @@ test("maps one-way canonical flight results into summary and card models", () =>
   assert.ok(ui.summary.metadataBadges.includes("Source: flight-test-provider"));
 
   assert.equal(ui.cards.length, 1);
+  const detailHref = buildFlightEntityHref(buildFlightEntity());
   assert.deepEqual(ui.cards[0], {
     id: ui.cards[0]?.id,
     airlineLabel: "Delta",
@@ -131,9 +136,9 @@ test("maps one-way canonical flight results into summary and card models", () =>
       currency: "USD",
       display: "$318",
     },
-    ctaLabel: "Select flight",
-    ctaHref: null,
-    ctaDisabled: true,
+    ctaLabel: "View flight",
+    ctaHref: detailHref,
+    ctaDisabled: false,
   });
 });
 

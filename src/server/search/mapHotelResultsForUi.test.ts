@@ -9,9 +9,13 @@ const searchEntityModule: typeof import("~/lib/search/search-entity.ts") = await
 const helperModule: typeof import("./mapHotelResultsForUi.ts") = await import(
   new URL("./mapHotelResultsForUi.ts", import.meta.url).href
 );
+const routingModule: typeof import("~/lib/entities/routing.ts") = await import(
+  new URL("../../lib/entities/routing.ts", import.meta.url).href
+);
 
 const { toHotelSearchEntity } = searchEntityModule;
 const { mapHotelResultsForUi } = helperModule;
+const { buildHotelEntityHref } = routingModule;
 
 const buildHotelEntity = (
   overrides: Omit<Partial<HotelSearchEntity>, "payload" | "metadata"> & {
@@ -129,6 +133,7 @@ test("maps canonical hotel results into summary and hotel card models", () => {
   assert.ok(ui.summary.metadataBadges.includes("Source: hotel-test-provider"));
 
   assert.equal(ui.cards.length, 1);
+  const detailHref = buildHotelEntityHref(buildHotelEntity());
   assert.deepEqual(ui.cards[0], {
     id: ui.cards[0]?.id,
     hotelName: "Ace Hotel Las Vegas",
@@ -149,9 +154,9 @@ test("maps canonical hotel results into summary and hotel card models", () => {
       nightlyDisplay: "$229 / night",
     },
     imageUrl: "/img/hotel.jpg",
-    detailHref: "/hotels/ace-hotel-las-vegas",
+    detailHref,
     ctaLabel: "View details",
-    ctaHref: "/hotels/ace-hotel-las-vegas",
+    ctaHref: detailHref,
     ctaDisabled: false,
   });
 });
@@ -254,5 +259,5 @@ test("maps partial normalized hotel entities without crashing", () => {
   assert.equal(ui.cards[0]?.cancellationSummary, null);
   assert.equal(ui.cards[0]?.policySummary, null);
   assert.equal(ui.cards[0]?.price.totalDisplay, "Price unavailable");
-  assert.equal(ui.cards[0]?.ctaDisabled, true);
+  assert.equal(ui.cards[0]?.ctaDisabled, false);
 });

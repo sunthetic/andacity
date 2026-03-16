@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const helperModule: typeof import("./carResultsRendererModel.ts") = await import(
-  new URL("./carResultsRendererModel.ts", import.meta.url).href
-);
+const helperModule: typeof import("./carResultsRendererModel.ts") =
+  await import(new URL("./carResultsRendererModel.ts", import.meta.url).href);
 
 const { resolveCarResultsRendererModel } = helperModule;
 
@@ -59,9 +58,9 @@ const buildSuccessPage = (cardCount = 1) => ({
         totalDisplay: "$427 total",
         supportingDisplay: "$67 / day base rate",
       },
-      ctaLabel: "Select car",
-      ctaHref: null,
-      ctaDisabled: true,
+      ctaLabel: "View rental",
+      ctaHref: "/cars/rental/lax-airport/2026-05-10T10-00/2026-05-15T10-00/suv",
+      ctaDisabled: false,
     })),
   },
 });
@@ -76,7 +75,8 @@ test("returns a loading renderer state while the canonical route is navigating",
     state: "loading",
     loading: {
       title: "Loading car results",
-      description: "Checking vehicle availability, policies, and total pricing for this airport.",
+      description:
+        "Checking vehicle availability, policies, and total pricing for this airport.",
       placeholderCount: 3,
     },
   });
@@ -95,7 +95,8 @@ test("returns an empty renderer state with revise-search actions", () => {
   assert.equal(model.summary.rentalLengthLabel, "5 days");
   assert.deepEqual(model.empty, {
     title: "No cars were found for this search.",
-    description: "Try different dates, a nearby airport, or another pickup location.",
+    description:
+      "Try different dates, a nearby airport, or another pickup location.",
     primaryAction: {
       label: "Revise search",
       href: "/car-rentals?q=LAX&pickupDate=2026-05-10&dropoffDate=2026-05-15",
@@ -112,7 +113,8 @@ test("returns a partial renderer state while more provider batches are loading",
     {
       ...buildSuccessPage(2),
       progress: {
-        endpoint: "/api/search?incremental=1&route=%2Fcars%2Fsearch%2FLAX%2F2026-05-10%2F2026-05-15",
+        endpoint:
+          "/api/search?incremental=1&route=%2Fcars%2Fsearch%2FLAX%2F2026-05-10%2F2026-05-15",
         searchKey: "car:LAX:2026-05-10:2026-05-15",
         status: "partial" as const,
         cursor: 1,
@@ -152,7 +154,8 @@ test("returns a safe error renderer state for malformed route failures", () => {
     state: "error",
     error: {
       title: "This car search link is incomplete.",
-      description: "The URL did not match a supported Andacity car search route.",
+      description:
+        "The URL did not match a supported Andacity car search route.",
       statusLabel: "HTTP 400",
       routeLabel: null,
       retryHref: "/cars/search/not-a-valid-route",
@@ -175,5 +178,5 @@ test("returns a results renderer state with stable card count and summary", () =
 
   assert.equal(model.summary.searchTitle, "LAX airport car rentals");
   assert.equal(model.cards.length, 2);
-  assert.ok(model.cards.every((card) => card.ctaLabel === "Select car"));
+  assert.ok(model.cards.every((card) => card.ctaLabel === "View rental"));
 });
