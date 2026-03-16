@@ -1,137 +1,85 @@
 import { component$ } from "@builder.io/qwik";
-import { routeLoader$, type RequestHandler } from "@builder.io/qwik-city";
+import {
+  routeLoader$,
+  useLocation,
+  type DocumentHead,
+  type RequestHandler,
+} from "@builder.io/qwik-city";
+import { CarResultsRenderer } from "~/components/search/cars/CarResultsRenderer";
+import { resolveCarResultsRendererModel } from "~/components/search/cars/carResultsRendererModel";
 import { Page } from "~/components/site/Page";
-import { loadCanonicalCarSearch } from "~/server/search/loadCanonicalCarSearch";
-
-const formatPayload = (value: unknown) => JSON.stringify(value, null, 2);
+import { loadCanonicalCarSearchPage } from "~/server/search/loadCanonicalCarSearchPage";
 
 export const onRequest: RequestHandler = ({ headers }) => {
   headers.set("x-robots-tag", "noindex, follow");
 };
 
 export const useCanonicalCarSearchPage = routeLoader$(async ({ status, url }) => {
-  const result = await loadCanonicalCarSearch(url);
+  const result = await loadCanonicalCarSearchPage(url);
   status(result.status);
   return result;
 });
 
 export default component$(() => {
   const data = useCanonicalCarSearchPage().value;
+  const location = useLocation();
+  const currentPath = `${location.url.pathname}${location.url.search}`;
+  const rendererModel = resolveCarResultsRendererModel(data, {
+    isLoading: location.isNavigating,
+    currentPath,
+  });
+  const breadcrumbLabel =
+    "error" in data || location.isNavigating ? "Search results" : data.ui.summary.searchTitle;
 
   return (
     <Page
       breadcrumbs={[
         { label: "Andacity Travel", href: "/" },
         { label: "Cars", href: "/car-rentals" },
-        { label: "Search", href: "/car-rentals/in" },
+        { label: "Search", href: "/car-rentals" },
+        { label: breadcrumbLabel, href: location.url.pathname },
       ]}
     >
-      <div class="mt-4">
-        <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
-          Canonical car search
-        </h1>
-        <p class="mt-2 max-w-[80ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-          Placeholder renderer for canonical airport pickup car search routes
-          backed by the shared search pipeline.
-        </p>
-      </div>
-
-      {"error" in data ? (
-        <section class="mt-8 rounded-3xl border border-[color:var(--color-danger-border,#f1b3b8)] bg-[color:var(--color-danger-surface,#fff5f5)] p-6">
-          <div class="flex flex-wrap items-center gap-3">
-            <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
-              Search request error
-            </h2>
-            <span class="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-text-muted)]">
-              HTTP {data.status}
-            </span>
-          </div>
-
-          <p class="mt-3 text-sm text-[color:var(--color-text-muted)]">
-            Invalid canonical car routes return structured validation payloads.
-          </p>
-
-          <pre class="mt-5 overflow-x-auto rounded-2xl bg-[color:var(--color-surface)] p-4 text-xs leading-6 text-[color:var(--color-text-strong)]">
-            {formatPayload({ error: data.error })}
-          </pre>
-        </section>
-      ) : (
-        <section class="mt-8 grid gap-6 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-          <div class="rounded-3xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6">
-            <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
-              Search summary
-            </h2>
-
-            <dl class="mt-5 space-y-4 text-sm">
-              <div>
-                <dt class="font-medium text-[color:var(--color-text-muted)]">
-                  Airport
-                </dt>
-                <dd class="mt-1 text-[color:var(--color-text-strong)]">
-                  {data.request.airport}
-                </dd>
-              </div>
-              <div>
-                <dt class="font-medium text-[color:var(--color-text-muted)]">
-                  Pickup
-                </dt>
-                <dd class="mt-1 text-[color:var(--color-text-strong)]">
-                  {data.request.pickupDate}
-                </dd>
-              </div>
-              <div>
-                <dt class="font-medium text-[color:var(--color-text-muted)]">
-                  Dropoff
-                </dt>
-                <dd class="mt-1 text-[color:var(--color-text-strong)]">
-                  {data.request.dropoffDate}
-                </dd>
-              </div>
-              <div>
-                <dt class="font-medium text-[color:var(--color-text-muted)]">
-                  Total results
-                </dt>
-                <dd class="mt-1 text-[color:var(--color-text-strong)]">
-                  {data.metadata.totalResults}
-                </dd>
-              </div>
-              <div>
-                <dt class="font-medium text-[color:var(--color-text-muted)]">
-                  Providers queried
-                </dt>
-                <dd class="mt-1 text-[color:var(--color-text-strong)]">
-                  {data.metadata.providersQueried.join(", ") || "None"}
-                </dd>
-              </div>
-              <div>
-                <dt class="font-medium text-[color:var(--color-text-muted)]">
-                  Search time
-                </dt>
-                <dd class="mt-1 text-[color:var(--color-text-strong)]">
-                  {data.metadata.searchTime}ms
-                </dd>
-              </div>
-            </dl>
-          </div>
-
-          <div class="rounded-3xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6">
-            <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
-              Canonical response payload
-            </h2>
-            <p class="mt-3 text-sm text-[color:var(--color-text-muted)]">
-              Exact <code>{"{ results, metadata }"}</code> response shape
-              returned by the canonical car search loader.
-            </p>
-
-            <pre class="mt-5 overflow-x-auto rounded-2xl bg-[color:var(--color-bg-subtle,#f6f6f2)] p-4 text-xs leading-6 text-[color:var(--color-text-strong)]">
-              {formatPayload({
-                results: data.results,
-                metadata: data.metadata,
-              })}
-            </pre>
-          </div>
-        </section>
-      )}
+      <CarResultsRenderer model={rendererModel} />
     </Page>
   );
 });
+
+export const head: DocumentHead = ({ resolveValue, url }) => {
+  const data = resolveValue(useCanonicalCarSearchPage);
+
+  if ("error" in data) {
+    return {
+      title: "Car search results | Andacity",
+      meta: [
+        {
+          name: "description",
+          content: "Review canonical car search results and search status in Andacity.",
+        },
+        {
+          name: "robots",
+          content: "noindex,follow,max-image-preview:large",
+        },
+      ],
+    };
+  }
+
+  const title = `${data.ui.summary.searchTitle} | Andacity`;
+  const description = `Browse car rental results for ${data.request.airport} pickup and dropoff from ${data.request.pickupDate} to ${data.request.dropoffDate}.`;
+
+  return {
+    title,
+    meta: [
+      { name: "description", content: description },
+      { name: "robots", content: "noindex,follow,max-image-preview:large" },
+      { property: "og:type", content: "website" },
+      { property: "og:title", content: title },
+      { property: "og:description", content: description },
+      { property: "og:url", content: url.href },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: title },
+      { name: "twitter:description", content: description },
+    ],
+    links: [{ rel: "canonical", href: url.href }],
+  };
+};

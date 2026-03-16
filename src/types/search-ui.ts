@@ -1,4 +1,5 @@
 import type {
+  CarSearchRequest,
   FlightSearchRequest,
   HotelSearchRequest,
   SearchResultsApiError,
@@ -197,3 +198,103 @@ export type HotelResultsRendererModel =
 export type CanonicalHotelSearchPageError = SearchResultsApiError["error"];
 
 export type CanonicalHotelSearchAttempt = HotelSearchRequest | undefined;
+
+export type CarSearchSummaryModel = {
+  searchTitle: string;
+  pickupCode: string;
+  dropoffCode: string;
+  pickupDateLabel: string;
+  dropoffDateLabel: string;
+  rentalLengthDays: number | null;
+  rentalLengthLabel: string;
+  resultCount: number;
+  resultCountLabel: string;
+  statusLabel: string;
+  metadataBadges: string[];
+};
+
+export type CarResultCardModel = {
+  id: string;
+  vehicleName: string;
+  categoryLabel: string;
+  brandLabel: string;
+  providerLabel?: string | null;
+  pickupCode: string;
+  dropoffCode: string;
+  pickupDateLabel: string;
+  dropoffDateLabel: string;
+  rentalLengthLabel: string;
+  transmissionLabel: string;
+  passengerLabel: string;
+  baggageLabel: string;
+  cancellationSummary: string;
+  price: {
+    totalAmount?: number | null;
+    dailyAmount?: number | null;
+    currency: string | null;
+    totalDisplay: string;
+    supportingDisplay?: string | null;
+  };
+  ctaLabel: string;
+  ctaHref?: string | null;
+  ctaDisabled?: boolean;
+};
+
+export type CarResultsPageUiModel = {
+  summary: CarSearchSummaryModel;
+  cards: CarResultCardModel[];
+};
+
+export type CarResultsEmptyStateModel = {
+  title: string;
+  description: string;
+  primaryAction: {
+    label: string;
+    href: string;
+  };
+  secondaryAction?: {
+    label: string;
+    href: string;
+  };
+};
+
+export type CarResultsErrorStateModel = {
+  title: string;
+  description: string;
+  statusLabel: string;
+  routeLabel?: string | null;
+  retryHref: string;
+  retryLabel: string;
+  backToSearchHref: string;
+  backToSearchLabel: string;
+};
+
+export type CarResultsLoadingStateModel = {
+  title: string;
+  description: string;
+  placeholderCount: number;
+};
+
+export type CarResultsRendererModel =
+  | {
+      state: "loading";
+      loading: CarResultsLoadingStateModel;
+    }
+  | {
+      state: "error";
+      error: CarResultsErrorStateModel;
+    }
+  | {
+      state: "empty";
+      summary: CarSearchSummaryModel;
+      empty: CarResultsEmptyStateModel;
+    }
+  | {
+      state: "results";
+      summary: CarSearchSummaryModel;
+      cards: CarResultCardModel[];
+    };
+
+export type CanonicalCarSearchPageError = SearchResultsApiError["error"];
+
+export type CanonicalCarSearchAttempt = CarSearchRequest | undefined;
