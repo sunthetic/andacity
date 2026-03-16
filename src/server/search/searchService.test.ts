@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import type { ProviderAdapter } from '~/lib/providers/providerAdapter'
+import type { CanonicalLocation } from '~/types/location'
 
 const cacheModule: typeof import('~/lib/search/search-cache.ts') = await import(
   new URL('../../lib/search/search-cache.ts', import.meta.url).href
@@ -14,7 +15,7 @@ const searchServiceModule: typeof import('./searchService.ts') = await import(
 )
 
 const { clearSearchCache } = cacheModule
-const { toFlightSearchEntity } = searchEntityModule
+const { toCarSearchEntity, toFlightSearchEntity } = searchEntityModule
 const { SearchExecutionError, executeSearchRequest } = searchServiceModule
 
 test.beforeEach(() => {
@@ -43,6 +44,51 @@ const buildFlightEntity = () =>
     {
       departDate: '2026-05-10',
       priceAmountCents: 31800,
+      snapshotTimestamp: '2026-03-14T12:00:00.000Z',
+    },
+  )
+
+const buildAirportLocation = (airportCode = 'LAX'): CanonicalLocation => ({
+  locationId: `airport:${airportCode}`,
+  searchSlug: airportCode.toLowerCase(),
+  kind: 'airport',
+  cityId: 1,
+  airportId: 1,
+  regionId: 1,
+  citySlug: 'los-angeles-ca-us',
+  cityName: 'Los Angeles',
+  airportName: 'Los Angeles International Airport',
+  airportCode,
+  primaryAirportCode: airportCode,
+  stateOrProvinceName: 'California',
+  stateOrProvinceCode: 'CA',
+  countryName: 'United States',
+  countryCode: 'US',
+  displayName: `Los Angeles International Airport (${airportCode})`,
+})
+
+const buildCarEntity = () =>
+  toCarSearchEntity(
+    {
+      inventoryId: 777,
+      locationId: 'lax-airport',
+      slug: 'hertz-lax-standard',
+      name: 'Hertz',
+      pickupArea: 'LAX Terminal B',
+      vehicleName: 'Toyota RAV4',
+      category: 'SUV',
+      transmission: 'Automatic',
+      seats: 5,
+      priceFrom: 72,
+      currency: 'usd',
+      image: '/img/car.jpg',
+    },
+    {
+      providerLocationId: 'lax-airport',
+      pickupDateTime: '2026-05-10T10:00',
+      dropoffDateTime: '2026-05-15T10:00',
+      vehicleClass: 'suv',
+      priceAmountCents: 7200,
       snapshotTimestamp: '2026-03-14T12:00:00.000Z',
     },
   )
@@ -124,13 +170,62 @@ test('returns structured location errors before provider execution when a canoni
       ),
     (error: unknown) => {
       assert.ok(error instanceof SearchExecutionError)
-      assert.equal(error.code, 'location_not_found')
+      assert.equal(error.code, 'LOCATION_NOT_FOUND')
       assert.equal(error.status, 404)
       return true
     },
   )
 
   assert.equal(searchCalls, 0)
+})
+
+test('uses airport pickup dates to build canonical car cache keys and reuse car results', async () => {
+  let searchCalls = 0
+  const provider: ProviderAdapter = {
+    provider: 'car-test-provider',
+    async search(params) {
+      searchCalls += 1
+      assert.equal(params.vertical, 'car')
+      assert.equal(params.pickupLocation, 'LAX')
+      assert.equal(params.dropoffLocation, 'LAX')
+      assert.equal(params.pickupDate, '2026-05-10')
+      assert.equal(params.dropoffDate, '2026-05-15')
+      assert.equal(params.departDate, '2026-05-10')
+      assert.equal(params.returnDate, '2026-05-15')
+      assert.equal(params.pickupLocationData?.airportCode, 'LAX')
+      return [buildCarEntity()]
+    },
+    async resolveInventory() {
+      return null
+    },
+    async fetchPrice() {
+      return null
+    },
+  }
+
+  const request = {
+    type: 'car' as const,
+    airport: 'LAX',
+    pickupDate: '2026-05-10',
+    dropoffDate: '2026-05-15',
+  }
+
+  const first = await executeSearchRequest(request, {
+    getProvider: () => provider,
+    resolveLocationBySearchSlug: async () => buildAirportLocation(),
+  })
+  const second = await executeSearchRequest(request, {
+    getProvider: () => provider,
+    resolveLocationBySearchSlug: async () => buildAirportLocation(),
+  })
+
+  assert.equal(first.cacheHit, false)
+  assert.equal(second.cacheHit, true)
+  assert.equal(first.provider, 'car-test-provider')
+  assert.equal(first.searchKey, 'car:LAX:2026-05-10:2026-05-15')
+  assert.equal(second.searchKey, first.searchKey)
+  assert.equal(searchCalls, 1)
+  assert.deepEqual(second.results, first.results)
 })
 
 test('returns provider_unavailable when no adapter is registered for the search vertical', async () => {
@@ -140,8 +235,8 @@ test('returns provider_unavailable when no adapter is registered for the search 
         {
           type: 'car',
           airport: 'LAX',
-          departDate: '2026-05-10',
-          returnDate: '2026-05-15',
+          pickupDate: '2026-05-10',
+          dropoffDate: '2026-05-15',
         },
         {
           getProvider: () => null,
@@ -150,7 +245,7 @@ test('returns provider_unavailable when no adapter is registered for the search 
       ),
     (error: unknown) => {
       assert.ok(error instanceof SearchExecutionError)
-      assert.equal(error.code, 'provider_unavailable')
+      assert.equal(error.code, 'PROVIDER_UNAVAILABLE')
       assert.equal(error.field, 'type')
       return true
     },

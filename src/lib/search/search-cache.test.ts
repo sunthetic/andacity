@@ -189,6 +189,17 @@ test('ignores irrelevant hotel UI state and normalizes list filters', () => {
   assert.equal(first, second)
 })
 
+test('builds compact airport-based cache keys for canonical car routes', () => {
+  const key = getSearchCacheKey('car', {
+    pickupLocation: 'LAX',
+    pickupDate: '2026-05-10',
+    dropoffDate: '2026-05-15',
+    pickupType: 'airport',
+  })
+
+  assert.equal(key, 'car:LAX:2026-05-10:2026-05-15')
+})
+
 test('stores and returns canonical search entities', () => {
   const entity = buildHotelEntity()
   const params = {

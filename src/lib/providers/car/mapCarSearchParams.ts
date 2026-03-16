@@ -191,11 +191,11 @@ export const mapCarSearchParams = (
   }
 
   const pickup = resolveDateTime(
-    params.departDate || params.checkInDate,
+    params.pickupDate || params.departDate || params.checkInDate,
     'pickupDate',
   )
   const dropoff = resolveDateTime(
-    params.returnDate || params.checkOutDate,
+    params.dropoffDate || params.returnDate || params.checkOutDate,
     'dropoffDate',
   )
 

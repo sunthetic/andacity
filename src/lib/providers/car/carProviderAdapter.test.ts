@@ -114,8 +114,8 @@ test('maps canonical car search params into a provider request shape', () => {
     vertical: 'car',
     pickupLocation: 'phoenix',
     dropoffLocation: 'Phoenix',
-    departDate: '2026-04-01',
-    returnDate: '2026-04-05',
+    pickupDate: '2026-04-01',
+    dropoffDate: '2026-04-05',
     driverAge: 30,
     filters: {
       vehicleClass: ['SUV'],
