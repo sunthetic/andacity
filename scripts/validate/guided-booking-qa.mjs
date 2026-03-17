@@ -128,11 +128,34 @@ const minutesToClock = (value) => {
   return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
 };
 
+const normalizeToken = (value, fallback) => {
+  const text = String(value || "")
+    .trim()
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return text ? text.toLowerCase() : fallback;
+};
+
+const normalizeCarrierToken = (value, fallback) => {
+  const text = String(value || "")
+    .trim()
+    .replace(/[^A-Za-z0-9]+/g, "")
+    .toUpperCase();
+
+  return text || fallback;
+};
+
+const toCanonicalCarDateTime = (value) => `${String(value || "").trim()}T10-00`;
+
 const titleCase = (value) =>
   String(value || "")
     .split(/[-_\s]+/)
     .filter(Boolean)
-    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1).toLowerCase()}`)
+    .map(
+      (part) =>
+        `${part.slice(0, 1).toUpperCase()}${part.slice(1).toLowerCase()}`,
+    )
     .join(" ");
 
 const formatMoney = (cents, currency = "USD") => {
@@ -144,12 +167,35 @@ const formatMoney = (cents, currency = "USD") => {
   }).format(amount);
 };
 
+const toIsoDateLiteral = (value) => {
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  const text = String(value || "").trim();
+  const isoMatch = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoMatch) return isoMatch[1];
+
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return text;
+};
+
 const stripTrailingSlash = (value) => String(value || "").replace(/\/+$/, "");
 
-const toFlightResultsPath = (originSlug, destinationSlug, itineraryType, query) => {
+const toFlightResultsPath = (
+  originSlug,
+  destinationSlug,
+  itineraryType,
+  query,
+) => {
   const sp = new URLSearchParams();
   if (query.depart) sp.set("depart", query.depart);
-  if (itineraryType === "round-trip" && query.return) sp.set("return", query.return);
+  if (itineraryType === "round-trip" && query.return)
+    sp.set("return", query.return);
   if (query.travelers) sp.set("travelers", query.travelers);
   if (query.cabin) sp.set("cabin", query.cabin);
   const qs = sp.toString();
@@ -185,7 +231,8 @@ const toCarSearchPath = (citySlug, pickupDate, dropoffDate, extra = {}) => {
   return qs ? `${pathValue}?${qs}` : pathValue;
 };
 
-const withBaseUrl = (baseUrl, pathname) => `${stripTrailingSlash(baseUrl)}${pathname}`;
+const withBaseUrl = (baseUrl, pathname) =>
+  `${stripTrailingSlash(baseUrl)}${pathname}`;
 
 const readJson = async (response) => {
   const text = await response.text();
@@ -276,7 +323,14 @@ const getCurrentDate = async (client) => {
   return row?.today || formatDate(new Date().toISOString().slice(0, 10));
 };
 
-const findCityFixture = async (client, table, citySlugs, checkIn, checkOut, requireCars) => {
+const findCityFixture = async (
+  client,
+  table,
+  citySlugs,
+  checkIn,
+  checkOut,
+  requireCars,
+) => {
   const stayLength = differenceInDays(checkIn, checkOut);
   const params = [citySlugs, checkIn, stayLength, checkOut];
   const extra = requireCars
@@ -315,7 +369,14 @@ const findCityFixture = async (client, table, citySlugs, checkIn, checkOut, requ
   );
 };
 
-const findHotelOptions = async (client, table, citySlug, checkIn, checkOut, limit = 5) => {
+const findHotelOptions = async (
+  client,
+  table,
+  citySlug,
+  checkIn,
+  checkOut,
+  limit = 5,
+) => {
   const nights = differenceInDays(checkIn, checkOut);
   return queryRows(
     client,
@@ -332,10 +393,21 @@ const findHotelOptions = async (client, table, citySlug, checkIn, checkOut, limi
         h.rating,
         h.review_count as "reviewCount",
         h.free_cancellation as "freeCancellation",
-        h.pay_later as "payLater"
+        h.pay_later as "payLater",
+        offer.name as "roomType",
+        offer.sleeps as "roomSleeps"
       from ${table("hotels")} h
       inner join ${table("cities")} c on c.id = h.city_id
       inner join ${table("hotel_availability_snapshots")} has on has.hotel_id = h.id
+      left join lateral (
+        select
+          ho.name,
+          ho.sleeps
+        from ${table("hotel_offers")} ho
+        where ho.hotel_id = h.id
+        order by ho.price_nightly_cents asc, ho.id asc
+        limit 1
+      ) offer on true
       where c.slug = $1
         and has.check_in_start <= $2::date
         and has.check_in_end >= $2::date
@@ -347,7 +419,14 @@ const findHotelOptions = async (client, table, citySlug, checkIn, checkOut, limi
   );
 };
 
-const findCarOptions = async (client, table, citySlug, pickupDate, dropoffDate, limit = 6) => {
+const findCarOptions = async (
+  client,
+  table,
+  citySlug,
+  pickupDate,
+  dropoffDate,
+  limit = 6,
+) => {
   const rentalDays = differenceInDays(pickupDate, dropoffDate);
   return queryRows(
     client,
@@ -360,15 +439,25 @@ const findCarOptions = async (client, table, citySlug, pickupDate, dropoffDate, 
         c.slug as "citySlug",
         cl.location_type as "locationType",
         cl.name as "locationName",
+        ci.location_id as "locationId",
         ci.from_daily_cents as "priceCents",
         ci.currency_code as "currencyCode",
         ci.score,
         ci.free_cancellation as "freeCancellation",
-        ci.pay_at_counter as "payAtCounter"
+        ci.pay_at_counter as "payAtCounter",
+        offer."vehicleClassKey" as "vehicleClassKey"
       from ${table("car_inventory")} ci
       inner join ${table("car_providers")} cp on cp.id = ci.provider_id
       inner join ${table("cities")} c on c.id = ci.city_id
       inner join ${table("car_locations")} cl on cl.id = ci.location_id
+      left join lateral (
+        select cvc.key as "vehicleClassKey"
+        from ${table("car_offers")} co
+        inner join ${table("car_vehicle_classes")} cvc on cvc.id = co.vehicle_class_id
+        where co.inventory_id = ci.id
+        order by co.price_daily_cents asc, co.id asc
+        limit 1
+      ) offer on true
       where c.slug = $1
         and ci.availability_start <= $2::date
         and ci.availability_end >= $3::date
@@ -424,15 +513,24 @@ const findFlightCandidate = async (
         coalesce(ff.price_cents, fi.base_price_cents) as "priceCents",
         coalesce(ff.currency_code, fi.currency_code) as "currencyCode",
         a.name as "airlineName",
+        a.iata_code as "airlineCode",
+        primary_segment.operating_flight_number as "flightNumber",
         origin.slug as "originSlug",
         origin.name as "originName",
+        origin_airport.iata_code as "originCode",
         destination.slug as "destinationSlug",
-        destination.name as "destinationName"
+        destination.name as "destinationName",
+        destination_airport.iata_code as "destinationCode"
       from ${table("flight_itineraries")} fi
       inner join ${table("flight_routes")} fr on fr.id = fi.route_id
       inner join ${table("cities")} origin on origin.id = fr.origin_city_id
       inner join ${table("cities")} destination on destination.id = fr.destination_city_id
+      inner join ${table("airports")} origin_airport on origin_airport.id = fr.origin_airport_id
+      inner join ${table("airports")} destination_airport on destination_airport.id = fr.destination_airport_id
       inner join ${table("airlines")} a on a.id = fi.airline_id
+      left join ${table("flight_segments")} primary_segment
+        on primary_segment.itinerary_id = fi.id
+       and primary_segment.segment_order = 0
       left join ${table("flight_fares")} ff
         on ff.itinerary_id = fi.id
        and ff.fare_code = 'standard'
@@ -532,14 +630,26 @@ const normalizeFlightHtml = (html, replacements) => {
 };
 
 const buildFlightFingerprint = (html, replacements) =>
-  createHash("sha1").update(normalizeFlightHtml(html, replacements)).digest("hex");
+  createHash("sha1")
+    .update(normalizeFlightHtml(html, replacements))
+    .digest("hex");
 
 const getDistinctAlternative = (options, currentId) =>
-  options.find((entry) => Number(entry.inventoryId || entry.id) !== Number(currentId)) || null;
+  options.find(
+    (entry) => Number(entry.inventoryId || entry.id) !== Number(currentId),
+  ) || null;
 
 const buildHotelCandidatePayload = (hotel, checkIn, checkOut, metadata) => ({
   itemType: "hotel",
-  inventoryId: hotel.id,
+  inventoryId: [
+    "hotel",
+    normalizeToken(hotel.id, "hotel"),
+    checkIn,
+    checkOut,
+    normalizeToken(hotel.roomType, "standard"),
+    String(Math.max(1, Math.min(2, Number(hotel.roomSleeps || 2)))),
+  ].join(":"),
+  providerInventoryId: Number(hotel.id),
   startDate: checkIn,
   endDate: checkOut,
   priceCents: Number(hotel.priceCents),
@@ -556,7 +666,14 @@ const buildHotelCandidatePayload = (hotel, checkIn, checkOut, metadata) => ({
 
 const buildCarCandidatePayload = (car, pickupDate, dropoffDate, metadata) => ({
   itemType: "car",
-  inventoryId: car.id,
+  inventoryId: [
+    "car",
+    normalizeToken(car.locationId, "car-location"),
+    toCanonicalCarDateTime(pickupDate),
+    toCanonicalCarDateTime(dropoffDate),
+    normalizeToken(car.vehicleClassKey, "standard"),
+  ].join(":"),
+  providerInventoryId: Number(car.id),
   startDate: pickupDate,
   endDate: dropoffDate,
   priceCents: Number(car.priceCents),
@@ -573,9 +690,20 @@ const buildCarCandidatePayload = (car, pickupDate, dropoffDate, metadata) => ({
 
 const buildFlightCandidatePayload = (flight, metadata) => ({
   itemType: "flight",
-  inventoryId: flight.id,
-  startDate: flight.serviceDate,
-  endDate: flight.serviceDate,
+  inventoryId: [
+    "flight",
+    normalizeCarrierToken(
+      flight.airlineCode,
+      normalizeCarrierToken(flight.airlineName, "FLIGHT"),
+    ),
+    normalizeCarrierToken(flight.flightNumber, String(flight.id)),
+    toIsoDateLiteral(flight.serviceDate),
+    normalizeCarrierToken(flight.originCode, "ORIGIN"),
+    normalizeCarrierToken(flight.destinationCode, "DESTINATION"),
+  ].join(":"),
+  providerInventoryId: Number(flight.id),
+  startDate: toIsoDateLiteral(flight.serviceDate),
+  endDate: toIsoDateLiteral(flight.serviceDate),
   priceCents: Number(flight.priceCents),
   currencyCode: flight.currencyCode,
   title: flight.airlineName,
@@ -736,10 +864,25 @@ const buildWeekendScenario = async (client, table, http, currentDate) => {
     checkOut,
     true,
   );
-  if (!city) throw new Error("Unable to resolve a weekend leisure city with hotel and car inventory.");
+  if (!city)
+    throw new Error(
+      "Unable to resolve a weekend leisure city with hotel and car inventory.",
+    );
 
-  const hotels = await findHotelOptions(client, table, city.slug, checkIn, checkOut);
-  const cars = await findCarOptions(client, table, city.slug, checkIn, checkOut);
+  const hotels = await findHotelOptions(
+    client,
+    table,
+    city.slug,
+    checkIn,
+    checkOut,
+  );
+  const cars = await findCarOptions(
+    client,
+    table,
+    city.slug,
+    checkIn,
+    checkOut,
+  );
   const hotel = hotels[0];
   const car = cars[0];
   const tripName = `${QA_TRIP_PREFIX} Weekend Leisure`;
@@ -750,14 +893,26 @@ const buildWeekendScenario = async (client, table, http, currentDate) => {
 
   const operations = [];
   if (prepared.tripId) {
-    operations.push(await addItemToTrip(http, prepared.tripId, buildHotelCandidatePayload(hotel, checkIn, checkOut, {
-      qaSuite: "guided-booking",
-      scenario: "weekend-leisure",
-    })));
-    operations.push(await addItemToTrip(http, prepared.tripId, buildCarCandidatePayload(car, checkIn, checkOut, {
-      qaSuite: "guided-booking",
-      scenario: "weekend-leisure",
-    })));
+    operations.push(
+      await addItemToTrip(
+        http,
+        prepared.tripId,
+        buildHotelCandidatePayload(hotel, checkIn, checkOut, {
+          qaSuite: "guided-booking",
+          scenario: "weekend-leisure",
+        }),
+      ),
+    );
+    operations.push(
+      await addItemToTrip(
+        http,
+        prepared.tripId,
+        buildCarCandidatePayload(car, checkIn, checkOut, {
+          qaSuite: "guided-booking",
+          scenario: "weekend-leisure",
+        }),
+      ),
+    );
   }
 
   const trip = prepared.tripId ? await getTrip(http, prepared.tripId) : null;
@@ -842,7 +997,13 @@ const buildBusinessScenario = async (client, table, http, currentDate) => {
   });
   if (!flight) throw new Error("Unable to resolve a business flight fixture.");
 
-  const hotels = await findHotelOptions(client, table, flight.destinationSlug, depart, ret);
+  const hotels = await findHotelOptions(
+    client,
+    table,
+    flight.destinationSlug,
+    depart,
+    ret,
+  );
   const hotel = hotels[0];
   const tripName = `${QA_TRIP_PREFIX} Business Flight + Hotel`;
   const prepared = await ensureTrip(client, table, http, tripName, {
@@ -902,16 +1063,30 @@ const buildBusinessScenario = async (client, table, http, currentDate) => {
       travelers: "1",
     },
   );
-  const hotelSearchPath = toHotelSearchPath(flight.destinationSlug, depart, ret);
+  const hotelSearchPath = toHotelSearchPath(
+    flight.destinationSlug,
+    depart,
+    ret,
+  );
   const pageChecks = [
     await http.fetchText(flightResultsPath),
     await http.fetchText(flightResultsAltPath),
     await http.fetchText(hotelSearchPath),
-    ...(prepared.tripId ? [await http.fetchText(`/trips?trip=${prepared.tripId}`)] : []),
+    ...(prepared.tripId
+      ? [await http.fetchText(`/trips?trip=${prepared.tripId}`)]
+      : []),
   ];
 
-  const flightFingerprint = buildFlightFingerprint(pageChecks[0].text, [depart, ret, comparisonReturn]);
-  const flightFingerprintAlt = buildFlightFingerprint(pageChecks[1].text, [depart, ret, comparisonReturn]);
+  const flightFingerprint = buildFlightFingerprint(pageChecks[0].text, [
+    depart,
+    ret,
+    comparisonReturn,
+  ]);
+  const flightFingerprintAlt = buildFlightFingerprint(pageChecks[1].text, [
+    depart,
+    ret,
+    comparisonReturn,
+  ]);
 
   return {
     key: "business-flight-hotel",
@@ -988,20 +1163,37 @@ const buildBudgetScenario = async (client, table, http, currentDate) => {
     itineraryType: "round-trip",
     strategy: "price",
   });
-  if (!flight) throw new Error("Unable to resolve a budget-trip flight fixture.");
+  if (!flight)
+    throw new Error("Unable to resolve a budget-trip flight fixture.");
 
-  const hotels = await findHotelOptions(client, table, flight.destinationSlug, depart, ret, 4);
+  const hotels = await findHotelOptions(
+    client,
+    table,
+    flight.destinationSlug,
+    depart,
+    ret,
+    4,
+  );
   const hotel = hotels[0];
   const betterRatedHotel = hotels
     .slice()
-    .sort((left, right) => Number(right.rating) - Number(left.rating) || Number(left.priceCents) - Number(right.priceCents))[0];
+    .sort(
+      (left, right) =>
+        Number(right.rating) - Number(left.rating) ||
+        Number(left.priceCents) - Number(right.priceCents),
+    )[0];
   const pageChecks = [
     await http.fetchText(
-      toFlightResultsPath(flight.originSlug, flight.destinationSlug, "round-trip", {
-        depart,
-        return: ret,
-        travelers: "1",
-      }),
+      toFlightResultsPath(
+        flight.originSlug,
+        flight.destinationSlug,
+        "round-trip",
+        {
+          depart,
+          return: ret,
+          travelers: "1",
+        },
+      ),
     ),
     await http.fetchText(
       toHotelSearchPath(flight.destinationSlug, depart, ret, {
@@ -1030,11 +1222,16 @@ const buildBudgetScenario = async (client, table, http, currentDate) => {
           : null,
     },
     urls: {
-      flightResults: toFlightResultsPath(flight.originSlug, flight.destinationSlug, "round-trip", {
-        depart,
-        return: ret,
-        travelers: "1",
-      }),
+      flightResults: toFlightResultsPath(
+        flight.originSlug,
+        flight.destinationSlug,
+        "round-trip",
+        {
+          depart,
+          return: ret,
+          travelers: "1",
+        },
+      ),
       hotelSearch: toHotelSearchPath(flight.destinationSlug, depart, ret, {
         sort: "price-asc",
       }),
@@ -1079,19 +1276,34 @@ const buildLastMinuteScenario = async (client, table, http, currentDate) => {
     itineraryType: "round-trip",
     strategy: "price",
   });
-  if (!flight) throw new Error("Unable to resolve a last-minute flight fixture.");
+  if (!flight)
+    throw new Error("Unable to resolve a last-minute flight fixture.");
 
-  const hotels = await findHotelOptions(client, table, flight.destinationSlug, depart, ret, 4);
+  const hotels = await findHotelOptions(
+    client,
+    table,
+    flight.destinationSlug,
+    depart,
+    ret,
+    4,
+  );
   const hotel = hotels[0];
   const pageChecks = [
     await http.fetchText(
-      toFlightResultsPath(flight.originSlug, flight.destinationSlug, "round-trip", {
-        depart,
-        return: ret,
-        travelers: "1",
-      }),
+      toFlightResultsPath(
+        flight.originSlug,
+        flight.destinationSlug,
+        "round-trip",
+        {
+          depart,
+          return: ret,
+          travelers: "1",
+        },
+      ),
     ),
-    await http.fetchText(toHotelSearchPath(flight.destinationSlug, depart, ret)),
+    await http.fetchText(
+      toHotelSearchPath(flight.destinationSlug, depart, ret),
+    ),
   ];
 
   return {
@@ -1107,11 +1319,16 @@ const buildLastMinuteScenario = async (client, table, http, currentDate) => {
       hotelPrice: formatMoney(hotel.priceCents, hotel.currencyCode),
     },
     urls: {
-      flightResults: toFlightResultsPath(flight.originSlug, flight.destinationSlug, "round-trip", {
-        depart,
-        return: ret,
-        travelers: "1",
-      }),
+      flightResults: toFlightResultsPath(
+        flight.originSlug,
+        flight.destinationSlug,
+        "round-trip",
+        {
+          depart,
+          return: ret,
+          travelers: "1",
+        },
+      ),
       hotelSearch: toHotelSearchPath(flight.destinationSlug, depart, ret),
     },
     flowSteps: [
@@ -1154,10 +1371,25 @@ const buildMultiItemScenario = async (client, table, http, currentDate) => {
     itineraryType: "round-trip",
     strategy: "price",
   });
-  if (!flight) throw new Error("Unable to resolve a multi-item itinerary flight fixture.");
+  if (!flight)
+    throw new Error("Unable to resolve a multi-item itinerary flight fixture.");
 
-  const hotels = await findHotelOptions(client, table, flight.destinationSlug, depart, ret, 5);
-  const cars = await findCarOptions(client, table, flight.destinationSlug, depart, ret, 6);
+  const hotels = await findHotelOptions(
+    client,
+    table,
+    flight.destinationSlug,
+    depart,
+    ret,
+    5,
+  );
+  const cars = await findCarOptions(
+    client,
+    table,
+    flight.destinationSlug,
+    depart,
+    ret,
+    6,
+  );
   const hotel = hotels[0];
   const car = cars[0];
   const tripName = `${QA_TRIP_PREFIX} Multi-item Replacements`;
@@ -1208,21 +1440,44 @@ const buildMultiItemScenario = async (client, table, http, currentDate) => {
   }
 
   const trip = prepared.tripId ? await getTrip(http, prepared.tripId) : null;
-  const hotelItem = trip?.json?.trip?.items?.find((entry) => entry.itemType === "hotel") || null;
-  const carItem = trip?.json?.trip?.items?.find((entry) => entry.itemType === "car") || null;
+  const hotelItem =
+    trip?.json?.trip?.items?.find((entry) => entry.itemType === "hotel") ||
+    null;
+  const carItem =
+    trip?.json?.trip?.items?.find((entry) => entry.itemType === "car") || null;
   const hotelOptions =
-    prepared.tripId && hotelItem ? await getReplacementOptions(http, prepared.tripId, hotelItem.id) : null;
+    prepared.tripId && hotelItem
+      ? await getReplacementOptions(http, prepared.tripId, hotelItem.id)
+      : null;
   const carOptions =
-    prepared.tripId && carItem ? await getReplacementOptions(http, prepared.tripId, carItem.id) : null;
-  const hotelAlternative = getDistinctAlternative(hotelOptions?.json?.options || [], hotel.id);
-  const carAlternative = getDistinctAlternative(carOptions?.json?.options || [], car.id);
+    prepared.tripId && carItem
+      ? await getReplacementOptions(http, prepared.tripId, carItem.id)
+      : null;
+  const hotelAlternative = getDistinctAlternative(
+    hotelOptions?.json?.options || [],
+    hotel.id,
+  );
+  const carAlternative = getDistinctAlternative(
+    carOptions?.json?.options || [],
+    car.id,
+  );
   const hotelPreview =
     prepared.tripId && hotelItem && hotelAlternative
-      ? await previewReplace(http, prepared.tripId, hotelItem.id, hotelAlternative.candidate)
+      ? await previewReplace(
+          http,
+          prepared.tripId,
+          hotelItem.id,
+          hotelAlternative.candidate,
+        )
       : null;
   const carPreview =
     prepared.tripId && carItem && carAlternative
-      ? await previewReplace(http, prepared.tripId, carItem.id, carAlternative.candidate)
+      ? await previewReplace(
+          http,
+          prepared.tripId,
+          carItem.id,
+          carAlternative.candidate,
+        )
       : null;
 
   return {
@@ -1268,7 +1523,9 @@ const buildMultiItemScenario = async (client, table, http, currentDate) => {
         "Record preview/apply latency and whether the itinerary UI blocks during swaps.",
     },
     automated: {
-      pageChecks: prepared.tripId ? [await http.fetchText(`/trips?trip=${prepared.tripId}`)] : [],
+      pageChecks: prepared.tripId
+        ? [await http.fetchText(`/trips?trip=${prepared.tripId}`)]
+        : [],
       apiChecks: operations
         .concat(trip ? [trip] : [])
         .concat(hotelOptions ? [hotelOptions] : [])
@@ -1290,7 +1547,8 @@ const buildBundleScenario = async (client, table, http, currentDate) => {
     itineraryType: "round-trip",
     strategy: "business",
   });
-  if (!flight) throw new Error("Unable to resolve a bundle-suggestion flight fixture.");
+  if (!flight)
+    throw new Error("Unable to resolve a bundle-suggestion flight fixture.");
 
   const tripName = `${QA_TRIP_PREFIX} Bundle Suggestion Override`;
   const prepared = await ensureTrip(client, table, http, tripName, {
@@ -1325,7 +1583,10 @@ const buildBundleScenario = async (client, table, http, currentDate) => {
   const postManual = await getTrip(http, prepared.tripId);
   operations.push(postManual);
 
-  const suggestion = postManual.json?.trip?.bundling?.suggestions?.find((entry) => entry.itemType === "hotel") || null;
+  const suggestion =
+    postManual.json?.trip?.bundling?.suggestions?.find(
+      (entry) => entry.itemType === "hotel",
+    ) || null;
   let addSuggestion = null;
   let addedTrip = null;
   let replacementOptions = null;
@@ -1333,24 +1594,44 @@ const buildBundleScenario = async (client, table, http, currentDate) => {
   let apply = null;
 
   if (suggestion) {
-    addSuggestion = await addItemToTrip(http, prepared.tripId, suggestion.tripCandidate);
+    addSuggestion = await addItemToTrip(
+      http,
+      prepared.tripId,
+      suggestion.tripCandidate,
+    );
     operations.push(addSuggestion);
     addedTrip = await getTrip(http, prepared.tripId);
     operations.push(addedTrip);
     const hotelItem = addedTrip.json?.trip?.items?.find(
-      (entry) => entry.itemType === "hotel" && Number(entry.hotelId) === Number(suggestion.inventory.inventoryId),
+      (entry) =>
+        entry.itemType === "hotel" &&
+        Number(entry.hotelId) === Number(suggestion.inventory.inventoryId),
     );
     if (hotelItem) {
-      replacementOptions = await getReplacementOptions(http, prepared.tripId, hotelItem.id);
+      replacementOptions = await getReplacementOptions(
+        http,
+        prepared.tripId,
+        hotelItem.id,
+      );
       operations.push(replacementOptions);
       const manualAlternative = getDistinctAlternative(
         replacementOptions.json?.options || [],
         suggestion.inventory.inventoryId,
       );
       if (manualAlternative) {
-        preview = await previewReplace(http, prepared.tripId, hotelItem.id, manualAlternative.candidate);
+        preview = await previewReplace(
+          http,
+          prepared.tripId,
+          hotelItem.id,
+          manualAlternative.candidate,
+        );
         operations.push(preview);
-        apply = await applyReplace(http, prepared.tripId, hotelItem.id, manualAlternative.candidate);
+        apply = await applyReplace(
+          http,
+          prepared.tripId,
+          hotelItem.id,
+          manualAlternative.candidate,
+        );
         operations.push(apply);
       }
     }
@@ -1366,10 +1647,14 @@ const buildBundleScenario = async (client, table, http, currentDate) => {
       depart,
       manualEndDate,
       tripId: prepared.tripId,
-      preManualSuggestionCount: preManual.json?.trip?.bundling?.suggestions?.length || 0,
-      postManualSuggestionCount: postManual.json?.trip?.bundling?.suggestions?.length || 0,
+      preManualSuggestionCount:
+        preManual.json?.trip?.bundling?.suggestions?.length || 0,
+      postManualSuggestionCount:
+        postManual.json?.trip?.bundling?.suggestions?.length || 0,
       manualOverrideSelectionMode:
-        preview?.json?.preview?.bundleImpact?.selectionMode || apply?.json?.preview?.bundleImpact?.selectionMode || null,
+        preview?.json?.preview?.bundleImpact?.selectionMode ||
+        apply?.json?.preview?.bundleImpact?.selectionMode ||
+        null,
     },
     urls: {
       trip: `/trips?trip=${prepared.tripId}`,
@@ -1406,9 +1691,15 @@ const buildBundleScenario = async (client, table, http, currentDate) => {
 
 const collectFindings = (scenarios) => {
   const findings = [];
-  const business = scenarios.find((entry) => entry.key === "business-flight-hotel");
-  const replacements = scenarios.find((entry) => entry.key === "multi-item-itinerary-with-replacements");
-  const allApiChecks = scenarios.flatMap((entry) => entry.automated.apiChecks || []);
+  const business = scenarios.find(
+    (entry) => entry.key === "business-flight-hotel",
+  );
+  const replacements = scenarios.find(
+    (entry) => entry.key === "multi-item-itinerary-with-replacements",
+  );
+  const allApiChecks = scenarios.flatMap(
+    (entry) => entry.automated.apiChecks || [],
+  );
   const mutationChecks = allApiChecks.filter(
     (entry) =>
       typeof entry?.pathname === "string" &&
@@ -1425,7 +1716,8 @@ const collectFindings = (scenarios) => {
   if (business?.automated?.probes?.identicalAfterReturnShift) {
     findings.push({
       severity: "high",
-      title: "Round-trip flight results appear insensitive to return-date changes",
+      title:
+        "Round-trip flight results appear insensitive to return-date changes",
       evidence:
         "The same round-trip results fingerprint was returned after shifting only the return date in the business scenario.",
       followOn:
@@ -1438,18 +1730,24 @@ const collectFindings = (scenarios) => {
     .slice()
     .sort((left, right) => Number(right.elapsedMs) - Number(left.elapsedMs))[0];
   const averageMutationMs =
-    mutationChecks.reduce((sum, entry) => sum + Number(entry.elapsedMs || 0), 0) /
-    Math.max(1, mutationChecks.length);
+    mutationChecks.reduce(
+      (sum, entry) => sum + Number(entry.elapsedMs || 0),
+      0,
+    ) / Math.max(1, mutationChecks.length);
   if (slowestMutation && Number(slowestMutation.elapsedMs) >= 4000) {
     findings.push({
       severity: "high",
-      title: "Trip edit apply latency is too high for confidence-sensitive booking flows",
+      title:
+        "Trip edit apply latency is too high for confidence-sensitive booking flows",
       evidence: `${slowestMutation.pathname} took ${slowestMutation.elapsedMs.toFixed(
         0,
       )}ms in the prepared QA run.`,
       followOn:
         "Reduce trip mutation round-trips or move expensive recomputation off the blocking path so apply/replace stays interactive.",
-      scenarios: ["Multi-item itinerary with replacements", "Smart bundle suggestion with manual override"],
+      scenarios: [
+        "Multi-item itinerary with replacements",
+        "Smart bundle suggestion with manual override",
+      ],
     });
   }
 
@@ -1459,7 +1757,8 @@ const collectFindings = (scenarios) => {
   ) {
     findings.push({
       severity: "medium",
-      title: "Replacement depth is thin for at least one prepared multi-item scenario",
+      title:
+        "Replacement depth is thin for at least one prepared multi-item scenario",
       evidence:
         "One of the replacement panels returned fewer than two credible alternatives during the prepared replacement flow.",
       followOn:
@@ -1469,8 +1768,10 @@ const collectFindings = (scenarios) => {
   }
 
   const averageTripReadMs =
-    tripReadChecks.reduce((sum, entry) => sum + Number(entry.elapsedMs || 0), 0) /
-    Math.max(1, tripReadChecks.length);
+    tripReadChecks.reduce(
+      (sum, entry) => sum + Number(entry.elapsedMs || 0),
+      0,
+    ) / Math.max(1, tripReadChecks.length);
   if (tripReadChecks.length >= 3 && averageTripReadMs >= 1000) {
     findings.push({
       severity: "medium",
@@ -1480,20 +1781,30 @@ const collectFindings = (scenarios) => {
       )}ms across the QA run.`,
       followOn:
         "Profile trip-detail recomputation and trim repeated bundling/revalidation work on read-after-write paths.",
-      scenarios: ["Weekend leisure trip", "Business flight + hotel", "Multi-item itinerary with replacements"],
+      scenarios: [
+        "Weekend leisure trip",
+        "Business flight + hotel",
+        "Multi-item itinerary with replacements",
+      ],
     });
   }
 
   if (mutationChecks.length >= 4 && averageMutationMs >= 1800) {
     findings.push({
       severity: "medium",
-      title: "Trip edits are consistently multi-second, not just the single slowest apply",
+      title:
+        "Trip edits are consistently multi-second, not just the single slowest apply",
       evidence: `Trip mutation endpoints averaged ${averageMutationMs.toFixed(
         0,
       )}ms across add, preview, and apply requests.`,
       followOn:
         "Set an interaction budget for trip edits and instrument the slowest repository paths so future stabilization work has a measurable target.",
-      scenarios: ["Weekend leisure trip", "Business flight + hotel", "Multi-item itinerary with replacements", "Smart bundle suggestion with manual override"],
+      scenarios: [
+        "Weekend leisure trip",
+        "Business flight + hotel",
+        "Multi-item itinerary with replacements",
+        "Smart bundle suggestion with manual override",
+      ],
     });
   }
 
@@ -1530,7 +1841,12 @@ const renderMarkdown = (report) => {
     }
     lines.push("");
   } else {
-    lines.push("## Critical Follow-on Issues", "", "- No automated critical failures were detected in this run.", "");
+    lines.push(
+      "## Critical Follow-on Issues",
+      "",
+      "- No automated critical failures were detected in this run.",
+      "",
+    );
   }
 
   lines.push("## Scenarios", "");
@@ -1574,7 +1890,9 @@ const renderMarkdown = (report) => {
     lines.push("");
     lines.push("Automated observations:");
     for (const entry of scenario.automated.pageChecks || []) {
-      lines.push(`- ${summarizeHttp({ label: entry.pathname, status: entry.status, elapsedMs: entry.elapsedMs })}`);
+      lines.push(
+        `- ${summarizeHttp({ label: entry.pathname, status: entry.status, elapsedMs: entry.elapsedMs })}`,
+      );
     }
     for (const entry of scenario.automated.apiChecks || []) {
       if (!entry || entry.skipped) continue;
@@ -1601,16 +1919,30 @@ const main = async () => {
   const args = parseArgs(process.argv.slice(2));
   const envEntries = await parseEnvFile(path.resolve(args.envFile));
   const databaseUrl =
-    process.env.DATABASE_URL || envEntries.DATABASE_URL || process.env.POSTGRES_URL || envEntries.POSTGRES_URL;
+    process.env.DATABASE_URL ||
+    envEntries.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    envEntries.POSTGRES_URL;
 
   if (!databaseUrl) {
     throw new Error(`DATABASE_URL is missing from ${args.envFile}.`);
   }
 
   const requestedBaseUrl =
-    args.baseUrl || process.env.PUBLIC_BASE_URL || envEntries.PUBLIC_BASE_URL || "http://127.0.0.1:5173";
-  const schema = normalizeSchema(args.schema || process.env.DB_SCHEMA || envEntries.DB_SCHEMA || DEFAULT_SCHEMA);
-  const resolvedBase = await resolveReachableBaseUrl(requestedBaseUrl, args.skipHttp);
+    args.baseUrl ||
+    process.env.PUBLIC_BASE_URL ||
+    envEntries.PUBLIC_BASE_URL ||
+    "http://127.0.0.1:5173";
+  const schema = normalizeSchema(
+    args.schema ||
+      process.env.DB_SCHEMA ||
+      envEntries.DB_SCHEMA ||
+      DEFAULT_SCHEMA,
+  );
+  const resolvedBase = await resolveReachableBaseUrl(
+    requestedBaseUrl,
+    args.skipHttp,
+  );
   const http = createHttpClient(resolvedBase.baseUrl, !args.skipHttp);
   const client = new Client({
     connectionString: databaseUrl,
@@ -1632,11 +1964,19 @@ const main = async () => {
     );
 
     const scenarios = [];
-    scenarios.push(await buildWeekendScenario(client, table, http, currentDate));
-    scenarios.push(await buildBusinessScenario(client, table, http, currentDate));
+    scenarios.push(
+      await buildWeekendScenario(client, table, http, currentDate),
+    );
+    scenarios.push(
+      await buildBusinessScenario(client, table, http, currentDate),
+    );
     scenarios.push(await buildBudgetScenario(client, table, http, currentDate));
-    scenarios.push(await buildLastMinuteScenario(client, table, http, currentDate));
-    scenarios.push(await buildMultiItemScenario(client, table, http, currentDate));
+    scenarios.push(
+      await buildLastMinuteScenario(client, table, http, currentDate),
+    );
+    scenarios.push(
+      await buildMultiItemScenario(client, table, http, currentDate),
+    );
     scenarios.push(await buildBundleScenario(client, table, http, currentDate));
 
     const report = {
@@ -1660,7 +2000,11 @@ const main = async () => {
     }
 
     if (args.writeJson) {
-      await fs.writeFile(path.resolve(args.writeJson), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+      await fs.writeFile(
+        path.resolve(args.writeJson),
+        `${JSON.stringify(report, null, 2)}\n`,
+        "utf8",
+      );
     }
 
     if (args.json) {
@@ -1675,7 +2019,8 @@ const main = async () => {
 };
 
 main().catch((error) => {
-  const message = error instanceof Error ? error.stack || error.message : String(error);
+  const message =
+    error instanceof Error ? error.stack || error.message : String(error);
   process.stderr.write(`${message}\n`);
   process.exit(1);
 });
