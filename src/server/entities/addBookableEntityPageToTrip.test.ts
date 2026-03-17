@@ -108,6 +108,18 @@ const buildTrip = (overrides: Partial<TripDetails> = {}): TripDetails => ({
     },
     verticals: [],
   },
+  revalidation: {
+    status: "all_valid",
+    checkedAt: null,
+    expiresAt: null,
+    itemStatusCounts: {
+      valid: 0,
+      price_changed: 0,
+      unavailable: 0,
+      error: 0,
+    },
+    summary: "All trip items still match the latest live inventory checks.",
+  },
   intelligence: {
     status: "valid_itinerary",
     checkedAt: null,

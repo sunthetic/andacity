@@ -66,7 +66,13 @@ import {
 import { readTripBundlingState } from '~/lib/trips/bundle-explainability'
 import {
   revalidateTripItems,
+  TRIP_REVALIDATION_VALIDITY_WINDOW_MS,
+  readStoredTripItemRevalidation,
+  isStoredTripItemRevalidationFresh,
+  writeStoredTripItemRevalidation,
+  buildTripItemRevalidationMessage,
   type ResolvedTripItemCurrentInventory,
+  type StoredTripItemRevalidationCache,
   type TripItemRevalidationCandidate,
   type TripItemRevalidationResolver,
 } from '~/lib/trips/revalidate-trip-items'
@@ -77,7 +83,10 @@ import {
 } from '~/lib/booking/bookable-entity'
 import { resolveInventoryWithSnapshot } from '~/lib/inventory/resolveInventory'
 import { buildTripEditBundleImpact } from '~/lib/trips/bundle-swap-impact'
-import { buildTripIntelligenceSummary } from '~/lib/trips/status-aggregation'
+import {
+  buildTripIntelligenceSummary,
+  buildTripRevalidationSummary,
+} from '~/lib/trips/status-aggregation'
 import {
   buildCarTripItemAvailabilitySnapshot,
   buildFlightTripItemAvailabilitySnapshot,
@@ -109,6 +118,7 @@ import {
   type TripItemIssue,
   type TripItemCandidate,
   type TripItemRevalidationResult,
+  type TripRevalidationSummary,
   type TripRollbackDraft,
   type TripRollbackItemSnapshot,
   type TripItemType,
@@ -1969,6 +1979,161 @@ const resolveTripItemAvailabilityPreview = async (
   return resolved
 }
 
+const buildTripItemRevalidationExpiry = (checkedAt: string) => {
+  const checkedAtMs = Date.parse(checkedAt)
+  return Number.isFinite(checkedAtMs)
+    ? new Date(checkedAtMs + TRIP_REVALIDATION_VALIDITY_WINDOW_MS).toISOString()
+    : new Date(Date.now() + TRIP_REVALIDATION_VALIDITY_WINDOW_MS).toISOString()
+}
+
+const toResolvedTripItemRevalidation = (
+  item: TripItemRecord,
+  cached: StoredTripItemRevalidationCache,
+): ResolvedTripItemRevalidation => {
+  const result: TripItemRevalidationResult = {
+    itemId: item.id,
+    inventoryId: item.inventoryId,
+    checkedAt: cached.checkedAt,
+    status: cached.status,
+    message:
+      cached.message ||
+      buildTripItemRevalidationMessage({
+        title: item.title,
+        status: cached.status,
+        issues: cached.issues,
+      }),
+    currentPriceCents: cached.currentPriceCents,
+    currentCurrencyCode: cached.currentCurrencyCode,
+    snapshotPriceCents:
+      cached.snapshotPriceCents ?? item.snapshotPriceCents,
+    snapshotCurrencyCode:
+      cached.snapshotCurrencyCode ?? item.snapshotCurrencyCode,
+    priceDeltaCents: cached.priceDeltaCents,
+    isAvailable: cached.isAvailable,
+    issues: cached.issues,
+  }
+
+  return {
+    result,
+    expiresAt: cached.expiresAt,
+  }
+}
+
+const refreshTripItemRevalidation = async (
+  items: TripItemRecord[],
+  now = new Date(),
+) => {
+  const checkedAt = now.toISOString()
+  const expiresAt = buildTripItemRevalidationExpiry(checkedAt)
+  const refreshed = await revalidateTripItems(
+    items.map(toTripItemRevalidationCandidate),
+    tripItemRevalidationResolver,
+    {
+      checkedAt,
+    },
+  )
+  const results = new Map<number, ResolvedTripItemRevalidation>()
+
+  if (!refreshed.length) return results
+
+  const db = getDb()
+  await db.transaction(async (tx) => {
+    for (const item of items) {
+      const result = refreshed.find((candidate) => candidate.itemId === item.id)
+      if (!result) continue
+
+      results.set(item.id, {
+        result,
+        expiresAt,
+      })
+
+      await tx
+        .update(tripItems)
+        .set({
+          metadata: writeStoredTripItemRevalidation(item.metadata, result, {
+            expiresAt,
+          }),
+          updatedAt: new Date(),
+        })
+        .where(eq(tripItems.id, item.id))
+    }
+  })
+
+  return results
+}
+
+const resolveTripItemRevalidation = async (
+  items: TripItemRecord[],
+  mode: 'auto' | 'force',
+) => {
+  const now = new Date()
+  const resolved = new Map<number, ResolvedTripItemRevalidation>()
+  const staleItems: TripItemRecord[] = []
+
+  for (const item of items) {
+    const cached = readStoredTripItemRevalidation(item.metadata)
+    const isFresh = isStoredTripItemRevalidationFresh(cached, now)
+    const shouldRefresh = mode === 'force' || !isFresh || !isLiveInventoryPresent(item)
+
+    if (cached && !shouldRefresh) {
+      resolved.set(item.id, toResolvedTripItemRevalidation(item, cached))
+      continue
+    }
+
+    staleItems.push(item)
+  }
+
+  if (staleItems.length) {
+    const refreshed = await refreshTripItemRevalidation(staleItems, now)
+    for (const [itemId, result] of refreshed.entries()) {
+      resolved.set(itemId, result)
+    }
+  }
+
+  return resolved
+}
+
+const resolveTripItemRevalidationPreview = async (
+  items: TripItemRecord[],
+) => {
+  const now = new Date()
+  const resolved = new Map<number, ResolvedTripItemRevalidation>()
+  const toEvaluate: TripItemRecord[] = []
+
+  for (const item of items) {
+    const cached = readStoredTripItemRevalidation(item.metadata)
+    const isFresh = isStoredTripItemRevalidationFresh(cached, now)
+
+    if (cached && isFresh && isLiveInventoryPresent(item)) {
+      resolved.set(item.id, toResolvedTripItemRevalidation(item, cached))
+      continue
+    }
+
+    toEvaluate.push(item)
+  }
+
+  if (toEvaluate.length) {
+    const checkedAt = now.toISOString()
+    const expiresAt = buildTripItemRevalidationExpiry(checkedAt)
+    const refreshed = await revalidateTripItems(
+      toEvaluate.map(toTripItemRevalidationCandidate),
+      tripItemRevalidationResolver,
+      {
+        checkedAt,
+      },
+    )
+
+    for (const result of refreshed) {
+      resolved.set(result.itemId, {
+        result,
+        expiresAt,
+      })
+    }
+  }
+
+  return resolved
+}
+
 const toItineraryValidationItem = (
   item: TripItemRecord,
   availabilityStatus: TripItemValidityStatus,
@@ -2020,18 +2185,10 @@ const getIssuesForTripItem = (
 
 type CoreTripItemValidityStatus = Exclude<TripItemValidityStatus, 'price_only_changed'>
 
-const BLOCKING_REVALIDATION_CODES = new Set<TripItemIssue['code']>([
-  'inventory_missing',
-  'inventory_unavailable',
-  'inventory_mismatch',
-  'sold_out',
-])
-
-const STALE_REVALIDATION_CODES = new Set<TripItemIssue['code']>([
-  'date_changed',
-  'snapshot_incomplete',
-  'revalidation_failed',
-])
+type ResolvedTripItemRevalidation = {
+  result: TripItemRevalidationResult
+  expiresAt: string | null
+}
 
 const toTripValidationIssue = (
   itemId: number,
@@ -2047,35 +2204,61 @@ const toTripValidationIssue = (
 const toTripValidationIssues = (revalidation: TripItemRevalidationResult | undefined) =>
   revalidation ? revalidation.issues.map((issue) => toTripValidationIssue(revalidation.itemId, issue)) : []
 
+const buildFallbackTripItemRevalidationStatus = (
+  item: TripItemRecord,
+  availability: TripItemAvailabilityValidationResult,
+): TripItemRevalidationResult['status'] => {
+  if (availability.status === 'unavailable') return 'unavailable'
+  if (availability.status === 'stale') return 'error'
+  if (item.priceDriftStatus === 'unavailable' && item.currentPriceCents == null) {
+    return 'error'
+  }
+  if (item.priceDriftStatus === 'increased' || item.priceDriftStatus === 'decreased') {
+    return 'price_changed'
+  }
+  return 'valid'
+}
+
 const buildFallbackTripItemRevalidation = (
   item: TripItemRecord,
   availability: TripItemAvailabilityValidationResult,
-): TripItemRevalidationResult => ({
-  itemId: item.id,
-  inventoryId: item.inventoryId,
-  checkedAt: availability.checkedAt || item.snapshotTimestamp,
-  status: 'ok',
-  currentPriceCents: item.currentPriceCents,
-  currentCurrencyCode: item.currentCurrencyCode,
-  snapshotPriceCents: item.snapshotPriceCents,
-  snapshotCurrencyCode: item.snapshotCurrencyCode,
-  priceDeltaCents: item.priceDriftCents,
-  isAvailable: availability.status === 'unavailable' ? false : availability.status === 'stale' ? null : true,
-  issues: [],
-})
+): TripItemRevalidationResult => {
+  const status = buildFallbackTripItemRevalidationStatus(item, availability)
+
+  return {
+    itemId: item.id,
+    inventoryId: item.inventoryId,
+    checkedAt: availability.checkedAt || item.snapshotTimestamp,
+    status,
+    message: buildTripItemRevalidationMessage({
+      title: item.title,
+      status,
+      issues: [],
+    }),
+    currentPriceCents: item.currentPriceCents,
+    currentCurrencyCode: item.currentCurrencyCode,
+    snapshotPriceCents: item.snapshotPriceCents,
+    snapshotCurrencyCode: item.snapshotCurrencyCode,
+    priceDeltaCents: item.priceDriftCents,
+    isAvailable:
+      availability.status === 'unavailable'
+        ? false
+        : availability.status === 'stale'
+          ? null
+          : true,
+    issues: [],
+  }
+}
 
 const applyRevalidationStatus = (
   status: CoreTripItemValidityStatus,
   revalidation: TripItemRevalidationResult,
 ): CoreTripItemValidityStatus => {
-  if (revalidation.issues.some((issue) => BLOCKING_REVALIDATION_CODES.has(issue.code))) {
+  if (revalidation.status === 'unavailable') {
     return 'unavailable'
   }
 
-  if (
-    status !== 'unavailable' &&
-    revalidation.issues.some((issue) => STALE_REVALIDATION_CODES.has(issue.code))
-  ) {
+  if (status !== 'unavailable' && revalidation.status === 'error') {
     return 'stale'
   }
 
@@ -2112,6 +2295,9 @@ const REVALIDATION_FAILURE_CODES = new Set([
   'availability_snapshot_missing',
   'availability_window_missing',
   'flight_service_date_missing',
+  'inventory_unavailable',
+  'snapshot_incomplete',
+  'revalidation_failed',
 ])
 
 const buildTripItemConfidence = (input: {
@@ -2278,6 +2464,7 @@ const summarizeTrip = (input: {
   metadata: Record<string, unknown>
   updatedAt: Date | string
   items: TripItem[]
+  revalidation: TripRevalidationSummary
   intelligence: TripIntelligenceSummary
   bundling: TripBundlingSummary
 }): TripDetails => {
@@ -2334,6 +2521,7 @@ const summarizeTrip = (input: {
     },
     citiesInvolved: [...citySet],
     pricing,
+    revalidation: input.revalidation,
     intelligence: input.intelligence,
     bundling: input.bundling,
     items: input.items,
@@ -2439,21 +2627,19 @@ const buildTripDetailsFromRecords = async (
       workingItems,
       options.revalidate === 'force' ? 'force' : 'auto',
     )
-  const revalidationByItemId = new Map<number, TripItemRevalidationResult>(
-    (
-      await revalidateTripItems(
-        workingItems.map(toTripItemRevalidationCandidate),
-        tripItemRevalidationResolver,
-      )
-    ).map((result) => [result.itemId, result]),
-  )
+  const revalidationByItemId = options.preview
+    ? await resolveTripItemRevalidationPreview(workingItems)
+    : await resolveTripItemRevalidation(
+      workingItems,
+      options.revalidate === 'force' ? 'force' : 'auto',
+    )
   const itinerary = validateTripItineraryCoherence({
     tripStartDate: base.startDate,
     tripEndDate: base.endDate,
     items: workingItems.map((item) => {
       const availability = availabilityByItemId.get(item.id)
       const revalidation =
-        revalidationByItemId.get(item.id) ||
+        revalidationByItemId.get(item.id)?.result ||
         (availability ? buildFallbackTripItemRevalidation(item, availability) : undefined)
       const pricing = revalidation
         ? resolveTripItemPricingFromRevalidation(item, revalidation)
@@ -2480,10 +2666,11 @@ const buildTripDetailsFromRecords = async (
       item,
       availabilityByItemId.get(item.id),
       itinerary.issues,
-      revalidationByItemId.get(item.id),
+      revalidationByItemId.get(item.id)?.result,
     ),
   )
   const pricing = buildTripPricingSummary(items)
+  const revalidation = buildTripRevalidationSummary({ items })
   const intelligence = buildTripIntelligenceSummary({ items })
   const bundling = await bundlingSuggestionService.buildTripBundlingSummary({
     tripStartDate: base.startDate,
@@ -2508,6 +2695,7 @@ const buildTripDetailsFromRecords = async (
     metadata: base.metadata,
     updatedAt: base.updatedAt,
     items,
+    revalidation,
     intelligence,
     bundling,
   })

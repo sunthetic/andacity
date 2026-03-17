@@ -1222,26 +1222,27 @@ export default component$(() => {
                   <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-                        Trip intelligence
+                        Trip revalidation
                       </p>
                       <p
                         class={[
                           "mt-1 text-sm font-semibold",
-                          intelligenceToneClass(activeTrip.value.intelligence),
+                          tripRevalidationToneClass(
+                            activeTrip.value.revalidation.status,
+                          ),
                         ]}
                       >
-                        {formatTripIntelligenceStatus(
-                          activeTrip.value.intelligence,
+                        {activeTrip.value.revalidation.summary}
+                      </p>
+                      <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                        {formatTripRevalidationMeta(
+                          activeTrip.value.revalidation,
                         )}
                       </p>
                       <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                        {formatTripIntelligenceMeta(
-                          activeTrip.value.intelligence,
-                        )}
-                      </p>
-                      <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                        Revalidate here to refresh trip item and bundle
-                        inventory freshness.
+                        Automatic trip loads reuse fresh revalidation results.
+                        Use the action here to force a new live check across the
+                        whole itinerary.
                       </p>
                     </div>
 
@@ -1266,23 +1267,29 @@ export default component$(() => {
                     />
                   </div>
 
-                  <div class="mt-4 grid gap-3 md:grid-cols-3">
+                  <div class="mt-4 grid gap-3 md:grid-cols-4">
                     <IntelligenceStatCard
-                      label="Availability"
-                      value={formatTripAvailabilitySummary(
-                        activeTrip.value.intelligence,
+                      label="Still valid"
+                      value={activeTrip.value.revalidation.itemStatusCounts.valid.toLocaleString(
+                        "en-US",
                       )}
                     />
                     <IntelligenceStatCard
-                      label="Issues"
-                      value={formatTripIssueSummary(
-                        activeTrip.value.intelligence,
+                      label="Price changed"
+                      value={activeTrip.value.revalidation.itemStatusCounts.price_changed.toLocaleString(
+                        "en-US",
                       )}
                     />
                     <IntelligenceStatCard
-                      label="Freshness"
-                      value={formatTripFreshnessSummary(
-                        activeTrip.value.intelligence,
+                      label="Unavailable"
+                      value={activeTrip.value.revalidation.itemStatusCounts.unavailable.toLocaleString(
+                        "en-US",
+                      )}
+                    />
+                    <IntelligenceStatCard
+                      label="Check issues"
+                      value={activeTrip.value.revalidation.itemStatusCounts.error.toLocaleString(
+                        "en-US",
                       )}
                     />
                   </div>
@@ -2036,9 +2043,9 @@ const TripTimelineItemCard = component$(
             <div class="flex flex-wrap items-center gap-2">
               <span class="t-badge">{formatTimelineItemType(props.item)}</span>
               <span
-                class={availabilityBadgeClass(props.item.availabilityStatus)}
+                class={revalidationBadgeClass(props.item.revalidation.status)}
               >
-                {formatAvailabilityBadge(props.item.availabilityStatus)}
+                {formatRevalidationBadge(props.item.revalidation.status)}
               </span>
               {props.item.locked ? (
                 <span class={timelineCountBadgeClass("neutral")}>Locked</span>
@@ -2098,7 +2105,7 @@ const TripTimelineItemCard = component$(
                       : "text-[color:var(--color-warning)]",
                   ]}
                 >
-                  {props.item.issues[0]?.message}
+                  {props.item.revalidation.message || props.item.issues[0]?.message}
                 </p>
               </div>
             ) : null}
@@ -2183,14 +2190,28 @@ const TripTimelineItemCard = component$(
 
               <div class="grid gap-3">
                 <div class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
-                  <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-                    Price detail
-                  </p>
+                  <div class="flex flex-wrap items-start justify-between gap-2">
+                    <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                      Price detail
+                    </p>
+                    <span class={revalidationBadgeClass(props.item.revalidation.status)}>
+                      {formatRevalidationBadge(props.item.revalidation.status)}
+                    </span>
+                  </div>
                   <p class="mt-2 text-sm font-semibold text-[color:var(--color-text-strong)]">
                     {formatMoneyFromCents(
                       props.item.snapshotPriceCents,
                       props.item.snapshotCurrencyCode,
                     )}
+                  </p>
+                  <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                    Live{" "}
+                    <span class="font-medium text-[color:var(--color-text)]">
+                      {formatTripItemCurrentPrice(props.item)}
+                    </span>
+                  </p>
+                  <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                    Checked {formatDateTime(props.item.revalidation.checkedAt)}
                   </p>
                   {priceDisplay?.baseTotalAmount != null ? (
                     <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
@@ -3107,11 +3128,13 @@ const timelineCountBadgeClass = (tone: TimelineTransitionTone | "neutral") => {
   return "rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]";
 };
 
-const availabilityBadgeClass = (status: TripItem["availabilityStatus"]) => {
+const revalidationBadgeClass = (
+  status: TripItem["revalidation"]["status"],
+) => {
   if (status === "unavailable") {
     return timelineCountBadgeClass("blocking");
   }
-  if (status === "stale") {
+  if (status === "error" || status === "price_changed") {
     return timelineCountBadgeClass("warning");
   }
   return timelineCountBadgeClass("neutral");
@@ -3146,6 +3169,13 @@ const formatAvailabilityBadge = (status: TripItem["availabilityStatus"]) => {
   if (status === "stale") return "Needs recheck";
   if (status === "price_only_changed") return "Price changed";
   return "Available";
+};
+
+const formatRevalidationBadge = (status: TripItem["revalidation"]["status"]) => {
+  if (status === "price_changed") return "Price changed";
+  if (status === "unavailable") return "Unavailable";
+  if (status === "error") return "Check issue";
+  return "Still valid";
 };
 
 const formatTimelineItemType = (item: TripItem) => {
@@ -3431,41 +3461,18 @@ const formatDriftSummary = (trip: TripDetails) => {
   return parts.length ? parts.join(" · ") : "No priced items yet";
 };
 
-const formatTripIntelligenceStatus = (
-  intelligence: TripIntelligenceSummary,
-) => {
-  if (intelligence.status === "blocking_issues_present")
-    return "Blocking issues present";
-  if (intelligence.status === "warnings_present") return "Warnings present";
-  return "Valid itinerary";
-};
-
-const formatTripIntelligenceMeta = (intelligence: TripIntelligenceSummary) => {
-  if (!intelligence.checkedAt) {
-    return "Availability checks run automatically when trip details are loaded.";
+const formatTripRevalidationMeta = (revalidation: TripDetails["revalidation"]) => {
+  if (!revalidation.checkedAt) {
+    return "Trip items will be revalidated when live checks become available.";
   }
 
-  const checked = formatDateTime(intelligence.checkedAt);
-  const expires = intelligence.expiresAt
-    ? formatDateTime(intelligence.expiresAt)
+  const checked = formatDateTime(revalidation.checkedAt);
+  const expires = revalidation.expiresAt
+    ? formatDateTime(revalidation.expiresAt)
     : null;
   return expires
     ? `Checked ${checked} · refresh by ${expires}`
     : `Checked ${checked}`;
-};
-
-const formatTripAvailabilitySummary = (
-  intelligence: TripIntelligenceSummary,
-) => {
-  const counts = intelligence.itemStatusCounts;
-  const parts: string[] = [];
-
-  const availableCount = counts.valid + counts.price_only_changed;
-  if (availableCount) parts.push(`${availableCount} available`);
-  if (counts.stale) parts.push(`${counts.stale} need recheck`);
-  if (counts.unavailable) parts.push(`${counts.unavailable} unavailable`);
-
-  return parts.length ? parts.join(" · ") : "No items yet";
 };
 
 const formatTripIssueSummary = (intelligence: TripIntelligenceSummary) => {
@@ -3480,9 +3487,16 @@ const formatTripIssueSummary = (intelligence: TripIntelligenceSummary) => {
   return parts.length ? parts.join(" · ") : "No itinerary issues";
 };
 
-const formatTripFreshnessSummary = (intelligence: TripIntelligenceSummary) => {
-  if (!intelligence.expiresAt) return "Revalidate to refresh live availability";
-  return `Next refresh by ${formatDateTime(intelligence.expiresAt)}`;
+const tripRevalidationToneClass = (
+  status: TripDetails["revalidation"]["status"],
+) => {
+  if (status === "errors_present" || status === "unavailable_items_present") {
+    return "text-[color:var(--color-error)]";
+  }
+  if (status === "price_changes_present") {
+    return "text-[color:var(--color-warning)]";
+  }
+  return "text-[color:var(--color-success,#0f766e)]";
 };
 
 const formatTripBundlingSummary = (trip: TripDetails) => {
@@ -3508,16 +3522,6 @@ const formatTripPricingSupport = (trip: TripDetails) => {
     ? " Some hotel or car items were added without dates, so those entries still use unit pricing."
     : "";
   return `${base}${partial} Estimated taxes and fees stay on the item when supplier data is incomplete.`;
-};
-
-const intelligenceToneClass = (intelligence: TripIntelligenceSummary) => {
-  if (intelligence.status === "blocking_issues_present") {
-    return "text-[color:var(--color-error)]";
-  }
-  if (intelligence.status === "warnings_present") {
-    return "text-[color:var(--color-warning)]";
-  }
-  return "text-[color:var(--color-success,#0f766e)]";
 };
 
 const getHighestIssueSeverity = (issues: TripValidationIssue[]) => {
@@ -3632,6 +3636,17 @@ const formatItemDrift = (item: TripItem) => {
     item.priceDriftCents || 0,
     item.currentCurrencyCode,
   )})`;
+};
+
+const formatTripItemCurrentPrice = (item: TripItem) => {
+  if (item.revalidation.currentPriceCents == null || !item.revalidation.currentCurrencyCode) {
+    return "Unavailable";
+  }
+
+  return formatMoneyFromCents(
+    item.revalidation.currentPriceCents,
+    item.revalidation.currentCurrencyCode,
+  );
 };
 
 const driftToneClass = (status: TripPriceDriftStatus) => {

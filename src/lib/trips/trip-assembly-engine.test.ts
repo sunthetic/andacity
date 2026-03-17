@@ -66,7 +66,8 @@ const buildTripItem = (overrides: Partial<TripItem> = {}): TripItem => ({
       occupancy: 2,
     }),
     checkedAt: NOW,
-    status: 'ok',
+    status: 'valid',
+    message: 'Ace Hotel still matches the saved inventory snapshot.',
     currentPriceCents: null,
     currentCurrencyCode: null,
     snapshotPriceCents: 84900,
@@ -130,6 +131,18 @@ const buildTripDetails = (overrides: Partial<TripDetails> = {}): TripDetails => 
       unavailable: 0,
     },
     verticals: [],
+  },
+  revalidation: {
+    status: 'all_valid',
+    checkedAt: NOW,
+    expiresAt: null,
+    itemStatusCounts: {
+      valid: 0,
+      price_changed: 0,
+      unavailable: 0,
+      error: 0,
+    },
+    summary: 'All trip items still match the latest live inventory checks.',
   },
   intelligence: {
     status: 'valid_itinerary',

@@ -56,12 +56,22 @@ export type TripItemIssue = {
 };
 
 export const TRIP_ITEM_REVALIDATION_STATUSES = [
-  "ok",
-  "warning",
-  "blocking",
+  "valid",
+  "price_changed",
+  "unavailable",
+  "error",
 ] as const;
 export type TripItemRevalidationStatus =
   (typeof TRIP_ITEM_REVALIDATION_STATUSES)[number];
+
+export const TRIP_REVALIDATION_SUMMARY_STATUSES = [
+  "all_valid",
+  "price_changes_present",
+  "unavailable_items_present",
+  "errors_present",
+] as const;
+export type TripRevalidationSummaryStatus =
+  (typeof TRIP_REVALIDATION_SUMMARY_STATUSES)[number];
 
 export const TRIP_INTELLIGENCE_STATUSES = [
   "valid_itinerary",
@@ -271,6 +281,7 @@ export type TripItemRevalidationResult = {
   inventoryId: string | null;
   checkedAt: string;
   status: TripItemRevalidationStatus;
+  message: string | null;
   currentPriceCents: number | null;
   currentCurrencyCode: string | null;
   snapshotPriceCents: number | null;
@@ -278,6 +289,14 @@ export type TripItemRevalidationResult = {
   priceDeltaCents: number | null;
   isAvailable: boolean | null;
   issues: TripItemIssue[];
+};
+
+export type TripRevalidationSummary = {
+  status: TripRevalidationSummaryStatus;
+  checkedAt: string | null;
+  expiresAt: string | null;
+  itemStatusCounts: Record<TripItemRevalidationStatus, number>;
+  summary: string;
 };
 
 export type TripEditingState = {
@@ -393,6 +412,7 @@ export type TripDetails = TripListItem & {
   editing: TripEditingState;
   citiesInvolved: string[];
   pricing: TripPricingSummary;
+  revalidation: TripRevalidationSummary;
   intelligence: TripIntelligenceSummary;
   bundling: TripBundlingSummary;
   items: TripItem[];

@@ -72,7 +72,8 @@ const buildTripItem = (overrides: Partial<TripItem>): TripItem => {
       itemId: 1,
       inventoryId: "hotel:test",
       checkedAt: "2026-03-16T09:00:00.000Z",
-      status: "ok",
+      status: "valid",
+      message: "Base item still matches the saved inventory snapshot.",
       currentPriceCents: 10000,
       currentCurrencyCode: "USD",
       snapshotPriceCents: 10000,
@@ -141,6 +142,18 @@ const buildTripDetails = (items: TripItem[]): TripDetails => {
         unavailable: 0,
       },
       verticals: [],
+    },
+    revalidation: {
+      status: "all_valid",
+      checkedAt: "2026-03-16T09:00:00.000Z",
+      expiresAt: "2026-03-16T15:00:00.000Z",
+      itemStatusCounts: {
+        valid: items.length,
+        price_changed: 0,
+        unavailable: 0,
+        error: 0,
+      },
+      summary: "All trip items still match the latest live inventory checks.",
     },
     intelligence: {
       status: "valid_itinerary",

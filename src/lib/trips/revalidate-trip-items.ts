@@ -4,6 +4,10 @@ import {
   normalizeTripItemSnapshotPriceCents,
 } from '~/lib/trips/trip-item-snapshot'
 import type { PriceDriftStatus } from '~/types/pricing'
+import {
+  TRIP_ITEM_ISSUE_CODES,
+  TRIP_ITEM_REVALIDATION_STATUSES,
+} from '~/types/trips/trip'
 import type {
   TripItemIssue,
   TripItemIssueCode,
@@ -66,9 +70,28 @@ type BuildTripItemRevalidationIssueInput = {
   detail?: string | null
 }
 
+const TRIP_INTELLIGENCE_METADATA_KEY = 'trip_intelligence'
+const REVALIDATION_CACHE_KEY = 'revalidation'
+
+export const TRIP_REVALIDATION_VALIDITY_WINDOW_MS = 1000 * 60 * 60 * 6
+
+export type StoredTripItemRevalidationCache = {
+  checkedAt: string
+  expiresAt: string
+  status: TripItemRevalidationStatus
+  message: string | null
+  currentPriceCents: number | null
+  currentCurrencyCode: string | null
+  snapshotPriceCents: number | null
+  snapshotCurrencyCode: string | null
+  priceDeltaCents: number | null
+  isAvailable: boolean | null
+  issues: TripItemIssue[]
+}
+
 const DEFAULT_SEVERITY_BY_CODE: Record<TripItemIssueCode, TripItemIssueSeverity> = {
   inventory_missing: 'blocking',
-  inventory_unavailable: 'blocking',
+  inventory_unavailable: 'warning',
   sold_out: 'blocking',
   price_changed: 'warning',
   currency_changed: 'warning',
@@ -78,16 +101,47 @@ const DEFAULT_SEVERITY_BY_CODE: Record<TripItemIssueCode, TripItemIssueSeverity>
   revalidation_failed: 'warning',
 }
 
+const UNAVAILABLE_REVALIDATION_CODES = new Set<TripItemIssueCode>([
+  'inventory_missing',
+  'sold_out',
+  'date_changed',
+  'inventory_mismatch',
+])
+
+const ERROR_REVALIDATION_CODES = new Set<TripItemIssueCode>([
+  'inventory_unavailable',
+  'snapshot_incomplete',
+  'revalidation_failed',
+])
+
+const PRICE_CHANGED_REVALIDATION_CODES = new Set<TripItemIssueCode>([
+  'price_changed',
+  'currency_changed',
+])
+
 const normalizeInventoryIdValue = (value: string | null | undefined) => {
   const text = String(value ?? '').trim()
   return text ? text : null
 }
 
-const normalizeCurrencyCode = (value: string | null | undefined) =>
+const normalizeCurrencyCode = (value: unknown) =>
   normalizeTripItemSnapshotCurrencyCode(value)
 
-const normalizePriceCents = (value: number | null | undefined) =>
+const normalizePriceCents = (value: unknown) =>
   normalizeTripItemSnapshotPriceCents(value)
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+const toIsoTimestamp = (value: unknown) => {
+  const date = new Date(String(value ?? ''))
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+const toBooleanOrNull = (value: unknown) => {
+  if (value === true || value === false) return value
+  return null
+}
 
 const toIsoDate = (value: string | null | undefined) => {
   const text = String(value ?? '').trim()
@@ -120,6 +174,35 @@ const dedupeIssues = (issues: TripItemIssue[]) => {
   }
 
   return next
+}
+
+const isTripItemIssueCode = (value: unknown): value is TripItemIssueCode =>
+  typeof value === 'string' &&
+  (TRIP_ITEM_ISSUE_CODES as readonly string[]).includes(value)
+
+const isTripItemRevalidationStatus = (
+  value: unknown,
+): value is TripItemRevalidationStatus =>
+  typeof value === 'string' &&
+  (TRIP_ITEM_REVALIDATION_STATUSES as readonly string[]).includes(value)
+
+const toTripItemIssue = (value: unknown): TripItemIssue | null => {
+  if (!isRecord(value)) return null
+
+  const code = isTripItemIssueCode(value.code) ? value.code : null
+  const severity =
+    value.severity === 'blocking' || value.severity === 'warning'
+      ? value.severity
+      : null
+  const message = String(value.message ?? '').trim()
+
+  if (!code || !severity || !message) return null
+
+  return {
+    code,
+    severity,
+    message,
+  }
 }
 
 const resolveSnapshotIncompleteSeverity = (missingFields: string[]) =>
@@ -331,9 +414,119 @@ export const getTripItemRevalidationStatus = (
   input: TripItemIssue[] | { issues: TripItemIssue[] },
 ): TripItemRevalidationStatus => {
   const issues = Array.isArray(input) ? input : input.issues
-  if (issues.some((issue) => issue.severity === 'blocking')) return 'blocking'
-  if (issues.length) return 'warning'
-  return 'ok'
+  if (issues.some((issue) => UNAVAILABLE_REVALIDATION_CODES.has(issue.code))) {
+    return 'unavailable'
+  }
+  if (issues.some((issue) => ERROR_REVALIDATION_CODES.has(issue.code))) {
+    return 'error'
+  }
+  if (issues.some((issue) => PRICE_CHANGED_REVALIDATION_CODES.has(issue.code))) {
+    return 'price_changed'
+  }
+  return 'valid'
+}
+
+export const buildTripItemRevalidationMessage = (input: {
+  title: string
+  status: TripItemRevalidationStatus
+  issues: TripItemIssue[]
+}) => {
+  if (input.issues[0]?.message) return input.issues[0].message
+
+  if (input.status === 'price_changed') {
+    return `${input.title} price changed since you added it to this trip.`
+  }
+
+  if (input.status === 'unavailable') {
+    return `${input.title} is no longer available for the saved inventory snapshot.`
+  }
+
+  if (input.status === 'error') {
+    return `${input.title} could not be revalidated right now.`
+  }
+
+  return `${input.title} still matches the saved inventory snapshot.`
+}
+
+export const readStoredTripItemRevalidation = (
+  metadata: Record<string, unknown>,
+): StoredTripItemRevalidationCache | null => {
+  const root = metadata[TRIP_INTELLIGENCE_METADATA_KEY]
+  if (!isRecord(root)) return null
+
+  const cached = root[REVALIDATION_CACHE_KEY]
+  if (!isRecord(cached)) return null
+
+  const checkedAt = toIsoTimestamp(cached.checkedAt)
+  const expiresAt = toIsoTimestamp(cached.expiresAt)
+  const status = isTripItemRevalidationStatus(cached.status) ? cached.status : null
+  const issues = Array.isArray(cached.issues)
+    ? cached.issues
+        .map((issue) => toTripItemIssue(issue))
+        .filter((issue): issue is TripItemIssue => issue != null)
+    : []
+
+  if (!checkedAt || !expiresAt || !status) return null
+
+  return {
+    checkedAt,
+    expiresAt,
+    status,
+    message: String(cached.message ?? '').trim() || null,
+    currentPriceCents: normalizePriceCents(cached.currentPriceCents),
+    currentCurrencyCode: normalizeCurrencyCode(cached.currentCurrencyCode),
+    snapshotPriceCents: normalizePriceCents(cached.snapshotPriceCents),
+    snapshotCurrencyCode: normalizeCurrencyCode(cached.snapshotCurrencyCode),
+    priceDeltaCents: normalizePriceCents(cached.priceDeltaCents),
+    isAvailable: toBooleanOrNull(cached.isAvailable),
+    issues: dedupeIssues(issues),
+  }
+}
+
+export const isStoredTripItemRevalidationFresh = (
+  cache: StoredTripItemRevalidationCache | null,
+  now = new Date(),
+) => {
+  if (!cache) return false
+  const expiresAt = Date.parse(cache.expiresAt)
+  return Number.isFinite(expiresAt) && expiresAt > now.getTime()
+}
+
+export const writeStoredTripItemRevalidation = (
+  metadata: Record<string, unknown>,
+  result: TripItemRevalidationResult,
+  options: {
+    expiresAt?: Date | string | null
+  } = {},
+) => {
+  const root = isRecord(metadata[TRIP_INTELLIGENCE_METADATA_KEY])
+    ? { ...(metadata[TRIP_INTELLIGENCE_METADATA_KEY] as Record<string, unknown>) }
+    : {}
+  const checkedAt = normalizeRevalidationTimestamp(result.checkedAt)
+  const checkedAtMs = Date.parse(checkedAt)
+  const fallbackExpiresAt =
+    Number.isFinite(checkedAtMs)
+      ? new Date(checkedAtMs + TRIP_REVALIDATION_VALIDITY_WINDOW_MS).toISOString()
+      : new Date(Date.now() + TRIP_REVALIDATION_VALIDITY_WINDOW_MS).toISOString()
+
+  root[REVALIDATION_CACHE_KEY] = {
+    checkedAt,
+    expiresAt: toIsoTimestamp(options.expiresAt) || fallbackExpiresAt,
+    status: result.status,
+    message: result.message,
+    currentPriceCents: result.currentPriceCents,
+    currentCurrencyCode: result.currentCurrencyCode,
+    snapshotPriceCents: result.snapshotPriceCents,
+    snapshotCurrencyCode: result.snapshotCurrencyCode,
+    priceDeltaCents: result.priceDeltaCents,
+    isAvailable: result.isAvailable,
+    issues: result.issues,
+  }
+
+  return {
+    ...metadata,
+    [TRIP_INTELLIGENCE_METADATA_KEY]: root,
+  }
 }
 
 export const isTripItemInventoryMissing = (
@@ -459,12 +652,18 @@ const buildEmptyResult = (input: {
   const issues = dedupeIssues(input.issues)
   const snapshotCurrencyCode = normalizeCurrencyCode(input.snapshotCurrencyCode)
   const snapshotPriceCents = normalizePriceCents(input.snapshotPriceCents)
+  const status = getTripItemRevalidationStatus(issues)
 
   return {
     itemId: input.item.itemId,
     inventoryId: input.inventoryId,
     checkedAt: input.checkedAt,
-    status: getTripItemRevalidationStatus(issues),
+    status,
+    message: buildTripItemRevalidationMessage({
+      title: input.item.title,
+      status,
+      issues,
+    }),
     currentPriceCents,
     currentCurrencyCode,
     snapshotPriceCents,
