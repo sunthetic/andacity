@@ -62,6 +62,7 @@ export type FlightSearchEntitySource = {
 
 export type FlightSearchEntityContext = {
   departDate?: string | null
+  canonicalFlightNumber?: string | number | null
   priceAmountCents?: number | null
   snapshotTimestamp?: string | null
   imageUrl?: string | null
@@ -341,8 +342,10 @@ export const toFlightSearchEntity = (
   context: FlightSearchEntityContext = {},
 ): FlightSearchEntity<FlightSearchEntityPayload> => {
   const carrier = toNullableText(source.airlineCode) ?? toNullableText(source.airline)
-  const flightNumber =
-    toNullableText(source.flightNumber) ??
+  const flightNumber = toNullableText(source.flightNumber)
+  const canonicalFlightNumber =
+    toNullableText(context.canonicalFlightNumber) ??
+    flightNumber ??
     toNullableText(source.id) ??
     (source.itineraryId != null ? String(source.itineraryId) : null)
   const departDate = resolveFlightDepartDate(source, context)
@@ -350,7 +353,7 @@ export const toFlightSearchEntity = (
   const destinationCode = resolveFlightDestinationCode(source)
   const inventoryId = buildFlightInventoryId({
     airlineCode: carrier || '',
-    flightNumber: flightNumber || '',
+    flightNumber: canonicalFlightNumber || '',
     departDate: departDate || '',
     originCode: originCode || toNullableText(source.origin) || '',
     destinationCode: destinationCode || toNullableText(source.destination) || '',

@@ -4164,6 +4164,16 @@ export async function addItemToTrip(
         bookableEntity: options.bookableEntity,
       })
 
+      const existingDuplicate = await tx
+        .select({ id: tripItems.id })
+        .from(tripItems)
+        .where(and(eq(tripItems.tripId, tripId), eq(tripItems.inventoryId, snapshot.inventoryId)))
+        .limit(1)
+
+      if (existingDuplicate[0]?.id) {
+        return
+      }
+
       const [positionRow] = await tx
         .select({
           maxPosition: sql<number>`coalesce(max(${tripItems.position}), -1)::int`,

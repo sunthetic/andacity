@@ -174,7 +174,7 @@ test("creates a persisted trip when no explicit trip context is present", async 
 
   assert.equal(result.trip.id, 10);
   assert.equal(result.tripResolution, "created_trip");
-  assert.equal(result.duplicatePolicy, "allow");
+  assert.equal(result.duplicatePolicy, "ignore_existing");
   assert.equal(capturedCreateName, "Trip for Ace Hotel");
   assert.equal(capturedTripId, 10);
 });

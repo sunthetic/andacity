@@ -642,6 +642,8 @@ const findOfferMatch = (
   return (
     offers.find((offer) => matchesLegacyOffer(offer, parsedInventory)) ||
     offers.find((offer) => offer.roomTypeToken === parsedInventory.roomType) ||
+    offers.find((offer) => offer.roomSleeps >= parsedInventory.occupancy) ||
+    offers[0] ||
     null
   )
 }

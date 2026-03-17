@@ -1,5 +1,6 @@
 import { toBookableEntityFromSearchEntity } from '~/lib/booking/bookable-entity'
 import { parseInventoryId } from '~/lib/inventory/inventory-id'
+import { toHotelSearchEntity } from '~/lib/search/search-entity'
 import type { HotelBookableEntity } from '~/types/bookable-entity'
 import type { PriceQuote } from '~/types/pricing'
 import { HOTEL_PROVIDER_NAME } from './constants.ts'
@@ -7,7 +8,14 @@ import type {
   HotelProviderPriceResponse,
   HotelProviderRawOffer,
 } from './hotelProviderClient.ts'
-import { normalizeHotelSearchResult } from './normalizeHotelSearchResult.ts'
+import {
+  buildHotelPriceSummary,
+  buildHotelPropertySummary,
+  buildHotelProviderMetadata,
+  buildHotelProviderPolicy,
+  buildHotelRoomSummary,
+  normalizeHotelSearchResult,
+} from './normalizeHotelSearchResult.ts'
 
 type NormalizeHotelInventoryOptions = {
   providerName?: string
@@ -57,22 +65,63 @@ export const normalizeHotelInventory = (
     return null
   }
 
-  const searchEntity = normalizeHotelSearchResult(
-    offer,
-    {
-      vertical: 'hotel',
-      destination: offer.citySlug,
-      checkInDate: offer.checkInDate,
-      checkOutDate: offer.checkOutDate,
-      occupancy: offer.occupancy,
-    },
-    {
-      providerName: options.providerName || HOTEL_PROVIDER_NAME,
-      snapshotTimestamp:
-        toNullableText(options.snapshotTimestamp) ??
-        toNullableText(offer.freshnessTimestamp),
-    },
-  )
+  const providerName = options.providerName || HOTEL_PROVIDER_NAME
+  const snapshotTimestamp =
+    toNullableText(options.snapshotTimestamp) ??
+    toNullableText(offer.freshnessTimestamp)
+  const searchEntity = parsedInventory.isProviderScoped
+    ? normalizeHotelSearchResult(
+        offer,
+        {
+          vertical: 'hotel',
+          destination: offer.citySlug,
+          checkInDate: offer.checkInDate,
+          checkOutDate: offer.checkOutDate,
+          occupancy: offer.occupancy,
+        },
+        {
+          providerName,
+          snapshotTimestamp,
+        },
+      )
+    : toHotelSearchEntity(
+        {
+          inventoryId: offer.hotelId,
+          slug: offer.hotelSlug,
+          name: offer.hotelName,
+          neighborhood: offer.neighborhood,
+          stars: offer.stars,
+          rating: offer.rating,
+          reviewCount: offer.reviewCount,
+          priceFrom: Number((offer.totalPriceCents / 100).toFixed(2)),
+          currency: offer.currencyCode,
+          image: offer.imageUrl,
+        },
+        {
+          checkInDate: offer.checkInDate,
+          checkOutDate: offer.checkOutDate,
+          occupancy: offer.occupancy,
+          roomType: parsedInventory.roomType,
+          providerOfferId: offer.providerOfferId,
+          ratePlanId: offer.ratePlanId,
+          ratePlan: offer.ratePlan,
+          boardType: offer.boardType,
+          cancellationPolicy: offer.cancellationPolicy,
+          policy: buildHotelProviderPolicy(offer),
+          priceSummary: buildHotelPriceSummary(offer),
+          propertySummary: buildHotelPropertySummary(offer),
+          roomSummary: buildHotelRoomSummary(offer),
+          inclusions: Array.isArray(offer.inclusions)
+            ? offer.inclusions.map((entry) => String(entry))
+            : null,
+          providerMetadata: buildHotelProviderMetadata(offer, providerName),
+          priceAmountCents: offer.totalPriceCents,
+          snapshotTimestamp,
+          imageUrl: offer.imageUrl,
+          href: `/hotels/${encodeURIComponent(offer.hotelSlug)}`,
+          provider: offer.brandName || providerName,
+        },
+      )
 
   if (!searchEntity) return null
 

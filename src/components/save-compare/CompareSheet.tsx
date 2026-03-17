@@ -1,4 +1,4 @@
-import { component$, useSignal } from '@builder.io/qwik'
+import { component$, useSignal, useTask$ } from '@builder.io/qwik'
 import { compareFieldDefinitions, COMPARE_MISMATCH_LOG_PREFIX, verticalCompareTitle } from '~/lib/save-compare/compare-state'
 import { useDecisioning } from '~/components/save-compare/DecisioningProvider'
 import { SaveButton } from '~/components/save-compare/SaveButton'
@@ -12,7 +12,9 @@ const loggedMismatchKeys = new Set<string>()
 export const CompareSheet = component$((props: CompareSheetProps) => {
   const decisioning = useDecisioning()
   const openSignal = useSignal(props.open)
-  openSignal.value = props.open
+  useTask$(({ track }) => {
+    openSignal.value = track(() => props.open)
+  })
   const { overlayRef, initialFocusRef } = useOverlayBehavior({
     open: openSignal,
     onClose$: decisioning.closeCompare$,

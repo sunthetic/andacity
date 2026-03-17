@@ -1508,7 +1508,7 @@ export default component$(() => {
                 >
                   Retry trips
                 </AsyncPendingButton>
-                <a class="t-btn-ghost px-4 py-2 text-sm" href="/search/hotels">
+                <a class="t-btn-ghost px-4 py-2 text-sm" href="/hotels">
                   Search hotels
                 </a>
               </div>
@@ -1525,16 +1525,16 @@ export default component$(() => {
               <div class="mt-4 flex flex-wrap gap-2">
                 <a
                   class="t-btn-primary px-4 py-2 text-sm"
-                  href="/search/hotels"
+                  href="/hotels"
                 >
                   Search hotels
                 </a>
-                <a class="t-btn-ghost px-4 py-2 text-sm" href="/search/flights">
+                <a class="t-btn-ghost px-4 py-2 text-sm" href="/flights">
                   Search flights
                 </a>
                 <a
                   class="t-btn-ghost px-4 py-2 text-sm"
-                  href="/search/car-rentals"
+                  href="/car-rentals"
                 >
                   Search car rentals
                 </a>

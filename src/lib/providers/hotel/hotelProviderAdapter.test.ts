@@ -190,6 +190,27 @@ test('normalizes a resolved provider hotel offer into a canonical bookable entit
   assert.equal(entity?.snapshotTimestamp, '2026-03-13T21:00:00.000Z')
 })
 
+test('preserves legacy hotel inventory ids when a generic room token resolves to a default offer', () => {
+  const inventoryId = buildHotelInventoryId({
+    hotelId: 555,
+    checkInDate: '2026-04-01',
+    checkOutDate: '2026-04-05',
+    roomType: 'standard',
+    occupancy: 2,
+  })
+
+  const entity = normalizeHotelInventory(buildRawOffer(), inventoryId, {
+    providerName: HOTEL_PROVIDER_NAME,
+    snapshotTimestamp: '2026-03-13T21:00:00.000Z',
+  })
+
+  assert.ok(entity)
+  assert.equal(entity?.inventoryId, inventoryId)
+  assert.equal(entity?.payload.providerOfferId, 'ace-flex-king')
+  assert.equal(entity?.payload.providerMetadata?.providerName, HOTEL_PROVIDER_NAME)
+  assert.equal(entity?.payload.roomSummary?.roomName, 'Deluxe King Suite')
+})
+
 test('normalizes a live hotel price into a canonical price quote', () => {
   const quote = normalizeHotelPriceQuote({
     provider: HOTEL_PROVIDER_NAME,

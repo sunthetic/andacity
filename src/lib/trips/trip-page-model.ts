@@ -112,19 +112,19 @@ const FUTURE_ACTIONS: TripPageActionSlot[] = [
   {
     id: "revalidate_trip",
     label: "Revalidate trip",
-    description: "Trip revalidation hooks attach here in TASK-032.",
+    description: "Check every saved item against the latest available inventory.",
   },
   {
     id: "add_more_items",
     label: "Add more items",
-    description: "Trip expansion flows attach here in TASK-033.",
+    description: "Return to search and keep building this itinerary.",
   },
 ];
 
 const REMOVE_ACTION: TripPageActionSlot = {
   id: "remove_item",
   label: "Remove item",
-  description: "Trip item removal hooks attach here in TASK-032.",
+  description: "Remove this saved item from the trip.",
 };
 
 export const mapTripDetailsToTripPageModel = (trip: TripDetails): TripPageModel => {

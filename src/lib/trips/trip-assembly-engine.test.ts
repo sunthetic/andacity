@@ -356,6 +356,51 @@ test('adds a canonical entity to a trip by attaching a matching active booking s
   assert.equal(capturedTripBookingSessionId, 'bks_active')
 })
 
+test('returns the existing trip without creating a duplicate item for the same canonical inventory', async () => {
+  const entity = buildHotelEntity()
+  const currentTrip = buildTripDetails({
+    itemCount: 1,
+    items: [
+      buildTripItem({
+        inventoryId: entity.inventoryId,
+      }),
+    ],
+  })
+
+  let resolvedBookingSession = false
+  let addedItem = false
+  let updatedTripSession = false
+
+  const trip = await addBookableEntityToTrip(
+    {
+      tripId: 7,
+      entity,
+    },
+    {
+      deps: {
+        getTripDetailsFn: async () => currentTrip,
+        getBookingSessionFn: async () => {
+          resolvedBookingSession = true
+          return null
+        },
+        addItemToTripFn: async () => {
+          addedItem = true
+          return currentTrip
+        },
+        setTripBookingSessionFn: async () => {
+          updatedTripSession = true
+          return currentTrip
+        },
+      },
+    },
+  )
+
+  assert.equal(trip, currentTrip)
+  assert.equal(resolvedBookingSession, false)
+  assert.equal(addedItem, false)
+  assert.equal(updatedTripSession, false)
+})
+
 test('falls back to live inventory resolution when a canonical entity has no persisted snapshot price', async () => {
   const currentTrip = buildTripDetails()
   const requestedEntity = buildCarEntity()

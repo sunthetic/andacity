@@ -4,26 +4,26 @@ const FOOTER_LINKS = {
   product: [
     { label: 'Flights', href: '/flights' },
     { label: 'Hotels', href: '/hotels' },
-    { label: 'Car rentals', href: '/cars' },
-    { label: 'Deals', href: '/deals' },
+    { label: 'Car rentals', href: '/car-rentals' },
+    { label: 'Trips', href: '/trips' },
   ],
   explore: [
-    { label: 'Hotel city guides', href: '/hotels/cities' },
+    { label: 'Hotel city guides', href: '/hotels/in' },
+    { label: 'Rental cities', href: '/car-rentals/in' },
     { label: 'Popular destinations', href: '/destinations' },
-    { label: 'Travel tips', href: '/blog' },
-    { label: 'Support', href: '/support' },
+    { label: 'Explore', href: '/explore' },
   ],
-  company: [
-    { label: 'About', href: '/about' },
-    { label: 'Contact', href: '/contact' },
-    { label: 'Partnerships', href: '/partners' },
-    { label: 'Careers', href: '/careers' },
+  planning: [
+    { label: 'Start search', href: '/#global-search-entry' },
+    { label: 'View trips', href: '/trips' },
+    { label: 'Browse flights', href: '/flights' },
+    { label: 'Search hotels', href: '/hotels' },
   ],
-  legal: [
-    { label: 'Privacy', href: '/privacy' },
-    { label: 'Terms', href: '/terms' },
-    { label: 'Cookies', href: '/cookies' },
-    { label: 'Accessibility', href: '/accessibility' },
+  reference: [
+    { label: 'Sitemap', href: '/sitemap.xml' },
+    { label: 'Robots', href: '/robots.txt' },
+    { label: 'Explore', href: '/explore' },
+    { label: 'Destinations', href: '/destinations' },
   ],
 } as const
 
@@ -82,15 +82,15 @@ export const SiteFooter = component$(() => {
             </p>
 
             <div class="mt-5 flex flex-wrap gap-2">
-              <a class="t-btn-primary px-4 py-2 text-sm" href="/search/hotels">
+              <a class="t-btn-primary px-4 py-2 text-sm" href="/hotels">
                 Search hotels
               </a>
               <a
                 class="t-btn-ghost px-4 py-2 text-sm"
-                href="/contact"
-                aria-label="Contact Andacity"
+                href="/explore"
+                aria-label="Explore Andacity destinations"
               >
-                Contact
+                Explore
               </a>
             </div>
 
@@ -131,8 +131,8 @@ export const SiteFooter = component$(() => {
             <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
               <FooterCol title="Product" links={FOOTER_LINKS.product} />
               <FooterCol title="Explore" links={FOOTER_LINKS.explore} />
-              <FooterCol title="Company" links={FOOTER_LINKS.company} />
-              <FooterCol title="Legal" links={FOOTER_LINKS.legal} />
+              <FooterCol title="Planning" links={FOOTER_LINKS.planning} />
+              <FooterCol title="Reference" links={FOOTER_LINKS.reference} />
             </div>
 
             {/* Trust / disclosure strip */}
@@ -142,11 +142,11 @@ export const SiteFooter = component$(() => {
                   Prices and availability can change. We may earn commission from select partners.
                 </p>
                 <div class="flex flex-wrap gap-2">
-                  <a class="t-btn-ghost px-3 py-1.5 text-sm" href="/how-it-works">
-                    How it works
+                  <a class="t-btn-ghost px-3 py-1.5 text-sm" href="/explore">
+                    Explore trips
                   </a>
-                  <a class="t-btn-ghost px-3 py-1.5 text-sm" href="/support">
-                    Get help
+                  <a class="t-btn-ghost px-3 py-1.5 text-sm" href="/trips">
+                    View trips
                   </a>
                 </div>
               </div>
@@ -175,9 +175,9 @@ export const SiteFooter = component$(() => {
             </a>
             <a
               class="text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-strong)]"
-              href="/status"
+              href="/trips"
             >
-              Status
+              Trips
             </a>
           </div>
         </div>

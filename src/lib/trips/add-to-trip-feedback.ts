@@ -1,7 +1,7 @@
 export const ADD_TO_TRIP_CONTEXT_QUERY_PARAM = "trip";
 export const ADD_TO_TRIP_ERROR_QUERY_PARAM = "addToTripError";
 
-export const ADD_TO_TRIP_DUPLICATE_POLICY = "allow" as const;
+export const ADD_TO_TRIP_DUPLICATE_POLICY = "ignore_existing" as const;
 export type AddToTripDuplicatePolicy = typeof ADD_TO_TRIP_DUPLICATE_POLICY;
 
 export const ADD_TO_TRIP_ERROR_CODES = [

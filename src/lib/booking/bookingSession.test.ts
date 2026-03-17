@@ -266,6 +266,64 @@ test('creates an active booking session with canonical entity, live price, and p
   assert.deepEqual(stored, session)
 })
 
+test('keeps canonical flight fallback tokens available for session metadata when the UI flight number is hidden', async () => {
+  const store = createInMemoryBookingSessionStore()
+  const entity = toBookableEntityFromSearchEntity(
+    toFlightSearchEntity(
+      {
+        itineraryId: 321,
+        airline: 'SkyJet',
+        airlineCode: 'SJ',
+        flightNumber: null,
+        serviceDate: '2026-04-01',
+        origin: 'Denver',
+        destination: 'Seattle',
+        originCode: 'DEN',
+        destinationCode: 'SEA',
+        stops: 0,
+        duration: '3h 2m',
+        cabinClass: 'economy',
+        fareCode: 'basic',
+        price: 229,
+        currency: 'USD',
+      },
+      {
+        departDate: '2026-04-01',
+        canonicalFlightNumber: '321',
+        priceAmountCents: 22900,
+        snapshotTimestamp: CHECKED_AT,
+      },
+    ),
+  ) as FlightBookableEntity
+
+  assert.equal(entity.bookingContext.flightNumber, null)
+
+  const session = await createBookingSession(entity.inventoryId, {
+    store,
+    sessionIdFactory: () => 'session-flight-fallback',
+    resolveInventoryRecordFn: async () => ({
+      entity,
+      checkedAt: CHECKED_AT,
+      isAvailable: true,
+    }),
+    detectPriceDriftFn: async () => ({
+      status: 'valid',
+      oldPrice: {
+        currency: 'USD',
+        amount: 229,
+      },
+      newPrice: {
+        currency: 'USD',
+        amount: 229,
+      },
+    }),
+  })
+
+  assert.ok(session)
+  assert.equal(session.providerMetadata.flightNumber, '321')
+  assert.equal(validateBookingSession(session, { now: CHECKED_AT }), true)
+})
+
 test('returns null when inventory cannot be resolved or is unavailable', async () => {
   const store = createInMemoryBookingSessionStore()
   const entity = buildHotelEntity()

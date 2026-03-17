@@ -30,14 +30,14 @@ export const onPost: RequestHandler = async ({ request, redirect, url }) => {
     formData.get("tripId")?.toString(),
   );
 
+  let resolvedTripId!: number;
   try {
     const result = await addBookableEntityPageToTrip({
       vertical: "flight",
       route: url,
       preferredTripId: tripId,
     });
-
-    throw redirect(303, `/trips/${result.trip.id}`);
+    resolvedTripId = result.trip.id;
   } catch (error) {
     const code =
       error instanceof AddBookableEntityToTripError
@@ -54,9 +54,11 @@ export const onPost: RequestHandler = async ({ request, redirect, url }) => {
       }),
     );
   }
+
+  throw redirect(303, `/trips/${resolvedTripId}`);
 };
 
-export const useFlightEntityPage = routeLoader$(async ({ status, url }) => {
+export const useFlightEntityPageLoader = routeLoader$(async ({ status, url }) => {
   const result = await loadBookableEntityPage({
     vertical: "flight",
     route: url,
@@ -66,13 +68,15 @@ export const useFlightEntityPage = routeLoader$(async ({ status, url }) => {
   return result;
 });
 
+const resolveFlightEntityPageLoader = useFlightEntityPageLoader;
+
 export default component$(() => {
-  const page = useFlightEntityPage().value;
+  const page = useFlightEntityPageLoader().value;
 
   return <FlightEntityPage page={page} />;
 });
 
 export const head: DocumentHead = ({ resolveValue, url }) =>
-  buildBookableEntityDocumentHead(resolveValue(useFlightEntityPage), url, {
+  buildBookableEntityDocumentHead(resolveValue(resolveFlightEntityPageLoader), url, {
     allowIndexing: false,
   });

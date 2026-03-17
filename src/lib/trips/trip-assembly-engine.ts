@@ -407,6 +407,10 @@ export async function addBookableEntityToTrip(
     throw new TripAssemblyError('trip_not_found', `Trip ${input.tripId} was not found.`)
   }
 
+  if (currentTrip.items.some((item) => item.inventoryId === input.entity.inventoryId)) {
+    return currentTrip
+  }
+
   const requestedBookingSessionId = normalizeBookingSessionId(input.bookingSessionId)
   const currentTripBookingSessionId = normalizeBookingSessionId(currentTrip.bookingSessionId)
   const matchingTripSession = currentTripBookingSessionId

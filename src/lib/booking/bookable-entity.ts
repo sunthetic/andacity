@@ -662,6 +662,11 @@ export const toBookableEntityFromSearchEntity = (entity: SearchEntity): Bookable
 
   if (parsedInventory.vertical === 'flight') {
     const flight = entity as FlightSearchEntity
+    const providerInventoryId = toPositiveInteger(flight.payload.providerInventoryId)
+    const routeFlightNumberFallback =
+      providerInventoryId != null && parsedInventory.flightNumber === String(providerInventoryId)
+        ? null
+        : parsedInventory.flightNumber
     return assertBookableEntity(
       buildFlightEntity({
         inventoryId: flight.inventoryId,
@@ -674,7 +679,7 @@ export const toBookableEntityFromSearchEntity = (entity: SearchEntity): Bookable
         price: buildBookableEntityPrice(flight.price),
         source: 'search',
         priceSource: 'live',
-        providerInventoryId: toPositiveInteger(flight.payload.providerInventoryId),
+        providerInventoryId,
         cabinClass: toNullableText(flight.payload.cabinClass),
         fareCode: toNullableText(flight.payload.fareCode),
         departureAt: toNullableText(flight.payload.departureAt),
@@ -690,7 +695,7 @@ export const toBookableEntityFromSearchEntity = (entity: SearchEntity): Bookable
         flightNumber:
           toNullableText(flight.payload.flightNumber) ??
           toNullableText(flight.metadata.flightNumber) ??
-          parsedInventory.flightNumber,
+          routeFlightNumberFallback,
         origin:
           toNullableText(flight.route.origin) ??
           toNullableText(flight.payload.originCode) ??

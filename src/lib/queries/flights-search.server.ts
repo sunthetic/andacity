@@ -300,10 +300,13 @@ export async function loadFlightResultsPageFromDb(
         actualServiceDate: row.serviceDate,
       })
 
-      const flightNumber =
-        String(row.flightNumber || '').trim() || String(row.seedKey || row.id).split('-').pop() || String(row.id)
+      const hasCanonicalCarrier = Boolean(String(row.airlineCode || '').trim())
+      const hasCanonicalFlightNumber = Boolean(String(row.flightNumber || '').trim())
+      const flightNumber = String(row.flightNumber || '').trim() || null
+      const canonicalFlightNumber =
+        hasCanonicalCarrier && hasCanonicalFlightNumber ? undefined : String(row.id)
       const flightResult: Omit<FlightResult, 'searchEntity' | 'bookableEntity'> = {
-        id: row.seedKey || `flight-${row.id}-${effectiveOffset + index}`,
+        id: `flight-${row.id}`,
         itineraryId: row.id,
         canonicalInventoryId: undefined,
         serviceDate: row.serviceDate,
@@ -340,6 +343,7 @@ export async function loadFlightResultsPageFromDb(
       }
       const searchEntity = toFlightSearchEntity(flightResult, {
         departDate: input.departDate || row.serviceDate,
+        canonicalFlightNumber,
         priceAmountCents: row.priceCents,
         snapshotTimestamp:
           row.freshnessTimestamp instanceof Date

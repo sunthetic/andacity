@@ -70,6 +70,48 @@ test('maps a flight result into a canonical search entity', () => {
   assert.ok(isSearchEntity(entity))
 })
 
+test('uses an explicit canonical flight token without leaking it into the UI payload', () => {
+  const entity = toFlightSearchEntity(
+    {
+      itineraryId: 321,
+      airline: 'WestJet',
+      airlineCode: null,
+      flightNumber: null,
+      serviceDate: '2026-04-01',
+      origin: 'New York (JFK)',
+      destination: 'Los Angeles (LAX)',
+      originCode: 'JFK',
+      destinationCode: 'LAX',
+      stops: 1,
+      duration: '6h 5m',
+      cabinClass: 'economy',
+      fareCode: 'standard',
+      price: 399,
+      currency: 'usd',
+    },
+    {
+      departDate: '2026-04-01',
+      canonicalFlightNumber: '321',
+      priceAmountCents: 39900,
+      snapshotTimestamp: '2026-03-12T12:00:00.000Z',
+    },
+  )
+
+  assert.equal(
+    entity.inventoryId,
+    buildFlightInventoryId({
+      carrier: 'WestJet',
+      flightNumber: '321',
+      departDate: '2026-04-01',
+      originCode: 'JFK',
+      destinationCode: 'LAX',
+    }),
+  )
+  assert.equal(entity.payload.flightNumber, null)
+  assert.equal(entity.metadata.flightNumber, null)
+  assert.equal(entity.title, 'WestJet')
+})
+
 test('maps a hotel result into a canonical search entity', () => {
   const entity = toHotelSearchEntity(
     {

@@ -2,7 +2,6 @@ import { component$ } from "@builder.io/qwik";
 import { Page } from "~/components/site/Page";
 import {
   getBookableEntityBrowseHref,
-  getBookableEntityRouteBase,
   getBookableEntitySearchHref,
   getBookableEntityVerticalLabel,
 } from "~/lib/entities/routing";
@@ -125,7 +124,7 @@ export const BookableEntityPage = component$(
         breadcrumbs={[
           { label: "Andacity Travel", href: "/" },
           { label: verticalLabel, href: browseHref },
-          { label: "Entity", href: getBookableEntityRouteBase(page.vertical) },
+          { label: "Search", href: searchHref },
           {
             label:
               page.kind === "invalid_route"
@@ -381,9 +380,9 @@ export const BookableEntityPage = component$(
                 Framework boundary
               </h2>
               <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)]">
-                TASK-025 stops at routing, resolution, and shared state
-                handling. Flight, hotel, and car-specific detail UIs attach here
-                in the next tasks.
+                This shared shell handles routing, resolution, and cross-vertical
+                state treatment. Flight, hotel, and car detail UIs build on top
+                of it.
               </p>
               <div class="mt-5 grid gap-3">
                 <a

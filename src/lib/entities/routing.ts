@@ -19,15 +19,15 @@ const ROUTE_SEGMENT_COUNTS: Record<BookableVertical, readonly number[]> = {
 };
 
 const SEARCH_HREFS: Record<BookableVertical, string> = {
-  flight: "/flights/search",
-  hotel: "/hotels/search",
-  car: "/cars/search",
+  flight: "/flights",
+  hotel: "/hotels",
+  car: "/car-rentals",
 };
 
 const BROWSE_HREFS: Record<BookableVertical, string> = {
   flight: "/flights",
-  hotel: "/hotels",
-  car: "/car-rentals",
+  hotel: "/hotels/in",
+  car: "/car-rentals/in",
 };
 
 const VERTICAL_LABELS: Record<BookableVertical, string> = {

@@ -416,10 +416,6 @@ const logMissingSignals = (input: {
   missingSignals: string[]
 }) => {
   if (!input.missingSignals.length) return
-
-  console.warn(
-    `[smart-bundling] missing explainability signals for ${input.itemType}:${input.gap.id} -> ${input.missingSignals.join(', ')}`,
-  )
 }
 
 export const buildSuggestionExplanation = (input: {

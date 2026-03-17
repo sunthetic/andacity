@@ -1,5 +1,36 @@
 # 🪐 Andacity Travel — CHANGELOG
 
+## v0.6.0
+
+Released `2026-03-16`
+
+```
+v0.6.0 — Search UX, Routing & Trip Assembly
+
+Highlights
+- Stabilized the full search-to-trip loop across flights, hotels, and cars
+- Hardened canonical entity routing, trip assembly, and persisted revalidation flows
+- Smoothed cross-vertical UX consistency for results, entity pages, and trip status surfaces
+
+Fixed
+- Dead links and navigation regressions across entity pages, trips surfaces, sitemap/router metadata, and shared site chrome
+- Flight canonical fallback routing so itinerary-id route tokens stay stable without leaking numeric placeholders into visible UI
+- Add-to-trip failures caused by unknown provider labels short-circuiting inventory resolution
+- Entity POST handlers that caught successful redirects and incorrectly surfaced persistence failures
+- Trip persistence migration targeting so Drizzle migrations use the same schema search path as the runtime
+- Shared compare-sheet and compare-drawer render-time signal mutation warnings on results pages
+- Legacy hotel and flight inventory normalization gaps that prevented stable entity resolution in fallback cases
+
+Improved
+- Route reload/share safety for canonical entity pages and persisted trip pages
+- Cross-vertical parity for entity page add-to-trip handling and post-save redirects
+- Trip revalidation visibility with accurate persisted status, pricing drift, and itinerary warning signals
+- General release hygiene through debug-log cleanup, light type tightening, and targeted dead-code removal
+
+Known follow-up
+- Canonical search-route consolidation remains incomplete: legacy live search routes still coexist with newer parser/page helpers and should be unified in a follow-up pass
+```
+
 ## v0.5.0
 
 Released `2026-03-13`

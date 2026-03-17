@@ -30,14 +30,14 @@ export const onPost: RequestHandler = async ({ request, redirect, url }) => {
     formData.get("tripId")?.toString(),
   );
 
+  let resolvedTripId!: number;
   try {
     const result = await addBookableEntityPageToTrip({
       vertical: "hotel",
       route: url,
       preferredTripId: tripId,
     });
-
-    throw redirect(303, `/trips/${result.trip.id}`);
+    resolvedTripId = result.trip.id;
   } catch (error) {
     const code =
       error instanceof AddBookableEntityToTripError
@@ -54,9 +54,11 @@ export const onPost: RequestHandler = async ({ request, redirect, url }) => {
       }),
     );
   }
+
+  throw redirect(303, `/trips/${resolvedTripId}`);
 };
 
-export const useHotelEntityPage = routeLoader$(async ({ status, url }) => {
+export const useHotelEntityPageLoader = routeLoader$(async ({ status, url }) => {
   const result = await loadBookableEntityPage({
     vertical: "hotel",
     route: url,
@@ -66,11 +68,15 @@ export const useHotelEntityPage = routeLoader$(async ({ status, url }) => {
   return result;
 });
 
+const resolveHotelEntityPageLoader = useHotelEntityPageLoader;
+
 export default component$(() => {
-  return <HotelEntityPage page={useHotelEntityPage().value} />;
+  const page = useHotelEntityPageLoader().value;
+
+  return <HotelEntityPage page={page} />;
 });
 
 export const head: DocumentHead = ({ resolveValue, url }) =>
-  buildBookableEntityDocumentHead(resolveValue(useHotelEntityPage), url, {
+  buildBookableEntityDocumentHead(resolveValue(resolveHotelEntityPageLoader), url, {
     allowIndexing: false,
   });

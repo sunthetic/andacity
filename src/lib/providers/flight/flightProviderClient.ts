@@ -1,6 +1,9 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
-import type { ParsedFlightInventoryId } from '~/lib/inventory/inventory-id'
+import {
+  normalizeCarrierCode,
+  type ParsedFlightInventoryId,
+} from '~/lib/inventory/inventory-id'
 import type {
   ProviderRequestOptions,
   ProviderResolveInventoryRecordInput,
@@ -161,7 +164,19 @@ const toFiniteInteger = (value: unknown) => {
   return Math.round(parsed)
 }
 
+const toPositiveInteger = (value: unknown) => {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(parsed) || parsed < 1) return null
+  return Math.round(parsed)
+}
+
 const normalizeCurrencyCode = (value: unknown) => String(value || '').trim().toUpperCase()
+const normalizeCarrierToken = (value: unknown) => {
+  const text = String(value ?? '').trim()
+  if (!text) return null
+
+  return normalizeCarrierCode(text, 'carrier')
+}
 
 const throwIfAborted = (signal?: AbortSignal) => {
   if (signal?.aborted) {
@@ -416,6 +431,67 @@ const loadOfferRowByProviderInventoryId = async (itineraryId: number) => {
   return rows[0] || null
 }
 
+const loadOfferRowBySeedKey = async (seedKey: string) => {
+  const db = getDb()
+  const primarySegment = alias(flightSegments, 'flight_provider_primary_segment_by_seed')
+  const originAirport = alias(airports, 'flight_provider_origin_airport_by_seed')
+  const destinationAirport = alias(airports, 'flight_provider_destination_airport_by_seed')
+  const standardFare = alias(flightFares, 'flight_provider_standard_fare_by_seed')
+
+  const rows = await db
+    .select({
+      id: flightItineraries.id,
+      airlineName: airlines.name,
+      airlineCode: airlines.iataCode,
+      itineraryType: flightItineraries.itineraryType,
+      flightNumber: primarySegment.operatingFlightNumber,
+      serviceDate: flightItineraries.serviceDate,
+      originCode: originAirport.iataCode,
+      destinationCode: destinationAirport.iataCode,
+      departureAtUtc: flightItineraries.departureAtUtc,
+      arrivalAtUtc: flightItineraries.arrivalAtUtc,
+      stops: flightItineraries.stops,
+      durationMinutes: flightItineraries.durationMinutes,
+      cabinClass: flightItineraries.cabinClass,
+      fareCode: standardFare.fareCode,
+      priceAmountCents:
+        sql<number>`coalesce(${standardFare.priceCents}, ${flightItineraries.basePriceCents})`,
+      currencyCode:
+        sql<string>`coalesce(${standardFare.currencyCode}, ${flightItineraries.currencyCode})`,
+      refundable: standardFare.refundable,
+      changeable: standardFare.changeable,
+      checkedBagsIncluded: standardFare.checkedBagsIncluded,
+      seatsRemaining:
+        sql<number | null>`coalesce(${standardFare.seatsRemaining}, ${flightItineraries.seatsRemaining})`,
+      freshnessTimestamp:
+        sql<Date | null>`coalesce(${standardFare.updatedAt}, ${flightItineraries.updatedAt})`,
+    })
+    .from(flightItineraries)
+    .innerJoin(flightRoutes, eq(flightItineraries.routeId, flightRoutes.id))
+    .innerJoin(airlines, eq(flightItineraries.airlineId, airlines.id))
+    .innerJoin(originAirport, eq(flightRoutes.originAirportId, originAirport.id))
+    .innerJoin(destinationAirport, eq(flightRoutes.destinationAirportId, destinationAirport.id))
+    .leftJoin(
+      primarySegment,
+      and(
+        eq(primarySegment.itineraryId, flightItineraries.id),
+        eq(primarySegment.segmentOrder, 0),
+      ),
+    )
+    .leftJoin(
+      standardFare,
+      and(
+        eq(standardFare.itineraryId, flightItineraries.id),
+        eq(standardFare.fareCode, 'standard'),
+        eq(standardFare.cabinClass, flightItineraries.cabinClass),
+      ),
+    )
+    .where(eq(flightItineraries.seedKey, seedKey))
+    .limit(1)
+
+  return rows[0] || null
+}
+
 const loadOfferRowByCanonical = async (parsedInventory: ParsedFlightInventoryId) => {
   const db = getDb()
   const primarySegment = alias(flightSegments, 'flight_provider_primary_segment_by_canonical')
@@ -486,13 +562,49 @@ const loadOfferRowByCanonical = async (parsedInventory: ParsedFlightInventoryId)
   return rows[0] || null
 }
 
+const matchesFallbackRoute = (
+  offerRow: FlightOfferRow,
+  parsedInventory: ParsedFlightInventoryId,
+) => {
+  if (offerRow.serviceDate !== parsedInventory.departDate) return false
+  if (offerRow.originCode !== parsedInventory.originCode) return false
+  if (offerRow.destinationCode !== parsedInventory.destinationCode) return false
+
+  const carrierToken =
+    normalizeCarrierToken(offerRow.airlineCode) ??
+    normalizeCarrierToken(offerRow.airlineName)
+
+  return carrierToken === parsedInventory.carrier
+}
+
 const loadOfferByLookup = async (lookup: FlightProviderInventoryLookup) => {
-  const offerRow =
+  const explicitOfferRow =
     lookup.providerInventoryId != null
       ? await loadOfferRowByProviderInventoryId(lookup.providerInventoryId)
       : null
 
-  const matchedRow = offerRow || (await loadOfferRowByCanonical(lookup.parsedInventory))
+  const canonicalOfferRow = await loadOfferRowByCanonical(lookup.parsedInventory)
+  const fallbackProviderInventoryId =
+    lookup.providerInventoryId == null && /^\d+$/.test(lookup.parsedInventory.flightNumber)
+      ? toPositiveInteger(lookup.parsedInventory.flightNumber)
+      : null
+  const providerIdFallbackRow =
+    !explicitOfferRow && !canonicalOfferRow && fallbackProviderInventoryId != null
+      ? await loadOfferRowByProviderInventoryId(fallbackProviderInventoryId)
+      : null
+  const seedKeyFallbackRow =
+    !explicitOfferRow && !canonicalOfferRow && !providerIdFallbackRow
+      ? await loadOfferRowBySeedKey(`flt-${lookup.parsedInventory.flightNumber.toLowerCase()}`)
+      : null
+  const matchedRow =
+    explicitOfferRow ||
+    canonicalOfferRow ||
+    (providerIdFallbackRow && matchesFallbackRoute(providerIdFallbackRow, lookup.parsedInventory)
+      ? providerIdFallbackRow
+      : null) ||
+    (seedKeyFallbackRow && matchesFallbackRoute(seedKeyFallbackRow, lookup.parsedInventory)
+      ? seedKeyFallbackRow
+      : null)
   if (!matchedRow) return null
 
   const segmentsByItinerary = await loadOfferSegments([matchedRow.id])

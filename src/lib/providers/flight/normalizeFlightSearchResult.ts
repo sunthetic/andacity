@@ -12,6 +12,7 @@ import type { FlightProviderRawOffer } from './flightProviderClient.ts'
 type NormalizeFlightSearchResultOptions = {
   providerName?: string
   departDate?: string | null
+  canonicalFlightNumber?: string | number | null
   snapshotTimestamp?: string | null
 }
 
@@ -73,9 +74,7 @@ export const normalizeFlightSearchResult = (
       toNullableText(params.departDate) ??
       toNullableText(offer.requestedServiceDate) ??
       toNullableText(offer.serviceDate)
-    const flightNumber =
-      toNullableText(offer.flightNumber) ??
-      (offer.itineraryId > 0 ? String(offer.itineraryId) : null)
+    const flightNumber = toNullableText(offer.flightNumber)
 
     const entity = toFlightSearchEntity(
       {
@@ -98,6 +97,9 @@ export const normalizeFlightSearchResult = (
       },
       {
         departDate: normalizedDepartDate,
+        canonicalFlightNumber:
+          toNullableText(options.canonicalFlightNumber) ??
+          (flightNumber ? null : offer.itineraryId > 0 ? String(offer.itineraryId) : null),
         priceAmountCents: offer.priceAmountCents,
         snapshotTimestamp:
           toNullableText(options.snapshotTimestamp) ??

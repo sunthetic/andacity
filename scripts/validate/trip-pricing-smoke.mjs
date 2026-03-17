@@ -3,6 +3,10 @@ import { Client } from 'pg'
 
 const DEFAULT_DATABASE_URL = 'postgresql://andacity:andacity@localhost:5432/andacity'
 const DEFAULT_DB_SCHEMA = 'andacity_app'
+const HOTEL_SMOKE_CHECK_IN = '2026-04-01'
+const HOTEL_SMOKE_CHECK_OUT = '2026-04-03'
+const CAR_SMOKE_PICKUP = '2026-04-01T10-00'
+const CAR_SMOKE_DROPOFF = '2026-04-03T10-00'
 
 const resolveDbSchema = () => {
   const value = String(process.env.DB_SCHEMA || DEFAULT_DB_SCHEMA)
@@ -28,6 +32,50 @@ const client = new Client({
 
 const log = (message) => {
   process.stdout.write(`${message}\n`)
+}
+
+const normalizeToken = (value, fallback) => {
+  const text = String(value || '')
+    .trim()
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return text ? text.toLowerCase() : fallback
+}
+
+const normalizeCarrierToken = (value, fallback) => {
+  const text = String(value || '')
+    .trim()
+    .replace(/[^A-Za-z0-9]+/g, '')
+    .toUpperCase()
+
+  return text || fallback
+}
+
+const buildHotelInventoryId = (inventory) =>
+  `hotel:${inventory.id}:${inventory.startDate}:${inventory.endDate}:${normalizeToken(inventory.roomType, 'smoke-room')}:${inventory.occupancy}`
+
+const buildCarInventoryId = (inventory) =>
+  `car:${inventory.id}:${CAR_SMOKE_PICKUP}:${CAR_SMOKE_DROPOFF}:${normalizeToken(inventory.vehicleClass, 'economy')}`
+
+const buildFlightInventoryId = (inventory) =>
+  `flight:${inventory.carrier}:${inventory.flightNumber}:${inventory.startDate}:${inventory.originCode}:${inventory.destinationCode}`
+
+const toIsoDateLiteral = (value) => {
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10)
+  }
+
+  const text = String(value || '').trim()
+  const isoMatch = text.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (isoMatch) return isoMatch[1]
+
+  const parsed = new Date(text)
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10)
+  }
+
+  return text
 }
 
 const queryOne = async (text, params = []) => {
@@ -89,11 +137,18 @@ const findFlightInventory = async () => {
         coalesce(ff.price_cents, fi.base_price_cents) as "snapshotPriceCents",
         coalesce(ff.currency_code, fi.currency_code) as "snapshotCurrencyCode",
         a.name as title,
+        a.iata_code as "airlineCode",
+        fi.id::text as "flightNumber",
+        fi.service_date as "serviceDate",
+        origin_airport.iata_code as "originCode",
+        destination_airport.iata_code as "destinationCode",
         origin_city.name as "originCityName",
         destination_city.name as "destinationCityName"
       from ${tableName('flight_itineraries')} fi
       inner join ${tableName('flight_routes')} fr on fr.id = fi.route_id
       inner join ${tableName('airlines')} a on a.id = fi.airline_id
+      inner join ${tableName('airports')} origin_airport on origin_airport.id = fr.origin_airport_id
+      inner join ${tableName('airports')} destination_airport on destination_airport.id = fr.destination_airport_id
       inner join ${tableName('cities')} origin_city on origin_city.id = fr.origin_city_id
       inner join ${tableName('cities')} destination_city on destination_city.id = fr.destination_city_id
       left join ${tableName('flight_fares')} ff
@@ -120,6 +175,7 @@ const verifySnapshotColumns = async () => {
 
   const columns = rows.map((row) => row.column_name)
 
+  assert(columns.includes('inventory_id'), 'trip_items.inventory_id is missing')
   assert(columns.includes('snapshot_price_cents'), 'trip_items.snapshot_price_cents is missing')
   assert(columns.includes('snapshot_currency_code'), 'trip_items.snapshot_currency_code is missing')
   assert(columns.includes('snapshot_timestamp'), 'trip_items.snapshot_timestamp is missing')
@@ -154,12 +210,15 @@ const insertTripItem = async (tripId, itemType, inventory) => {
       insert into ${tableName('trip_items')} (
         trip_id,
         item_type,
+        inventory_id,
         position,
         hotel_id,
         flight_itinerary_id,
         car_inventory_id,
         start_city_id,
         end_city_id,
+        start_date,
+        end_date,
         snapshot_price_cents,
         snapshot_currency_code,
         title,
@@ -180,20 +239,26 @@ const insertTripItem = async (tripId, itemType, inventory) => {
         $10,
         $11,
         $12,
-        $13::text[],
-        $14::jsonb
+        $13,
+        $14,
+        $15,
+        $16::text[],
+        $17::jsonb
       )
       returning id, snapshot_price_cents as "snapshotPriceCents", snapshot_currency_code as "snapshotCurrencyCode"
     `,
     [
       tripId,
       itemType,
+      inventory.inventoryId,
       inventory.position,
       itemType === 'hotel' ? inventory.id : null,
       itemType === 'flight' ? inventory.id : null,
       itemType === 'car' ? inventory.id : null,
       inventory.startCityId,
       inventory.endCityId,
+      inventory.startDate,
+      inventory.endDate,
       inventory.snapshotPriceCents,
       inventory.snapshotCurrencyCode,
       inventory.title,
@@ -315,7 +380,7 @@ const buildInventoryCandidates = async () => {
 
   const hotel = await findHotelInventory()
   if (hotel) {
-    candidates.push({
+    const candidate = {
       itemType: 'hotel',
       position: candidates.length,
       id: Number(hotel.id),
@@ -325,13 +390,19 @@ const buildInventoryCandidates = async () => {
       snapshotCurrencyCode: String(hotel.snapshotCurrencyCode),
       title: String(hotel.title),
       subtitle: String(hotel.cityName),
+      startDate: HOTEL_SMOKE_CHECK_IN,
+      endDate: HOTEL_SMOKE_CHECK_OUT,
+      roomType: 'smoke-room',
+      occupancy: 2,
       meta: ['Smoke', 'Hotel'],
-    })
+    }
+    candidate.inventoryId = buildHotelInventoryId(candidate)
+    candidates.push(candidate)
   }
 
   const car = await findCarInventory()
   if (car) {
-    candidates.push({
+    const candidate = {
       itemType: 'car',
       position: candidates.length,
       id: Number(car.id),
@@ -341,13 +412,18 @@ const buildInventoryCandidates = async () => {
       snapshotCurrencyCode: String(car.snapshotCurrencyCode),
       title: String(car.title),
       subtitle: String(car.cityName),
+      startDate: CAR_SMOKE_PICKUP.slice(0, 10),
+      endDate: CAR_SMOKE_DROPOFF.slice(0, 10),
+      vehicleClass: 'economy',
       meta: ['Smoke', 'Car'],
-    })
+    }
+    candidate.inventoryId = buildCarInventoryId(candidate)
+    candidates.push(candidate)
   }
 
   const flight = await findFlightInventory()
   if (flight) {
-    candidates.push({
+    const candidate = {
       itemType: 'flight',
       position: candidates.length,
       id: Number(flight.id),
@@ -357,8 +433,16 @@ const buildInventoryCandidates = async () => {
       snapshotCurrencyCode: String(flight.snapshotCurrencyCode),
       title: String(flight.title),
       subtitle: `${flight.originCityName} -> ${flight.destinationCityName}`,
+      startDate: toIsoDateLiteral(flight.serviceDate),
+      endDate: toIsoDateLiteral(flight.serviceDate),
+      carrier: normalizeCarrierToken(flight.airlineCode, normalizeCarrierToken(flight.title, 'FLIGHT')),
+      flightNumber: normalizeCarrierToken(flight.flightNumber, String(flight.id)),
+      originCode: String(flight.originCode),
+      destinationCode: String(flight.destinationCode),
       meta: ['Smoke', 'Flight'],
-    })
+    }
+    candidate.inventoryId = buildFlightInventoryId(candidate)
+    candidates.push(candidate)
   }
 
   assert(candidates.length > 0, 'no hotel, car, or flight inventory is available for the trip pricing smoke test')

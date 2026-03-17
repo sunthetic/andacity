@@ -92,6 +92,7 @@ export const buildBookingSessionProviderMetadata = (
   entity: BookableEntity,
 ): Record<string, unknown> | null => {
   const provider = resolveBookingSessionProvider(entity)
+  const parsedInventory = parseInventoryId(entity.inventoryId)
   const base = {
     inventoryId: entity.inventoryId,
     vertical: entity.vertical,
@@ -107,10 +108,18 @@ export const buildBookingSessionProviderMetadata = (
   } satisfies Record<string, unknown>
 
   if (entity.vertical === 'flight') {
+    const parsedFlight = parsedInventory?.vertical === 'flight' ? parsedInventory : null
+
     return {
       ...base,
-      carrier: toNullableText(entity.bookingContext.carrier),
-      flightNumber: toNullableText(entity.bookingContext.flightNumber),
+      carrier:
+        toNullableText(entity.bookingContext.carrier) ||
+        toNullableText(parsedFlight?.airlineCode),
+      // Keep canonical fallback tokens available for session validation even when
+      // the visible UI intentionally hides a numeric route placeholder.
+      flightNumber:
+        toNullableText(entity.bookingContext.flightNumber) ||
+        toNullableText(parsedFlight?.flightNumber),
       origin: toNullableText(entity.bookingContext.origin),
       destination: toNullableText(entity.bookingContext.destination),
       departDate: toNullableText(entity.bookingContext.departDate),

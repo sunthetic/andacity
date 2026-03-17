@@ -165,7 +165,7 @@ const buildWebSiteJsonLd = (baseUrl: URL) => {
     potentialAction: [
       {
         '@type': 'SearchAction',
-        target: `${origin}/search/hotels/{search_term_string}/1`,
+        target: `${origin}/hotels?destination={search_term_string}`,
         'query-input': 'required name=search_term_string',
       },
     ],
