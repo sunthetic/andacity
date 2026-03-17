@@ -336,6 +336,7 @@ export type TripBundlingSummary = {
 };
 
 export type TripDetails = TripListItem & {
+  bookingSessionId: string | null;
   notes: string | null;
   metadata: Record<string, unknown>;
   editing: TripEditingState;

@@ -617,6 +617,7 @@ export const trips = dbTable(
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     name: varchar('name', { length: 180 }).notNull().default('Untitled trip'),
     status: tripStatusEnum('status').notNull().default('draft'),
+    bookingSessionId: text('booking_session_id'),
     notes: text('notes'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
     createdAt: createdAtColumn(),
@@ -624,6 +625,7 @@ export const trips = dbTable(
   },
   (table) => ({
     statusIdx: index('trips_status_idx').on(table.status),
+    bookingSessionIdx: index('trips_booking_session_idx').on(table.bookingSessionId),
     updatedIdx: index('trips_updated_idx').on(table.updatedAt),
   }),
 )

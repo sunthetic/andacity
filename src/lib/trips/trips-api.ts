@@ -7,15 +7,21 @@ import type {
   TripListItem,
   TripRollbackDraft,
 } from '~/types/trips/trip'
+import type { BookableEntity } from '~/types/bookable-entity'
 
 export class TripApiError extends Error {
+  readonly status: number
+  readonly code?: string
+
   constructor(
-    readonly status: number,
+    status: number,
     message: string,
-    readonly code?: string,
+    code?: string,
   ) {
     super(message)
     this.name = 'TripApiError'
+    this.status = status
+    this.code = code
   }
 }
 
@@ -52,6 +58,7 @@ export const listTripsApi = async (): Promise<TripListItem[]> => {
 export const createTripApi = async (input: {
   name?: string
   status?: string
+  bookingSessionId?: string | null
 }): Promise<TripDetails> => {
   const payload = await requestJson<{ trip: TripDetails }>('/api/trips', {
     method: 'POST',
@@ -87,6 +94,23 @@ export const addItemToTripApi = async (
   const payload = await requestJson<{ trip: TripDetails }>(`/api/trips/${tripId}/items`, {
     method: 'POST',
     body: JSON.stringify(candidate),
+  })
+  return payload.trip
+}
+
+export const addBookableEntityToTripApi = async (
+  tripId: number,
+  entity: BookableEntity,
+  options: {
+    bookingSessionId?: string | null
+  } = {},
+): Promise<TripDetails> => {
+  const payload = await requestJson<{ trip: TripDetails }>(`/api/trips/${tripId}/items`, {
+    method: 'POST',
+    body: JSON.stringify({
+      entity,
+      bookingSessionId: options.bookingSessionId ?? null,
+    }),
   })
   return payload.trip
 }

@@ -4,11 +4,11 @@ import {
   parseTripIdParam,
   parseUpdateTripItemInput,
 } from "~/lib/queries/trips.server";
+import { TripRepoError, updateTripItem } from "~/lib/repos/trips-repo.server";
 import {
-  removeItemFromTrip,
-  TripRepoError,
-  updateTripItem,
-} from "~/lib/repos/trips-repo.server";
+  removeItemFromTripAssembly,
+  TripAssemblyError,
+} from "~/lib/trips/trip-assembly-engine";
 
 const sendJson = (
   headers: Headers,
@@ -29,9 +29,21 @@ export const onDelete: RequestHandler = async ({ params, headers, send }) => {
   }
 
   try {
-    const trip = await removeItemFromTrip(tripId, itemId);
+    const trip = await removeItemFromTripAssembly({ tripId, itemId });
     sendJson(headers, send, 200, { trip });
   } catch (error) {
+    if (error instanceof TripAssemblyError) {
+      const status =
+        error.code === "trip_not_found" || error.code === "trip_item_not_found"
+          ? 404
+          : 400;
+      sendJson(headers, send, status, {
+        error: error.message,
+        code: error.code,
+      });
+      return;
+    }
+
     if (error instanceof TripRepoError) {
       const status =
         error.code === "trip_not_found" || error.code === "trip_item_not_found"

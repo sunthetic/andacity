@@ -8,12 +8,15 @@ export type InventoryRevalidationResult = {
 }
 
 export class InventoryApiError extends Error {
+  readonly status: number
+
   constructor(
-    readonly status: number,
+    status: number,
     message: string,
   ) {
     super(message)
     this.name = 'InventoryApiError'
+    this.status = status
   }
 }
 

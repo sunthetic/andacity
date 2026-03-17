@@ -10,6 +10,7 @@ import {
 type ParsedCreateTripInput = {
   name?: string
   status?: TripStatus
+  bookingSessionId?: string | null
   notes?: string | null
   metadata?: Record<string, unknown>
   startDate?: string | null
@@ -120,6 +121,12 @@ export const parseCreateTripInput = (body: unknown): ParsedCreateTripInput => {
   return {
     name: toOptionalString(obj.name),
     status: toOptionalStatus(obj.status),
+    bookingSessionId:
+      obj.bookingSessionId === undefined
+        ? undefined
+        : obj.bookingSessionId == null
+          ? null
+          : toOptionalString(obj.bookingSessionId) || null,
     notes:
       obj.notes === undefined
         ? undefined

@@ -111,8 +111,18 @@ import { compareIsoDate } from '~/lib/trips/date-utils'
 import type { PriceQuote } from '~/types/pricing'
 
 export class TripRepoError extends Error {
+  readonly code:
+    | 'trip_not_found'
+    | 'trip_item_not_found'
+    | 'inventory_not_found'
+    | 'invalid_snapshot'
+    | 'invalid_reorder'
+    | 'invalid_edit'
+    | 'trip_schema_missing'
+    | 'trip_runtime_stale'
+
   constructor(
-    readonly code:
+    code:
       | 'trip_not_found'
       | 'trip_item_not_found'
       | 'inventory_not_found'
@@ -125,12 +135,14 @@ export class TripRepoError extends Error {
   ) {
     super(message)
     this.name = 'TripRepoError'
+    this.code = code
   }
 }
 
 type CreateTripInput = {
   name?: string
   status?: TripStatus
+  bookingSessionId?: string | null
   notes?: string | null
   metadata?: Record<string, unknown>
   startDate?: string | null
@@ -217,6 +229,7 @@ type TripBaseRecord = {
   id: number
   name: string
   status: TripStatus
+  bookingSessionId: string | null
   notes: string | null
   metadata: Record<string, unknown>
   startDate: string | null
@@ -227,7 +240,7 @@ type TripBaseRecord = {
 
 const DEFAULT_TRIP_NAME = 'Untitled trip'
 const DEFAULT_CURRENCY = 'USD'
-const LATEST_TRIP_MIGRATION = '0004_trip_item_inventory_snapshot.sql'
+const LATEST_TRIP_MIGRATION = '0005_trip_booking_sessions.sql'
 const TRIP_ITEM_LOCKED_KEY = 'locked'
 const TRIP_AUTO_REBALANCE_KEY = 'autoRebalance'
 const TRIP_ITEM_PROVIDER_INVENTORY_ID_KEY = 'providerInventoryId'
@@ -236,6 +249,7 @@ const TRIP_SCHEMA_IDENTIFIERS = [
   'trip_items',
   'trip_dates',
   'trips',
+  'booking_session_id',
   'inventory_id',
   'snapshot_price_cents',
   'snapshot_currency_code',
@@ -328,6 +342,11 @@ const toUtcWeekday = (value: string | null | undefined) => {
 const normalizeTripName = (value: string | null | undefined) => {
   const text = String(value || '').trim()
   return text ? text.slice(0, 180) : DEFAULT_TRIP_NAME
+}
+
+const normalizeBookingSessionId = (value: string | null | undefined) => {
+  const text = String(value || '').trim()
+  return text ? text : null
 }
 
 const normalizeCurrencyCode = (value: string | null | undefined) => {
@@ -1049,6 +1068,7 @@ const readTripBase = async (tripId: number): Promise<TripBaseRecord | null> => {
       id: trips.id,
       name: trips.name,
       status: trips.status,
+      bookingSessionId: trips.bookingSessionId,
       notes: trips.notes,
       metadata: trips.metadata,
       dateSource: tripDates.source,
@@ -1068,6 +1088,7 @@ const readTripBase = async (tripId: number): Promise<TripBaseRecord | null> => {
     id: row.id,
     name: row.name,
     status: normalizeTripStatus(row.status),
+    bookingSessionId: normalizeBookingSessionId(row.bookingSessionId),
     notes: row.notes,
     metadata: normalizeMetadata(row.metadata),
     dateSource: row.dateSource === 'manual' ? 'manual' : 'auto',
@@ -1946,6 +1967,7 @@ const summarizeTrip = (input: {
   id: number
   name: string
   status: TripStatus
+  bookingSessionId: string | null
   dateSource: 'auto' | 'manual'
   startDate: string | null
   endDate: string | null
@@ -2000,6 +2022,7 @@ const summarizeTrip = (input: {
     currencyCode,
     hasMixedCurrencies: pricing.hasMixedCurrencies,
     updatedAt: toIsoTimestamp(input.updatedAt),
+    bookingSessionId: input.bookingSessionId,
     notes: input.notes,
     metadata: input.metadata,
     editing: {
@@ -2130,6 +2153,7 @@ const buildTripDetailsFromRecords = async (
     id: base.id,
     name: base.name,
     status: base.status,
+    bookingSessionId: base.bookingSessionId,
     dateSource: base.dateSource,
     startDate: base.startDate,
     endDate: base.endDate,
@@ -3405,6 +3429,7 @@ export async function createTrip(input: CreateTripInput = {}): Promise<TripDetai
     const db = getDb()
     const name = normalizeTripName(input.name)
     const status = normalizeTripStatus(input.status)
+    const bookingSessionId = normalizeBookingSessionId(input.bookingSessionId)
     const startDate = toIsoDate(input.startDate)
     const endDate = toIsoDate(input.endDate)
 
@@ -3413,6 +3438,7 @@ export async function createTrip(input: CreateTripInput = {}): Promise<TripDetai
       .values({
         name,
         status,
+        bookingSessionId,
         notes: input.notes || null,
         metadata: normalizeMetadata(input.metadata),
       })
@@ -3519,6 +3545,35 @@ export async function revalidateTrip(tripId: number): Promise<TripDetails> {
   }
 
   return details
+}
+
+export async function setTripBookingSession(
+  tripId: number,
+  bookingSessionId: string | null,
+): Promise<TripDetails> {
+  return withTripSchemaGuard(async () => {
+    const db = getDb()
+    await db.transaction(async (tx) => {
+      await assertTripExists(tx, tripId)
+      await tx
+        .update(trips)
+        .set({
+          bookingSessionId: normalizeBookingSessionId(bookingSessionId),
+          updatedAt: new Date(),
+        })
+        .where(eq(trips.id, tripId))
+    })
+
+    const details = await getTripDetails(tripId)
+    if (!details) {
+      throw new TripRepoError(
+        'trip_not_found',
+        `Trip ${tripId} was not found after updating its booking session.`,
+      )
+    }
+
+    return details
+  })
 }
 
 export async function addItemToTrip(tripId: number, candidate: TripItemCandidate): Promise<TripDetails> {
