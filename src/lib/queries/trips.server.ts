@@ -271,6 +271,10 @@ export const parseTripRollbackDraftInput = (body: unknown): TripRollbackDraft | 
       const meta = Array.isArray(entry.meta)
         ? entry.meta.map((value) => toTrimmedString(value)).filter(Boolean)
         : null
+      const bookingSessionId =
+        entry.bookingSessionId == null ? null : toOptionalString(entry.bookingSessionId) || null
+      const inventorySnapshot =
+        entry.inventorySnapshot == null ? null : toRecord(entry.inventorySnapshot)
       const metadata = toRecord(entry.metadata)
 
       if (
@@ -321,10 +325,13 @@ export const parseTripRollbackDraftInput = (body: unknown): TripRollbackDraft | 
         snapshotCurrencyCode,
         snapshotTimestamp,
         title: toTrimmedString(entry.title),
+        bookingSessionId,
         subtitle:
           entry.subtitle == null ? null : toOptionalString(entry.subtitle) || null,
         imageUrl: entry.imageUrl == null ? null : toOptionalString(entry.imageUrl) || null,
         meta,
+        inventorySnapshot:
+          (inventorySnapshot as TripRollbackDraft["items"][number]["inventorySnapshot"]) || null,
         metadata,
       }
     })

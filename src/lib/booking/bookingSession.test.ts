@@ -165,6 +165,7 @@ const buildHotelTripItem = (overrides: Partial<TripItem> = {}): TripItem => {
     tripId: 12,
     itemType: 'hotel',
     inventoryId: entity.inventoryId,
+    bookingSessionId: null,
     position: 0,
     locked: false,
     title: entity.title,
@@ -211,6 +212,7 @@ const buildHotelTripItem = (overrides: Partial<TripItem> = {}): TripItem => {
     liveFlightDepartureAt: null,
     liveFlightArrivalAt: null,
     liveFlightItineraryType: null,
+    inventorySnapshot: null,
     metadata: {
       provider: 'stayz',
     },

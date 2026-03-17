@@ -435,7 +435,9 @@ export async function addBookableEntityToTrip(
     bookingSessionSource: session.source,
   })
 
-  await deps.addItemToTripFn(input.tripId, candidate)
+  await deps.addItemToTripFn(input.tripId, candidate, {
+    bookableEntity: session.entity,
+  })
   return deps.setTripBookingSessionFn(input.tripId, session.sessionId)
 }
 

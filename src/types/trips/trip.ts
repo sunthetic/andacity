@@ -171,11 +171,61 @@ export type TripPricingSummary = {
   verticals: TripVerticalPricing[];
 };
 
+export type TripItemHotelAvailabilitySnapshot = {
+  itemType: "hotel";
+  source: "hotel_availability_snapshot";
+  snapshotTimestamp: string | null;
+  hotelAvailabilitySnapshotId: number | null;
+  checkInStart: string | null;
+  checkInEnd: string | null;
+  minNights: number | null;
+  maxNights: number | null;
+  blockedWeekdays: number[];
+};
+
+export type TripItemCarAvailabilitySnapshot = {
+  itemType: "car";
+  source: "car_inventory";
+  snapshotTimestamp: string | null;
+  availabilityStart: string | null;
+  availabilityEnd: string | null;
+  minDays: number | null;
+  maxDays: number | null;
+  blockedWeekdays: number[];
+  locationType: "airport" | "city" | null;
+  locationName: string | null;
+};
+
+export type TripItemFlightAvailabilitySnapshot = {
+  itemType: "flight";
+  source: "flight_inventory";
+  snapshotTimestamp: string | null;
+  serviceDate: string | null;
+  departureAt: string | null;
+  arrivalAt: string | null;
+  seatsRemaining: number | null;
+  itineraryType: "one-way" | "round-trip" | null;
+};
+
+export type TripItemAvailabilitySnapshot =
+  | TripItemHotelAvailabilitySnapshot
+  | TripItemCarAvailabilitySnapshot
+  | TripItemFlightAvailabilitySnapshot;
+
+export type TripItemInventorySnapshot = {
+  id: number | null;
+  providerInventoryId: number | null;
+  hotelAvailabilitySnapshotId: number | null;
+  bookableEntity: BookableEntity | null;
+  availability: TripItemAvailabilitySnapshot | null;
+};
+
 export type TripItem = {
   id: number;
   tripId: number;
   itemType: TripItemType;
   inventoryId: string;
+  bookingSessionId: string | null;
   position: number;
   locked: boolean;
   title: string;
@@ -210,6 +260,7 @@ export type TripItem = {
   liveFlightDepartureAt: string | null;
   liveFlightArrivalAt: string | null;
   liveFlightItineraryType: "one-way" | "round-trip" | null;
+  inventorySnapshot: TripItemInventorySnapshot | null;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -379,6 +430,7 @@ export type TripRollbackItemSnapshot = {
   id: number;
   itemType: TripItemType;
   inventoryId: string;
+  bookingSessionId: string | null;
   position: number;
   hotelId: number | null;
   flightItineraryId: number | null;
@@ -394,6 +446,7 @@ export type TripRollbackItemSnapshot = {
   subtitle: string | null;
   imageUrl: string | null;
   meta: string[];
+  inventorySnapshot: Omit<TripItemInventorySnapshot, "id"> | null;
   metadata: Record<string, unknown>;
 };
 

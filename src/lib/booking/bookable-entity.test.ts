@@ -45,6 +45,7 @@ const buildTripItem = (overrides: Partial<TripItem> = {}): TripItem => ({
     roomType: 'king-room',
     occupancy: 2,
   }),
+  bookingSessionId: null,
   position: 0,
   locked: false,
   title: 'Ace Hotel',
@@ -97,6 +98,7 @@ const buildTripItem = (overrides: Partial<TripItem> = {}): TripItem => ({
   liveFlightDepartureAt: null,
   liveFlightArrivalAt: null,
   liveFlightItineraryType: null,
+  inventorySnapshot: null,
   metadata: {
     provider: 'Ace Hotel',
   },

@@ -545,7 +545,7 @@ const resolveSavedItemBase = (item: SavedItem) => ({
   snapshotTimestamp: null,
 })
 
-const toBookableEntityFromTripCandidate = (
+export const toBookableEntityFromTripCandidate = (
   candidate: TripItemCandidate,
   options: {
     title?: string | null

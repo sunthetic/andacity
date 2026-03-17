@@ -43,6 +43,13 @@
       "when": 1773180000000,
       "tag": "0005_trip_booking_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1773266400000,
+      "tag": "0006_trip_item_persistence_snapshots",
+      "breakpoints": true
     }
   ]
 }

@@ -43,6 +43,7 @@ import {
   hotelImages,
   hotels,
   tripDates,
+  tripItemInventorySnapshots,
   tripItems,
   trips,
 } from '~/lib/db/schema'
@@ -69,10 +70,20 @@ import {
   type TripItemRevalidationCandidate,
   type TripItemRevalidationResolver,
 } from '~/lib/trips/revalidate-trip-items'
-import { toBookableEntityFromTripItem } from '~/lib/booking/bookable-entity'
+import {
+  isBookableEntity,
+  toBookableEntityFromTripCandidate,
+  toBookableEntityFromTripItem,
+} from '~/lib/booking/bookable-entity'
 import { resolveInventoryWithSnapshot } from '~/lib/inventory/resolveInventory'
 import { buildTripEditBundleImpact } from '~/lib/trips/bundle-swap-impact'
 import { buildTripIntelligenceSummary } from '~/lib/trips/status-aggregation'
+import {
+  buildCarTripItemAvailabilitySnapshot,
+  buildFlightTripItemAvailabilitySnapshot,
+  buildHotelTripItemAvailabilitySnapshot,
+  buildTripItemInventorySnapshotModel,
+} from '~/lib/trips/trip-persistence-snapshot'
 import {
   TripItemSnapshotError,
   buildTripItemSnapshotMetadata,
@@ -90,6 +101,8 @@ import {
   type TripEditPreview,
   type TripEditPreviewActionType,
   type TripDetails,
+  type TripItemAvailabilitySnapshot,
+  type TripItemInventorySnapshot,
   type TripItemReplacementOption,
   type TripIntelligenceSummary,
   type TripItem,
@@ -108,6 +121,7 @@ import {
   type TripVerticalPricing,
 } from '~/types/trips/trip'
 import { compareIsoDate } from '~/lib/trips/date-utils'
+import type { BookableEntity } from '~/types/bookable-entity'
 import type { PriceQuote } from '~/types/pricing'
 
 export class TripRepoError extends Error {
@@ -159,9 +173,17 @@ type UpdateTripMetadataInput = {
   dateSource?: 'auto' | 'manual'
 }
 
+type PersistedTripItemInventorySnapshot = {
+  providerInventoryId: number | null
+  hotelAvailabilitySnapshotId: number | null
+  bookableEntity: BookableEntity | null
+  availability: TripItemAvailabilitySnapshot | null
+}
+
 type ResolvedTripItemSnapshot = {
   itemType: TripItemType
   inventoryId: string
+  bookingSessionId: string | null
   hotelId: number | null
   flightItineraryId: number | null
   carInventoryId: number | null
@@ -177,6 +199,7 @@ type ResolvedTripItemSnapshot = {
   imageUrl: string | null
   meta: string[]
   metadata: Record<string, unknown>
+  inventorySnapshot: PersistedTripItemInventorySnapshot
 }
 
 type TripItemRecord = {
@@ -184,6 +207,7 @@ type TripItemRecord = {
   tripId: number
   itemType: TripItemType
   inventoryId: string
+  bookingSessionId: string | null
   position: number
   title: string
   subtitle: string | null
@@ -221,6 +245,7 @@ type TripItemRecord = {
   liveFlightArrivalAt: string | null
   liveFlightSeatsRemaining: number | null
   liveFlightItineraryType: 'one-way' | 'round-trip' | null
+  inventorySnapshot: TripItemInventorySnapshot | null
   createdAt: string
   updatedAt: string
 }
@@ -240,13 +265,15 @@ type TripBaseRecord = {
 
 const DEFAULT_TRIP_NAME = 'Untitled trip'
 const DEFAULT_CURRENCY = 'USD'
-const LATEST_TRIP_MIGRATION = '0005_trip_booking_sessions.sql'
+const LATEST_TRIP_MIGRATION = '0006_trip_item_persistence_snapshots.sql'
 const TRIP_ITEM_LOCKED_KEY = 'locked'
 const TRIP_AUTO_REBALANCE_KEY = 'autoRebalance'
 const TRIP_ITEM_PROVIDER_INVENTORY_ID_KEY = 'providerInventoryId'
+const TRIP_ITEM_BOOKING_SESSION_ID_METADATA_KEY = 'bookingSessionId'
 
 const TRIP_SCHEMA_IDENTIFIERS = [
   'trip_items',
+  'trip_item_inventory_snapshots',
   'trip_dates',
   'trips',
   'booking_session_id',
@@ -254,6 +281,8 @@ const TRIP_SCHEMA_IDENTIFIERS = [
   'snapshot_price_cents',
   'snapshot_currency_code',
   'snapshot_timestamp',
+  'bookable_entity',
+  'availability_snapshot',
   'prevent_trip_item_snapshot_updates',
 ] as const
 
@@ -538,6 +567,120 @@ const resolveStoredProviderInventoryId = (input: {
   if (input.itemType === 'hotel') return input.hotelId
   if (input.itemType === 'flight') return input.flightItineraryId
   return input.carInventoryId
+}
+
+const readStoredTripItemBookingSessionId = (input: {
+  bookingSessionId?: unknown
+  metadata?: unknown
+}) =>
+  normalizeBookingSessionId(input.bookingSessionId as string | null | undefined) ||
+  normalizeBookingSessionId(
+    normalizeMetadata(input.metadata)[TRIP_ITEM_BOOKING_SESSION_ID_METADATA_KEY] as
+      | string
+      | null
+      | undefined,
+  ) ||
+  null
+
+const buildBookableEntitySnapshotFromCandidate = (input: {
+  snapshot: Pick<
+    ResolvedTripItemSnapshot,
+    | 'itemType'
+    | 'inventoryId'
+    | 'startDate'
+    | 'endDate'
+    | 'snapshotPriceCents'
+    | 'snapshotCurrencyCode'
+    | 'snapshotTimestamp'
+    | 'title'
+    | 'subtitle'
+    | 'imageUrl'
+    | 'meta'
+    | 'metadata'
+    | 'inventorySnapshot'
+  >
+  bookableEntity?: BookableEntity | null
+}) => {
+  if (
+    input.bookableEntity &&
+    isBookableEntity(input.bookableEntity) &&
+    input.bookableEntity.vertical === input.snapshot.itemType &&
+    input.bookableEntity.inventoryId === input.snapshot.inventoryId
+  ) {
+    return input.bookableEntity
+  }
+
+  try {
+    return toBookableEntityFromTripCandidate(
+      {
+        itemType: input.snapshot.itemType,
+        inventoryId: input.snapshot.inventoryId,
+        providerInventoryId: input.snapshot.inventorySnapshot.providerInventoryId ?? undefined,
+        startDate: input.snapshot.startDate || undefined,
+        endDate: input.snapshot.endDate || undefined,
+        priceCents: input.snapshot.snapshotPriceCents,
+        currencyCode: input.snapshot.snapshotCurrencyCode,
+        title: input.snapshot.title,
+        subtitle: input.snapshot.subtitle || undefined,
+        imageUrl: input.snapshot.imageUrl || undefined,
+        meta: input.snapshot.meta,
+        metadata: input.snapshot.metadata,
+      },
+      {
+        title: input.snapshot.title,
+        subtitle: input.snapshot.subtitle,
+        imageUrl: input.snapshot.imageUrl,
+        snapshotTimestamp: input.snapshot.snapshotTimestamp,
+        source: 'trip_item',
+      },
+    )
+  } catch {
+    return null
+  }
+}
+
+const toTripItemInventorySnapshotValues = (
+  tripItemId: number,
+  itemType: TripItemType,
+  inventoryId: string,
+  snapshot: PersistedTripItemInventorySnapshot,
+) => ({
+  tripItemId,
+  itemType,
+  inventoryId,
+  providerInventoryId: snapshot.providerInventoryId,
+  hotelAvailabilitySnapshotId: snapshot.hotelAvailabilitySnapshotId,
+  bookableEntity: snapshot.bookableEntity || {},
+  availabilitySnapshot: snapshot.availability || {},
+})
+
+const persistTripItemInventorySnapshot = async (
+  tx: any,
+  tripItemId: number,
+  snapshot: ResolvedTripItemSnapshot,
+) => {
+  const values = toTripItemInventorySnapshotValues(
+    tripItemId,
+    snapshot.itemType,
+    snapshot.inventoryId,
+    snapshot.inventorySnapshot,
+  )
+
+  await tx
+    .insert(tripItemInventorySnapshots)
+    .values(values)
+    .onConflictDoUpdate({
+      target: tripItemInventorySnapshots.tripItemId,
+      set: {
+        itemType: values.itemType,
+        inventoryId: values.inventoryId,
+        providerInventoryId: values.providerInventoryId,
+        hotelAvailabilitySnapshotId: values.hotelAvailabilitySnapshotId,
+        bookableEntity: values.bookableEntity,
+        availabilitySnapshot: values.availabilitySnapshot,
+        updatedAt: new Date(),
+      },
+    })
 }
 
 const titleCaseToken = (value: string) => {
@@ -849,6 +992,21 @@ const resolveHotelTripItem = async (
     )
   }
 
+  const [availabilityRow] = await tx
+    .select({
+      id: hotelAvailabilitySnapshots.id,
+      checkInStart: hotelAvailabilitySnapshots.checkInStart,
+      checkInEnd: hotelAvailabilitySnapshots.checkInEnd,
+      minNights: hotelAvailabilitySnapshots.minNights,
+      maxNights: hotelAvailabilitySnapshots.maxNights,
+      blockedWeekdays: hotelAvailabilitySnapshots.blockedWeekdays,
+      snapshotAt: hotelAvailabilitySnapshots.snapshotAt,
+    })
+    .from(hotelAvailabilitySnapshots)
+    .where(eq(hotelAvailabilitySnapshots.hotelId, row.id))
+    .orderBy(desc(hotelAvailabilitySnapshots.snapshotAt), desc(hotelAvailabilitySnapshots.id))
+    .limit(1)
+
   const startDate = toIsoDate(candidate.startDate)
   const endDate = toIsoDate(candidate.endDate)
   const fallbackSubtitle = `${row.neighborhood} · ${row.cityName}`
@@ -859,10 +1017,12 @@ const resolveHotelTripItem = async (
     snapshotCurrencyCode: candidate.currencyCode || row.currencyCode,
     snapshotTimestamp: new Date(),
   })
-
-  return {
+  const resolved: ResolvedTripItemSnapshot = {
     itemType: 'hotel',
     inventoryId: normalizedSnapshot.inventoryId,
+    bookingSessionId: readStoredTripItemBookingSessionId({
+      metadata: candidate.metadata,
+    }),
     hotelId: row.id,
     flightItineraryId: null,
     carInventoryId: null,
@@ -883,7 +1043,27 @@ const resolveHotelTripItem = async (
       metadata: candidate.metadata,
       providerInventoryId,
     }),
+    inventorySnapshot: {
+      providerInventoryId,
+      hotelAvailabilitySnapshotId: availabilityRow?.id ?? null,
+      bookableEntity: null,
+      availability: buildHotelTripItemAvailabilitySnapshot({
+        hotelAvailabilitySnapshotId: availabilityRow?.id,
+        snapshotTimestamp: availabilityRow?.snapshotAt,
+        checkInStart: availabilityRow?.checkInStart,
+        checkInEnd: availabilityRow?.checkInEnd,
+        minNights: availabilityRow?.minNights,
+        maxNights: availabilityRow?.maxNights,
+        blockedWeekdays: availabilityRow?.blockedWeekdays,
+      }),
+    },
   }
+
+  resolved.inventorySnapshot.bookableEntity = buildBookableEntitySnapshotFromCandidate({
+    snapshot: resolved,
+  })
+
+  return resolved
 }
 
 const resolveCarTripItem = async (
@@ -907,6 +1087,13 @@ const resolveCarTripItem = async (
       locationName: carLocations.name,
       currencyCode: carInventory.currencyCode,
       priceCents: carInventory.fromDailyCents,
+      availabilityStart: carInventory.availabilityStart,
+      availabilityEnd: carInventory.availabilityEnd,
+      minDays: carInventory.minDays,
+      maxDays: carInventory.maxDays,
+      blockedWeekdays: carInventory.blockedWeekdays,
+      locationType: carLocations.locationType,
+      updatedAt: carInventory.updatedAt,
     })
     .from(carInventory)
     .innerJoin(cities, eq(carInventory.cityId, cities.id))
@@ -933,10 +1120,12 @@ const resolveCarTripItem = async (
     snapshotCurrencyCode: candidate.currencyCode || row.currencyCode,
     snapshotTimestamp: new Date(),
   })
-
-  return {
+  const resolved: ResolvedTripItemSnapshot = {
     itemType: 'car',
     inventoryId: normalizedSnapshot.inventoryId,
+    bookingSessionId: readStoredTripItemBookingSessionId({
+      metadata: candidate.metadata,
+    }),
     hotelId: null,
     flightItineraryId: null,
     carInventoryId: row.id,
@@ -957,7 +1146,28 @@ const resolveCarTripItem = async (
       metadata: candidate.metadata,
       providerInventoryId,
     }),
+    inventorySnapshot: {
+      providerInventoryId,
+      hotelAvailabilitySnapshotId: null,
+      bookableEntity: null,
+      availability: buildCarTripItemAvailabilitySnapshot({
+        snapshotTimestamp: row.updatedAt,
+        availabilityStart: row.availabilityStart,
+        availabilityEnd: row.availabilityEnd,
+        minDays: row.minDays,
+        maxDays: row.maxDays,
+        blockedWeekdays: row.blockedWeekdays,
+        locationType: row.locationType,
+        locationName: row.locationName,
+      }),
+    },
   }
+
+  resolved.inventorySnapshot.bookableEntity = buildBookableEntitySnapshotFromCandidate({
+    snapshot: resolved,
+  })
+
+  return resolved
 }
 
 const resolveFlightTripItem = async (
@@ -984,6 +1194,13 @@ const resolveFlightTripItem = async (
       priceCents: sql<number>`coalesce(${standardFare.priceCents}, ${flightItineraries.basePriceCents})`,
       stopsLabel: flightItineraries.stopsLabel,
       cabinClass: flightItineraries.cabinClass,
+      departureAt: flightItineraries.departureAtUtc,
+      arrivalAt: flightItineraries.arrivalAtUtc,
+      seatsRemaining:
+        sql<number>`coalesce(${standardFare.seatsRemaining}, ${flightItineraries.seatsRemaining})`,
+      itineraryType: flightItineraries.itineraryType,
+      availabilitySnapshotTimestamp:
+        sql<string | Date>`coalesce(${standardFare.updatedAt}, ${flightItineraries.updatedAt})`,
       airlineName: airlines.name,
       originCityId: originCity.id,
       originCityName: originCity.name,
@@ -1025,10 +1242,12 @@ const resolveFlightTripItem = async (
     snapshotCurrencyCode: candidate.currencyCode || row.currencyCode,
     snapshotTimestamp: new Date(),
   })
-
-  return {
+  const resolved: ResolvedTripItemSnapshot = {
     itemType: 'flight',
     inventoryId: normalizedSnapshot.inventoryId,
+    bookingSessionId: readStoredTripItemBookingSessionId({
+      metadata: candidate.metadata,
+    }),
     hotelId: null,
     flightItineraryId: row.id,
     carInventoryId: null,
@@ -1052,7 +1271,26 @@ const resolveFlightTripItem = async (
       metadata: candidate.metadata,
       providerInventoryId,
     }),
+    inventorySnapshot: {
+      providerInventoryId,
+      hotelAvailabilitySnapshotId: null,
+      bookableEntity: null,
+      availability: buildFlightTripItemAvailabilitySnapshot({
+        snapshotTimestamp: row.availabilitySnapshotTimestamp,
+        serviceDate: row.serviceDate,
+        departureAt: row.departureAt,
+        arrivalAt: row.arrivalAt,
+        seatsRemaining: row.seatsRemaining,
+        itineraryType: row.itineraryType,
+      }),
+    },
   }
+
+  resolved.inventorySnapshot.bookableEntity = buildBookableEntitySnapshotFromCandidate({
+    snapshot: resolved,
+  })
+
+  return resolved
 }
 
 const resolveTripItemSnapshot = async (tx: any, candidate: TripItemCandidate) => {
@@ -1111,6 +1349,7 @@ const readTripItems = async (tripId: number): Promise<TripItemRecord[]> => {
       tripId: tripItems.tripId,
       itemType: tripItems.itemType,
       inventoryId: snapshotColumns.inventoryId,
+      bookingSessionId: tripItems.bookingSessionId,
       position: tripItems.position,
       title: tripItems.title,
       subtitle: tripItems.subtitle,
@@ -1124,6 +1363,12 @@ const readTripItems = async (tripId: number): Promise<TripItemRecord[]> => {
       imageUrl: tripItems.imageUrl,
       meta: tripItems.meta,
       metadata: tripItems.metadata,
+      inventorySnapshotId: tripItemInventorySnapshots.id,
+      inventorySnapshotProviderInventoryId: tripItemInventorySnapshots.providerInventoryId,
+      inventorySnapshotHotelAvailabilitySnapshotId:
+        tripItemInventorySnapshots.hotelAvailabilitySnapshotId,
+      inventorySnapshotBookableEntity: tripItemInventorySnapshots.bookableEntity,
+      inventorySnapshotAvailability: tripItemInventorySnapshots.availabilitySnapshot,
       hotelId: tripItems.hotelId,
       flightItineraryId: tripItems.flightItineraryId,
       carInventoryId: tripItems.carInventoryId,
@@ -1159,6 +1404,10 @@ const readTripItems = async (tripId: number): Promise<TripItemRecord[]> => {
     .from(tripItems)
     .leftJoin(startCity, eq(tripItems.startCityId, startCity.id))
     .leftJoin(endCity, eq(tripItems.endCityId, endCity.id))
+    .leftJoin(
+      tripItemInventorySnapshots,
+      eq(tripItemInventorySnapshots.tripItemId, tripItems.id),
+    )
     .leftJoin(hotels, eq(tripItems.hotelId, hotels.id))
     .leftJoin(carInventory, eq(tripItems.carInventoryId, carInventory.id))
     .leftJoin(carLocations, eq(carInventory.locationId, carLocations.id))
@@ -1198,6 +1447,10 @@ const readTripItems = async (tripId: number): Promise<TripItemRecord[]> => {
       tripId: row.tripId,
       itemType: row.itemType,
       inventoryId: row.inventoryId,
+      bookingSessionId: readStoredTripItemBookingSessionId({
+        bookingSessionId: row.bookingSessionId,
+        metadata,
+      }),
       position: row.position,
       title: row.title,
       subtitle: row.subtitle,
@@ -1260,6 +1513,22 @@ const readTripItems = async (tripId: number): Promise<TripItemRecord[]> => {
         row.liveFlightItineraryType === 'round-trip' || row.liveFlightItineraryType === 'one-way'
           ? row.liveFlightItineraryType
           : null,
+      inventorySnapshot: buildTripItemInventorySnapshotModel({
+        id: row.inventorySnapshotId,
+        itemType: row.itemType,
+        inventoryId: row.inventoryId,
+        providerInventoryId:
+          row.inventorySnapshotProviderInventoryId ||
+          resolveStoredProviderInventoryId({
+            itemType: row.itemType,
+            hotelId: row.hotelId,
+            flightItineraryId: row.flightItineraryId,
+            carInventoryId: row.carInventoryId,
+          }),
+        hotelAvailabilitySnapshotId: row.inventorySnapshotHotelAvailabilitySnapshotId,
+        bookableEntity: row.inventorySnapshotBookableEntity,
+        availabilitySnapshot: row.inventorySnapshotAvailability,
+      }),
       createdAt: toIsoTimestamp(row.createdAt),
       updatedAt: toIsoTimestamp(row.updatedAt),
     }
@@ -1267,6 +1536,7 @@ const readTripItems = async (tripId: number): Promise<TripItemRecord[]> => {
 }
 
 const readTripItemRecordProviderInventoryId = (item: TripItemRecord) =>
+  item.inventorySnapshot?.providerInventoryId ||
   resolveStoredProviderInventoryId({
     itemType: item.itemType,
     hotelId: item.hotelId,
@@ -1465,7 +1735,13 @@ const evaluateTripItemAvailability = async (
   now = new Date(),
 ) => {
   const hotelSnapshots = await readLatestHotelAvailabilitySnapshots(
-    items.flatMap((item) => (item.itemType === 'hotel' && item.hotelId ? [item.hotelId] : [])),
+    items.flatMap((item) =>
+      item.itemType === 'hotel' &&
+      item.hotelId &&
+      item.inventorySnapshot?.availability?.itemType !== 'hotel'
+        ? [item.hotelId]
+        : [],
+    ),
   )
 
   const results = new Map<number, TripItemAvailabilityValidationResult>()
@@ -1473,6 +1749,25 @@ const evaluateTripItemAvailability = async (
 
   for (const item of items) {
     if (item.itemType === 'hotel') {
+      const storedAvailability =
+        item.inventorySnapshot?.availability?.itemType === 'hotel'
+          ? item.inventorySnapshot.availability
+          : null
+      const normalizedStoredAvailability =
+        storedAvailability &&
+        storedAvailability.checkInStart &&
+        storedAvailability.checkInEnd &&
+        storedAvailability.minNights != null &&
+        storedAvailability.maxNights != null
+          ? {
+            checkInStart: storedAvailability.checkInStart,
+            checkInEnd: storedAvailability.checkInEnd,
+            minNights: storedAvailability.minNights,
+            maxNights: storedAvailability.maxNights,
+            blockedWeekdays: storedAvailability.blockedWeekdays,
+          }
+          : null
+
       results.set(
         item.id,
         validateTripItemAvailability(
@@ -1483,7 +1778,11 @@ const evaluateTripItemAvailability = async (
             startDate: item.startDate,
             endDate: item.endDate,
             inventoryExists: item.liveHotelExists,
-            availabilitySnapshot: item.hotelId ? (hotelSnapshots.get(item.hotelId) || null) : null,
+            availabilitySnapshot: normalizedStoredAvailability
+              ? normalizedStoredAvailability
+              : item.hotelId
+                ? (hotelSnapshots.get(item.hotelId) || null)
+                : null,
           },
           now,
         ),
@@ -1908,6 +2207,7 @@ const toTripItem = (
     tripId: item.tripId,
     itemType: item.itemType,
     inventoryId: item.inventoryId,
+    bookingSessionId: item.bookingSessionId,
     position: item.position,
     locked: readTripItemLocked(item.metadata),
     title: item.title,
@@ -1945,17 +2245,20 @@ const toTripItem = (
     liveFlightDepartureAt: item.liveFlightDepartureAt,
     liveFlightArrivalAt: item.liveFlightArrivalAt,
     liveFlightItineraryType: item.liveFlightItineraryType,
+    inventorySnapshot: item.inventorySnapshot,
     metadata: item.metadata,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   } satisfies TripItem
-  const bookableEntity = (() => {
-    try {
-      return toBookableEntityFromTripItem(tripItemBase)
-    } catch {
-      return null
-    }
-  })()
+  const bookableEntity =
+    item.inventorySnapshot?.bookableEntity ||
+    (() => {
+      try {
+        return toBookableEntityFromTripItem(tripItemBase)
+      } catch {
+        return null
+      }
+    })()
 
   return {
     ...tripItemBase,
@@ -2037,11 +2340,42 @@ const summarizeTrip = (input: {
   }
 }
 
+const cloneTripItemInventorySnapshot = (
+  snapshot: TripItemInventorySnapshot | null,
+): TripItemInventorySnapshot | null => {
+  if (!snapshot) return null
+
+  const availability =
+    snapshot.availability == null
+      ? null
+      : snapshot.availability.itemType === 'hotel'
+        ? {
+          ...snapshot.availability,
+          blockedWeekdays: [...snapshot.availability.blockedWeekdays],
+        }
+        : snapshot.availability.itemType === 'car'
+          ? {
+            ...snapshot.availability,
+            blockedWeekdays: [...snapshot.availability.blockedWeekdays],
+          }
+          : { ...snapshot.availability }
+
+  return {
+    ...snapshot,
+    bookableEntity:
+      snapshot.bookableEntity && typeof globalThis.structuredClone === 'function'
+        ? globalThis.structuredClone(snapshot.bookableEntity)
+        : snapshot.bookableEntity,
+    availability,
+  }
+}
+
 const cloneTripItemRecord = (item: TripItemRecord): TripItemRecord => ({
   ...item,
   meta: [...item.meta],
   metadata: { ...item.metadata },
   liveCarBlockedWeekdays: [...item.liveCarBlockedWeekdays],
+  inventorySnapshot: cloneTripItemInventorySnapshot(item.inventorySnapshot),
 })
 
 const toTripRollbackItemSnapshot = (
@@ -2050,6 +2384,7 @@ const toTripRollbackItemSnapshot = (
   id: item.id,
   itemType: item.itemType,
   inventoryId: item.inventoryId,
+  bookingSessionId: item.bookingSessionId,
   position: item.position,
   hotelId: item.hotelId,
   flightItineraryId: item.flightItineraryId,
@@ -2065,6 +2400,18 @@ const toTripRollbackItemSnapshot = (
   subtitle: item.subtitle,
   imageUrl: item.imageUrl,
   meta: [...item.meta],
+  inventorySnapshot: item.inventorySnapshot
+    ? {
+      providerInventoryId: item.inventorySnapshot.providerInventoryId,
+      hotelAvailabilitySnapshotId: item.inventorySnapshot.hotelAvailabilitySnapshotId,
+      bookableEntity:
+        item.inventorySnapshot.bookableEntity &&
+        typeof globalThis.structuredClone === 'function'
+          ? globalThis.structuredClone(item.inventorySnapshot.bookableEntity)
+          : item.inventorySnapshot.bookableEntity,
+      availability: cloneTripItemInventorySnapshot(item.inventorySnapshot)?.availability || null,
+    }
+    : null,
   metadata: { ...item.metadata },
 })
 
@@ -2456,6 +2803,7 @@ const buildReplacementTripItemRecord = async (
     ...existingItem,
     itemType: snapshot.itemType,
     inventoryId: snapshot.inventoryId,
+    bookingSessionId: snapshot.bookingSessionId,
     title: snapshot.title,
     subtitle: snapshot.subtitle,
     startDate: snapshot.startDate,
@@ -2511,6 +2859,14 @@ const buildReplacementTripItemRecord = async (
         previewMetadata.previewFlightItineraryType === 'round-trip'
         ? previewMetadata.previewFlightItineraryType
         : null,
+    inventorySnapshot: buildTripItemInventorySnapshotModel({
+      itemType: snapshot.itemType,
+      inventoryId: snapshot.inventoryId,
+      providerInventoryId: snapshot.inventorySnapshot.providerInventoryId,
+      hotelAvailabilitySnapshotId: snapshot.inventorySnapshot.hotelAvailabilitySnapshotId,
+      bookableEntity: snapshot.inventorySnapshot.bookableEntity,
+      availabilitySnapshot: snapshot.inventorySnapshot.availability,
+    }),
     updatedAt: new Date().toISOString(),
   }
 }
@@ -3538,6 +3894,31 @@ export async function getTripDetails(
   })
 }
 
+export async function listTripItemsByTripId(
+  tripId: number,
+  options: {
+    revalidate?: 'auto' | 'force'
+  } = {},
+): Promise<TripItem[]> {
+  const trip = await getTripDetails(tripId, options)
+  if (!trip) {
+    throw new TripRepoError('trip_not_found', `Trip ${tripId} was not found.`)
+  }
+
+  return trip.items
+}
+
+export async function getTripItemById(
+  tripId: number,
+  itemId: number,
+  options: {
+    revalidate?: 'auto' | 'force'
+  } = {},
+): Promise<TripItem | null> {
+  const items = await listTripItemsByTripId(tripId, options)
+  return items.find((item) => item.id === itemId) || null
+}
+
 export async function revalidateTrip(tripId: number): Promise<TripDetails> {
   const details = await getTripDetails(tripId, { revalidate: 'force' })
   if (!details) {
@@ -3576,7 +3957,13 @@ export async function setTripBookingSession(
   })
 }
 
-export async function addItemToTrip(tripId: number, candidate: TripItemCandidate): Promise<TripDetails> {
+export async function addItemToTrip(
+  tripId: number,
+  candidate: TripItemCandidate,
+  options: {
+    bookableEntity?: BookableEntity | null
+  } = {},
+): Promise<TripDetails> {
   return withTripSchemaGuard(async () => {
     const db = getDb()
     requireTripSnapshotColumns()
@@ -3584,6 +3971,10 @@ export async function addItemToTrip(tripId: number, candidate: TripItemCandidate
     await db.transaction(async (tx) => {
       await assertTripExists(tx, tripId)
       const snapshot = await resolveTripItemSnapshot(tx, candidate)
+      snapshot.inventorySnapshot.bookableEntity = buildBookableEntitySnapshotFromCandidate({
+        snapshot,
+        bookableEntity: options.bookableEntity,
+      })
 
       const [positionRow] = await tx
         .select({
@@ -3594,27 +3985,33 @@ export async function addItemToTrip(tripId: number, candidate: TripItemCandidate
 
       const nextPosition = (positionRow?.maxPosition ?? -1) + 1
 
-      await tx.insert(tripItems).values({
-        tripId,
-        itemType: snapshot.itemType,
-        inventoryId: snapshot.inventoryId,
-        position: nextPosition,
-        hotelId: snapshot.hotelId,
-        flightItineraryId: snapshot.flightItineraryId,
-        carInventoryId: snapshot.carInventoryId,
-        startCityId: snapshot.startCityId,
-        endCityId: snapshot.endCityId,
-        startDate: snapshot.startDate,
-        endDate: snapshot.endDate,
-        snapshotPriceCents: snapshot.snapshotPriceCents,
-        snapshotCurrencyCode: snapshot.snapshotCurrencyCode,
-        snapshotTimestamp: new Date(snapshot.snapshotTimestamp),
-        title: snapshot.title,
-        subtitle: snapshot.subtitle,
-        imageUrl: snapshot.imageUrl,
-        meta: snapshot.meta,
-        metadata: snapshot.metadata,
-      })
+      const [insertedItem] = await tx
+        .insert(tripItems)
+        .values({
+          tripId,
+          itemType: snapshot.itemType,
+          inventoryId: snapshot.inventoryId,
+          bookingSessionId: snapshot.bookingSessionId,
+          position: nextPosition,
+          hotelId: snapshot.hotelId,
+          flightItineraryId: snapshot.flightItineraryId,
+          carInventoryId: snapshot.carInventoryId,
+          startCityId: snapshot.startCityId,
+          endCityId: snapshot.endCityId,
+          startDate: snapshot.startDate,
+          endDate: snapshot.endDate,
+          snapshotPriceCents: snapshot.snapshotPriceCents,
+          snapshotCurrencyCode: snapshot.snapshotCurrencyCode,
+          snapshotTimestamp: new Date(snapshot.snapshotTimestamp),
+          title: snapshot.title,
+          subtitle: snapshot.subtitle,
+          imageUrl: snapshot.imageUrl,
+          meta: snapshot.meta,
+          metadata: snapshot.metadata,
+        })
+        .returning({ id: tripItems.id })
+
+      await persistTripItemInventorySnapshot(tx, insertedItem.id, snapshot)
 
       await syncTripDatesIfAuto(tx, tripId)
       await touchTrip(tx, tripId)
@@ -3877,9 +4274,15 @@ export async function restoreTripRollbackDraft(
         snapshotTimestamp: item.snapshotTimestamp,
       })
 
-      return {
+      const restoredItem: ResolvedTripItemSnapshot & { id: number; position: number } = {
         ...item,
+        id: item.id,
+        position: item.position,
         inventoryId: normalizedSnapshot.inventoryId,
+        bookingSessionId: readStoredTripItemBookingSessionId({
+          bookingSessionId: item.bookingSessionId,
+          metadata: item.metadata,
+        }),
         snapshotPriceCents: normalizedSnapshot.snapshotPriceCents,
         snapshotCurrencyCode: normalizedSnapshot.snapshotCurrencyCode,
         snapshotTimestamp: normalizedSnapshot.snapshotTimestamp,
@@ -3889,7 +4292,28 @@ export async function restoreTripRollbackDraft(
           metadata: item.metadata,
           providerInventoryId: resolveStoredProviderInventoryId(item),
         }),
+        inventorySnapshot: {
+          providerInventoryId:
+            item.inventorySnapshot?.providerInventoryId ?? resolveStoredProviderInventoryId(item),
+          hotelAvailabilitySnapshotId:
+            item.inventorySnapshot?.hotelAvailabilitySnapshotId ?? null,
+          bookableEntity:
+            item.inventorySnapshot?.bookableEntity &&
+            isBookableEntity(item.inventorySnapshot.bookableEntity) &&
+            item.inventorySnapshot.bookableEntity.vertical === item.itemType &&
+            item.inventorySnapshot.bookableEntity.inventoryId === normalizedSnapshot.inventoryId
+              ? item.inventorySnapshot.bookableEntity
+              : null,
+          availability: item.inventorySnapshot?.availability || null,
+        },
       }
+
+      restoredItem.inventorySnapshot.bookableEntity = buildBookableEntitySnapshotFromCandidate({
+        snapshot: restoredItem,
+        bookableEntity: restoredItem.inventorySnapshot.bookableEntity,
+      })
+
+      return restoredItem
     })
 
     await db.transaction(async (tx) => {
@@ -3904,6 +4328,7 @@ export async function restoreTripRollbackDraft(
             tripId,
             itemType: item.itemType,
             inventoryId: item.inventoryId,
+            bookingSessionId: item.bookingSessionId,
             position: item.position,
             hotelId: item.hotelId,
             flightItineraryId: item.flightItineraryId,
@@ -3922,6 +4347,10 @@ export async function restoreTripRollbackDraft(
             metadata: item.metadata,
           })),
         )
+
+        for (const item of restoredItems) {
+          await persistTripItemInventorySnapshot(tx, item.id, item)
+        }
       }
 
       await normalizeTripItemPositions(tx, tripId)
@@ -4004,6 +4433,7 @@ export async function updateTripItem(
           tripId,
           itemType: snapshot.itemType,
           inventoryId: snapshot.inventoryId,
+          bookingSessionId: snapshot.bookingSessionId,
           position: existingItem.position,
           hotelId: snapshot.hotelId,
           flightItineraryId: snapshot.flightItineraryId,
@@ -4023,6 +4453,8 @@ export async function updateTripItem(
           createdAt: existingItem.createdAt,
           updatedAt: new Date(),
         })
+
+        await persistTripItemInventorySnapshot(tx, itemId, snapshot)
 
         shouldAutoRebalance = readTripAutoRebalance((await tx
           .select({ metadata: trips.metadata })
