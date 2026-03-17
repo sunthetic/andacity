@@ -22,6 +22,7 @@ import type { SavedItem } from "~/types/save-compare/saved-item";
 
 export const FlightCard = component$((props: FlightCardProps) => {
   const flight = props.result;
+  const ctaHref = flight.searchEntity?.href || props.ctaHref || "/flights";
   const onSelectFlight$ = $(() => {
     if (!props.telemetry) return;
 
@@ -156,10 +157,10 @@ export const FlightCard = component$((props: FlightCardProps) => {
       <a
         q:slot="primary-action"
         class="t-btn-primary block w-full px-4 py-2.5 text-center text-sm font-semibold"
-        href={props.ctaHref || "/flights"}
+        href={ctaHref}
         onClick$={onSelectFlight$}
       >
-        Select flight
+        View flight
       </a>
 
       <div

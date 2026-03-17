@@ -1,11 +1,16 @@
 import {
   $,
+  Slot,
   component$,
   useSignal,
   useVisibleTask$,
   type QRL,
 } from "@builder.io/qwik";
-import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
+import {
+  routeLoader$,
+  useLocation,
+  type DocumentHead,
+} from "@builder.io/qwik-city";
 import { AsyncInlineSpinner } from "~/components/async/AsyncInlineSpinner";
 import { AsyncPendingButton } from "~/components/async/AsyncPendingButton";
 import { AsyncRetryControl } from "~/components/async/AsyncRetryControl";
@@ -35,9 +40,11 @@ import {
   addItemToTripApi,
   applyTripItemEditApi,
   createTripApi,
+  deleteTripApi,
   getTripDetailsApi,
   listTripItemReplacementOptionsApi,
   listTripsApi,
+  moveTripItemToTripApi,
   previewTripItemEditApi,
   revalidateTripApi,
   restoreTripRollbackDraftApi,
@@ -45,11 +52,11 @@ import {
   updateTripItemApi,
   updateTripMetadataApi,
 } from "~/lib/trips/trips-api";
-import {
-  readTripBundlingState,
-} from "~/lib/trips/bundle-explainability";
+import { readTripBundlingState } from "~/lib/trips/bundle-explainability";
+import { readAddToTripSuccessNotice } from "~/lib/trips/add-to-trip-feedback";
 import { trackBookingEvent } from "~/lib/analytics/booking-telemetry";
 import { compareIsoDate, differenceInDays } from "~/lib/trips/date-utils";
+import { useOverlayBehavior } from "~/lib/ui/overlay";
 import type {
   TripAppliedChange,
   TripDetails,
@@ -127,6 +134,8 @@ type AppliedTripChangeState = {
 
 export default component$(() => {
   const data = useTripsPage().value;
+  const location = useLocation();
+  const addToTripSuccess = readAddToTripSuccessNotice(location.url);
   const trips = useSignal<TripListItem[]>(data.trips);
   const activeTripId = useSignal<number | null>(data.activeTripId);
   const activeTrip = useSignal<TripDetails | null>(data.activeTrip);
@@ -139,6 +148,7 @@ export default component$(() => {
   const editingStatus = useSignal<TripStatus>(
     data.activeTrip?.status || "draft",
   );
+  const confirmDeleteTrip = useSignal(false);
   const actionFeedback = useSignal<TripActionFeedback | null>(null);
   const replacementPanelError = useSignal<{
     itemId: number;
@@ -211,7 +221,8 @@ export default component$(() => {
           .getComputedStyle(document.documentElement)
           .getPropertyValue("--sticky-top-offset"),
       );
-      const topBoundary = (Number.isFinite(stickyOffset) ? stickyOffset : 80) + 12;
+      const topBoundary =
+        (Number.isFinite(stickyOffset) ? stickyOffset : 80) + 12;
       const bottomBoundary = window.innerHeight - 24;
       const rect = element.getBoundingClientRect();
 
@@ -330,6 +341,7 @@ export default component$(() => {
             : "Failed to load trip.";
         error.value = message;
       } finally {
+        confirmDeleteTrip.value = false;
         loading.value = false;
         activeAction.value = null;
       }
@@ -360,6 +372,7 @@ export default component$(() => {
           : "Failed to create trip.";
       error.value = message;
     } finally {
+      confirmDeleteTrip.value = false;
       loading.value = false;
       activeAction.value = null;
     }
@@ -392,6 +405,60 @@ export default component$(() => {
           ? cause.message
           : "Failed to update trip metadata.";
       error.value = message;
+    } finally {
+      loading.value = false;
+      activeAction.value = null;
+    }
+  });
+
+  const onDeleteActiveTrip$ = $(async () => {
+    if (!activeTrip.value || loading.value) return;
+    loading.value = true;
+    activeAction.value = "delete-trip";
+    error.value = null;
+    actionFeedback.value = null;
+    appliedTripChange.value = null;
+
+    const deletedTripName = activeTrip.value.name;
+    const deletedTripId = activeTrip.value.id;
+
+    try {
+      await deleteTripApi(deletedTripId);
+      await refreshTrips$(null, false);
+      await resetEditingSurface$();
+      confirmDeleteTrip.value = false;
+
+      const nextTripId = trips.value[0]?.id ?? null;
+      if (nextTripId) {
+        const trip = await getTripDetailsApi(nextTripId);
+        activeTripId.value = trip.id;
+        activeTrip.value = trip;
+        editingName.value = trip.name || "";
+        editingStatus.value = trip.status || "draft";
+      } else {
+        activeTripId.value = null;
+        activeTrip.value = null;
+        editingName.value = "";
+        editingStatus.value = "draft";
+      }
+
+      actionFeedback.value = {
+        tone: "success",
+        title: "Trip deleted",
+        message: `${deletedTripName} was removed from persisted trip storage.`,
+      };
+      await trackTripAction$("delete_trip", {
+        deleted_trip_id: deletedTripId,
+      });
+    } catch (cause) {
+      const message =
+        cause instanceof TripApiError
+          ? cause.message
+          : "Failed to delete trip.";
+      error.value = message;
+      await trackTripError$("delete_trip", message, {
+        deleted_trip_id: deletedTripId,
+      });
     } finally {
       loading.value = false;
       activeAction.value = null;
@@ -518,6 +585,62 @@ export default component$(() => {
       error.value = message;
       await trackTripError$("preview_reorder_item", message, {
         item_id: itemId,
+      });
+    } finally {
+      loading.value = false;
+      activeAction.value = null;
+    }
+  });
+
+  const onMoveItemToTrip$ = $(async (item: TripItem, targetTripId: number) => {
+    if (!activeTrip.value || loading.value) return;
+    if (targetTripId < 1 || targetTripId === activeTrip.value.id) return;
+
+    loading.value = true;
+    activeAction.value = `move-to-trip:${item.id}`;
+    error.value = null;
+    actionFeedback.value = null;
+    appliedTripChange.value = null;
+
+    try {
+      const result = await moveTripItemToTripApi(
+        activeTrip.value.id,
+        item.id,
+        targetTripId,
+      );
+      activeTrip.value = result.sourceTrip;
+      activeTripId.value = result.sourceTrip.id;
+      await refreshTrips$(result.sourceTrip.id, true);
+      editingName.value = result.sourceTrip.name || "";
+      editingStatus.value = result.sourceTrip.status || "draft";
+      if (previewItemId.value === item.id) {
+        editDraft.value = null;
+        editPreview.value = null;
+        previewItemId.value = null;
+      }
+      replacementPanelItemId.value = null;
+      replacementPanelError.value = null;
+      actionFeedback.value = {
+        tone: "success",
+        title: "Item moved",
+        message: result.targetAlreadyHadItem
+          ? `${item.title} was removed from this trip because ${result.targetTrip.name} already had the same inventory.`
+          : `${item.title} was moved to ${result.targetTrip.name}.`,
+      };
+      await trackTripAction$("move_item_to_trip", {
+        item_id: item.id,
+        target_trip_id: targetTripId,
+        deduped_existing_item: result.targetAlreadyHadItem,
+      });
+    } catch (cause) {
+      const message =
+        cause instanceof TripApiError
+          ? cause.message
+          : "Failed to move item to another trip.";
+      error.value = message;
+      await trackTripError$("move_item_to_trip", message, {
+        item_id: item.id,
+        target_trip_id: targetTripId,
       });
     } finally {
       loading.value = false;
@@ -736,11 +859,11 @@ export default component$(() => {
                       ? "This component is now a manual override. Rollback restores the previous bundle pick."
                       : `${draft.replacementTitle} replaced the current bundle component.`,
                 }
-            : {
-                tone: "success",
-                title: "Item replaced",
-                message: `${draft.replacementTitle} is now in the itinerary.`,
-              };
+              : {
+                  tone: "success",
+                  title: "Item replaced",
+                  message: `${draft.replacementTitle} is now in the itinerary.`,
+                };
       if (preview?.bundleImpact) {
         trackBookingEvent("booking_bundle_decision", {
           vertical: "bundles",
@@ -1005,11 +1128,10 @@ export default component$(() => {
     >
       <div class="mt-4">
         <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
-          Trip builder
+          Trips
         </h1>
         <p class="mt-2 max-w-[80ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-          Build trip plans across stays, flights, and car rentals. This phase
-          stores planning data only, with no booking or payment flow.
+          Save options into trips, sort the bucket, and book when you are ready.
         </p>
       </div>
 
@@ -1020,6 +1142,21 @@ export default component$(() => {
           title={tripStatusNotice.title}
           message={tripStatusNotice.message}
         />
+      ) : null}
+
+      {addToTripSuccess ? (
+        <div
+          class="mt-4 rounded-[var(--radius-xl)] border border-[color:rgba(22,163,74,0.2)] bg-[color:rgba(240,253,244,0.96)] px-4 py-3 shadow-[var(--shadow-sm)]"
+          role="status"
+          aria-live="polite"
+        >
+          <p class="text-sm font-semibold text-[color:#166534]">
+            {addToTripSuccess.title}
+          </p>
+          <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
+            {addToTripSuccess.message}
+          </p>
+        </div>
       ) : null}
 
       {setupError.value && tripSurfaceState === "failed" ? (
@@ -1150,162 +1287,77 @@ export default component$(() => {
           ) : activeTrip.value ? (
             <>
               <section class="t-card p-4">
-                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <SummaryBlock
-                    label="Trip dates"
-                    value={formatTripDateRange(
-                      activeTrip.value.startDate,
-                      activeTrip.value.endDate,
-                    )}
-                  />
-                  <SummaryBlock
-                    label="Cities involved"
-                    value={
-                      activeTrip.value.citiesInvolved.length
-                        ? activeTrip.value.citiesInvolved.join(", ")
-                        : "Not set"
-                    }
-                  />
-                  <SummaryBlock
-                    label={
-                      activeTrip.value.pricing.hasPartialPricing
-                        ? "Partial bundle base total"
-                        : "Snapshot bundle base total"
-                    }
-                    value={formatSnapshotEstimate(activeTrip.value)}
-                  />
-                  <SummaryBlock
-                    label={
-                      activeTrip.value.pricing.hasPartialPricing
-                        ? "Live partial base total"
-                        : "Live bundle base total"
-                    }
-                    value={formatLiveEstimate(activeTrip.value)}
-                  />
-                </div>
-
-                <div class="mt-4 rounded-xl border border-[color:var(--color-border)] px-3 py-3">
-                  <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-                    Bundle pricing note
-                  </p>
-                  <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                    {formatTripPricingSupport(activeTrip.value)}
-                  </p>
-                </div>
-
-                {activeTrip.value.pricing.verticals.length ? (
-                  <div class="mt-4 grid gap-3 border-t border-[color:var(--color-divider)] pt-4 md:grid-cols-2 xl:grid-cols-3">
-                    {activeTrip.value.pricing.verticals.map((vertical) => (
-                      <VerticalSubtotalCard
-                        key={vertical.itemType}
-                        vertical={vertical}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-
-                <div class="mt-4 rounded-xl border border-[color:var(--color-border)] px-3 py-3">
-                  <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-                    Price drift summary
-                  </p>
-                  <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
-                    {formatDriftSummary(activeTrip.value)}
-                  </p>
-                  <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                    Prices are snapshotted when items are added. Indicators
-                    compare that snapshot against current pricing in the
-                    database.
-                  </p>
-                </div>
-
-                <div class="mt-4 rounded-xl border border-[color:var(--color-border)] px-3 py-3">
-                  <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-                        Trip intelligence
-                      </p>
-                      <p
-                        class={[
-                          "mt-1 text-sm font-semibold",
-                          intelligenceToneClass(activeTrip.value.intelligence),
-                        ]}
-                      >
-                        {formatTripIntelligenceStatus(
-                          activeTrip.value.intelligence,
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                  <div class="min-w-0 flex-1">
+                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                      {buildTripReference(activeTrip.value.id)}
+                    </p>
+                    <h2 class="mt-1 text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+                      {activeTrip.value.name}
+                    </h2>
+                    <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[color:var(--color-text-muted)]">
+                      <span>
+                        {activeTrip.value.items.length} item
+                        {activeTrip.value.items.length === 1 ? "" : "s"}
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <span>
+                        {formatTripDateRange(
+                          activeTrip.value.startDate,
+                          activeTrip.value.endDate,
                         )}
-                      </p>
-                      <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                        {formatTripIntelligenceMeta(
-                          activeTrip.value.intelligence,
-                        )}
-                      </p>
-                      <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                        Revalidate here to refresh trip item and bundle
-                        inventory freshness.
-                      </p>
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <span>
+                        {activeTrip.value.citiesInvolved.length
+                          ? activeTrip.value.citiesInvolved.join(", ")
+                          : "Cities not set"}
+                      </span>
                     </div>
-
-                    <InventoryRefreshControl
-                      id={`trip:${activeTrip.value.id}`}
-                      mode="action"
-                      onRefresh$={onRevalidateTrip$}
-                      label="Revalidate trip"
-                      refreshingLabel="Revalidating..."
-                      refreshedLabel="Trip revalidated"
-                      failedLabel="Retry revalidation"
-                      successMessage="Trip availability was revalidated. Bundle price changes remain highlighted against the stored trip snapshot below."
-                      failureMessage="Failed to revalidate trip."
-                      align="right"
-                      disabled={loading.value}
-                      telemetry={{
-                        vertical: "trips",
-                        surface: "trip_builder",
-                        refreshType: "trip_revalidation",
-                        itemCount: activeTrip.value.items.length,
-                      }}
-                    />
                   </div>
 
-                  <div class="mt-4 grid gap-3 md:grid-cols-3">
-                    <IntelligenceStatCard
-                      label="Availability"
-                      value={formatTripAvailabilitySummary(
-                        activeTrip.value.intelligence,
-                      )}
-                    />
-                    <IntelligenceStatCard
-                      label="Issues"
-                      value={formatTripIssueSummary(
-                        activeTrip.value.intelligence,
-                      )}
-                    />
-                    <IntelligenceStatCard
-                      label="Freshness"
-                      value={formatTripFreshnessSummary(
-                        activeTrip.value.intelligence,
-                      )}
-                    />
+                  <div class="min-w-[180px] rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] px-4 py-3 text-left sm:text-right">
+                    <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                      Saved total
+                    </p>
+                    <p class="mt-1 text-xl font-semibold text-[color:var(--color-text-strong)]">
+                      {formatSnapshotEstimate(activeTrip.value)}
+                    </p>
+                    <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                      Live {formatLiveEstimate(activeTrip.value)}
+                    </p>
                   </div>
+                </div>
 
-                  {activeTrip.value.intelligence.issues.length ? (
-                    <div class="mt-4 grid gap-2 border-t border-[color:var(--color-divider)] pt-4">
-                      {activeTrip.value.intelligence.issues
-                        .slice(0, 5)
-                        .map((issue) => (
-                          <div
-                            key={`${issue.code}-${issue.itemId || "trip"}-${(issue.relatedItemIds || []).join("-")}`}
-                            class={[
-                              "rounded-lg border px-3 py-2 text-sm",
-                              issue.severity === "blocking"
-                                ? "border-[color:var(--color-error)] bg-[color:rgba(185,28,28,0.06)] text-[color:var(--color-error)]"
-                                : "border-[color:var(--color-warning)] bg-[color:rgba(180,83,9,0.08)] text-[color:var(--color-warning)]",
-                            ]}
-                          >
-                            {issue.message}
-                          </div>
-                        ))}
-                    </div>
-                  ) : null}
+                <div class="mt-4 flex flex-wrap items-center gap-2">
+                  <a class="t-btn-primary px-4 py-2 text-sm" href="/flights">
+                    Add flights
+                  </a>
+                  <a class="t-btn-ghost px-4 py-2 text-sm" href="/hotels">
+                    Add hotels
+                  </a>
+                  <a class="t-btn-ghost px-4 py-2 text-sm" href="/car-rentals">
+                    Add cars
+                  </a>
+                  <InventoryRefreshControl
+                    id={`trip:${activeTrip.value.id}`}
+                    mode="action"
+                    onRefresh$={onRevalidateTrip$}
+                    label="Revalidate"
+                    refreshingLabel="Revalidating..."
+                    refreshedLabel="Revalidated"
+                    failedLabel="Retry"
+                    successMessage="Trip availability was revalidated."
+                    failureMessage="Failed to revalidate trip."
+                    align="left"
+                    disabled={loading.value}
+                    telemetry={{
+                      vertical: "trips",
+                      surface: "trip_builder",
+                      refreshType: "trip_revalidation",
+                      itemCount: activeTrip.value.items.length,
+                    }}
+                  />
                 </div>
 
                 <div class="mt-4 grid gap-3 border-t border-[color:var(--color-divider)] pt-4 sm:grid-cols-[1fr_160px_auto]">
@@ -1348,107 +1400,305 @@ export default component$(() => {
                   <AsyncPendingButton
                     onClick$={onUpdateTripMetadata$}
                     pending={activeAction.value === "update-trip"}
-                    pendingLabel="Saving trip..."
+                    pendingLabel="Saving..."
                     disabled={
                       loading.value && activeAction.value !== "update-trip"
                     }
                     class="t-btn-ghost px-3 py-2 text-sm"
                   >
-                    Update
+                    Save trip
                   </AsyncPendingButton>
+                </div>
+
+                <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--color-divider)] pt-4">
+                  <div class="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-muted)]">
+                    <span class="rounded-full bg-[color:var(--color-surface-1)] px-2.5 py-1">
+                      {activeTrip.value.editing.autoRebalance
+                        ? "Auto-balance on"
+                        : "Auto-balance off"}
+                    </span>
+                    {activeTrip.value.editing.lockedItemCount ? (
+                      <span class="rounded-full bg-[color:var(--color-surface-1)] px-2.5 py-1">
+                        {activeTrip.value.editing.lockedItemCount} locked
+                      </span>
+                    ) : null}
+                  </div>
+                  <AsyncPendingButton
+                    class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
+                    pending={activeAction.value === "toggle-auto-rebalance"}
+                    pendingLabel="Saving..."
+                    disabled={
+                      loading.value &&
+                      activeAction.value !== "toggle-auto-rebalance"
+                    }
+                    onClick$={onToggleAutoRebalance$}
+                  >
+                    {activeTrip.value.editing.autoRebalance
+                      ? "Turn off auto-balance"
+                      : "Turn on auto-balance"}
+                  </AsyncPendingButton>
+                </div>
+
+                <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <SummaryBlock
+                    label="Trip dates"
+                    value={formatTripDateRange(
+                      activeTrip.value.startDate,
+                      activeTrip.value.endDate,
+                    )}
+                  />
+                  <SummaryBlock
+                    label="Cities"
+                    value={
+                      activeTrip.value.citiesInvolved.length
+                        ? activeTrip.value.citiesInvolved.join(", ")
+                        : "Not set"
+                    }
+                  />
+                  <SummaryBlock
+                    label="Snapshot total"
+                    value={formatSnapshotEstimate(activeTrip.value)}
+                  />
+                  <SummaryBlock
+                    label="Live total"
+                    value={formatLiveEstimate(activeTrip.value)}
+                  />
+                </div>
+
+                <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <div class="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-muted)]">
+                    <span
+                      class={[
+                        "rounded-full border px-2.5 py-1 font-medium",
+                        activeTrip.value.revalidation.status === "all_valid"
+                          ? "border-[color:rgba(15,118,110,0.24)] bg-[color:rgba(15,118,110,0.08)] text-[color:var(--color-success,#0f766e)]"
+                          : activeTrip.value.revalidation.status ===
+                              "price_changes_present"
+                            ? "border-[color:rgba(180,83,9,0.24)] bg-[color:rgba(180,83,9,0.08)] text-[color:var(--color-warning)]"
+                            : "border-[color:rgba(185,28,28,0.24)] bg-[color:rgba(185,28,28,0.08)] text-[color:var(--color-error)]",
+                      ]}
+                    >
+                      {activeTrip.value.revalidation.summary}
+                    </span>
+                    <span class="rounded-full bg-[color:var(--color-surface-1)] px-2.5 py-1">
+                      {formatDriftSummary(activeTrip.value)}
+                    </span>
+                    <span class="rounded-full bg-[color:var(--color-surface-1)] px-2.5 py-1">
+                      {formatTripIssueSummary(activeTrip.value.intelligence)}
+                    </span>
+                  </div>
+
+                  <SecondaryInfoDialog
+                    buttonLabel="Pricing and checks"
+                    title="Trip pricing and checks"
+                    summary={formatTripPricingSupport(activeTrip.value)}
+                  >
+                    <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+                      <div class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] px-3 py-3">
+                        <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                          Drift and freshness
+                        </p>
+                        <p class="mt-2 text-sm font-semibold text-[color:var(--color-text-strong)]">
+                          {formatDriftSummary(activeTrip.value)}
+                        </p>
+                        <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                          {formatTripRevalidationMeta(
+                            activeTrip.value.revalidation,
+                          )}
+                        </p>
+                      </div>
+
+                      <div class="grid gap-3 sm:grid-cols-2">
+                        <IntelligenceStatCard
+                          label="Valid"
+                          value={activeTrip.value.revalidation.itemStatusCounts.valid.toLocaleString(
+                            "en-US",
+                          )}
+                        />
+                        <IntelligenceStatCard
+                          label="Price changes"
+                          value={activeTrip.value.revalidation.itemStatusCounts.price_changed.toLocaleString(
+                            "en-US",
+                          )}
+                        />
+                        <IntelligenceStatCard
+                          label="Unavailable"
+                          value={activeTrip.value.revalidation.itemStatusCounts.unavailable.toLocaleString(
+                            "en-US",
+                          )}
+                        />
+                        <IntelligenceStatCard
+                          label="Check issues"
+                          value={activeTrip.value.revalidation.itemStatusCounts.error.toLocaleString(
+                            "en-US",
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    {activeTrip.value.pricing.verticals.length ? (
+                      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {activeTrip.value.pricing.verticals.map((vertical) => (
+                          <VerticalSubtotalCard
+                            key={vertical.itemType}
+                            vertical={vertical}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {activeTrip.value.intelligence.issues.length ? (
+                      <div class="grid gap-2">
+                        {activeTrip.value.intelligence.issues
+                          .slice(0, 5)
+                          .map((issue) => (
+                            <div
+                              key={`${issue.code}-${issue.itemId || "trip"}-${(issue.relatedItemIds || []).join("-")}`}
+                              class={[
+                                "rounded-lg border px-3 py-2 text-sm",
+                                issue.severity === "blocking"
+                                  ? "border-[color:var(--color-error)] bg-[color:rgba(185,28,28,0.06)] text-[color:var(--color-error)]"
+                                  : "border-[color:var(--color-warning)] bg-[color:rgba(180,83,9,0.08)] text-[color:var(--color-warning)]",
+                              ]}
+                            >
+                              {issue.message}
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <div class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] px-3 py-3 text-sm text-[color:var(--color-text-muted)]">
+                        No itinerary conflicts are currently surfaced for this
+                        trip.
+                      </div>
+                    )}
+                  </SecondaryInfoDialog>
+                </div>
+
+                <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--color-divider)] pt-4">
+                  <p class="text-sm text-[color:var(--color-text-muted)]">
+                    {confirmDeleteTrip.value
+                      ? "Delete this trip and all of its saved items?"
+                      : "Need to start over?"}
+                  </p>
+
+                  <div class="flex flex-wrap items-center gap-2">
+                    <AsyncPendingButton
+                      onClick$={() => {
+                        if (confirmDeleteTrip.value) {
+                          return onDeleteActiveTrip$();
+                        }
+                        confirmDeleteTrip.value = true;
+                      }}
+                      pending={activeAction.value === "delete-trip"}
+                      pendingLabel="Deleting..."
+                      disabled={
+                        loading.value && activeAction.value !== "delete-trip"
+                      }
+                      class="rounded-lg border border-[color:var(--color-error)] px-3 py-2 text-sm text-[color:var(--color-error)]"
+                    >
+                      {confirmDeleteTrip.value
+                        ? "Confirm delete"
+                        : "Delete trip"}
+                    </AsyncPendingButton>
+                    {confirmDeleteTrip.value ? (
+                      <button
+                        type="button"
+                        class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm"
+                        onClick$={() => {
+                          confirmDeleteTrip.value = false;
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               </section>
 
               {activeTrip.value.bundling.gaps.length ? (
                 <section class="t-card p-4">
-                  <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h2 class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                        Suggested additions
-                      </h2>
-                      <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                        {formatTripBundlingSummary(activeTrip.value)}
-                      </p>
-                    </div>
-                  </div>
+                  <details>
+                    <summary class="cursor-pointer list-none text-sm font-semibold text-[color:var(--color-text-strong)] [&::-webkit-details-marker]:hidden">
+                      <span class="flex flex-wrap items-center justify-between gap-2">
+                        <span>Suggested additions</span>
+                        <span class="text-xs text-[color:var(--color-text-muted)]">
+                          {formatTripBundlingSummary(activeTrip.value)}
+                        </span>
+                      </span>
+                    </summary>
 
-                  {activeTrip.value.bundling.suggestions.length ? (
-                    <div class="mt-4 grid gap-3">
-                      {activeTrip.value.bundling.suggestions.map(
-                        (suggestion) => (
-                          <TripSuggestionCard
-                            key={suggestion.id}
-                            suggestion={suggestion}
-                            loading={
-                              activeAction.value ===
-                              `add-suggestion:${suggestion.tripCandidate.inventoryId}`
-                            }
-                            disabled={loading.value}
-                            onAdd$={onAddSuggestedItem$}
-                          />
-                        ),
-                      )}
-                    </div>
-                  ) : (
-                    <p class="mt-4 text-sm text-[color:var(--color-text-muted)]">
-                      Live inventory was not available for the detected trip
-                      gaps yet.
-                    </p>
-                  )}
+                    {activeTrip.value.bundling.suggestions.length ? (
+                      <div class="mt-4 grid gap-3">
+                        {activeTrip.value.bundling.suggestions.map(
+                          (suggestion) => (
+                            <TripSuggestionCard
+                              key={suggestion.id}
+                              suggestion={suggestion}
+                              loading={
+                                activeAction.value ===
+                                `add-suggestion:${suggestion.tripCandidate.inventoryId}`
+                              }
+                              disabled={loading.value}
+                              onAdd$={onAddSuggestedItem$}
+                            />
+                          ),
+                        )}
+                      </div>
+                    ) : (
+                      <p class="mt-4 text-sm text-[color:var(--color-text-muted)]">
+                        No useful suggestions are available right now.
+                      </p>
+                    )}
+                  </details>
                 </section>
               ) : null}
 
               <section class="t-card p-4">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h2 class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                      Itinerary timeline
+                    <h2 class="text-base font-semibold text-[color:var(--color-text-strong)]">
+                      Itinerary
                     </h2>
                     <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                      Day-grouped scheduling with clear sequencing, transfer
-                      windows, and conflict states.
+                      Saved items in booking order.
                     </p>
                   </div>
 
-                  <div class="min-w-[240px] rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] px-3 py-3">
-                    <div class="flex items-start justify-between gap-3">
-                      <div>
-                        <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-                          Auto-rebalance
-                        </p>
-                        <p class="mt-1 text-sm font-semibold text-[color:var(--color-text-strong)]">
-                          {activeTrip.value.editing.autoRebalance
-                            ? "Enabled"
-                            : "Disabled"}
-                        </p>
-                        <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                          {activeTrip.value.editing.autoRebalance
-                            ? `${activeTrip.value.editing.lockedItemCount} locked item${activeTrip.value.editing.lockedItemCount === 1 ? "" : "s"} will stay anchored during replacement reflow.`
-                            : "Replacements stay in place unless you move them explicitly."}
-                        </p>
+                  <div class="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-muted)]">
+                    <span class="rounded-full bg-[color:var(--color-surface-1)] px-2.5 py-1">
+                      {activeTrip.value.editing.autoRebalance
+                        ? "Auto-balance on"
+                        : "Auto-balance off"}
+                    </span>
+                    {activeTrip.value.editing.lockedItemCount ? (
+                      <span class="rounded-full bg-[color:var(--color-surface-1)] px-2.5 py-1">
+                        {activeTrip.value.editing.lockedItemCount} locked
+                      </span>
+                    ) : null}
+                    <SecondaryInfoDialog
+                      buttonLabel="How editing works"
+                      title="Editing this trip"
+                      summary="Open any saved item to move it, swap it, lock it in place, or move it to another trip."
+                    >
+                      <div class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] px-3 py-3 text-sm text-[color:var(--color-text)]">
+                        Locking keeps an item fixed when auto-balance is on.
+                        Replacements and removals open a preview first so you
+                        can review timing and price impact before saving.
                       </div>
-
-                      <AsyncPendingButton
-                        class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs"
-                        pending={activeAction.value === "toggle-auto-rebalance"}
-                        pendingLabel="Saving..."
-                        disabled={
-                          loading.value &&
-                          activeAction.value !== "toggle-auto-rebalance"
-                        }
-                        onClick$={onToggleAutoRebalance$}
-                      >
-                        {activeTrip.value.editing.autoRebalance
-                          ? "Turn off"
-                          : "Turn on"}
-                      </AsyncPendingButton>
-                    </div>
+                      <div class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] px-3 py-3 text-sm text-[color:var(--color-text)]">
+                        Use “Move item” inside an item’s detail panel to shift
+                        inventory between trips without creating duplicates.
+                      </div>
+                    </SecondaryInfoDialog>
                   </div>
                 </div>
 
                 {activeTrip.value.items.length ? (
                   <TripTimeline
                     trip={activeTrip.value}
+                    availableTrips={trips.value.filter(
+                      (trip) => trip.id !== activeTrip.value?.id,
+                    )}
                     loading={loading.value}
                     pendingActionId={activeAction.value}
                     preview={editPreview.value}
@@ -1458,6 +1708,7 @@ export default component$(() => {
                     replacementPanelError={replacementPanelError.value}
                     onPreviewRemove$={onPreviewRemoveItem$}
                     onPreviewMove$={onPreviewMoveItem$}
+                    onMoveToTrip$={onMoveItemToTrip$}
                     onLoadReplacementOptions$={onLoadReplacementOptions$}
                     onPreviewReplacement$={onPreviewReplacement$}
                     onToggleLock$={onToggleItemLock$}
@@ -1501,7 +1752,7 @@ export default component$(() => {
                 >
                   Retry trips
                 </AsyncPendingButton>
-                <a class="t-btn-ghost px-4 py-2 text-sm" href="/search/hotels">
+                <a class="t-btn-ghost px-4 py-2 text-sm" href="/hotels">
                   Search hotels
                 </a>
               </div>
@@ -1516,19 +1767,13 @@ export default component$(() => {
                 or car search and add items directly from results.
               </p>
               <div class="mt-4 flex flex-wrap gap-2">
-                <a
-                  class="t-btn-primary px-4 py-2 text-sm"
-                  href="/search/hotels"
-                >
+                <a class="t-btn-primary px-4 py-2 text-sm" href="/hotels">
                   Search hotels
                 </a>
-                <a class="t-btn-ghost px-4 py-2 text-sm" href="/search/flights">
+                <a class="t-btn-ghost px-4 py-2 text-sm" href="/flights">
                   Search flights
                 </a>
-                <a
-                  class="t-btn-ghost px-4 py-2 text-sm"
-                  href="/search/car-rentals"
-                >
+                <a class="t-btn-ghost px-4 py-2 text-sm" href="/car-rentals">
                   Search car rentals
                 </a>
               </div>
@@ -1715,6 +1960,93 @@ const SummaryBlock = component$((props: { label: string; value: string }) => {
   );
 });
 
+const SecondaryInfoDialog = component$(
+  (props: {
+    buttonLabel: string;
+    title: string;
+    summary?: string;
+    buttonClass?: string;
+  }) => {
+    const open = useSignal(false);
+    const onOpen$ = $(() => {
+      open.value = true;
+    });
+    const onClose$ = $(() => {
+      open.value = false;
+    });
+    const { overlayRef, initialFocusRef } = useOverlayBehavior({
+      open,
+      onClose$,
+    });
+
+    return (
+      <>
+        <button
+          type="button"
+          class={[
+            "rounded-full border border-[color:var(--color-border)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-text-muted)]",
+            props.buttonClass,
+          ]}
+          aria-haspopup="dialog"
+          aria-expanded={open.value ? "true" : "false"}
+          onClick$={onOpen$}
+        >
+          {props.buttonLabel}
+        </button>
+
+        {open.value ? (
+          <div class="fixed inset-0 z-[90]">
+            <button
+              type="button"
+              aria-label={`Close ${props.title}`}
+              class="absolute inset-0 bg-black/30"
+              onClick$={onClose$}
+            />
+
+            <section
+              ref={overlayRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label={props.title}
+              tabIndex={-1}
+              class="absolute inset-x-3 top-1/2 max-h-[88vh] -translate-y-1/2 overflow-y-auto rounded-[1.5rem] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-4 shadow-[var(--shadow-e3)] outline-none sm:inset-x-auto sm:left-1/2 sm:w-[min(640px,calc(100vw-2rem))] sm:-translate-x-1/2"
+            >
+              <header class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                    More detail
+                  </p>
+                  <h3 class="mt-1 text-base font-semibold text-[color:var(--color-text-strong)]">
+                    {props.title}
+                  </h3>
+                  {props.summary ? (
+                    <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
+                      {props.summary}
+                    </p>
+                  ) : null}
+                </div>
+
+                <button
+                  ref={initialFocusRef}
+                  type="button"
+                  class="rounded-full border border-[color:var(--color-border)] px-3 py-1.5 text-xs font-semibold text-[color:var(--color-text-strong)]"
+                  onClick$={onClose$}
+                >
+                  Close
+                </button>
+              </header>
+
+              <div class="mt-4 grid gap-3">
+                <Slot />
+              </div>
+            </section>
+          </div>
+        ) : null}
+      </>
+    );
+  },
+);
+
 const IntelligenceStatCard = component$(
   (props: { label: string; value: string }) => {
     return (
@@ -1799,6 +2131,7 @@ const isTripTimelineDetailActionPending = (
 
   return (
     actionId === `preview-move:${itemId}` ||
+    actionId === `move-to-trip:${itemId}` ||
     actionId === `preview-remove:${itemId}` ||
     actionId === `load-replacements:${itemId}` ||
     actionId === `toggle-lock:${itemId}` ||
@@ -1812,6 +2145,7 @@ const isTripTimelineDetailActionPending = (
 const TripTimeline = component$(
   (props: {
     trip: TripDetails;
+    availableTrips: TripListItem[];
     loading: boolean;
     pendingActionId: string | null;
     preview: TripEditPreview | null;
@@ -1821,6 +2155,7 @@ const TripTimeline = component$(
     replacementPanelError: { itemId: number; message: string } | null;
     onPreviewRemove$: QRL<(item: TripItem) => Promise<void>>;
     onPreviewMove$: QRL<(itemId: number, direction: -1 | 1) => Promise<void>>;
+    onMoveToTrip$: QRL<(item: TripItem, targetTripId: number) => Promise<void>>;
     onLoadReplacementOptions$: QRL<(itemId: number) => Promise<void>>;
     onPreviewReplacement$: QRL<
       (itemId: number, option: TripItemReplacementOption) => Promise<void>
@@ -1922,6 +2257,7 @@ const TripTimeline = component$(
                       <TripTimelineItemCard
                         item={entry.item}
                         total={props.trip.items.length}
+                        availableTrips={props.availableTrips}
                         loading={props.loading}
                         pendingActionId={props.pendingActionId}
                         preview={
@@ -1942,6 +2278,7 @@ const TripTimeline = component$(
                         }
                         onPreviewRemove$={props.onPreviewRemove$}
                         onPreviewMove$={props.onPreviewMove$}
+                        onMoveToTrip$={props.onMoveToTrip$}
                         onLoadReplacementOptions$={
                           props.onLoadReplacementOptions$
                         }
@@ -1971,6 +2308,7 @@ const TripTimelineItemCard = component$(
   (props: {
     item: TripItem;
     total: number;
+    availableTrips: TripListItem[];
     loading: boolean;
     pendingActionId: string | null;
     preview: TripEditPreview | null;
@@ -1979,6 +2317,7 @@ const TripTimelineItemCard = component$(
     replacementPanelOpen: boolean;
     onPreviewRemove$: QRL<(item: TripItem) => Promise<void>>;
     onPreviewMove$: QRL<(itemId: number, direction: -1 | 1) => Promise<void>>;
+    onMoveToTrip$: QRL<(item: TripItem, targetTripId: number) => Promise<void>>;
     onLoadReplacementOptions$: QRL<(itemId: number) => Promise<void>>;
     onPreviewReplacement$: QRL<
       (itemId: number, option: TripItemReplacementOption) => Promise<void>
@@ -1994,9 +2333,14 @@ const TripTimelineItemCard = component$(
     );
     const bundleState = readTripBundlingState(props.item.metadata);
     const bundleExplanation = bundleState?.explanation || null;
+    const availabilitySupport =
+      props.item.availabilityConfidence?.supportText || null;
     const detailSummary = buildTimelineDisclosureSummary(props.item);
     const isBlockingItem = props.item.issues.some(
       (issue) => issue.severity === "blocking",
+    );
+    const moveTargetTripId = useSignal<number | null>(
+      props.availableTrips[0]?.id ?? null,
     );
     const detailsOpen = useSignal(
       isBlockingItem ||
@@ -2024,6 +2368,23 @@ const TripTimelineItemCard = component$(
       }
     });
 
+    // eslint-disable-next-line qwik/no-use-visible-task
+    useVisibleTask$(({ track }) => {
+      const availableTripIds = track(() =>
+        props.availableTrips.map((trip) => trip.id).join(","),
+      );
+      void availableTripIds;
+
+      if (
+        moveTargetTripId.value != null &&
+        props.availableTrips.some((trip) => trip.id === moveTargetTripId.value)
+      ) {
+        return;
+      }
+
+      moveTargetTripId.value = props.availableTrips[0]?.id ?? null;
+    });
+
     return (
       <article
         class={[
@@ -2036,15 +2397,17 @@ const TripTimelineItemCard = component$(
             <div class="flex flex-wrap items-center gap-2">
               <span class="t-badge">{formatTimelineItemType(props.item)}</span>
               <span
-                class={availabilityBadgeClass(props.item.availabilityStatus)}
+                class={revalidationBadgeClass(props.item.revalidation.status)}
               >
-                {formatAvailabilityBadge(props.item.availabilityStatus)}
+                {formatRevalidationBadge(props.item.revalidation.status)}
               </span>
               {props.item.locked ? (
                 <span class={timelineCountBadgeClass("neutral")}>Locked</span>
               ) : null}
               {bundleState ? (
-                <span class={bundleSelectionBadgeClass(bundleState.selectionMode)}>
+                <span
+                  class={bundleSelectionBadgeClass(bundleState.selectionMode)}
+                >
                   {bundleState.selectionMode === "manual_override"
                     ? "Manual override"
                     : "Bundle-backed"}
@@ -2098,7 +2461,8 @@ const TripTimelineItemCard = component$(
                       : "text-[color:var(--color-warning)]",
                   ]}
                 >
-                  {props.item.issues[0]?.message}
+                  {props.item.revalidation.message ||
+                    props.item.issues[0]?.message}
                 </p>
               </div>
             ) : null}
@@ -2152,11 +2516,30 @@ const TripTimelineItemCard = component$(
                     <AvailabilityConfidence
                       confidence={props.item.availabilityConfidence}
                       compact={false}
-                      showSupport={Boolean(
-                        props.item.availabilityConfidence.supportText,
-                      )}
+                      showSupport={false}
                     />
                   </div>
+                  {availabilitySupport ? (
+                    <div class="mt-3">
+                      <SecondaryInfoDialog
+                        buttonLabel="Availability notes"
+                        title={`${props.item.title} availability`}
+                        summary={availabilitySupport}
+                        buttonClass="px-2.5 py-1 text-[11px]"
+                      >
+                        <div class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] px-3 py-3 text-sm text-[color:var(--color-text)]">
+                          {props.item.availabilityConfidence?.detailLabel}
+                        </div>
+                        <div class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] px-3 py-3 text-xs text-[color:var(--color-text-muted)]">
+                          Snapshotted{" "}
+                          {formatDateTime(props.item.snapshotTimestamp)}
+                          {props.item.revalidation.checkedAt
+                            ? ` · checked ${formatDateTime(props.item.revalidation.checkedAt)}`
+                            : ""}
+                        </div>
+                      </SecondaryInfoDialog>
+                    </div>
+                  ) : null}
                   <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
                     Snapshotted {formatDateTime(props.item.snapshotTimestamp)}
                   </p>
@@ -2183,14 +2566,32 @@ const TripTimelineItemCard = component$(
 
               <div class="grid gap-3">
                 <div class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
-                  <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
-                    Price detail
-                  </p>
+                  <div class="flex flex-wrap items-start justify-between gap-2">
+                    <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                      Price detail
+                    </p>
+                    <span
+                      class={revalidationBadgeClass(
+                        props.item.revalidation.status,
+                      )}
+                    >
+                      {formatRevalidationBadge(props.item.revalidation.status)}
+                    </span>
+                  </div>
                   <p class="mt-2 text-sm font-semibold text-[color:var(--color-text-strong)]">
                     {formatMoneyFromCents(
                       props.item.snapshotPriceCents,
                       props.item.snapshotCurrencyCode,
                     )}
+                  </p>
+                  <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                    Live{" "}
+                    <span class="font-medium text-[color:var(--color-text)]">
+                      {formatTripItemCurrentPrice(props.item)}
+                    </span>
+                  </p>
+                  <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                    Checked {formatDateTime(props.item.revalidation.checkedAt)}
                   </p>
                   {priceDisplay?.baseTotalAmount != null ? (
                     <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
@@ -2320,6 +2721,62 @@ const TripTimelineItemCard = component$(
               </div>
             </div>
 
+            {props.availableTrips.length ? (
+              <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-3">
+                <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                  Move to another trip
+                </p>
+                <div class="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <select
+                    value={moveTargetTripId.value ?? ""}
+                    class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm"
+                    aria-label="Move item to trip"
+                    onChange$={(event, target) => {
+                      void event;
+                      const nextTripId = Number.parseInt(
+                        String(target.value || ""),
+                        10,
+                      );
+                      moveTargetTripId.value = Number.isFinite(nextTripId)
+                        ? nextTripId
+                        : null;
+                    }}
+                  >
+                    {props.availableTrips.map((trip) => (
+                      <option
+                        key={`${props.item.id}-move-${trip.id}`}
+                        value={trip.id}
+                      >
+                        {trip.name}
+                      </option>
+                    ))}
+                  </select>
+                  <AsyncPendingButton
+                    class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm"
+                    pending={
+                      props.pendingActionId === `move-to-trip:${props.item.id}`
+                    }
+                    pendingLabel="Moving..."
+                    disabled={
+                      !moveTargetTripId.value ||
+                      (props.loading &&
+                        props.pendingActionId !==
+                          `move-to-trip:${props.item.id}`)
+                    }
+                    onClick$={() => {
+                      if (!moveTargetTripId.value) return;
+                      return props.onMoveToTrip$(
+                        props.item,
+                        moveTargetTripId.value,
+                      );
+                    }}
+                  >
+                    Move item
+                  </AsyncPendingButton>
+                </div>
+              </div>
+            ) : null}
+
             {bundleExplanation ? (
               <div class="mt-3">
                 {bundleState?.selectionMode === "manual_override" ? (
@@ -2330,10 +2787,16 @@ const TripTimelineItemCard = component$(
                     </p>
                   </div>
                 ) : null}
-                <TripBundleExplanation
-                  explanation={bundleExplanation}
-                  dense={false}
-                />
+                <SecondaryInfoDialog
+                  buttonLabel="Bundle rationale"
+                  title={`${props.item.title} bundle rationale`}
+                  summary={bundleExplanation.summary}
+                >
+                  <TripBundleExplanation
+                    explanation={bundleExplanation}
+                    dense={false}
+                  />
+                </SecondaryInfoDialog>
               </div>
             ) : null}
 
@@ -2476,9 +2939,17 @@ const TripReplacementOptionsPanel = component$(
 
                   {optionBundleState ? (
                     <div class="mt-3">
-                      <TripBundleExplanation
-                        explanation={optionBundleState.explanation}
-                      />
+                      <SecondaryInfoDialog
+                        buttonLabel="Why this option"
+                        title={`${option.title} bundle rationale`}
+                        summary={optionBundleState.explanation.summary}
+                        buttonClass="px-2.5 py-1 text-[11px]"
+                      >
+                        <TripBundleExplanation
+                          explanation={optionBundleState.explanation}
+                          dense={false}
+                        />
+                      </SecondaryInfoDialog>
                     </div>
                   ) : null}
                 </div>
@@ -2643,10 +3114,17 @@ const TripEditPreviewPanel = component$(
             </p>
             {props.preview.bundleImpact.explanation ? (
               <div class="mt-3">
-                <TripBundleExplanation
-                  explanation={props.preview.bundleImpact.explanation}
-                  dense={false}
-                />
+                <SecondaryInfoDialog
+                  buttonLabel="Bundle rationale"
+                  title="Bundle override rationale"
+                  summary={props.preview.bundleImpact.explanation.summary}
+                  buttonClass="px-2.5 py-1 text-[11px]"
+                >
+                  <TripBundleExplanation
+                    explanation={props.preview.bundleImpact.explanation}
+                    dense={false}
+                  />
+                </SecondaryInfoDialog>
               </div>
             ) : null}
             {props.preview.bundleImpact.limitations.length ? (
@@ -3107,11 +3585,11 @@ const timelineCountBadgeClass = (tone: TimelineTransitionTone | "neutral") => {
   return "rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]";
 };
 
-const availabilityBadgeClass = (status: TripItem["availabilityStatus"]) => {
+const revalidationBadgeClass = (status: TripItem["revalidation"]["status"]) => {
   if (status === "unavailable") {
     return timelineCountBadgeClass("blocking");
   }
-  if (status === "stale") {
+  if (status === "error" || status === "price_changed") {
     return timelineCountBadgeClass("warning");
   }
   return timelineCountBadgeClass("neutral");
@@ -3146,6 +3624,15 @@ const formatAvailabilityBadge = (status: TripItem["availabilityStatus"]) => {
   if (status === "stale") return "Needs recheck";
   if (status === "price_only_changed") return "Price changed";
   return "Available";
+};
+
+const formatRevalidationBadge = (
+  status: TripItem["revalidation"]["status"],
+) => {
+  if (status === "price_changed") return "Price changed";
+  if (status === "unavailable") return "Unavailable";
+  if (status === "error") return "Check issue";
+  return "Still valid";
 };
 
 const formatTimelineItemType = (item: TripItem) => {
@@ -3401,6 +3888,10 @@ const formatTripListEstimate = (trip: TripListItem) => {
   return formatMoneyFromCents(trip.estimatedTotalCents, trip.currencyCode);
 };
 
+const buildTripReference = (tripId: number) => {
+  return `Trip ${tripId.toString().padStart(4, "0")}`;
+};
+
 const formatSnapshotEstimate = (trip: TripDetails) => {
   if (trip.pricing.hasMixedCurrencies) return "Mixed currencies";
   return formatMoneyFromCents(
@@ -3431,41 +3922,20 @@ const formatDriftSummary = (trip: TripDetails) => {
   return parts.length ? parts.join(" · ") : "No priced items yet";
 };
 
-const formatTripIntelligenceStatus = (
-  intelligence: TripIntelligenceSummary,
+const formatTripRevalidationMeta = (
+  revalidation: TripDetails["revalidation"],
 ) => {
-  if (intelligence.status === "blocking_issues_present")
-    return "Blocking issues present";
-  if (intelligence.status === "warnings_present") return "Warnings present";
-  return "Valid itinerary";
-};
-
-const formatTripIntelligenceMeta = (intelligence: TripIntelligenceSummary) => {
-  if (!intelligence.checkedAt) {
-    return "Availability checks run automatically when trip details are loaded.";
+  if (!revalidation.checkedAt) {
+    return "Trip items will be revalidated when live checks become available.";
   }
 
-  const checked = formatDateTime(intelligence.checkedAt);
-  const expires = intelligence.expiresAt
-    ? formatDateTime(intelligence.expiresAt)
+  const checked = formatDateTime(revalidation.checkedAt);
+  const expires = revalidation.expiresAt
+    ? formatDateTime(revalidation.expiresAt)
     : null;
   return expires
     ? `Checked ${checked} · refresh by ${expires}`
     : `Checked ${checked}`;
-};
-
-const formatTripAvailabilitySummary = (
-  intelligence: TripIntelligenceSummary,
-) => {
-  const counts = intelligence.itemStatusCounts;
-  const parts: string[] = [];
-
-  const availableCount = counts.valid + counts.price_only_changed;
-  if (availableCount) parts.push(`${availableCount} available`);
-  if (counts.stale) parts.push(`${counts.stale} need recheck`);
-  if (counts.unavailable) parts.push(`${counts.unavailable} unavailable`);
-
-  return parts.length ? parts.join(" · ") : "No items yet";
 };
 
 const formatTripIssueSummary = (intelligence: TripIntelligenceSummary) => {
@@ -3478,11 +3948,6 @@ const formatTripIssueSummary = (intelligence: TripIntelligenceSummary) => {
   }
 
   return parts.length ? parts.join(" · ") : "No itinerary issues";
-};
-
-const formatTripFreshnessSummary = (intelligence: TripIntelligenceSummary) => {
-  if (!intelligence.expiresAt) return "Revalidate to refresh live availability";
-  return `Next refresh by ${formatDateTime(intelligence.expiresAt)}`;
 };
 
 const formatTripBundlingSummary = (trip: TripDetails) => {
@@ -3508,16 +3973,6 @@ const formatTripPricingSupport = (trip: TripDetails) => {
     ? " Some hotel or car items were added without dates, so those entries still use unit pricing."
     : "";
   return `${base}${partial} Estimated taxes and fees stay on the item when supplier data is incomplete.`;
-};
-
-const intelligenceToneClass = (intelligence: TripIntelligenceSummary) => {
-  if (intelligence.status === "blocking_issues_present") {
-    return "text-[color:var(--color-error)]";
-  }
-  if (intelligence.status === "warnings_present") {
-    return "text-[color:var(--color-warning)]";
-  }
-  return "text-[color:var(--color-success,#0f766e)]";
 };
 
 const getHighestIssueSeverity = (issues: TripValidationIssue[]) => {
@@ -3632,6 +4087,20 @@ const formatItemDrift = (item: TripItem) => {
     item.priceDriftCents || 0,
     item.currentCurrencyCode,
   )})`;
+};
+
+const formatTripItemCurrentPrice = (item: TripItem) => {
+  if (
+    item.revalidation.currentPriceCents == null ||
+    !item.revalidation.currentCurrencyCode
+  ) {
+    return "Unavailable";
+  }
+
+  return formatMoneyFromCents(
+    item.revalidation.currentPriceCents,
+    item.revalidation.currentCurrencyCode,
+  );
 };
 
 const driftToneClass = (status: TripPriceDriftStatus) => {

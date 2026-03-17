@@ -59,8 +59,13 @@ export const normalizeFlightInventory = (
     return null
   }
 
+  const normalizedOffer: FlightProviderRawOffer = {
+    ...offer,
+    airlineCode: offer.airlineCode ?? parsedInventory.airlineCode,
+  }
+
   const searchEntity = normalizeFlightSearchResult(
-    offer,
+    normalizedOffer,
     {
       vertical: 'flight',
       origin: parsedInventory.originCode,
@@ -71,6 +76,7 @@ export const normalizeFlightInventory = (
     {
       providerName: options.providerName || FLIGHT_PROVIDER_NAME,
       departDate: offer.serviceDate,
+      canonicalFlightNumber: parsedInventory.flightNumber,
       snapshotTimestamp:
         toNullableText(options.snapshotTimestamp) ??
         toNullableText(offer.freshnessTimestamp),

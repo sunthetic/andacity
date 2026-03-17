@@ -30,7 +30,7 @@ const getStaticPages = (baseUrl: URL, now: string, page: number) => {
   // Page 1 only for static pages, keep the rest empty
   if (page !== 1) return []
 
-  const paths = ['/', '/hotels', '/flights', '/cars', '/deals']
+  const paths = ['/', '/hotels', '/flights', '/car-rentals', '/explore', '/destinations', '/trips']
 
   return paths.map((p) => ({
     loc: new URL(p, baseUrl).href,

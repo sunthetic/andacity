@@ -24,7 +24,7 @@ export const NotFoundPage = component$(() => {
             <a class="t-badge px-5 text-center" href="/hotels/in">
               Cities
             </a>
-            <a class="t-badge px-5 text-center" href="/search/hotels">
+            <a class="t-badge px-5 text-center" href="/hotels">
               Search hotels
             </a>
           </div>

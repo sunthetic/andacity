@@ -25,9 +25,11 @@ import type {
   FlightSegmentSummary,
 } from '~/types/flights/provider'
 import type {
+  HotelPropertySummary,
   HotelPolicySummary,
   HotelPriceSummary,
   HotelProviderMetadata,
+  HotelRoomSummary,
 } from '~/types/hotels/provider'
 import type {
   CarPolicySummary,
@@ -130,6 +132,28 @@ const cloneHotelPriceSummary = (
 ): HotelPriceSummary | null | undefined => {
   if (!summary) return summary
   return { ...summary }
+}
+
+const cloneHotelPropertySummary = (
+  summary: HotelPropertySummary | null | undefined,
+): HotelPropertySummary | null | undefined => {
+  if (!summary) return summary
+  return {
+    ...summary,
+    amenities: cloneStringArray(summary.amenities) || null,
+    notes: cloneStringArray(summary.notes) || null,
+  }
+}
+
+const cloneHotelRoomSummary = (
+  summary: HotelRoomSummary | null | undefined,
+): HotelRoomSummary | null | undefined => {
+  if (!summary) return summary
+  return {
+    ...summary,
+    features: cloneStringArray(summary.features) || null,
+    badges: cloneStringArray(summary.badges) || null,
+  }
 }
 
 const cloneHotelProviderMetadata = (
@@ -311,6 +335,8 @@ const buildHotelEntity = (input: {
   cancellationPolicy?: string | null
   policy?: HotelPolicySummary | null
   priceSummary?: HotelPriceSummary | null
+  propertySummary?: HotelPropertySummary | null
+  roomSummary?: HotelRoomSummary | null
   inclusions?: string[] | null
   providerMetadata?: HotelProviderMetadata | null
   assumedStayDates?: boolean
@@ -354,6 +380,8 @@ const buildHotelEntity = (input: {
       cancellationPolicy: toNullableText(input.cancellationPolicy),
       policy: cloneHotelPolicy(input.policy) || null,
       priceSummary: cloneHotelPriceSummary(input.priceSummary) || null,
+      propertySummary: cloneHotelPropertySummary(input.propertySummary) || null,
+      roomSummary: cloneHotelRoomSummary(input.roomSummary) || null,
       inclusions: cloneStringArray(input.inclusions) || null,
       providerMetadata: cloneHotelProviderMetadata(input.providerMetadata) || null,
       assumedStayDates: input.assumedStayDates || undefined,
@@ -517,7 +545,7 @@ const resolveSavedItemBase = (item: SavedItem) => ({
   snapshotTimestamp: null,
 })
 
-const toBookableEntityFromTripCandidate = (
+export const toBookableEntityFromTripCandidate = (
   candidate: TripItemCandidate,
   options: {
     title?: string | null
@@ -634,6 +662,11 @@ export const toBookableEntityFromSearchEntity = (entity: SearchEntity): Bookable
 
   if (parsedInventory.vertical === 'flight') {
     const flight = entity as FlightSearchEntity
+    const providerInventoryId = toPositiveInteger(flight.payload.providerInventoryId)
+    const routeFlightNumberFallback =
+      providerInventoryId != null && parsedInventory.flightNumber === String(providerInventoryId)
+        ? null
+        : parsedInventory.flightNumber
     return assertBookableEntity(
       buildFlightEntity({
         inventoryId: flight.inventoryId,
@@ -646,7 +679,7 @@ export const toBookableEntityFromSearchEntity = (entity: SearchEntity): Bookable
         price: buildBookableEntityPrice(flight.price),
         source: 'search',
         priceSource: 'live',
-        providerInventoryId: toPositiveInteger(flight.payload.providerInventoryId),
+        providerInventoryId,
         cabinClass: toNullableText(flight.payload.cabinClass),
         fareCode: toNullableText(flight.payload.fareCode),
         departureAt: toNullableText(flight.payload.departureAt),
@@ -662,7 +695,7 @@ export const toBookableEntityFromSearchEntity = (entity: SearchEntity): Bookable
         flightNumber:
           toNullableText(flight.payload.flightNumber) ??
           toNullableText(flight.metadata.flightNumber) ??
-          parsedInventory.flightNumber,
+          routeFlightNumberFallback,
         origin:
           toNullableText(flight.route.origin) ??
           toNullableText(flight.payload.originCode) ??
@@ -702,6 +735,9 @@ export const toBookableEntityFromSearchEntity = (entity: SearchEntity): Bookable
         cancellationPolicy: toNullableText(hotel.payload.cancellationPolicy),
         policy: cloneHotelPolicy(hotel.payload.policy) || null,
         priceSummary: cloneHotelPriceSummary(hotel.payload.priceSummary) || null,
+        propertySummary:
+          cloneHotelPropertySummary(hotel.payload.propertySummary) || null,
+        roomSummary: cloneHotelRoomSummary(hotel.payload.roomSummary) || null,
         inclusions: cloneStringArray(hotel.payload.inclusions) || null,
         providerMetadata:
           cloneHotelProviderMetadata(hotel.payload.providerMetadata) || null,

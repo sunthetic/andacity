@@ -9,8 +9,23 @@ import { DateField } from "~/components/ui/DateField";
 import { LocationAutosuggestField } from "~/components/ui/LocationAutosuggestField";
 import { getTodayIsoDate, normalizeIsoDate } from "~/lib/date/validateDate";
 import { addDays } from "~/lib/trips/date-utils";
+import { buildCanonicalHotelSearchHref } from "~/lib/search/entry-routes";
 import { validateLocationSelection } from "~/lib/location/validateLocationSelection";
 import type { CanonicalLocation } from "~/types/location";
+
+const GUEST_OPTIONS = [
+  "1 guest · 1 room",
+  "2 guests · 1 room",
+  "3 guests · 1 room",
+  "4 guests · 2 rooms",
+] as const;
+
+const normalizeGuestValue = (value: string | null | undefined) => {
+  const normalized = String(value || "").trim();
+  return GUEST_OPTIONS.includes(normalized as (typeof GUEST_OPTIONS)[number])
+    ? normalized
+    : "2 guests · 1 room";
+};
 
 export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
   const destinationLocation = useSignal<CanonicalLocation | null>(
@@ -23,7 +38,7 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
   );
   const checkIn = useSignal(props.initialCheckIn ?? "");
   const checkOut = useSignal(props.initialCheckOut ?? "");
-  const guests = useSignal(props.initialGuests ?? "2 guests · 1 room");
+  const guests = useSignal(normalizeGuestValue(props.initialGuests));
   const hasSubmitted = useSignal(false);
   const todayIsoDate = getTodayIsoDate();
   const tomorrowIsoDate = addDays(todayIsoDate, 1) || todayIsoDate;
@@ -38,27 +53,43 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
     checkOut: checkOut.value,
     guests: guests.value,
   });
-  const isValid = errors.length === 0;
+  const surface = props.surface ?? "card";
 
-  return (
-    <BookingSearchSurface>
+  const content = (
+    <>
       <form
         action={props.action ?? "/hotels"}
         method="get"
         preventdefault:submit
         noValidate
-        onSubmit$={(_, form) => {
+        onSubmit$={async () => {
           hasSubmitted.value = true;
-          const snapshot = readSnapshot(form);
+          const snapshot = readSnapshotFromState({
+            destination: destination.value,
+            destinationLocation: destinationLocation.value,
+            checkIn: checkIn.value,
+            checkOut: checkOut.value,
+            guests: guests.value,
+          });
           const submitErrors = validateSnapshot(snapshot);
           if (submitErrors.length) return;
+
+          if (!snapshot.destinationLocation) return;
 
           destination.value = snapshot.destination;
           destinationLocation.value = snapshot.destinationLocation;
           checkIn.value = snapshot.checkIn;
           checkOut.value = snapshot.checkOut;
           guests.value = snapshot.guests;
-          form.submit();
+
+          window.location.assign(
+            buildCanonicalHotelSearchHref({
+              destinationLocation: snapshot.destinationLocation,
+              checkIn: snapshot.checkIn,
+              checkOut: snapshot.checkOut,
+              guests: snapshot.guests,
+            }),
+          );
         }}
         class="grid gap-3 md:grid-cols-[minmax(0,2.65fr)_minmax(10rem,0.95fr)_minmax(10rem,0.95fr)_minmax(170px,0.85fr)_auto]"
       >
@@ -84,7 +115,7 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
             value={checkIn}
             required={true}
             minValue={todayIsoDate}
-            class="w-full pr-2"
+            class="w-full"
             inputClass={BOOKING_SEARCH_CONTROL_CLASS}
             iconLabel="Open check-in date picker"
             overlayLabel="Check-in date picker"
@@ -98,7 +129,7 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
             value={checkOut}
             required={true}
             minValue={minimumCheckoutDate}
-            class="w-full pr-2"
+            class="w-full"
             inputClass={BOOKING_SEARCH_CONTROL_CLASS}
             iconLabel="Open check-out date picker"
             overlayLabel="Check-out date picker"
@@ -122,16 +153,21 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
 
         <button
           type="submit"
-          disabled={hasSubmitted.value && !isValid}
-          class="inline-flex min-h-[3.25rem] items-center justify-center rounded-[var(--radius-lg)] px-5 text-sm font-semibold t-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+          class="inline-flex min-h-[3.25rem] items-center justify-center rounded-[var(--radius-lg)] px-5 text-sm font-semibold t-btn-primary"
         >
           Search hotels
         </button>
       </form>
 
       <BookingValidationSummary errors={errors} show={hasSubmitted.value} />
-    </BookingSearchSurface>
+    </>
   );
+
+  if (surface === "plain") {
+    return content;
+  }
+
+  return <BookingSearchSurface>{content}</BookingSearchSurface>;
 });
 
 type HotelSearchCardProps = {
@@ -141,6 +177,8 @@ type HotelSearchCardProps = {
   initialCheckIn?: string;
   initialCheckOut?: string;
   initialGuests?: string;
+  surface?: "card" | "plain";
+  submitBehavior?: "form-submit" | "canonical-route";
 };
 
 type HotelSubmitSnapshot = {
@@ -151,24 +189,15 @@ type HotelSubmitSnapshot = {
   guests: string;
 };
 
-const readSnapshot = (form: HTMLFormElement): HotelSubmitSnapshot => {
-  const fd = new FormData(form);
-  const destinationSelection = validateLocationSelection({
-    selection: fd.get("destinationLocation"),
-    rawValue: fd.get("destination"),
-    required: true,
-    fieldLabel: "destination",
-    allowedKinds: ["city", "airport"],
-  });
-
-  return {
-    destination: String(fd.get("destination") || "").trim(),
-    destinationLocation: destinationSelection.location,
-    checkIn: String(fd.get("checkIn") || "").trim(),
-    checkOut: String(fd.get("checkOut") || "").trim(),
-    guests: String(fd.get("guests") || "").trim(),
-  };
-};
+const readSnapshotFromState = (
+  snapshot: HotelSubmitSnapshot,
+): HotelSubmitSnapshot => ({
+  destination: String(snapshot.destination || "").trim(),
+  destinationLocation: snapshot.destinationLocation,
+  checkIn: String(snapshot.checkIn || "").trim(),
+  checkOut: String(snapshot.checkOut || "").trim(),
+  guests: normalizeGuestValue(snapshot.guests),
+});
 
 const validateSnapshot = (snapshot: HotelSubmitSnapshot) => {
   const validationErrors: string[] = [];
@@ -181,8 +210,16 @@ const validateSnapshot = (snapshot: HotelSubmitSnapshot) => {
       1,
     ) || todayIsoDate;
 
-  if (!snapshot.destinationLocation) {
-    validationErrors.push("Choose a destination from the suggestions.");
+  const destinationSelection = validateLocationSelection({
+    selection: snapshot.destinationLocation,
+    rawValue: snapshot.destination,
+    required: true,
+    fieldLabel: "destination",
+    allowedKinds: ["city", "airport"],
+  });
+
+  if (destinationSelection.error) {
+    validationErrors.push(destinationSelection.error);
   }
 
   if (!checkInDate) {

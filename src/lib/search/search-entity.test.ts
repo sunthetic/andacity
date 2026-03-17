@@ -6,6 +6,9 @@ const {
   buildFlightInventoryId,
   buildHotelInventoryId,
 } = await import(new URL('../inventory/inventory-id.ts', import.meta.url).href)
+const routingModule: typeof import('../entities/routing.ts') = await import(
+  new URL('../entities/routing.ts', import.meta.url).href
+)
 const {
   isSearchEntity,
   toBookableEntity,
@@ -13,6 +16,8 @@ const {
   toFlightSearchEntity,
   toHotelSearchEntity,
 } = await import(new URL('./search-entity.ts', import.meta.url).href)
+
+const { buildCarEntityHref, buildFlightEntityHref, buildHotelEntityHref } = routingModule
 
 test('maps a flight result into a canonical search entity', () => {
   const entity = toFlightSearchEntity(
@@ -60,8 +65,51 @@ test('maps a flight result into a canonical search entity', () => {
   assert.equal(entity.metadata.durationMinutes, 365)
   assert.equal(entity.price.amountCents, 39900)
   assert.equal(entity.price.currency, 'USD')
+  assert.equal(entity.href, buildFlightEntityHref(entity))
   assert.deepEqual(entity.bookableSnapshot, toBookableEntity(entity))
   assert.ok(isSearchEntity(entity))
+})
+
+test('uses an explicit canonical flight token without leaking it into the UI payload', () => {
+  const entity = toFlightSearchEntity(
+    {
+      itineraryId: 321,
+      airline: 'WestJet',
+      airlineCode: null,
+      flightNumber: null,
+      serviceDate: '2026-04-01',
+      origin: 'New York (JFK)',
+      destination: 'Los Angeles (LAX)',
+      originCode: 'JFK',
+      destinationCode: 'LAX',
+      stops: 1,
+      duration: '6h 5m',
+      cabinClass: 'economy',
+      fareCode: 'standard',
+      price: 399,
+      currency: 'usd',
+    },
+    {
+      departDate: '2026-04-01',
+      canonicalFlightNumber: '321',
+      priceAmountCents: 39900,
+      snapshotTimestamp: '2026-03-12T12:00:00.000Z',
+    },
+  )
+
+  assert.equal(
+    entity.inventoryId,
+    buildFlightInventoryId({
+      carrier: 'WestJet',
+      flightNumber: '321',
+      departDate: '2026-04-01',
+      originCode: 'JFK',
+      destinationCode: 'LAX',
+    }),
+  )
+  assert.equal(entity.payload.flightNumber, null)
+  assert.equal(entity.metadata.flightNumber, null)
+  assert.equal(entity.title, 'WestJet')
 })
 
 test('maps a hotel result into a canonical search entity', () => {
@@ -108,6 +156,7 @@ test('maps a hotel result into a canonical search entity', () => {
   assert.equal(entity.metadata.hotelId, '555')
   assert.equal(entity.metadata.rating, 8.6)
   assert.equal(entity.metadata.reviewCount, 321)
+  assert.equal(entity.href, buildHotelEntityHref(entity))
   assert.deepEqual(entity.bookableSnapshot, toBookableEntity(entity))
   assert.ok(isSearchEntity(entity))
 })
@@ -155,6 +204,7 @@ test('maps a car result into a canonical search entity', () => {
   assert.equal(entity.metadata.providerLocationId, 'phx-airport')
   assert.equal(entity.metadata.vehicleClass, 'SUV')
   assert.equal(entity.metadata.seats, 5)
+  assert.equal(entity.href, buildCarEntityHref(entity))
   assert.deepEqual(entity.bookableSnapshot, toBookableEntity(entity))
   assert.ok(isSearchEntity(entity))
 })

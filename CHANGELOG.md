@@ -1,5 +1,38 @@
 # 🪐 Andacity Travel — CHANGELOG
 
+## v0.6.0
+
+Released `2026-03-17`
+
+### Added
+- Global search entry (Flights, Hotels, Car Rentals)
+- Canonical search routing (`/{vertical}/search/...`)
+- Unified `/api/search` with normalized results
+- Results renderers for all verticals
+- Entity pages for flights, hotels, and car rentals
+- Trip system (add-to-trip, persistence, trip page)
+- Trip revalidation loop (valid / price_changed / unavailable / error)
+- Incremental provider loading
+
+### Improved
+- Consistent search UX and default form states
+- Entity page information hierarchy and layout density
+- Add-to-trip feedback and flow continuity
+- Navigation (return to search / modify inputs)
+- Canonical route consistency across entry points
+
+### Fixed
+- Multi-click search submission bug
+- Blank dropdown/default form states
+- Date input inconsistencies
+- Z-index issues affecting dropdowns
+- Entity page redundancy and layout issues
+- Silent add-to-trip behavior
+
+### Notes
+- UI polish and advanced filtering deferred
+- Checkout and booking flows deferred to v0.7.0
+
 ## v0.5.0
 
 Released `2026-03-13`

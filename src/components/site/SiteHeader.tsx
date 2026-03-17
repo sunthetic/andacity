@@ -5,13 +5,13 @@ const NAV = {
     { label: 'Flights', href: '/flights' },
     { label: 'Cars', href: '/car-rentals' },
     { label: 'Trips', href: '/trips' },
-    { label: 'Deals', href: '/deals' },
+    { label: 'Explore', href: '/explore' },
   ],
   hotels: {
     actions: [
-      { label: 'Search hotels', href: '/search/hotels', hint: 'Fast results' },
-      { label: 'Hotel cities', href: '/hotels/cities', hint: 'Indexable guides' },
-      { label: 'Deals', href: '/deals', hint: 'Limited-time pricing' },
+      { label: 'Search hotels', href: '/hotels', hint: 'Start a stay search' },
+      { label: 'Hotel cities', href: '/hotels/in', hint: 'Indexable guides' },
+      { label: 'Destinations', href: '/destinations', hint: 'Plan the broader trip' },
     ],
     featured: [
       { label: 'Miami', href: '/hotels/in/miami', hint: 'Beach + nightlife' },
@@ -21,8 +21,7 @@ const NAV = {
     ],
   },
   secondary: [
-    { label: 'Blog', href: '/blog' },
-    { label: 'Support', href: '/support' },
+    { label: 'Destinations', href: '/destinations' },
   ],
 } as const
 
@@ -130,7 +129,7 @@ export const SiteHeader = component$(() => {
                       </ul>
 
                       <div class="mt-3">
-                        <a class="t-btn-primary w-full px-4 py-2 text-center text-sm" href="/search/hotels">
+                        <a class="t-btn-primary w-full px-4 py-2 text-center text-sm" href="/hotels">
                           Search hotels
                         </a>
                       </div>
@@ -166,13 +165,13 @@ export const SiteHeader = component$(() => {
 
                       <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-panel)] p-3">
                         <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                          City guides → SERP layer
+                          City guides for search hubs
                         </div>
                         <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                          Indexable destination pages that link into noindex search results.
+                          Indexable destination pages that support discovery and lead into live search.
                         </p>
                         <a
-                          href="/hotels/cities"
+                          href="/hotels/in"
                           class="mt-2 inline-flex text-xs font-semibold text-[color:var(--color-action)] hover:underline"
                         >
                           Browse hotel cities
@@ -202,10 +201,10 @@ export const SiteHeader = component$(() => {
 
         {/* Right side actions */}
         <div class="hidden items-center gap-2 md:flex">
-          <a class="t-btn-ghost px-4 py-2 text-sm" href="/account">
-            Sign in
+          <a class="t-btn-ghost px-4 py-2 text-sm" href="/trips">
+            Trips
           </a>
-          <a class="t-btn-primary px-4 py-2 text-sm" href="/search">
+          <a class="t-btn-primary px-4 py-2 text-sm" href="/#global-search-entry">
             Search
           </a>
         </div>
@@ -231,7 +230,7 @@ export const SiteHeader = component$(() => {
                   <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">Andacity</div>
                   <div class="text-xs text-[color:var(--color-text-muted)]">Navigate</div>
                 </div>
-                <a class="t-btn-primary px-3 py-1.5 text-sm" href="/search">
+                <a class="t-btn-primary px-3 py-1.5 text-sm" href="/#global-search-entry">
                   Search
                 </a>
               </div>
@@ -274,11 +273,11 @@ export const SiteHeader = component$(() => {
                 ))}
 
                 <div class="mt-2 grid gap-2 px-2 pb-2">
-                  <a class="t-btn-ghost px-4 py-2 text-center text-sm" href="/account">
-                    Sign in
+                  <a class="t-btn-ghost px-4 py-2 text-center text-sm" href="/trips">
+                    Trips
                   </a>
-                  <a class="t-btn-primary px-4 py-2 text-center text-sm" href="/contact">
-                    Contact
+                  <a class="t-btn-primary px-4 py-2 text-center text-sm" href="/#global-search-entry">
+                    Search
                   </a>
                 </div>
               </div>

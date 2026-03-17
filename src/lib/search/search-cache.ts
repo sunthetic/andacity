@@ -134,6 +134,7 @@ const normalizeFlightSearchParamsForCache = (params: SearchCacheParams) => {
       getNestedValue(params, 'destination', 'destinationCode', 'toLocationSlug', 'to', 'toSlug'),
     ),
     departDate: normalizeOptionalToken(getNestedValue(params, 'departDate', 'serviceDate')),
+    returnDate: normalizeOptionalToken(getNestedValue(params, 'returnDate')),
     itineraryType: normalizeOptionalToken(getNestedValue(params, 'itineraryType')),
     passengers: toInteger(getNestedValue(params, 'passengers', 'travelers'), 1, {
       min: 1,
@@ -198,7 +199,16 @@ const normalizeHotelSearchParamsForCache = (params: SearchCacheParams) => {
 const normalizeCarSearchParamsForCache = (params: SearchCacheParams) => {
   return {
     location: normalizeOptionalToken(
-      getNestedValue(params, 'citySlug', 'pickupLocation', 'pickupLocationId', 'location', 'query'),
+      getNestedValue(
+        params,
+        'airport',
+        'airportCode',
+        'citySlug',
+        'pickupLocation',
+        'pickupLocationId',
+        'location',
+        'query',
+      ),
     ),
     pickupDateTime: normalizeOptionalToken(getNestedValue(params, 'pickupDateTime', 'pickupDate')),
     dropoffDateTime: normalizeOptionalToken(
@@ -254,6 +264,7 @@ export const getSearchCacheKey = (vertical: SearchCacheVertical, params: SearchC
       normalized.origin,
       normalized.destination,
       normalized.departDate,
+      `return=${normalized.returnDate}`,
       `pax=${normalized.passengers}`,
       `trip=${normalized.itineraryType}`,
       `cabin=${normalized.cabinClass}`,
@@ -285,9 +296,38 @@ export const getSearchCacheKey = (vertical: SearchCacheVertical, params: SearchC
     ].join(':')
   }
 
+  const rawCarLocation = String(
+    getNestedValue(
+      params,
+      'airport',
+      'airportCode',
+      'pickupLocation',
+      'pickupLocationId',
+      'citySlug',
+      'location',
+      'query',
+    ) ?? '',
+  ).trim()
+  const carLocation =
+    /^[A-Za-z]{3}$/.test(rawCarLocation) ? rawCarLocation.toUpperCase() : normalized.location
+  const isCanonicalAirportCarKey =
+    /^[A-Za-z]{3}$/.test(rawCarLocation) &&
+    normalized.vehicleClass === 'any' &&
+    normalized.sort === 'recommended' &&
+    normalized.page === 1 &&
+    normalized.pageSize === DEFAULT_PAGE_SIZES.car &&
+    normalized.pickupType === 'airport' &&
+    normalized.transmission === 'any' &&
+    normalized.seatsMin === 'any' &&
+    normalized.priceBand === 'any'
+
+  if (isCanonicalAirportCarKey) {
+    return ['car', carLocation, normalized.pickupDateTime, normalized.dropoffDateTime].join(':')
+  }
+
   return [
     'cars',
-    normalized.location,
+    carLocation,
     normalized.pickupDateTime,
     normalized.dropoffDateTime,
     `class=${normalized.vehicleClass}`,

@@ -19,7 +19,7 @@ export default component$(() => {
           </p>
         </div>
 
-        <a class="t-btn-primary px-5 text-center" href="/search/hotels">
+        <a class="t-btn-primary px-5 text-center" href="/hotels">
           Start with hotels
         </a>
       </div>

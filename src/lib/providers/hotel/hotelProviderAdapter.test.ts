@@ -57,6 +57,9 @@ const buildRawOffer = (
   nights: 4,
   roomType: 'Deluxe King Suite',
   roomTypeToken: 'deluxe-king-suite',
+  roomSleeps: 3,
+  beds: '1 king bed',
+  sizeSqft: 420,
   providerOfferId: 'ace-flex-king',
   ratePlanId: 'flexible-pay-later-breakfast-included',
   ratePlan: 'Flexible rate · Pay later · Breakfast included',
@@ -65,7 +68,14 @@ const buildRawOffer = (
   refundable: true,
   freeCancellation: true,
   payLater: true,
+  noResortFees: true,
+  offerBadges: ['Breakfast included'],
+  offerFeatures: ['Late checkout'],
   inclusions: ['Breakfast included', 'Late checkout'],
+  addressLine: '123 Broadway, New York, NY',
+  checkInTime: '3:00 PM',
+  checkOutTime: '11:00 AM',
+  summary: 'Boutique stay in lower Manhattan.',
   nightlyBaseCents: 18900,
   totalBaseCents: 75600,
   taxesCents: 0,
@@ -157,6 +167,8 @@ test('normalizes a provider hotel offer into a canonical hotel search entity', (
   assert.equal(entity?.payload.ratePlanId, 'flexible-pay-later-breakfast-included')
   assert.equal(entity?.payload.policy?.freeCancellation, true)
   assert.equal(entity?.payload.priceSummary?.totalPriceCents, 75600)
+  assert.deepEqual(entity?.payload.propertySummary?.amenities, ['Pool', 'Wi-Fi'])
+  assert.equal(entity?.payload.roomSummary?.beds, '1 king bed')
   assert.equal(entity?.payload.providerMetadata?.providerName, HOTEL_PROVIDER_NAME)
 })
 
@@ -172,8 +184,31 @@ test('normalizes a resolved provider hotel offer into a canonical bookable entit
   assert.equal(entity?.payload.providerOfferId, 'ace-flex-king')
   assert.equal(entity?.payload.boardType, 'breakfast-included')
   assert.equal(entity?.payload.policy?.refundable, true)
+  assert.equal(entity?.payload.propertySummary?.cityName, 'New York')
+  assert.equal(entity?.payload.roomSummary?.sizeSqft, 420)
   assert.equal(entity?.payload.providerMetadata?.providerName, HOTEL_PROVIDER_NAME)
   assert.equal(entity?.snapshotTimestamp, '2026-03-13T21:00:00.000Z')
+})
+
+test('preserves legacy hotel inventory ids when a generic room token resolves to a default offer', () => {
+  const inventoryId = buildHotelInventoryId({
+    hotelId: 555,
+    checkInDate: '2026-04-01',
+    checkOutDate: '2026-04-05',
+    roomType: 'standard',
+    occupancy: 2,
+  })
+
+  const entity = normalizeHotelInventory(buildRawOffer(), inventoryId, {
+    providerName: HOTEL_PROVIDER_NAME,
+    snapshotTimestamp: '2026-03-13T21:00:00.000Z',
+  })
+
+  assert.ok(entity)
+  assert.equal(entity?.inventoryId, inventoryId)
+  assert.equal(entity?.payload.providerOfferId, 'ace-flex-king')
+  assert.equal(entity?.payload.providerMetadata?.providerName, HOTEL_PROVIDER_NAME)
+  assert.equal(entity?.payload.roomSummary?.roomName, 'Deluxe King Suite')
 })
 
 test('normalizes a live hotel price into a canonical price quote', () => {

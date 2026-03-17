@@ -1,0 +1,18 @@
+import { component$ } from "@builder.io/qwik";
+import { ResultsEmpty } from "~/components/results/ResultsEmpty";
+import type { CarResultsEmptyStateModel } from "~/types/search-ui";
+
+export const CarResultsEmptyState = component$((props: CarResultsEmptyStateProps) => {
+  return (
+    <ResultsEmpty
+      title={props.model.title}
+      description={props.model.description}
+      primaryAction={props.model.primaryAction}
+      secondaryAction={props.model.secondaryAction}
+    />
+  );
+});
+
+type CarResultsEmptyStateProps = {
+  model: CarResultsEmptyStateModel;
+};

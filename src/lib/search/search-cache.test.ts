@@ -137,9 +137,24 @@ test('builds deterministic flight cache keys from normalized inputs', () => {
 
   assert.equal(
     first,
-    'flights:jfk:lax:2026-04-01:pax=1:trip=any:cabin=economy:sort=recommended:page=1:size=6:stops=any:depart=evening,morning:arrive=any:price=200-400',
+    'flights:jfk:lax:2026-04-01:return=any:pax=1:trip=any:cabin=economy:sort=recommended:page=1:size=6:stops=any:depart=evening,morning:arrive=any:price=200-400',
   )
   assert.equal(first, second)
+})
+
+test('includes the flight return date in round-trip cache keys', () => {
+  const key = getSearchCacheKey('flight', {
+    origin: 'JFK',
+    destination: 'LAX',
+    departDate: '2026-04-01',
+    returnDate: '2026-04-05',
+    itineraryType: 'round-trip',
+  })
+
+  assert.equal(
+    key,
+    'flights:jfk:lax:2026-04-01:return=2026-04-05:pax=1:trip=round-trip:cabin=any:sort=recommended:page=1:size=6:stops=any:depart=any:arrive=any:price=any',
+  )
 })
 
 test('ignores irrelevant hotel UI state and normalizes list filters', () => {
@@ -172,6 +187,17 @@ test('ignores irrelevant hotel UI state and normalizes list filters', () => {
     'hotels:new-york-city:2026-04-01:2026-04-05:occ=2:rooms=1:sort=recommended:page=1:size=24:price=any:stars=4,5:rating=8,9:amenities=pool,wifi',
   )
   assert.equal(first, second)
+})
+
+test('builds compact airport-based cache keys for canonical car routes', () => {
+  const key = getSearchCacheKey('car', {
+    pickupLocation: 'LAX',
+    pickupDate: '2026-05-10',
+    dropoffDate: '2026-05-15',
+    pickupType: 'airport',
+  })
+
+  assert.equal(key, 'car:LAX:2026-05-10:2026-05-15')
 })
 
 test('stores and returns canonical search entities', () => {

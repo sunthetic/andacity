@@ -112,6 +112,7 @@ export type CarRentalOfferRow = {
 
 export type CarRentalDetailRow = {
   id: number
+  locationId: number
   slug: string
   providerName: string
   citySlug: string
@@ -659,6 +660,7 @@ export async function getCarRentalDetailBySlug(slug: string): Promise<CarRentalD
   const rows = await db
     .select({
       id: carInventory.id,
+      locationId: carInventory.locationId,
       slug: carInventory.slug,
       providerName: carProviders.name,
       citySlug: cities.slug,

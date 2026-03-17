@@ -33,7 +33,7 @@ const buildResolver = (
   ...overrides,
 })
 
-test('returns ok when current inventory matches the saved snapshot', async () => {
+test('returns valid when current inventory matches the saved snapshot', async () => {
   const inventoryId = buildHotelInventoryId({
     hotelId: 555,
     checkInDate: '2026-04-01',
@@ -66,7 +66,8 @@ test('returns ok when current inventory matches the saved snapshot', async () =>
     },
   )
 
-  assert.equal(result.status, 'ok')
+  assert.equal(result.status, 'valid')
+  assert.equal(result.message, 'Ace Hotel still matches the saved inventory snapshot.')
   assert.equal(result.currentPriceCents, 84900)
   assert.equal(result.currentCurrencyCode, 'USD')
   assert.equal(result.isAvailable, true)
@@ -74,7 +75,7 @@ test('returns ok when current inventory matches the saved snapshot', async () =>
   assert.deepEqual(result.issues, [])
 })
 
-test('surfaces price and currency drift as warnings', async () => {
+test('surfaces price and currency drift as a normalized price_changed result', async () => {
   const inventoryId = buildFlightInventoryId({
     airlineCode: 'DL',
     flightNumber: '123',
@@ -104,14 +105,14 @@ test('surfaces price and currency drift as warnings', async () => {
     },
   )
 
-  assert.equal(result.status, 'warning')
+  assert.equal(result.status, 'price_changed')
   assert.deepEqual(
     result.issues.map((issue) => issue.code),
     ['currency_changed', 'price_changed'],
   )
 })
 
-test('marks missing inventory as blocking', async () => {
+test('marks missing inventory as unavailable', async () => {
   const inventoryId = buildHotelInventoryId({
     hotelId: 999,
     checkInDate: '2026-04-01',
@@ -132,7 +133,7 @@ test('marks missing inventory as blocking', async () => {
     buildResolver(),
   )
 
-  assert.equal(result.status, 'blocking')
+  assert.equal(result.status, 'unavailable')
   assert.deepEqual(result.issues.map((issue) => issue.code), ['inventory_missing'])
 })
 
@@ -165,7 +166,7 @@ test('marks unavailable inventory as sold out', async () => {
     },
   )
 
-  assert.equal(result.status, 'blocking')
+  assert.equal(result.status, 'unavailable')
   assert.deepEqual(result.issues.map((issue) => issue.code), ['sold_out'])
 })
 
@@ -190,7 +191,7 @@ test('raises inventory_mismatch when the item type does not match the canonical 
     buildResolver(),
   )
 
-  assert.equal(result.status, 'blocking')
+  assert.equal(result.status, 'unavailable')
   assert.deepEqual(result.issues.map((issue) => issue.code), ['inventory_mismatch'])
 })
 
@@ -207,11 +208,11 @@ test('raises snapshot_incomplete for malformed snapshot data', async () => {
     buildResolver(),
   )
 
-  assert.equal(result.status, 'blocking')
+  assert.equal(result.status, 'error')
   assert.deepEqual(result.issues.map((issue) => issue.code), ['snapshot_incomplete'])
 })
 
-test('returns a controlled warning when the provider lookup throws', async () => {
+test('returns a controlled error status when the provider lookup throws', async () => {
   const inventoryId = buildHotelInventoryId({
     hotelId: 555,
     checkInDate: '2026-04-01',
@@ -238,11 +239,11 @@ test('returns a controlled warning when the provider lookup throws', async () =>
     },
   )
 
-  assert.equal(result.status, 'warning')
+  assert.equal(result.status, 'error')
   assert.deepEqual(result.issues.map((issue) => issue.code), ['revalidation_failed'])
 })
 
-test('marks live pricing drift lookup failures as inventory_unavailable', async () => {
+test('treats live pricing drift lookup failures as temporary revalidation errors', async () => {
   const inventoryId = buildHotelInventoryId({
     hotelId: 555,
     checkInDate: '2026-04-01',
@@ -273,7 +274,7 @@ test('marks live pricing drift lookup failures as inventory_unavailable', async 
     },
   )
 
-  assert.equal(result.status, 'blocking')
+  assert.equal(result.status, 'error')
   assert.deepEqual(result.issues.map((issue) => issue.code), ['inventory_unavailable'])
 })
 
@@ -308,11 +309,11 @@ test('uses the shared price drift status to avoid false positives from rounding 
     },
   )
 
-  assert.equal(result.status, 'ok')
+  assert.equal(result.status, 'valid')
   assert.deepEqual(result.issues, [])
 })
 
-test('detects current inventory identity drift as a date change warning', async () => {
+test('detects current inventory identity drift as an unavailable item', async () => {
   const inventoryId = buildFlightInventoryId({
     airlineCode: 'DL',
     flightNumber: '123',
@@ -351,11 +352,11 @@ test('detects current inventory identity drift as a date change warning', async 
     },
   )
 
-  assert.equal(results[0]?.status, 'warning')
+  assert.equal(results[0]?.status, 'unavailable')
   assert.deepEqual(results[0]?.issues.map((issue) => issue.code), ['date_changed'])
 })
 
-test('builds typed issues and derives the highest-severity status', () => {
+test('builds typed issues and derives the normalized revalidation status', () => {
   const warning = buildTripItemRevalidationIssue({
     code: 'price_changed',
     title: 'Price Drift Item',
@@ -367,6 +368,6 @@ test('builds typed issues and derives the highest-severity status', () => {
 
   assert.equal(warning.severity, 'warning')
   assert.equal(blocking.severity, 'blocking')
-  assert.equal(getTripItemRevalidationStatus([warning]), 'warning')
-  assert.equal(getTripItemRevalidationStatus([warning, blocking]), 'blocking')
+  assert.equal(getTripItemRevalidationStatus([warning]), 'price_changed')
+  assert.equal(getTripItemRevalidationStatus([warning, blocking]), 'unavailable')
 })

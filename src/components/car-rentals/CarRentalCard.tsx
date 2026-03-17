@@ -26,7 +26,10 @@ export const CarRentalCard = component$((props: CarRentalCardProps) => {
   const pickupType =
     r.pickupType ||
     (r.pickupArea.toLowerCase().includes("airport") ? "airport" : "city");
-  const detailHref = props.detailHref || buildCarRentalDetailHref(r.slug);
+  const detailHref =
+    r.searchEntity?.href ||
+    props.detailHref ||
+    buildCarRentalDetailHref(r.slug);
   const onOpenDetail$ = $(() => {
     if (!props.telemetry) return;
 
@@ -72,7 +75,12 @@ export const CarRentalCard = component$((props: CarRentalCardProps) => {
       hasPrimaryAction={true}
       hasTrust={Boolean(r.availabilityConfidence || r.freshness)}
     >
-      <a q:slot="media" class="block h-full" href={detailHref} onClick$={onOpenDetail$}>
+      <a
+        q:slot="media"
+        class="block h-full"
+        href={detailHref}
+        onClick$={onOpenDetail$}
+      >
         <img
           class="h-48 w-full object-cover md:h-full"
           src={r.image}

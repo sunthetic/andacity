@@ -5,6 +5,12 @@ import {
   parseInventoryId,
 } from '../inventory/inventory-id.ts'
 import {
+  buildCarEntityHref,
+  buildFlightEntityHref,
+  buildHotelEntityHref,
+  isBookableEntityPath,
+} from '../entities/routing.ts'
+import {
   isBookableEntity,
   toBookableEntityFromSearchEntity,
 } from '../booking/bookable-entity.ts'
@@ -25,9 +31,11 @@ import type {
   SearchEntityPrice,
 } from '../../types/search-entity'
 import type {
+  HotelPropertySummary,
   HotelPolicySummary,
   HotelPriceSummary,
   HotelProviderMetadata,
+  HotelRoomSummary,
 } from '../../types/hotels/provider'
 
 type SearchRecord = Record<string, unknown>
@@ -54,6 +62,7 @@ export type FlightSearchEntitySource = {
 
 export type FlightSearchEntityContext = {
   departDate?: string | null
+  canonicalFlightNumber?: string | number | null
   priceAmountCents?: number | null
   snapshotTimestamp?: string | null
   imageUrl?: string | null
@@ -88,6 +97,8 @@ export type HotelSearchEntityContext = {
   cancellationPolicy?: string | null
   policy?: HotelPolicySummary | null
   priceSummary?: HotelPriceSummary | null
+  propertySummary?: HotelPropertySummary | null
+  roomSummary?: HotelRoomSummary | null
   inclusions?: string[] | null
   providerMetadata?: HotelProviderMetadata | null
   priceAmountCents?: number | null
@@ -228,6 +239,28 @@ const cloneHotelPriceSummary = (
   return { ...value }
 }
 
+const cloneHotelPropertySummary = (
+  value: HotelPropertySummary | null | undefined,
+): HotelPropertySummary | null => {
+  if (!value) return null
+  return {
+    ...value,
+    amenities: cloneStringArray(value.amenities) || null,
+    notes: cloneStringArray(value.notes) || null,
+  }
+}
+
+const cloneHotelRoomSummary = (
+  value: HotelRoomSummary | null | undefined,
+): HotelRoomSummary | null => {
+  if (!value) return null
+  return {
+    ...value,
+    features: cloneStringArray(value.features) || null,
+    badges: cloneStringArray(value.badges) || null,
+  }
+}
+
 const cloneHotelProviderMetadata = (
   value: HotelProviderMetadata | null | undefined,
 ): HotelProviderMetadata | null => {
@@ -255,6 +288,15 @@ export const buildSearchEntitySubtitle = (
 ) => {
   const subtitle = toTruthyStrings(parts).join(separator).trim()
   return subtitle || null
+}
+
+const resolveCanonicalHref = (href: unknown, fallback: () => string) => {
+  const normalizedHref = toNullableText(href)
+  if (normalizedHref && isBookableEntityPath(normalizedHref)) {
+    return normalizedHref
+  }
+
+  return fallback()
 }
 
 const assertSearchEntity = <TEntity extends SearchEntity>(entity: TEntity): TEntity => {
@@ -300,8 +342,10 @@ export const toFlightSearchEntity = (
   context: FlightSearchEntityContext = {},
 ): FlightSearchEntity<FlightSearchEntityPayload> => {
   const carrier = toNullableText(source.airlineCode) ?? toNullableText(source.airline)
-  const flightNumber =
-    toNullableText(source.flightNumber) ??
+  const flightNumber = toNullableText(source.flightNumber)
+  const canonicalFlightNumber =
+    toNullableText(context.canonicalFlightNumber) ??
+    flightNumber ??
     toNullableText(source.id) ??
     (source.itineraryId != null ? String(source.itineraryId) : null)
   const departDate = resolveFlightDepartDate(source, context)
@@ -309,7 +353,7 @@ export const toFlightSearchEntity = (
   const destinationCode = resolveFlightDestinationCode(source)
   const inventoryId = buildFlightInventoryId({
     airlineCode: carrier || '',
-    flightNumber: flightNumber || '',
+    flightNumber: canonicalFlightNumber || '',
     departDate: departDate || '',
     originCode: originCode || toNullableText(source.origin) || '',
     destinationCode: destinationCode || toNullableText(source.destination) || '',
@@ -340,7 +384,7 @@ export const toFlightSearchEntity = (
     title,
     subtitle,
     imageUrl: toNullableText(context.imageUrl),
-    href: toNullableText(context.href),
+    href: resolveCanonicalHref(context.href, () => buildFlightEntityHref(inventoryId)),
     payload: {
       providerInventoryId: toFiniteInteger(source.itineraryId),
       airlineCode: carrier,
@@ -414,7 +458,7 @@ export const toHotelSearchEntity = (
     title,
     subtitle,
     imageUrl: toNullableText(context.imageUrl) ?? toNullableText(source.image),
-    href: toNullableText(context.href),
+    href: resolveCanonicalHref(context.href, () => buildHotelEntityHref(inventoryId)),
     payload: {
       providerInventoryId: toFiniteInteger(source.inventoryId),
       hotelId,
@@ -430,6 +474,8 @@ export const toHotelSearchEntity = (
       cancellationPolicy: toNullableText(context.cancellationPolicy),
       policy: cloneHotelPolicy(context.policy),
       priceSummary: cloneHotelPriceSummary(context.priceSummary),
+      propertySummary: cloneHotelPropertySummary(context.propertySummary),
+      roomSummary: cloneHotelRoomSummary(context.roomSummary),
       inclusions: cloneStringArray(context.inclusions),
       providerMetadata: cloneHotelProviderMetadata(context.providerMetadata),
       assumedStayDates: context.assumedStayDates || undefined,
@@ -498,7 +544,7 @@ export const toCarSearchEntity = (
     title,
     subtitle,
     imageUrl: toNullableText(context.imageUrl) ?? toNullableText(source.image),
-    href: toNullableText(context.href),
+    href: resolveCanonicalHref(context.href, () => buildCarEntityHref(inventoryId)),
     payload: {
       providerInventoryId: toFiniteInteger(source.inventoryId),
       providerLocationId,

@@ -34,16 +34,16 @@ export const LocationAutosuggestField = component$(
       const rootEl = track(() => rootRef.value);
       if (!(rootEl instanceof HTMLElement)) return;
 
-      const onPointerDown = (event: PointerEvent) => {
+      const onDocumentClick = (event: MouseEvent) => {
         if (!(event.target instanceof Node)) return;
         if (rootEl.contains(event.target)) return;
         open.value = false;
         highlightedIndex.value = -1;
       };
 
-      document.addEventListener("pointerdown", onPointerDown, true);
+      document.addEventListener("click", onDocumentClick);
       cleanup(() => {
-        document.removeEventListener("pointerdown", onPointerDown, true);
+        document.removeEventListener("click", onDocumentClick);
       });
     });
 
@@ -56,12 +56,16 @@ export const LocationAutosuggestField = component$(
         () => props.selectedLocation.value?.displayName || "",
       );
       const discoveryEnabled = track(() => props.enableDiscovery !== false);
+      const geolocationDiscoveryEnabled = track(
+        () => props.enableGeolocationDiscovery !== false,
+      );
       const query = String(rawQuery || "").trim();
       const hasSelectedDisplay =
         Boolean(selectedDisplay) && query === selectedDisplay;
 
       if (
         !discoveryEnabled ||
+        !geolocationDiscoveryEnabled ||
         disabled ||
         !isOpen ||
         query.length > 0 ||
@@ -141,47 +145,53 @@ export const LocationAutosuggestField = component$(
       const nextRequest = requestSequence.value + 1;
       requestSequence.value = nextRequest;
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(async () => {
-        try {
-          loading.value = true;
-          errorMessage.value = null;
-          const results = query.length
-            ? await searchLocations(query, {
-                limit: props.resultLimit,
-                signal: controller.signal,
-              })
-            : await discoverLocations({
-                limit: Math.max(3, Math.min(props.resultLimit || 5, 6)),
-                latitude: coords?.latitude,
-                longitude: coords?.longitude,
-                signal: controller.signal,
-              });
-          if (requestSequence.value !== nextRequest) return;
+      const timeoutId = window.setTimeout(
+        async () => {
+          try {
+            loading.value = true;
+            errorMessage.value = null;
+            const results = query.length
+              ? await searchLocations(query, {
+                  limit: props.resultLimit,
+                  signal: controller.signal,
+                })
+              : await discoverLocations({
+                  limit: Math.max(3, Math.min(props.resultLimit || 5, 6)),
+                  latitude: coords?.latitude,
+                  longitude: coords?.longitude,
+                  signal: controller.signal,
+                });
+            if (requestSequence.value !== nextRequest) return;
 
-          suggestions.value = results;
-          highlightedIndex.value = results.length ? 0 : -1;
-          statusMessage.value = results.length
-            ? !query.length
-              ? `${results.length} suggested destinations available.`
-              : `${results.length} suggestions available.`
-            : !query.length
-              ? "No suggested destinations available."
-              : "No matching locations found.";
-        } catch (error) {
-          if (controller.signal.aborted) return;
-          suggestions.value = [];
-          highlightedIndex.value = -1;
-          errorMessage.value =
-            error instanceof Error
-              ? error.message
-              : "Unable to load location suggestions.";
-          statusMessage.value = "Unable to load location suggestions.";
-        } finally {
-          if (!controller.signal.aborted && requestSequence.value === nextRequest) {
-            loading.value = false;
+            suggestions.value = results;
+            highlightedIndex.value = results.length ? 0 : -1;
+            statusMessage.value = results.length
+              ? !query.length
+                ? `${results.length} suggested destinations available.`
+                : `${results.length} suggestions available.`
+              : !query.length
+                ? "No suggested destinations available."
+                : "No matching locations found.";
+          } catch (error) {
+            if (controller.signal.aborted) return;
+            suggestions.value = [];
+            highlightedIndex.value = -1;
+            errorMessage.value =
+              error instanceof Error
+                ? error.message
+                : "Unable to load location suggestions.";
+            statusMessage.value = "Unable to load location suggestions.";
+          } finally {
+            if (
+              !controller.signal.aborted &&
+              requestSequence.value === nextRequest
+            ) {
+              loading.value = false;
+            }
           }
-        }
-      }, query.length ? 150 : 0);
+        },
+        query.length ? 150 : 0,
+      );
 
       cleanup(() => {
         controller.abort();
@@ -339,7 +349,8 @@ export const LocationAutosuggestField = component$(
               suggestions.value.map((location, index) => {
                 const isHighlighted = index === highlightedIndex.value;
                 const isSelected =
-                  props.selectedLocation.value?.locationId === location.locationId;
+                  props.selectedLocation.value?.locationId ===
+                  location.locationId;
 
                 return (
                   <button
@@ -414,5 +425,6 @@ type LocationAutosuggestFieldProps = {
   required?: boolean;
   resultLimit?: number;
   enableDiscovery?: boolean;
+  enableGeolocationDiscovery?: boolean;
   onSelect$?: QRL<(location: CanonicalLocation) => void>;
 };

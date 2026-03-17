@@ -143,6 +143,62 @@ test('normalizes a resolved provider offer into a canonical bookable entity', ()
   assert.equal(entity?.snapshotTimestamp, '2026-03-13T21:00:00.000Z')
 })
 
+test('preserves fallback flight inventory ids when the provider omits airline code and flight number', () => {
+  const inventoryId = buildFlightInventoryId({
+    carrier: 'WestJet',
+    flightNumber: 'FCBB80D25B9F',
+    departDate: '2026-04-01',
+    originCode: 'JFK',
+    destinationCode: 'LAX',
+  })
+
+  const entity = normalizeFlightInventory(
+    buildRawOffer({
+      airlineName: 'WestJet',
+      airlineCode: null,
+      flightNumber: null,
+    }),
+    inventoryId,
+    {
+      providerName: FLIGHT_PROVIDER_NAME,
+      snapshotTimestamp: '2026-03-13T21:00:00.000Z',
+    },
+  )
+
+  assert.ok(entity)
+  assert.equal(entity?.inventoryId, inventoryId)
+  assert.equal(entity?.payload.providerInventoryId, 321)
+  assert.equal(entity?.payload.providerMetadata?.providerName, FLIGHT_PROVIDER_NAME)
+})
+
+test('keeps itinerary-id fallback routes stable without surfacing the fallback id as a flight label', () => {
+  const inventoryId = buildFlightInventoryId({
+    carrier: 'WestJet',
+    flightNumber: '321',
+    departDate: '2026-04-01',
+    originCode: 'JFK',
+    destinationCode: 'LAX',
+  })
+
+  const entity = normalizeFlightInventory(
+    buildRawOffer({
+      airlineName: 'WestJet',
+      airlineCode: null,
+      flightNumber: null,
+    }),
+    inventoryId,
+    {
+      providerName: FLIGHT_PROVIDER_NAME,
+      snapshotTimestamp: '2026-03-13T21:00:00.000Z',
+    },
+  )
+
+  assert.ok(entity)
+  assert.equal(entity?.inventoryId, inventoryId)
+  assert.equal(entity?.bookingContext.flightNumber, null)
+  assert.equal(entity?.payload.providerInventoryId, 321)
+})
+
 test('normalizes a live provider price into a canonical price quote', () => {
   const quote = normalizeFlightPriceQuote({
     provider: FLIGHT_PROVIDER_NAME,

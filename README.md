@@ -4,12 +4,14 @@ Welcome to the development space for [andacity.com](https://andacity.com), an ex
 
 ## Release Info
 
-* Version **`0.5.0`**
-* Released on `2026-03-13`
+* Version **`0.6.0`**
+* Released on `2026-03-17`
 
-### v0.5.0 Highlights
+### v0.6.0 Highlights
 
-This release introduces canonical inventory IDs, normalized search and bookable entities, provider adapter infrastructure for flights/hotels/cars, live inventory resolution, price drift detection, trip revalidation, and a booking session engine. It also standardizes date entry and location autosuggest/normalization across the app, giving Andacity a much more deterministic, provider-safe, and extensible platform foundation.
+**Andacity v0.6.0** delivers the first fully usable product flow on top of the canonical architecture built in v0.5.0. Users can now initiate searches from a global entry layer, navigate deterministic canonical routes, view normalized results across flights, hotels, and car rentals, inspect individual bookable entities, and assemble a persistent trip—all within a provider-agnostic system.
+
+This release also introduces a foundational trip system with inventory snapshots and a revalidation loop that detects price changes and availability drift, ensuring the trip remains trustworthy over time. With routing, results, entity pages, and trip assembly all working cohesively, v0.6.0 establishes Andacity as a functional travel platform and sets the stage for booking and checkout in v0.7.0.
 
 ## Project Documentation
 

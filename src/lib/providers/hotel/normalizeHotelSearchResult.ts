@@ -2,9 +2,11 @@ import { toHotelSearchEntity } from '~/lib/search/search-entity'
 import type { SearchParams } from '~/types/search'
 import type { HotelSearchEntity } from '~/types/search-entity'
 import type {
+  HotelPropertySummary,
   HotelPolicySummary,
   HotelPriceSummary,
   HotelProviderMetadata,
+  HotelRoomSummary,
 } from '~/types/hotels/provider'
 import { HOTEL_PROVIDER_NAME } from './constants.ts'
 import type { HotelProviderRawOffer } from './hotelProviderClient.ts'
@@ -21,6 +23,23 @@ const toNullableText = (value: unknown) => {
 
 const cloneStringArray = (value: string[] | null | undefined) =>
   Array.isArray(value) ? value.map((entry) => String(entry)) : null
+
+const toFiniteInteger = (value: unknown) => {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(parsed)) return null
+  return Math.round(parsed)
+}
+
+const buildPropertyNotes = (
+  offer: Pick<HotelProviderRawOffer, "paymentBlurb" | "feesBlurb" | "noResortFees">,
+) =>
+  cloneStringArray(
+    [
+      offer.paymentBlurb,
+      offer.feesBlurb,
+      offer.noResortFees ? 'No resort fees' : null,
+    ].filter((value): value is string => Boolean(toNullableText(value))),
+  )
 
 export const buildHotelProviderPolicy = (
   offer: Pick<
@@ -46,6 +65,55 @@ export const buildHotelPriceSummary = (
   mandatoryFeesCents: offer.mandatoryFeesCents,
   totalPriceCents: offer.totalPriceCents,
   nights: offer.nights,
+})
+
+export const buildHotelPropertySummary = (
+  offer: Pick<
+    HotelProviderRawOffer,
+    | 'brandName'
+    | 'propertyType'
+    | 'cityName'
+    | 'neighborhood'
+    | 'addressLine'
+    | 'stars'
+    | 'rating'
+    | 'reviewCount'
+    | 'checkInTime'
+    | 'checkOutTime'
+    | 'summary'
+    | 'amenities'
+    | 'paymentBlurb'
+    | 'feesBlurb'
+    | 'noResortFees'
+  >,
+): HotelPropertySummary => ({
+  brandName: toNullableText(offer.brandName),
+  propertyType: toNullableText(offer.propertyType),
+  cityName: toNullableText(offer.cityName),
+  neighborhood: toNullableText(offer.neighborhood),
+  addressLine: toNullableText(offer.addressLine),
+  stars: toFiniteInteger(offer.stars),
+  rating: typeof offer.rating === 'number' && Number.isFinite(offer.rating) ? offer.rating : null,
+  reviewCount: toFiniteInteger(offer.reviewCount),
+  checkInTime: toNullableText(offer.checkInTime),
+  checkOutTime: toNullableText(offer.checkOutTime),
+  summary: toNullableText(offer.summary),
+  amenities: cloneStringArray(offer.amenities),
+  notes: buildPropertyNotes(offer),
+})
+
+export const buildHotelRoomSummary = (
+  offer: Pick<
+    HotelProviderRawOffer,
+    'roomType' | 'beds' | 'sizeSqft' | 'roomSleeps' | 'offerFeatures' | 'offerBadges'
+  >,
+): HotelRoomSummary => ({
+  roomName: toNullableText(offer.roomType),
+  beds: toNullableText(offer.beds),
+  sizeSqft: toFiniteInteger(offer.sizeSqft),
+  sleeps: toFiniteInteger(offer.roomSleeps),
+  features: cloneStringArray(offer.offerFeatures),
+  badges: cloneStringArray(offer.offerBadges),
 })
 
 export const buildHotelProviderMetadata = (
@@ -106,6 +174,8 @@ export const normalizeHotelSearchResult = (
         cancellationPolicy: offer.cancellationPolicy,
         policy: buildHotelProviderPolicy(offer),
         priceSummary: buildHotelPriceSummary(offer),
+        propertySummary: buildHotelPropertySummary(offer),
+        roomSummary: buildHotelRoomSummary(offer),
         inclusions: cloneStringArray(offer.inclusions),
         providerMetadata: buildHotelProviderMetadata(offer, providerName),
         priceAmountCents: offer.totalPriceCents,

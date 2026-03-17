@@ -7,15 +7,21 @@ import type {
   TripListItem,
   TripRollbackDraft,
 } from '~/types/trips/trip'
+import type { BookableEntity } from '~/types/bookable-entity'
 
 export class TripApiError extends Error {
+  readonly status: number
+  readonly code?: string
+
   constructor(
-    readonly status: number,
+    status: number,
     message: string,
-    readonly code?: string,
+    code?: string,
   ) {
     super(message)
     this.name = 'TripApiError'
+    this.status = status
+    this.code = code
   }
 }
 
@@ -52,6 +58,7 @@ export const listTripsApi = async (): Promise<TripListItem[]> => {
 export const createTripApi = async (input: {
   name?: string
   status?: string
+  bookingSessionId?: string | null
 }): Promise<TripDetails> => {
   const payload = await requestJson<{ trip: TripDetails }>('/api/trips', {
     method: 'POST',
@@ -91,6 +98,23 @@ export const addItemToTripApi = async (
   return payload.trip
 }
 
+export const addBookableEntityToTripApi = async (
+  tripId: number,
+  entity: BookableEntity,
+  options: {
+    bookingSessionId?: string | null
+  } = {},
+): Promise<TripDetails> => {
+  const payload = await requestJson<{ trip: TripDetails }>(`/api/trips/${tripId}/items`, {
+    method: 'POST',
+    body: JSON.stringify({
+      entity,
+      bookingSessionId: options.bookingSessionId ?? null,
+    }),
+  })
+  return payload.trip
+}
+
 export const removeTripItemApi = async (tripId: number, itemId: number): Promise<TripDetails> => {
   const payload = await requestJson<{ trip: TripDetails }>(
     `/api/trips/${tripId}/items/${itemId}`,
@@ -99,6 +123,25 @@ export const removeTripItemApi = async (tripId: number, itemId: number): Promise
     },
   )
   return payload.trip
+}
+
+export const moveTripItemToTripApi = async (
+  tripId: number,
+  itemId: number,
+  targetTripId: number,
+): Promise<{
+  sourceTrip: TripDetails
+  targetTrip: TripDetails
+  targetAlreadyHadItem: boolean
+}> => {
+  return requestJson<{
+    sourceTrip: TripDetails
+    targetTrip: TripDetails
+    targetAlreadyHadItem: boolean
+  }>(`/api/trips/${tripId}/items/${itemId}/move`, {
+    method: 'POST',
+    body: JSON.stringify({ targetTripId }),
+  })
 }
 
 export const updateTripItemApi = async (
@@ -217,6 +260,13 @@ export const updateTripMetadataApi = async (
     body: JSON.stringify(input || {}),
   })
   return payload.trip
+}
+
+export const deleteTripApi = async (tripId: number): Promise<number> => {
+  const payload = await requestJson<{ deletedTripId: number }>(`/api/trips/${tripId}`, {
+    method: 'DELETE',
+  })
+  return payload.deletedTripId
 }
 
 export const restoreTripRollbackDraftApi = async (

@@ -10,6 +10,7 @@ import {
 type ParsedCreateTripInput = {
   name?: string
   status?: TripStatus
+  bookingSessionId?: string | null
   notes?: string | null
   metadata?: Record<string, unknown>
   startDate?: string | null
@@ -29,6 +30,10 @@ type ParsedUpdateTripInput = {
 type ParsedUpdateTripItemInput = {
   locked?: boolean
   candidate?: TripItemCandidate
+}
+
+type ParsedMoveTripItemInput = {
+  targetTripId: number
 }
 
 type ParsedTripEditPreviewInput =
@@ -120,6 +125,12 @@ export const parseCreateTripInput = (body: unknown): ParsedCreateTripInput => {
   return {
     name: toOptionalString(obj.name),
     status: toOptionalStatus(obj.status),
+    bookingSessionId:
+      obj.bookingSessionId === undefined
+        ? undefined
+        : obj.bookingSessionId == null
+          ? null
+          : toOptionalString(obj.bookingSessionId) || null,
     notes:
       obj.notes === undefined
         ? undefined
@@ -214,6 +225,16 @@ export const parseUpdateTripItemInput = (body: unknown): ParsedUpdateTripItemInp
   }
 }
 
+export const parseMoveTripItemInput = (body: unknown): ParsedMoveTripItemInput | null => {
+  const obj = isRecord(body) ? body : {}
+  const targetTripId = toOptionalInt(obj.targetTripId)
+  if (targetTripId == null || targetTripId < 1) return null
+
+  return {
+    targetTripId,
+  }
+}
+
 export const parseTripEditPreviewInput = (body: unknown): ParsedTripEditPreviewInput | null => {
   const obj = isRecord(body) ? body : {}
   const actionType = toTrimmedString(obj.actionType).toLowerCase()
@@ -264,6 +285,10 @@ export const parseTripRollbackDraftInput = (body: unknown): TripRollbackDraft | 
       const meta = Array.isArray(entry.meta)
         ? entry.meta.map((value) => toTrimmedString(value)).filter(Boolean)
         : null
+      const bookingSessionId =
+        entry.bookingSessionId == null ? null : toOptionalString(entry.bookingSessionId) || null
+      const inventorySnapshot =
+        entry.inventorySnapshot == null ? null : toRecord(entry.inventorySnapshot)
       const metadata = toRecord(entry.metadata)
 
       if (
@@ -314,10 +339,13 @@ export const parseTripRollbackDraftInput = (body: unknown): TripRollbackDraft | 
         snapshotCurrencyCode,
         snapshotTimestamp,
         title: toTrimmedString(entry.title),
+        bookingSessionId,
         subtitle:
           entry.subtitle == null ? null : toOptionalString(entry.subtitle) || null,
         imageUrl: entry.imageUrl == null ? null : toOptionalString(entry.imageUrl) || null,
         meta,
+        inventorySnapshot:
+          (inventorySnapshot as TripRollbackDraft["items"][number]["inventorySnapshot"]) || null,
         metadata,
       }
     })

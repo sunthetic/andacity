@@ -17,6 +17,8 @@ const createProviderAliasAdapter = (
   adapter: ProviderAdapter,
 ): ProviderAdapter => ({
   provider,
+  vertical: adapter.vertical,
+  aliasOf: adapter.provider,
   search: (params, options) => adapter.search(params, options),
   resolveInventory: (inventoryId, options) => adapter.resolveInventory(inventoryId, options),
   fetchPrice: (inventoryId, options) => adapter.fetchPrice(inventoryId, options),

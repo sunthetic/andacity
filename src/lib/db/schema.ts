@@ -617,6 +617,7 @@ export const trips = dbTable(
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     name: varchar('name', { length: 180 }).notNull().default('Untitled trip'),
     status: tripStatusEnum('status').notNull().default('draft'),
+    bookingSessionId: text('booking_session_id'),
     notes: text('notes'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
     createdAt: createdAtColumn(),
@@ -624,6 +625,7 @@ export const trips = dbTable(
   },
   (table) => ({
     statusIdx: index('trips_status_idx').on(table.status),
+    bookingSessionIdx: index('trips_booking_session_idx').on(table.bookingSessionId),
     updatedIdx: index('trips_updated_idx').on(table.updatedAt),
   }),
 )
@@ -658,6 +660,7 @@ export const tripItems = dbTable(
       .references(() => trips.id, { onDelete: 'cascade' }),
     itemType: tripItemTypeEnum('item_type').notNull(),
     inventoryId: text('inventory_id').notNull(),
+    bookingSessionId: text('booking_session_id'),
     position: integer('position').notNull().default(0),
     hotelId: bigint('hotel_id', { mode: 'number' }).references(() => hotels.id, {
       onDelete: 'restrict',
@@ -691,6 +694,7 @@ export const tripItems = dbTable(
   (table) => ({
     tripIdx: index('trip_items_trip_idx').on(table.tripId),
     tripTypeIdx: index('trip_items_trip_type_idx').on(table.tripId, table.itemType),
+    bookingSessionIdx: index('trip_items_booking_session_idx').on(table.bookingSessionId),
     inventoryIdx: index('trip_items_inventory_idx').on(table.inventoryId),
     hotelIdx: index('trip_items_hotel_idx').on(table.hotelId),
     flightIdx: index('trip_items_flight_idx').on(table.flightItineraryId),
@@ -733,6 +737,57 @@ export const tripItems = dbTable(
           and ${table.hotelId} is null
           and ${table.flightItineraryId} is null
           and ${table.carInventoryId} is not null
+        )`,
+    ),
+  }),
+)
+
+export const tripItemInventorySnapshots = dbTable(
+  'trip_item_inventory_snapshots',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    tripItemId: bigint('trip_item_id', { mode: 'number' })
+      .notNull()
+      .references(() => tripItems.id, { onDelete: 'cascade' }),
+    itemType: tripItemTypeEnum('item_type').notNull(),
+    inventoryId: text('inventory_id').notNull(),
+    providerInventoryId: bigint('provider_inventory_id', { mode: 'number' }),
+    hotelAvailabilitySnapshotId: bigint('hotel_availability_snapshot_id', {
+      mode: 'number',
+    }).references(() => hotelAvailabilitySnapshots.id, {
+      onDelete: 'set null',
+    }),
+    bookableEntity: jsonb('bookable_entity')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    availabilitySnapshot: jsonb('availability_snapshot')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    tripItemUq: uniqueIndex('trip_item_inventory_snapshots_trip_item_uq').on(table.tripItemId),
+    inventoryIdx: index('trip_item_inventory_snapshots_inventory_idx').on(table.inventoryId),
+    providerInventoryIdx: index('trip_item_inventory_snapshots_provider_inventory_idx').on(
+      table.providerInventoryId,
+    ),
+    hotelSnapshotIdx: index('trip_item_inventory_snapshots_hotel_snapshot_idx').on(
+      table.hotelAvailabilitySnapshotId,
+    ),
+    inventoryIdCheck: check(
+      'trip_item_inventory_snapshots_inventory_id_ck',
+      sql`(
+          ${table.itemType} = 'hotel'
+          and ${table.inventoryId} like 'hotel:%'
+        ) or (
+          ${table.itemType} = 'flight'
+          and ${table.inventoryId} like 'flight:%'
+        ) or (
+          ${table.itemType} = 'car'
+          and ${table.inventoryId} like 'car:%'
         )`,
     ),
   }),
@@ -1003,4 +1058,22 @@ export const tripItemsRelations = relations(tripItems, ({ one }) => ({
     references: [cities.id],
     relationName: 'trip_item_end_city',
   }),
+  inventorySnapshot: one(tripItemInventorySnapshots, {
+    fields: [tripItems.id],
+    references: [tripItemInventorySnapshots.tripItemId],
+  }),
 }))
+
+export const tripItemInventorySnapshotsRelations = relations(
+  tripItemInventorySnapshots,
+  ({ one }) => ({
+    tripItem: one(tripItems, {
+      fields: [tripItemInventorySnapshots.tripItemId],
+      references: [tripItems.id],
+    }),
+    hotelAvailabilitySnapshot: one(hotelAvailabilitySnapshots, {
+      fields: [tripItemInventorySnapshots.hotelAvailabilitySnapshotId],
+      references: [hotelAvailabilitySnapshots.id],
+    }),
+  }),
+)

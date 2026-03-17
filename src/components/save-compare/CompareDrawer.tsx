@@ -1,4 +1,4 @@
-import { component$, useSignal, type QRL } from "@builder.io/qwik";
+import { component$, useSignal, useTask$, type QRL } from "@builder.io/qwik";
 import { CarCompareCard } from "~/components/cars/CarCompareCard";
 import { FlightCompareCard } from "~/components/flights/FlightCompareCard";
 import { HotelCompareCard } from "~/components/hotels/HotelCompareCard";
@@ -11,7 +11,9 @@ import type { SavedItem, SavedVertical } from "~/types/save-compare/saved-item";
 
 export const CompareDrawer = component$((props: CompareDrawerProps) => {
   const openSignal = useSignal(props.open);
-  openSignal.value = props.open;
+  useTask$(({ track }) => {
+    openSignal.value = track(() => props.open);
+  });
   const { overlayRef, initialFocusRef } = useOverlayBehavior({
     open: openSignal,
     onClose$: props.onClose$,

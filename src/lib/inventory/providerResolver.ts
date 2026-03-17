@@ -104,7 +104,7 @@ const resolveWithRegisteredProvider = async (
 
   if (!provider) {
     return {
-      matched: Boolean(requestedProvider),
+      matched: false,
       result: null,
     }
   }

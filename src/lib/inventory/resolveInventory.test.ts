@@ -449,3 +449,42 @@ test('resolveInventory fails safely when a mismatched provider is requested', as
 
   assert.equal(await resolveInventory(inventoryId, 'hotel'), null)
 })
+
+test('resolveInventoryRecord falls back to the vertical resolver when the requested provider key is unregistered', async () => {
+  const inventoryId = buildFlightInventoryId({
+    airlineCode: 'WESTJET',
+    flightNumber: '15196',
+    departDate: '2026-03-19',
+    originCode: 'JFK',
+    destinationCode: 'IAD',
+  })
+  let flightCalls = 0
+
+  const record = await resolveInventoryRecord(
+    {
+      inventoryId,
+      provider: 'WestJet',
+      providerInventoryId: 15196,
+      checkedAt: '2026-03-17T06:20:14.408Z',
+    },
+    {
+      resolvers: {
+        flight: async (input) => {
+          flightCalls += 1
+          assert.equal(input.inventoryId, inventoryId)
+          assert.equal(input.providerInventoryId, 15196)
+
+          return {
+            entity: buildFlightEntity(),
+            checkedAt: input.checkedAt,
+            isAvailable: true,
+          }
+        },
+      },
+    },
+  )
+
+  assert.equal(flightCalls, 1)
+  assert.equal(record?.entity.vertical, 'flight')
+  assert.equal(record?.isAvailable, true)
+})

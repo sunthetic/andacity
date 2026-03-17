@@ -88,6 +88,7 @@ export const createHotelProviderAdapter = (
 
   return {
     provider: providerName,
+    vertical: 'hotel',
 
     async search(params, requestOptions) {
       if (params.vertical !== 'hotel') return []

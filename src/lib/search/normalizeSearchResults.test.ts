@@ -13,6 +13,9 @@ const searchEntityModule: typeof import('./search-entity.ts') = await import(
 const normalizeModule: typeof import('./normalizeSearchResults.ts') = await import(
   new URL('./normalizeSearchResults.ts', import.meta.url).href
 )
+const routingModule: typeof import('../entities/routing.ts') = await import(
+  new URL('../entities/routing.ts', import.meta.url).href
+)
 const flightConstantsModule: typeof import('../providers/flight/constants.ts') = await import(
   new URL('../providers/flight/constants.ts', import.meta.url).href
 )
@@ -27,6 +30,7 @@ const { buildCarInventoryId, buildFlightInventoryId, buildHotelInventoryId } = i
 const { getCachedResults, getSearchCacheKey, setCachedResults, clearSearchCache } = cacheModule
 const { toBookableEntity } = searchEntityModule
 const { normalizeSearchResults } = normalizeModule
+const { buildCarEntityHref, buildFlightEntityHref, buildHotelEntityHref } = routingModule
 const { FLIGHT_PROVIDER_NAME } = flightConstantsModule
 const { HOTEL_PROVIDER_NAME } = hotelConstantsModule
 const { CAR_PROVIDER_NAME } = carConstantsModule
@@ -102,6 +106,9 @@ const buildHotelOffer = (
   nights: 4,
   roomType: 'Deluxe King Suite',
   roomTypeToken: 'deluxe-king-suite',
+  roomSleeps: 3,
+  beds: '1 king bed',
+  sizeSqft: 420,
   providerOfferId: 'ace-flex-king',
   ratePlanId: 'flexible-pay-later-breakfast-included',
   ratePlan: 'Flexible rate · Pay later · Breakfast included',
@@ -110,7 +117,14 @@ const buildHotelOffer = (
   refundable: true,
   freeCancellation: true,
   payLater: true,
+  noResortFees: true,
+  offerBadges: ['Breakfast included'],
+  offerFeatures: ['Late checkout'],
   inclusions: ['Breakfast included', 'Late checkout'],
+  addressLine: '123 Broadway, New York, NY',
+  checkInTime: '3:00 PM',
+  checkOutTime: '11:00 AM',
+  summary: 'Boutique stay in lower Manhattan.',
   nightlyBaseCents: 18900,
   totalBaseCents: 75600,
   taxesCents: 0,
@@ -208,6 +222,7 @@ test('routes raw provider offers into canonical entities for every vertical', ()
       destinationCode: 'LAX',
     }),
   )
+  assert.equal(flightResults[0]?.href, buildFlightEntityHref(flightResults[0]!))
   assert.deepEqual(flightResults[0]?.bookableSnapshot, toBookableEntity(flightResults[0]!))
 
   const hotelResults = normalizeSearchResults(
@@ -242,6 +257,7 @@ test('routes raw provider offers into canonical entities for every vertical', ()
     }),
   )
   assert.equal(hotelResults[0]?.payload.providerMetadata?.providerOfferId, 'ace-flex-king')
+  assert.equal(hotelResults[0]?.href, buildHotelEntityHref(hotelResults[0]!))
 
   const carResults = normalizeSearchResults(
     'car',
@@ -270,6 +286,7 @@ test('routes raw provider offers into canonical entities for every vertical', ()
     }),
   )
   assert.equal(carResults[0]?.payload.providerMetadata?.providerLocationId, 'phx-airport')
+  assert.equal(carResults[0]?.href, buildCarEntityHref(carResults[0]!))
 })
 
 test('remains deterministic and cache-safe across repeated normalizations', () => {

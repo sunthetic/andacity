@@ -81,6 +81,7 @@ export const createCarProviderAdapter = (
 
   return {
     provider: providerName,
+    vertical: 'car',
 
     async search(params, requestOptions) {
       if (params.vertical !== 'car') return []
