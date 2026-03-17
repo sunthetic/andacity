@@ -75,6 +75,8 @@ export type FlightEntityCtaModel = {
   label: string;
   disabled: boolean;
   note: string;
+  inventoryId: string;
+  canonicalPath: string;
 };
 
 export type FlightEntityDetailItemModel = {

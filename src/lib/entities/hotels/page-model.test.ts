@@ -116,6 +116,7 @@ test("maps a resolved canonical hotel entity into a provider-agnostic detail mod
   assert.equal(model.priceSummary?.totalPriceLabel, "$756 total");
   assert.equal(model.status?.availability.match, "exact");
   assert.equal(model.cta?.label, "Add to Trip");
+  assert.equal(model.cta?.disabled, false);
 });
 
 test("maps hotel revalidation drift into a warning state while preserving the live resolved entity view", () => {

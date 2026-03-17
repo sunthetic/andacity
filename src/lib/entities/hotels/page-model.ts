@@ -363,13 +363,13 @@ const buildCtaModel = (
   >,
 ): HotelEntityCtaModel => ({
   label: "Add to Trip",
-  disabled: true,
+  disabled: page.kind !== "resolved",
   note:
     page.kind === "revalidation_required"
       ? "Revalidate from search before enabling Add to Trip for the updated hotel offer."
       : page.kind === "unavailable"
         ? "This stay must become available again before Add to Trip can be enabled."
-        : "Booking-session creation and trip-candidate wiring will attach here in the next task.",
+        : "Adds this stay to a persisted trip and opens the updated trip page.",
   inventoryId: page.entity.inventoryId,
   canonicalPath: page.route.canonicalPath,
 });

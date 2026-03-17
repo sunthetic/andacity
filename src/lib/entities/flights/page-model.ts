@@ -319,33 +319,23 @@ const buildStatusModel = (
   };
 };
 
-const buildCtaModel = (kind: FlightEntityPageUiModel["kind"]) => {
-  if (kind === "resolved") {
-    return {
-      label: "Add to Trip",
-      disabled: true,
-      note: "Booking-session creation and trip-candidate wiring will attach here in the next task.",
-    };
-  }
-
-  if (kind === "unavailable") {
-    return {
-      label: "Add to Trip",
-      disabled: true,
-      note: "This itinerary must become available again before Add to Trip can be enabled.",
-    };
-  }
-
-  if (kind === "revalidation_required") {
-    return {
-      label: "Add to Trip",
-      disabled: true,
-      note: "Revalidate from search before enabling Add to Trip for the updated itinerary.",
-    };
-  }
-
-  return null;
-};
+const buildCtaModel = (
+  page: Extract<
+    BookableEntityPageLoadResult,
+    { kind: "resolved" | "unavailable" | "revalidation_required" }
+  >,
+) => ({
+  label: "Add to Trip",
+  disabled: page.kind !== "resolved",
+  note:
+    page.kind === "revalidation_required"
+      ? "Revalidate from search before enabling Add to Trip for the updated itinerary."
+      : page.kind === "unavailable"
+        ? "This itinerary must become available again before Add to Trip can be enabled."
+        : "Adds this itinerary to a persisted trip and opens the updated trip page.",
+  inventoryId: page.entity.inventoryId,
+  canonicalPath: page.route.canonicalPath,
+});
 
 const buildDetailItems = (
   items: Array<[string, string | null | undefined]>,
@@ -597,7 +587,7 @@ export const mapFlightEntityPageForUi = (
     status: buildStatusModel(page),
     segments: buildSegmentModels(entity),
     fareSummary: buildFareSummary(entity, page.kind),
-    cta: buildCtaModel(page.kind),
+    cta: buildCtaModel(page),
     unavailableState,
     errorState,
   };

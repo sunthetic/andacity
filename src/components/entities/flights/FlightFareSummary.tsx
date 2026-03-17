@@ -1,4 +1,5 @@
 import { component$ } from "@builder.io/qwik";
+import { BookableEntityAddToTripForm } from "~/components/entities/BookableEntityAddToTripForm";
 import type {
   FlightEntityCtaModel,
   FlightFareSummaryModel,
@@ -95,18 +96,7 @@ export const FlightFareSummary = component$((props: FlightFareSummaryProps) => {
         ) : null}
       </div>
 
-      <div class="mt-6">
-        <button
-          type="button"
-          disabled={props.cta.disabled}
-          class="t-btn-primary inline-flex min-h-11 w-full items-center justify-center px-5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {props.cta.label}
-        </button>
-        <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)]">
-          {props.cta.note}
-        </p>
-      </div>
+      <BookableEntityAddToTripForm cta={props.cta} vertical="flight" />
     </aside>
   );
 });

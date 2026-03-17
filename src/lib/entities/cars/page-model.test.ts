@@ -138,6 +138,7 @@ test("maps a resolved canonical car entity into a provider-agnostic detail model
   assert.equal(model.priceSummary?.dailyPriceLabel, "$67 / day");
   assert.equal(model.status?.availability.match, "exact");
   assert.equal(model.cta?.label, "Add to Trip");
+  assert.equal(model.cta?.disabled, false);
 });
 
 test("maps car revalidation drift into a warning state while preserving the live resolved entity view", () => {
