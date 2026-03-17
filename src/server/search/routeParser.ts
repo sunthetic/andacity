@@ -116,7 +116,7 @@ const parseCarRoute = (segments: string[]) => {
   if (segments.length !== 5) {
     throw createSearchRouteError(
       "MALFORMED_ROUTE",
-      "Car routes must match /cars/search/{airportCode}/{pickupDate}/{dropoffDate}.",
+      "Car routes must match /car-rentals/search/{airportCode}/{pickupDate}/{dropoffDate}.",
       {
         field: "route",
       },
@@ -192,6 +192,7 @@ export const parseSearchRoute = (input: string | URL): SearchRequest => {
       return parseHotelRoute(segments);
 
     case "cars":
+    case "car-rentals":
       return parseCarRoute(segments);
 
     default:

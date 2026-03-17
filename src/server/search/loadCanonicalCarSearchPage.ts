@@ -58,7 +58,7 @@ const toUrl = (input: string | URL) => {
   if (input instanceof URL) return input;
 
   const text = String(input || "").trim();
-  if (!text) return new URL("https://andacity.test/cars/search");
+  if (!text) return new URL("https://andacity.test/car-rentals/search");
 
   if (/^https?:\/\//i.test(text)) {
     return new URL(text);

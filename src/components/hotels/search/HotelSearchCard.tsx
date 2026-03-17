@@ -1,5 +1,4 @@
 import { component$, useSignal } from "@builder.io/qwik";
-import { useNavigate } from "@builder.io/qwik-city";
 import {
   BOOKING_SEARCH_CONTROL_CLASS,
   BookingSearchField,
@@ -14,8 +13,21 @@ import { buildCanonicalHotelSearchHref } from "~/lib/search/entry-routes";
 import { validateLocationSelection } from "~/lib/location/validateLocationSelection";
 import type { CanonicalLocation } from "~/types/location";
 
+const GUEST_OPTIONS = [
+  "1 guest · 1 room",
+  "2 guests · 1 room",
+  "3 guests · 1 room",
+  "4 guests · 2 rooms",
+] as const;
+
+const normalizeGuestValue = (value: string | null | undefined) => {
+  const normalized = String(value || "").trim();
+  return GUEST_OPTIONS.includes(normalized as (typeof GUEST_OPTIONS)[number])
+    ? normalized
+    : "2 guests · 1 room";
+};
+
 export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
-  const navigate = useNavigate();
   const destinationLocation = useSignal<CanonicalLocation | null>(
     props.initialDestinationLocation ?? null,
   );
@@ -26,7 +38,7 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
   );
   const checkIn = useSignal(props.initialCheckIn ?? "");
   const checkOut = useSignal(props.initialCheckOut ?? "");
-  const guests = useSignal(props.initialGuests ?? "2 guests · 1 room");
+  const guests = useSignal(normalizeGuestValue(props.initialGuests));
   const hasSubmitted = useSignal(false);
   const todayIsoDate = getTodayIsoDate();
   const tomorrowIsoDate = addDays(todayIsoDate, 1) || todayIsoDate;
@@ -41,8 +53,6 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
     checkOut: checkOut.value,
     guests: guests.value,
   });
-  const isValid = errors.length === 0;
-  const submitBehavior = props.submitBehavior ?? "form-submit";
   const surface = props.surface ?? "card";
 
   const content = (
@@ -52,9 +62,15 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
         method="get"
         preventdefault:submit
         noValidate
-        onSubmit$={async (_, form) => {
+        onSubmit$={async () => {
           hasSubmitted.value = true;
-          const snapshot = readSnapshot(form);
+          const snapshot = readSnapshotFromState({
+            destination: destination.value,
+            destinationLocation: destinationLocation.value,
+            checkIn: checkIn.value,
+            checkOut: checkOut.value,
+            guests: guests.value,
+          });
           const submitErrors = validateSnapshot(snapshot);
           if (submitErrors.length) return;
 
@@ -66,19 +82,14 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
           checkOut.value = snapshot.checkOut;
           guests.value = snapshot.guests;
 
-          if (submitBehavior === "canonical-route") {
-            await navigate(
-              buildCanonicalHotelSearchHref({
-                destinationLocation: snapshot.destinationLocation,
-                checkIn: snapshot.checkIn,
-                checkOut: snapshot.checkOut,
-                guests: snapshot.guests,
-              }),
-            );
-            return;
-          }
-
-          form.submit();
+          window.location.assign(
+            buildCanonicalHotelSearchHref({
+              destinationLocation: snapshot.destinationLocation,
+              checkIn: snapshot.checkIn,
+              checkOut: snapshot.checkOut,
+              guests: snapshot.guests,
+            }),
+          );
         }}
         class="grid gap-3 md:grid-cols-[minmax(0,2.65fr)_minmax(10rem,0.95fr)_minmax(10rem,0.95fr)_minmax(170px,0.85fr)_auto]"
       >
@@ -104,7 +115,7 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
             value={checkIn}
             required={true}
             minValue={todayIsoDate}
-            class="w-full pr-2"
+            class="w-full"
             inputClass={BOOKING_SEARCH_CONTROL_CLASS}
             iconLabel="Open check-in date picker"
             overlayLabel="Check-in date picker"
@@ -118,7 +129,7 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
             value={checkOut}
             required={true}
             minValue={minimumCheckoutDate}
-            class="w-full pr-2"
+            class="w-full"
             inputClass={BOOKING_SEARCH_CONTROL_CLASS}
             iconLabel="Open check-out date picker"
             overlayLabel="Check-out date picker"
@@ -142,8 +153,7 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
 
         <button
           type="submit"
-          disabled={hasSubmitted.value && !isValid}
-          class="inline-flex min-h-[3.25rem] items-center justify-center rounded-[var(--radius-lg)] px-5 text-sm font-semibold t-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+          class="inline-flex min-h-[3.25rem] items-center justify-center rounded-[var(--radius-lg)] px-5 text-sm font-semibold t-btn-primary"
         >
           Search hotels
         </button>
@@ -179,24 +189,15 @@ type HotelSubmitSnapshot = {
   guests: string;
 };
 
-const readSnapshot = (form: HTMLFormElement): HotelSubmitSnapshot => {
-  const fd = new FormData(form);
-  const destinationSelection = validateLocationSelection({
-    selection: fd.get("destinationLocation"),
-    rawValue: fd.get("destination"),
-    required: true,
-    fieldLabel: "destination",
-    allowedKinds: ["city", "airport"],
-  });
-
-  return {
-    destination: String(fd.get("destination") || "").trim(),
-    destinationLocation: destinationSelection.location,
-    checkIn: String(fd.get("checkIn") || "").trim(),
-    checkOut: String(fd.get("checkOut") || "").trim(),
-    guests: String(fd.get("guests") || "").trim(),
-  };
-};
+const readSnapshotFromState = (
+  snapshot: HotelSubmitSnapshot,
+): HotelSubmitSnapshot => ({
+  destination: String(snapshot.destination || "").trim(),
+  destinationLocation: snapshot.destinationLocation,
+  checkIn: String(snapshot.checkIn || "").trim(),
+  checkOut: String(snapshot.checkOut || "").trim(),
+  guests: normalizeGuestValue(snapshot.guests),
+});
 
 const validateSnapshot = (snapshot: HotelSubmitSnapshot) => {
   const validationErrors: string[] = [];

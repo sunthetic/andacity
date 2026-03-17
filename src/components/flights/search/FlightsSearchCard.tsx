@@ -1,5 +1,4 @@
-import { component$, useSignal } from "@builder.io/qwik";
-import { useNavigate } from "@builder.io/qwik-city";
+import { component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import {
   BOOKING_SEARCH_CONTROL_CLASS,
   BookingSearchField,
@@ -16,10 +15,70 @@ import { getTodayIsoDate, normalizeIsoDate } from "~/lib/date/validateDate";
 import { addDays } from "~/lib/trips/date-utils";
 import { buildCanonicalFlightSearchHref } from "~/lib/search/entry-routes";
 import { validateLocationSelection } from "~/lib/location/validateLocationSelection";
+import { discoverLocations } from "~/lib/location/searchLocations";
 import type { CanonicalLocation } from "~/types/location";
 
+const TRAVELER_OPTIONS = ["1", "2", "3", "4"] as const;
+const CABIN_OPTIONS = [
+  "economy",
+  "premium-economy",
+  "business",
+  "first",
+] as const;
+
+const normalizeTravelerValue = (value: string | null | undefined) => {
+  const normalized = String(value || "").trim();
+  return TRAVELER_OPTIONS.includes(normalized as (typeof TRAVELER_OPTIONS)[number])
+    ? normalized
+    : "1";
+};
+
+const normalizeCabinValue = (value: string | null | undefined) => {
+  const normalized = String(value || "").trim();
+  return CABIN_OPTIONS.includes(normalized as (typeof CABIN_OPTIONS)[number])
+    ? normalized
+    : "economy";
+};
+
+const requestCurrentCoordinates = () =>
+  new Promise<{ latitude: number; longitude: number } | null>((resolve) => {
+    if (!("geolocation" in navigator)) {
+      resolve(null);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      },
+      () => {
+        resolve(null);
+      },
+      {
+        enableHighAccuracy: false,
+        timeout: 4000,
+        maximumAge: 300_000,
+      },
+    );
+  });
+
+const resolveDefaultOriginLocation = async () => {
+  const coordinates = await requestCurrentCoordinates();
+  const discovered = coordinates
+    ? await discoverLocations({
+        limit: 1,
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+      }).catch(() => [])
+    : await discoverLocations({ limit: 1 }).catch(() => []);
+
+  return discovered[0] || null;
+};
+
 export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
-  const navigate = useNavigate();
   const fromLocation = useSignal<CanonicalLocation | null>(
     props.initialFromLocation ?? null,
   );
@@ -37,9 +96,12 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
   const itineraryType = useSignal<FlightItineraryTypeSlug>(
     normalizeFlightItineraryType(props.initialItineraryType),
   );
-  const travelers = useSignal(props.initialTravelers ?? "1");
-  const cabin = useSignal(props.initialCabin ?? "economy");
+  const travelers = useSignal(normalizeTravelerValue(props.initialTravelers));
+  const cabin = useSignal(normalizeCabinValue(props.initialCabin));
   const hasSubmitted = useSignal(false);
+  const defaultOriginResolution = useSignal<Promise<CanonicalLocation | null> | null>(
+    null,
+  );
   const todayIsoDate = getTodayIsoDate();
   const tomorrowIsoDate = addDays(todayIsoDate, 1) || todayIsoDate;
   const minimumReturnDate =
@@ -60,10 +122,38 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
 
   const isRoundTrip = renderSnapshot.itineraryType === "round-trip";
   const errors = validateFlightSubmit(renderSnapshot);
-
-  const isValid = errors.length === 0;
-  const submitBehavior = props.submitBehavior ?? "form-submit";
   const surface = props.surface ?? "card";
+
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ track }) => {
+    const autoResolveOrigin = track(() => props.autoResolveOriginLocation === true);
+    const currentFrom = track(() => from.value);
+    const currentFromLocation = track(() => fromLocation.value);
+
+    if (
+      !autoResolveOrigin ||
+      defaultOriginResolution.value ||
+      String(currentFrom || "").trim() ||
+      currentFromLocation
+    ) {
+      return;
+    }
+
+    const pendingResolution = resolveDefaultOriginLocation()
+      .then((location) => {
+        if (!location) return null;
+        if (String(from.value || "").trim() || fromLocation.value) {
+          return location;
+        }
+
+        fromLocation.value = location;
+        from.value = location.displayName;
+        return location;
+      })
+      .catch(() => null);
+
+    defaultOriginResolution.value = pendingResolution;
+  });
 
   const content = (
     <>
@@ -72,10 +162,41 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
         method="get"
         preventdefault:submit
         noValidate
-        onSubmit$={async (_, formEl) => {
+        onSubmit$={async () => {
           hasSubmitted.value = true;
 
-          const snapshot = readFlightSubmitSnapshot(formEl);
+          let snapshot = readFlightSubmitSnapshotFromState({
+            from: from.value,
+            to: to.value,
+            fromLocation: fromLocation.value,
+            toLocation: toLocation.value,
+            depart: depart.value,
+            ret: ret.value,
+            itineraryType: itineraryType.value,
+            travelers: travelers.value,
+            cabin: cabin.value,
+          });
+
+          if (
+            props.autoResolveOriginLocation &&
+            !snapshot.fromLocation &&
+            !String(snapshot.from || "").trim() &&
+            defaultOriginResolution.value
+          ) {
+            const resolvedOrigin = await defaultOriginResolution.value.catch(
+              () => null,
+            );
+            if (resolvedOrigin) {
+              snapshot = {
+                ...snapshot,
+                from: resolvedOrigin.displayName,
+                fromLocation: resolvedOrigin,
+              };
+              from.value = resolvedOrigin.displayName;
+              fromLocation.value = resolvedOrigin;
+            }
+          }
+
           const submitErrors = validateFlightSubmit(snapshot);
           if (submitErrors.length) {
             return;
@@ -92,25 +213,20 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
           depart.value = snapshot.depart;
           ret.value = snapshot.ret;
           itineraryType.value = snapshot.itineraryType;
-          travelers.value = snapshot.travelers;
-          cabin.value = snapshot.cabin;
+          travelers.value = normalizeTravelerValue(snapshot.travelers);
+          cabin.value = normalizeCabinValue(snapshot.cabin);
 
-          if (submitBehavior === "canonical-route") {
-            await navigate(
-              buildCanonicalFlightSearchHref({
-                fromLocation: snapshot.fromLocation,
-                toLocation: snapshot.toLocation,
-                itineraryType: snapshot.itineraryType,
-                departDate: snapshot.depart,
-                returnDate: snapshot.ret,
-                travelers: snapshot.travelers,
-                cabin: snapshot.cabin,
-              }),
-            );
-            return;
-          }
-
-          formEl.submit();
+          window.location.assign(
+            buildCanonicalFlightSearchHref({
+              fromLocation: snapshot.fromLocation,
+              toLocation: snapshot.toLocation,
+              itineraryType: snapshot.itineraryType,
+              departDate: snapshot.depart,
+              returnDate: snapshot.ret,
+              travelers: snapshot.travelers,
+              cabin: snapshot.cabin,
+            }),
+          );
         }}
         class="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(11rem,1fr)_minmax(11rem,1fr)_minmax(200px,1fr)_auto]"
       >
@@ -170,7 +286,7 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
             value={depart}
             required={true}
             minValue={todayIsoDate}
-            class="w-full pr-2"
+            class="w-full"
             inputClass={BOOKING_SEARCH_CONTROL_CLASS}
             iconLabel="Open departure date picker"
             overlayLabel="Departure date picker"
@@ -185,7 +301,7 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
             required={isRoundTrip}
             value={ret}
             minValue={minimumReturnDate}
-            class="w-full pr-2"
+            class="w-full"
             inputClass={BOOKING_SEARCH_CONTROL_CLASS}
             iconLabel="Open return date picker"
             overlayLabel="Return date picker"
@@ -223,8 +339,7 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
 
         <button
           type="submit"
-          disabled={hasSubmitted.value && !isValid}
-          class="inline-flex min-h-[3.25rem] items-center justify-center rounded-[var(--radius-lg)] px-5 text-sm font-semibold t-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+          class="inline-flex min-h-[3.25rem] items-center justify-center rounded-[var(--radius-lg)] px-5 text-sm font-semibold t-btn-primary"
         >
           Search flights
         </button>
@@ -254,6 +369,7 @@ type FlightsSearchCardProps = {
   initialCabin?: string;
   surface?: "card" | "plain";
   submitBehavior?: "form-submit" | "canonical-route";
+  autoResolveOriginLocation?: boolean;
 };
 
 type FlightSubmitSnapshot = {
@@ -268,39 +384,19 @@ type FlightSubmitSnapshot = {
   cabin: string;
 };
 
-const readFlightSubmitSnapshot = (
-  form: HTMLFormElement,
-): FlightSubmitSnapshot => {
-  const fd = new FormData(form);
-  const fromSelection = validateLocationSelection({
-    selection: fd.get("fromLocation"),
-    rawValue: fd.get("from"),
-    required: true,
-    fieldLabel: "origin city or airport",
-    allowedKinds: ["city", "airport"],
-  });
-  const toSelection = validateLocationSelection({
-    selection: fd.get("toLocation"),
-    rawValue: fd.get("to"),
-    required: true,
-    fieldLabel: "destination city or airport",
-    allowedKinds: ["city", "airport"],
-  });
-
-  return {
-    from: String(fd.get("from") || "").trim(),
-    to: String(fd.get("to") || "").trim(),
-    fromLocation: fromSelection.location,
-    toLocation: toSelection.location,
-    depart: String(fd.get("depart") || "").trim(),
-    ret: String(fd.get("return") || "").trim(),
-    itineraryType: normalizeFlightItineraryType(
-      String(fd.get("itineraryType") || "").trim(),
-    ),
-    travelers: String(fd.get("travelers") || "").trim(),
-    cabin: String(fd.get("cabin") || "").trim(),
-  };
-};
+const readFlightSubmitSnapshotFromState = (
+  input: FlightSubmitSnapshot,
+): FlightSubmitSnapshot => ({
+  from: String(input.from || "").trim(),
+  to: String(input.to || "").trim(),
+  fromLocation: input.fromLocation,
+  toLocation: input.toLocation,
+  depart: String(input.depart || "").trim(),
+  ret: String(input.ret || "").trim(),
+  itineraryType: normalizeFlightItineraryType(input.itineraryType),
+  travelers: normalizeTravelerValue(input.travelers),
+  cabin: normalizeCabinValue(input.cabin),
+});
 
 const validateFlightSubmit = (snapshot: FlightSubmitSnapshot) => {
   const validationErrors: string[] = [];

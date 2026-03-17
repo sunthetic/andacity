@@ -24,6 +24,7 @@ export type FlightEntityHeaderModel = {
 export type FlightEntitySummaryModel = {
   airlineLabel: string;
   providerLabel: string | null;
+  flightNumberLabel: string | null;
   routeLabel: string;
   departureAirportLabel: string;
   arrivalAirportLabel: string;

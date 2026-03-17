@@ -40,7 +40,7 @@ export const GlobalSearchEntry = component$((props: GlobalSearchEntryProps) => {
     "Switch between flights, hotels, and cars without leaving the top-level flow.";
 
   return (
-    <div id={props.id} class={props.class}>
+    <div id={props.id} class={["relative z-20", props.class]}>
       <BookingSearchSurface class="border-white/40 bg-white/96 p-4 shadow-[var(--shadow-xl)] backdrop-blur md:p-5">
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -61,7 +61,7 @@ export const GlobalSearchEntry = component$((props: GlobalSearchEntryProps) => {
             <div
               role="tablist"
               aria-label={props.tabListLabel || "Search vertical"}
-              class="inline-flex w-full flex-wrap gap-2 rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-1 lg:w-auto lg:flex-nowrap"
+              class="relative z-10 inline-flex w-full flex-wrap gap-2 rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-1 lg:w-auto lg:flex-nowrap"
             >
               {SEARCH_VERTICAL_OPTIONS.map((option) => {
                 const isActive = option.value === activeVertical.value;
@@ -95,7 +95,7 @@ export const GlobalSearchEntry = component$((props: GlobalSearchEntryProps) => {
             id={`global-search-panel-${activeOption.value}`}
             role="tabpanel"
             aria-labelledby={`global-search-tab-${activeOption.value}`}
-            class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-elevated)] p-3 md:p-4"
+            class="relative z-20 rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-elevated)] p-3 md:p-4"
           >
             <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--color-text-muted)]">
               {activeOption.label} search
@@ -109,6 +109,7 @@ export const GlobalSearchEntry = component$((props: GlobalSearchEntryProps) => {
                 <FlightsSearchCard
                   surface="plain"
                   submitBehavior="canonical-route"
+                  autoResolveOriginLocation={true}
                 />
               ) : activeVertical.value === "hotels" ? (
                 <HotelSearchCard

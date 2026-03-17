@@ -14,17 +14,20 @@ export const HotelEntitySummary = component$(
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--color-action)]">
-              Hotel summary
+              Stay overview
             </p>
             <h2 class="mt-2 text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
               {props.summary.hotelName}
             </h2>
             <p class="mt-2 text-sm leading-6 text-[color:var(--color-text-muted)]">
               {props.summary.locationLabel}
-              {props.summary.brandLabel ? ` · ${props.summary.brandLabel}` : ""}
+            </p>
+            <p class="mt-2 text-sm leading-6 text-[color:var(--color-text-muted)]">
+              {props.summary.brandLabel ? `${props.summary.brandLabel}` : "Independent stay"}
               {props.summary.providerLabel
                 ? ` · Provider ${props.summary.providerLabel}`
                 : ""}
+              {props.summary.addressLabel ? ` · ${props.summary.addressLabel}` : ""}
             </p>
           </div>
 

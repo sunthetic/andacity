@@ -35,7 +35,7 @@ export default component$(() => {
               />
             </div>
 
-            <div class="mt-6 mx-auto max-w-4xl text-center">
+            <div class="relative z-0 mt-6 mx-auto max-w-4xl text-center">
               <div class="flex flex-wrap items-center justify-center gap-3">
                 <a class="t-btn-primary px-5 text-center" href="/hotels">
                   Browse hotel hubs

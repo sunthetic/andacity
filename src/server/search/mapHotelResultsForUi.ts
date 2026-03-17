@@ -152,11 +152,6 @@ const buildPriceModel = (result: HotelSearchEntity) => {
   };
 };
 
-const buildDetailHref = (result: HotelSearchEntity) => {
-  if (toText(result.href)) return result.href;
-  return buildHotelEntityHref(result);
-};
-
 export const mapHotelSearchSummaryForUi = (
   request: HotelSearchRequest,
   results: HotelSearchEntity[],
@@ -192,7 +187,7 @@ export const mapHotelResultCardForUi = (
   result: HotelSearchEntity,
   cityLabel: string,
 ): HotelResultCardModel => {
-  const detailHref = buildDetailHref(result);
+  const detailHref = toText(result.href) || buildHotelEntityHref(result);
 
   return {
     id: result.inventoryId,
@@ -229,6 +224,8 @@ export const mapHotelResultsForUi = (input: {
 
   return {
     summary,
-    cards: input.results.map((result) => mapHotelResultCardForUi(result, summary.cityLabel)),
+    cards: input.results.map((result) =>
+      mapHotelResultCardForUi(result, summary.cityLabel),
+    ),
   };
 };

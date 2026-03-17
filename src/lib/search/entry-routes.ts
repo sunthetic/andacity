@@ -1,6 +1,5 @@
 import type { CanonicalLocation } from '~/types/location'
 import {
-  buildFlightsSearchPath,
   normalizeFlightItineraryType,
   type FlightItineraryTypeSlug,
 } from '~/lib/search/flights/routing'
@@ -21,6 +20,62 @@ const withSearchParams = (path: string, params: URLSearchParams) => {
   return query ? `${path}?${query}` : path
 }
 
+const toText = (value: unknown) => {
+  const text = String(value ?? '').trim()
+  return text || null
+}
+
+const resolveFlightRouteCode = (location: CanonicalLocation) =>
+  toText(location.airportCode || location.primaryAirportCode || location.searchSlug)?.toUpperCase() ||
+  'ANY'
+
+const resolveHotelRouteSlug = (location: CanonicalLocation) => {
+  const citySlug = toText(location.citySlug)
+  if (citySlug) return citySlug
+
+  const airportCitySlug = String(location.searchSlug || '')
+    .split('--')[0]
+    ?.trim()
+  return airportCitySlug || location.searchSlug
+}
+
+const resolveCarRouteCode = (location: CanonicalLocation) =>
+  toText(location.airportCode || location.primaryAirportCode || location.searchSlug)?.toUpperCase() ||
+  'ANY'
+
+export const buildCanonicalFlightSearchPath = (input: {
+  fromLocation: CanonicalLocation
+  toLocation: CanonicalLocation
+  departDate: string
+  returnDate?: string | null
+  itineraryType?: FlightItineraryTypeSlug | null
+}) => {
+  const itineraryType = normalizeFlightItineraryType(input.itineraryType)
+  const fromCode = encodeURIComponent(resolveFlightRouteCode(input.fromLocation))
+  const toCode = encodeURIComponent(resolveFlightRouteCode(input.toLocation))
+  const departDate = encodeURIComponent(input.departDate)
+
+  if (itineraryType === 'round-trip' && toText(input.returnDate)) {
+    return `/flights/search/${fromCode}-${toCode}/${departDate}/return/${encodeURIComponent(String(input.returnDate).trim())}`
+  }
+
+  return `/flights/search/${fromCode}-${toCode}/${departDate}`
+}
+
+export const buildCanonicalHotelSearchPath = (input: {
+  destinationLocation: CanonicalLocation
+  checkIn: string
+  checkOut: string
+}) =>
+  `/hotels/search/${encodeURIComponent(resolveHotelRouteSlug(input.destinationLocation))}/${encodeURIComponent(input.checkIn)}/${encodeURIComponent(input.checkOut)}`
+
+export const buildCanonicalCarSearchPath = (input: {
+  pickupLocation: CanonicalLocation
+  pickupDate: string
+  dropoffDate: string
+}) =>
+  `/car-rentals/search/${encodeURIComponent(resolveCarRouteCode(input.pickupLocation))}/${encodeURIComponent(input.pickupDate)}/${encodeURIComponent(input.dropoffDate)}`
+
 export type CanonicalFlightSearchHrefInput = {
   fromLocation: CanonicalLocation
   toLocation: CanonicalLocation
@@ -38,8 +93,11 @@ export const buildCanonicalFlightSearchHref = (
   const itineraryType = normalizeFlightItineraryType(input.itineraryType)
   const params = new URLSearchParams()
 
+  params.set('itineraryType', itineraryType)
   params.set('fromLocationId', input.fromLocation.locationId)
   params.set('toLocationId', input.toLocation.locationId)
+  appendSearchParam(params, 'from', input.fromLocation.displayName)
+  appendSearchParam(params, 'to', input.toLocation.displayName)
   appendSearchParam(params, 'depart', input.departDate)
   appendSearchParam(
     params,
@@ -50,12 +108,13 @@ export const buildCanonicalFlightSearchHref = (
   appendSearchParam(params, 'cabin', input.cabin)
 
   return withSearchParams(
-    buildFlightsSearchPath(
-      input.fromLocation.searchSlug,
-      input.toLocation.searchSlug,
+    buildCanonicalFlightSearchPath({
+      fromLocation: input.fromLocation,
+      toLocation: input.toLocation,
+      departDate: input.departDate,
+      returnDate: input.returnDate,
       itineraryType,
-      input.pageNumber || 1,
-    ),
+    }),
     params,
   )
 }
@@ -74,12 +133,17 @@ export const buildCanonicalHotelSearchHref = (
   const params = new URLSearchParams()
 
   params.set('destinationLocationId', input.destinationLocation.locationId)
+  appendSearchParam(params, 'destination', input.destinationLocation.displayName)
   appendSearchParam(params, 'checkIn', input.checkIn)
   appendSearchParam(params, 'checkOut', input.checkOut)
   appendSearchParam(params, 'guests', input.guests)
 
   return withSearchParams(
-    `/search/hotels/${encodeURIComponent(input.destinationLocation.searchSlug)}/${input.pageNumber || 1}`,
+    buildCanonicalHotelSearchPath({
+      destinationLocation: input.destinationLocation,
+      checkIn: input.checkIn,
+      checkOut: input.checkOut,
+    }),
     params,
   )
 }
@@ -98,12 +162,17 @@ export const buildCanonicalCarSearchHref = (
   const params = new URLSearchParams()
 
   params.set('pickupLocationId', input.pickupLocation.locationId)
+  appendSearchParam(params, 'q', input.pickupLocation.displayName)
   appendSearchParam(params, 'pickupDate', input.pickupDate)
   appendSearchParam(params, 'dropoffDate', input.dropoffDate)
   appendSearchParam(params, 'drivers', input.drivers)
 
   return withSearchParams(
-    `/search/car-rentals/${encodeURIComponent(input.pickupLocation.searchSlug)}/${input.pageNumber || 1}`,
+    buildCanonicalCarSearchPath({
+      pickupLocation: input.pickupLocation,
+      pickupDate: input.pickupDate,
+      dropoffDate: input.dropoffDate,
+    }),
     params,
   )
 }

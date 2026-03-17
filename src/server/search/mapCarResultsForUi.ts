@@ -224,5 +224,7 @@ export const mapCarResultsForUi = (input: {
   metadata: SearchResultsApiMetadata;
 }): CarResultsPageUiModel => ({
   summary: mapCarSearchSummaryForUi(input.request, input.metadata),
-  cards: input.results.map((result) => mapCarResultCardForUi(result, input.request)),
+  cards: input.results.map((result) =>
+    mapCarResultCardForUi(result, input.request),
+  ),
 });

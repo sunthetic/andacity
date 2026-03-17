@@ -34,7 +34,7 @@ export const BookableEntityAddToTripForm = component$(
           />
         ) : null}
 
-        <form method="post" action={props.cta.canonicalPath}>
+        <form method="post" action={`${location.url.pathname}${location.url.search}`}>
           <input type="hidden" name="intent" value="add-to-trip" />
           {tripId ? <input type="hidden" name="tripId" value={tripId} /> : null}
           <button

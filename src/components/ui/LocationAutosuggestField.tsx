@@ -34,16 +34,16 @@ export const LocationAutosuggestField = component$(
       const rootEl = track(() => rootRef.value);
       if (!(rootEl instanceof HTMLElement)) return;
 
-      const onPointerDown = (event: PointerEvent) => {
+      const onDocumentClick = (event: MouseEvent) => {
         if (!(event.target instanceof Node)) return;
         if (rootEl.contains(event.target)) return;
         open.value = false;
         highlightedIndex.value = -1;
       };
 
-      document.addEventListener("pointerdown", onPointerDown, true);
+      document.addEventListener("click", onDocumentClick);
       cleanup(() => {
-        document.removeEventListener("pointerdown", onPointerDown, true);
+        document.removeEventListener("click", onDocumentClick);
       });
     });
 

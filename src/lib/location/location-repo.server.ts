@@ -117,6 +117,7 @@ const mapAirportRow = (row: {
   airportId: number;
   airportName: string;
   airportCode: string;
+  timezone: string | null;
   cityId: number;
   citySlug: string;
   cityName: string;
@@ -144,6 +145,7 @@ const mapAirportRow = (row: {
     countryCode: row.countryCode || "",
     latitude: row.latitude,
     longitude: row.longitude,
+    providerMetadata: row.timezone ? { timezone: row.timezone } : null,
   });
 
 type DiscoverCityRow = {
@@ -329,6 +331,7 @@ export const searchLocationsInDb = async (
       regionCode: regions.code,
       countryName: countries.name,
       countryCode: countries.iso2,
+      timezone: airports.timezone,
       latitude: airports.latitude,
       longitude: airports.longitude,
     })
@@ -510,6 +513,7 @@ export const resolveLocationById = async (locationId: string) => {
         regionCode: regions.code,
         countryName: countries.name,
         countryCode: countries.iso2,
+        timezone: airports.timezone,
         latitude: airports.latitude,
         longitude: airports.longitude,
       })
@@ -550,6 +554,7 @@ export const resolveLocationBySearchSlug = async (searchSlug: string) => {
         regionCode: regions.code,
         countryName: countries.name,
         countryCode: countries.iso2,
+        timezone: airports.timezone,
         latitude: airports.latitude,
         longitude: airports.longitude,
       })
@@ -612,6 +617,7 @@ export const resolveLocationBySearchSlug = async (searchSlug: string) => {
         regionCode: regions.code,
         countryName: countries.name,
         countryCode: countries.iso2,
+        timezone: airports.timezone,
         latitude: airports.latitude,
         longitude: airports.longitude,
       })

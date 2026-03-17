@@ -1,234 +1,44 @@
-import { component$ } from "@builder.io/qwik";
-import { routeLoader$ } from "@builder.io/qwik-city";
-import type { DocumentHead } from "@builder.io/qwik-city";
-import { CarRentalsResultsAdapter } from "~/components/car-rentals/CarRentalsResultsAdapter";
-import { Page } from "~/components/site/Page";
-import {
-  EMPTY_CAR_RENTALS_FACETS,
-  loadCarRentalResultsPageFromDb,
-  normalizeCarRentalsSort,
-  parseCarRentalsSelectedFilters,
-  toCarRentalsSearchStateFilters,
-} from "~/lib/queries/car-rentals-search.server";
-import {
-  clampInt,
-  normalizeQuery,
-  safeTitleQuery,
-} from "~/lib/search/car-rentals/normalize";
+import type { RequestHandler } from "@builder.io/qwik-city";
 import { resolveLocationFromUrlValues } from "~/lib/location/location-repo.server";
-import { searchStateFromUrl } from "~/lib/search/url-to-state";
-import { findTopTravelCity } from "~/seed/cities/top-100.js";
+import { buildCanonicalCarSearchHref } from "~/lib/search/entry-routes";
 
-export const useSearchCarRentalsPage = routeLoader$(async ({ params, url }) => {
-  const query = normalizeQuery(params.query);
-  const routePage = clampInt(params.pageNumber, 1, 9999);
+export const onGet: RequestHandler = async ({ params, redirect, url }) => {
   const pickupLocation = await resolveLocationFromUrlValues({
     locationId: url.searchParams.get("pickupLocationId"),
-    searchSlug: query,
+    searchSlug: params.query,
+    text: url.searchParams.get("q"),
   });
-  const matchedCity =
-    pickupLocation?.citySlug && pickupLocation.cityName
-      ? {
-          slug: pickupLocation.citySlug,
-          name: pickupLocation.cityName,
-        }
-      : findTopTravelCity(query);
-  const qHuman =
-    pickupLocation?.displayName ||
-    matchedCity?.name ||
-    safeTitleQuery(query).replaceAll("-", " ");
-  const pickupDate =
-    String(url.searchParams.get("pickupDate") || "").trim() || null;
-  const dropoffDate =
-    String(url.searchParams.get("dropoffDate") || "").trim() || null;
-  const searchState = searchStateFromUrl(url, {
-    query: qHuman,
-    location: { city: qHuman },
-    sort: "recommended",
-    page: routePage,
-  });
+  const pickupDate = String(url.searchParams.get("pickupDate") || "").trim();
+  const dropoffDate = String(url.searchParams.get("dropoffDate") || "").trim();
+  const drivers = String(url.searchParams.get("drivers") || "").trim();
 
-  if (!String(searchState.query || "").trim()) {
-    searchState.query = qHuman;
-  }
-
-  searchState.location = {
-    ...(searchState.location || {}),
-    city: qHuman,
-  };
-
-  let loadError: string | null = null;
-
-  const source = matchedCity
-    ? await loadCarRentalResultsPageFromDb({
-        citySlug: matchedCity.slug,
-        location: pickupLocation,
-        query,
+  if (pickupLocation && pickupDate && dropoffDate) {
+    throw redirect(
+      301,
+      buildCanonicalCarSearchHref({
+        pickupLocation,
         pickupDate,
         dropoffDate,
-        sort: String(searchState.sort || "recommended"),
-        page: searchState.page || routePage,
-        pageSize: 6,
-        filters: (searchState.filters || {}) as Record<string, unknown>,
-      }).catch((error) => {
-        loadError =
-          error instanceof Error
-            ? error.message
-            : "Failed to load car rental results.";
-
-        return {
-          totalCount: 0,
-          page: searchState.page || routePage,
-          pageSize: 6,
-          totalPages: 1,
-          activeSort: normalizeCarRentalsSort(searchState.sort),
-          selectedFilters: parseCarRentalsSelectedFilters(
-            (searchState.filters || {}) as Record<string, unknown>,
-          ),
-          results: [],
-          facets: EMPTY_CAR_RENTALS_FACETS,
-        };
-      })
-    : {
-        totalCount: 0,
-        page: 1,
-        pageSize: 6,
-        totalPages: 1,
-        activeSort: normalizeCarRentalsSort(searchState.sort),
-        selectedFilters: parseCarRentalsSelectedFilters(
-          (searchState.filters || {}) as Record<string, unknown>,
-        ),
-        results: [],
-        facets: EMPTY_CAR_RENTALS_FACETS,
-      };
-
-  searchState.page = source.page;
-  searchState.sort = source.activeSort;
-  searchState.filters = toCarRentalsSearchStateFilters(
-    source.selectedFilters,
-    (searchState.filters || {}) as Record<string, unknown>,
-  );
-
-  const searchAgainHref = buildSearchCarRentalsHref({
-    queryLabel: qHuman,
-    pickupLocationId: pickupLocation?.locationId,
-    pickupDate,
-    dropoffDate,
-    drivers: String(searchState.filters?.drivers || "").trim(),
-  });
-
-  return {
-    query: pickupLocation?.searchSlug || query,
-    qHuman,
-    page: source.page,
-    totalCount: source.totalCount,
-    totalPages: source.totalPages,
-    activeSort: source.activeSort,
-    selectedFilters: source.selectedFilters,
-    facets: source.facets,
-    results: source.results,
-    searchState,
-    searchAgainHref,
-    loadError,
-  };
-});
-
-export default component$(() => {
-  const data = useSearchCarRentalsPage().value;
-  const basePath = `/search/car-rentals/${encodeURIComponent(data.query)}/1`;
-
-  return (
-    <Page
-      breadcrumbs={[
-        { label: "Andacity Travel", href: "/" },
-        { label: "Car Rentals", href: "/car-rentals" },
-        { label: "Search", href: "/search/car-rentals" },
-        { label: data.qHuman, href: basePath },
-      ]}
-    >
-      <div class="mt-4">
-        <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
-          Car rental search results
-        </h1>
-        <p class="mt-2 max-w-[80ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-          Compare policies, pickup options, and pricing with shared filtering
-          and sorting.
-        </p>
-      </div>
-
-      <section class="mt-8">
-        <CarRentalsResultsAdapter
-          results={data.results}
-          totalCount={data.totalCount}
-          page={data.page}
-          totalPages={data.totalPages}
-          activeSort={data.activeSort}
-          selectedFilters={data.selectedFilters}
-          filterFacets={data.facets}
-          searchState={data.searchState}
-          queryLabel={data.qHuman}
-          editSearchHref={data.searchAgainHref}
-          loadError={data.loadError}
-          basePath={basePath}
-          urlOptions={{
-            includeQueryParam: true,
-            includeLocationParams: false,
-            dateParamKeys: { checkIn: "pickupDate", checkOut: "dropoffDate" },
-          }}
-          emptyPrimaryAction={{
-            label: "Search car rentals again",
-            href: data.searchAgainHref,
-          }}
-          emptySecondaryAction={{
-            label: "Browse rental cities",
-            href: "/car-rentals/in",
-          }}
-        />
-      </section>
-    </Page>
-  );
-});
-
-export const head: DocumentHead = ({ resolveValue, url }) => {
-  const data = resolveValue(useSearchCarRentalsPage);
-
-  const title = `Car rentals in ${data.qHuman} – Page ${data.page} | Andacity Travel`;
-  const description = `Browse car rental results for ${data.qHuman}. Compare policies and totals with clarity.`;
-  const canonicalPath = `/search/car-rentals/${encodeURIComponent(data.query)}/${data.page}`;
-  const canonicalHref = new URL(canonicalPath, url.origin).href;
-
-  return {
-    title,
-    meta: [
-      { name: "description", content: description },
-      { name: "robots", content: "noindex,follow,max-image-preview:large" },
-      { property: "og:type", content: "website" },
-      { property: "og:title", content: title },
-      { property: "og:description", content: description },
-      { property: "og:url", content: canonicalHref },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: title },
-      { name: "twitter:description", content: description },
-    ],
-    links: [{ rel: "canonical", href: canonicalHref }],
-  };
-};
-
-const buildSearchCarRentalsHref = (input: {
-  queryLabel: string;
-  pickupLocationId?: string | null;
-  pickupDate?: string | null;
-  dropoffDate?: string | null;
-  drivers?: string | null;
-}) => {
-  const sp = new URLSearchParams();
-  sp.set("q", input.queryLabel);
-  if (input.pickupLocationId) {
-    sp.set("pickupLocationId", input.pickupLocationId);
+        drivers,
+      }),
+    );
   }
-  if (input.pickupDate) sp.set("pickupDate", input.pickupDate);
-  if (input.dropoffDate) sp.set("dropoffDate", input.dropoffDate);
-  if (input.drivers) sp.set("drivers", input.drivers);
 
-  return `/car-rentals?${sp.toString()}`;
+  const nextParams = new URLSearchParams(url.searchParams);
+  if (pickupLocation?.displayName) {
+    nextParams.set("q", pickupLocation.displayName);
+    nextParams.set("pickupLocationId", pickupLocation.locationId);
+  }
+  if (pickupDate) {
+    nextParams.set("pickupDate", pickupDate);
+  }
+  if (dropoffDate) {
+    nextParams.set("dropoffDate", dropoffDate);
+  }
+  if (drivers) {
+    nextParams.set("drivers", drivers);
+  }
+
+  const query = nextParams.toString();
+  throw redirect(302, query ? `/car-rentals?${query}` : "/car-rentals");
 };

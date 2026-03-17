@@ -5,15 +5,15 @@ import {
   type DocumentHead,
   type RequestHandler,
 } from "@builder.io/qwik-city";
-import { CanonicalHotelResultsSection } from "~/components/search/hotels/CanonicalHotelResultsSection";
-import { HotelResultsRenderer } from "~/components/search/hotels/HotelResultsRenderer";
-import { resolveHotelResultsRendererModel } from "~/components/search/hotels/hotelResultsRendererModel";
+import { CanonicalCarResultsSection } from "~/components/search/cars/CanonicalCarResultsSection";
+import { CarResultsRenderer } from "~/components/search/cars/CarResultsRenderer";
+import { resolveCarResultsRendererModel } from "~/components/search/cars/carResultsRendererModel";
 import { Page } from "~/components/site/Page";
-import { mapHotelResultsForUi } from "~/server/search/mapHotelResultsForUi";
+import { mapCarResultsForUi } from "~/server/search/mapCarResultsForUi";
 import {
-  loadCanonicalHotelSearchProgressivePage,
-  type CanonicalHotelSearchPageResult,
-} from "~/server/search/loadCanonicalHotelSearchPage";
+  loadCanonicalCarSearchProgressivePage,
+  type CanonicalCarSearchPageResult,
+} from "~/server/search/loadCanonicalCarSearchPage";
 import {
   buildIncrementalSearchRequestUrl,
   isIncrementalSearchApiError,
@@ -24,22 +24,22 @@ import type {
   SearchResultsIncrementalApiResponse,
   SearchResultsIncrementalBatch,
 } from "~/types/search";
-import type { HotelSearchEntity } from "~/types/search-entity";
+import type { CarSearchEntity } from "~/types/search-entity";
 
 export const onRequest: RequestHandler = ({ headers }) => {
   headers.set("x-robots-tag", "noindex, follow");
 };
 
-export const useCanonicalHotelSearchPage = routeLoader$(async ({ status, url }) => {
-  const result = await loadCanonicalHotelSearchProgressivePage(url);
+export const useCanonicalCarSearchPage = routeLoader$(async ({ status, url }) => {
+  const result = await loadCanonicalCarSearchProgressivePage(url);
   status(result.status);
   return result;
 });
 
 export default component$(() => {
-  const loader = useCanonicalHotelSearchPage();
-  const pageState = useSignal<CanonicalHotelSearchPageResult>(loader.value);
-  const batchesState = useSignal<SearchResultsIncrementalBatch<HotelSearchEntity>[]>([]);
+  const loader = useCanonicalCarSearchPage();
+  const pageState = useSignal<CanonicalCarSearchPageResult>(loader.value);
+  const batchesState = useSignal<SearchResultsIncrementalBatch<CarSearchEntity>[]>([]);
   const location = useLocation();
   const currentPath = `${location.url.pathname}${location.url.search}`;
 
@@ -73,7 +73,7 @@ export default component$(() => {
           },
         );
         const body = (await response.json()) as
-          | SearchResultsIncrementalApiResponse<HotelSearchEntity>
+          | SearchResultsIncrementalApiResponse<CarSearchEntity>
           | SearchResultsApiError;
 
         if (isIncrementalSearchApiError(body)) {
@@ -85,7 +85,7 @@ export default component$(() => {
           return;
         }
 
-        if (body.data.request.type !== "hotel") {
+        if (body.data.request.type !== "car") {
           return;
         }
 
@@ -106,7 +106,7 @@ export default component$(() => {
             status: body.data.metadata.status,
             cursor: body.data.metadata.cursor,
           },
-          ui: mapHotelResultsForUi({
+          ui: mapCarResultsForUi({
             request: body.data.request,
             results,
             metadata: body.data.metadata,
@@ -135,12 +135,12 @@ export default component$(() => {
   });
 
   const data = pageState.value;
-  const rendererModel = resolveHotelResultsRendererModel(data, {
+  const rendererModel = resolveCarResultsRendererModel(data, {
     isLoading: location.isNavigating,
     currentPath,
   });
   const breadcrumbLabel =
-    "error" in data || location.isNavigating ? "Search results" : data.ui.summary.cityLabel;
+    "error" in data || location.isNavigating ? "Search results" : data.ui.summary.searchTitle;
   const showShell =
     !("error" in data) &&
     rendererModel.state !== "loading" &&
@@ -150,34 +150,34 @@ export default component$(() => {
     <Page
       breadcrumbs={[
         { label: "Andacity Travel", href: "/" },
-        { label: "Hotels", href: "/hotels" },
-        { label: "Search", href: "/hotels/search" },
+        { label: "Cars", href: "/car-rentals" },
+        { label: "Search", href: "/car-rentals/search" },
         { label: breadcrumbLabel, href: location.url.pathname },
       ]}
     >
       {showShell ? (
-        <CanonicalHotelResultsSection
+        <CanonicalCarResultsSection
           page={data}
           currentPath={currentPath}
           isNavigating={location.isNavigating}
         />
       ) : (
-        <HotelResultsRenderer model={rendererModel} />
+        <CarResultsRenderer model={rendererModel} />
       )}
     </Page>
   );
 });
 
 export const head: DocumentHead = ({ resolveValue, url }) => {
-  const data = resolveValue(useCanonicalHotelSearchPage);
+  const data = resolveValue(useCanonicalCarSearchPage);
 
   if ("error" in data) {
     return {
-      title: "Hotel search results | Andacity",
+      title: "Car search results | Andacity",
       meta: [
         {
           name: "description",
-          content: "Review canonical hotel search results and search status in Andacity.",
+          content: "Review canonical car search results and search status in Andacity.",
         },
         {
           name: "robots",
@@ -187,8 +187,8 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
     };
   }
 
-  const title = `${data.ui.summary.cityLabel} hotels | Andacity`;
-  const description = `Browse hotel results for ${data.ui.summary.cityLabel} from ${data.request.checkIn} to ${data.request.checkOut}.`;
+  const title = `${data.ui.summary.searchTitle} | Andacity`;
+  const description = `Browse car rental results for ${data.request.airport} pickup and dropoff from ${data.request.pickupDate} to ${data.request.dropoffDate}.`;
 
   return {
     title,

@@ -241,7 +241,9 @@ export const mapFlightSearchSummaryForUi = (
   };
 };
 
-export const mapFlightResultCardForUi = (result: FlightSearchEntity): FlightResultCardModel => {
+export const mapFlightResultCardForUi = (
+  result: FlightSearchEntity,
+): FlightResultCardModel => {
   const originCode = toText(result.payload.originCode ?? result.route.origin) || "Origin unavailable";
   const destinationCode =
     toText(result.payload.destinationCode ?? result.route.destination) || "Destination unavailable";

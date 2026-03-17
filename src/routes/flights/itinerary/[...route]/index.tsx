@@ -6,8 +6,10 @@ import {
 } from "@builder.io/qwik-city";
 import { FlightEntityPage } from "~/components/entities/flights/FlightEntityPage";
 import { buildBookableEntityDocumentHead } from "~/lib/entities/metadata";
+import { resolveLocationBySearchSlug } from "~/lib/location/location-repo.server";
 import {
   buildAddToTripErrorHref,
+  buildAddToTripSuccessHref,
   parseAddToTripContextTripId,
 } from "~/lib/trips/add-to-trip-feedback";
 import {
@@ -15,6 +17,48 @@ import {
   addBookableEntityPageToTrip,
 } from "~/server/entities/addBookableEntityPageToTrip";
 import { loadBookableEntityPage } from "~/server/entities/loadBookableEntityPage";
+import type { FlightBookableEntity } from "~/types/bookable-entity";
+import type { CanonicalLocation } from "~/types/location";
+
+const resolveFlightAirportLookup = async (
+  page: Awaited<ReturnType<typeof loadBookableEntityPage>>,
+) => {
+  if (
+    page.kind !== "resolved" &&
+    page.kind !== "unavailable" &&
+    page.kind !== "revalidation_required"
+  ) {
+    return {} as Record<string, CanonicalLocation | null>;
+  }
+
+  const entity = page.entity as FlightBookableEntity;
+  const codes = new Set<string>();
+
+  for (const segment of entity.payload.segments || []) {
+    for (const code of [segment.originCode, segment.destinationCode]) {
+      const normalized = String(code || "").trim().toUpperCase();
+      if (/^[A-Z]{3}$/.test(normalized)) {
+        codes.add(normalized);
+      }
+    }
+  }
+
+  for (const code of [entity.bookingContext.origin, entity.bookingContext.destination]) {
+    const normalized = String(code || "").trim().toUpperCase();
+    if (/^[A-Z]{3}$/.test(normalized)) {
+      codes.add(normalized);
+    }
+  }
+
+  const entries = await Promise.all(
+    Array.from(codes).map(async (code) => [
+      code,
+      await resolveLocationBySearchSlug(code),
+    ] as const),
+  );
+
+  return Object.fromEntries(entries);
+};
 
 export const onRequest: RequestHandler = ({ headers }) => {
   headers.set("x-robots-tag", "noindex, follow");
@@ -55,28 +99,36 @@ export const onPost: RequestHandler = async ({ request, redirect, url }) => {
     );
   }
 
-  throw redirect(303, `/trips/${resolvedTripId}`);
+  throw redirect(
+    303,
+    buildAddToTripSuccessHref({
+      tripId: resolvedTripId,
+    }),
+  );
 };
 
 export const useFlightEntityPageLoader = routeLoader$(async ({ status, url }) => {
-  const result = await loadBookableEntityPage({
+  const page = await loadBookableEntityPage({
     vertical: "flight",
     route: url,
   });
 
-  status(result.status);
-  return result;
+  status(page.status);
+  return {
+    page,
+    airportLookup: await resolveFlightAirportLookup(page),
+  };
 });
 
 const resolveFlightEntityPageLoader = useFlightEntityPageLoader;
 
 export default component$(() => {
-  const page = useFlightEntityPageLoader().value;
+  const data = useFlightEntityPageLoader().value;
 
-  return <FlightEntityPage page={page} />;
+  return <FlightEntityPage page={data.page} airportLookup={data.airportLookup} />;
 });
 
 export const head: DocumentHead = ({ resolveValue, url }) =>
-  buildBookableEntityDocumentHead(resolveValue(resolveFlightEntityPageLoader), url, {
+  buildBookableEntityDocumentHead(resolveValue(resolveFlightEntityPageLoader).page, url, {
     allowIndexing: false,
   });

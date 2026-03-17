@@ -14,16 +14,11 @@ export const FlightEntitySummary = component$(
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--color-action)]">
-              Flight summary
+              Flight timing
             </p>
-            <h2 class="mt-2 text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-              {props.summary.routeLabel}
-            </h2>
-            <p class="mt-2 text-sm leading-6 text-[color:var(--color-text-muted)]">
-              {props.summary.airlineLabel}
-              {props.summary.providerLabel
-                ? ` · Provider ${props.summary.providerLabel}`
-                : ""}
+            <p class="mt-2 max-w-[70ch] text-sm leading-6 text-[color:var(--color-text-muted)]">
+              Departure and arrival details are shown in local airport time when
+              the route metadata includes a timezone.
             </p>
           </div>
 
@@ -50,11 +45,11 @@ export const FlightEntitySummary = component$(
             <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Departure
             </p>
-            <p class="mt-2 text-lg font-semibold text-[color:var(--color-text-strong)]">
-              {props.summary.departureAirportLabel}
-            </p>
-            <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+            <p class="mt-2 text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
               {props.summary.departureTimeLabel}
+            </p>
+            <p class="mt-2 text-sm leading-6 text-[color:var(--color-text-muted)]">
+              {props.summary.departureAirportLabel}
             </p>
           </div>
 
@@ -62,11 +57,11 @@ export const FlightEntitySummary = component$(
             <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Arrival
             </p>
-            <p class="mt-2 text-lg font-semibold text-[color:var(--color-text-strong)]">
-              {props.summary.arrivalAirportLabel}
-            </p>
-            <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+            <p class="mt-2 text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
               {props.summary.arrivalTimeLabel}
+            </p>
+            <p class="mt-2 text-sm leading-6 text-[color:var(--color-text-muted)]">
+              {props.summary.arrivalAirportLabel}
             </p>
           </div>
         </div>
@@ -74,10 +69,30 @@ export const FlightEntitySummary = component$(
         <dl class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div>
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
-              Airlines
+              Carrier
             </dt>
             <dd class="mt-1 text-sm text-[color:var(--color-text)]">
               {props.summary.airlineLabel}
+            </dd>
+          </div>
+
+          {props.summary.flightNumberLabel ? (
+            <div>
+              <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+                Flight number
+              </dt>
+              <dd class="mt-1 text-sm text-[color:var(--color-text)]">
+                {props.summary.flightNumberLabel}
+              </dd>
+            </div>
+          ) : null}
+
+          <div>
+            <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+              Route
+            </dt>
+            <dd class="mt-1 text-sm text-[color:var(--color-text)]">
+              {props.summary.routeLabel}
             </dd>
           </div>
 
@@ -113,19 +128,22 @@ export const FlightEntitySummary = component$(
 
         {props.status ? (
           <>
-            <div class="mt-6 grid gap-4 md:grid-cols-2">
-              <div class="rounded-[24px] border border-[color:var(--color-border)] px-4 py-4">
+            <div class="mt-6 rounded-[24px] border border-[color:var(--color-border)] px-4 py-4">
+              <div class="flex flex-wrap items-start justify-between gap-4">
                 <AvailabilityConfidence
                   confidence={props.status.availability}
-                  compact={false}
+                  compact={true}
+                  showDetail={false}
                 />
-              </div>
-              <div class="rounded-[24px] border border-[color:var(--color-border)] px-4 py-4">
                 <InventoryFreshness
                   freshness={props.status.freshness}
-                  compact={false}
+                  compact={true}
+                  showDetail={false}
                 />
               </div>
+              <p class="mt-3 text-xs text-[color:var(--color-text-muted)]">
+                {props.status.checkedAtLabel}
+              </p>
             </div>
 
             <dl class="mt-6 grid gap-4 sm:grid-cols-2">
@@ -155,15 +173,6 @@ export const FlightEntitySummary = component$(
                 </dt>
                 <dd class="mt-1 text-sm text-[color:var(--color-text)]">
                   {props.status.providerLabel}
-                </dd>
-              </div>
-
-              <div>
-                <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
-                  Last checked
-                </dt>
-                <dd class="mt-1 text-sm text-[color:var(--color-text)]">
-                  {props.status.checkedAtLabel}
                 </dd>
               </div>
             </dl>

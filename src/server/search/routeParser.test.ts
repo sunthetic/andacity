@@ -42,12 +42,15 @@ test('parses hotel and car search routes into canonical search requests', () => 
     },
   )
 
-  assert.deepEqual(parseSearchRoute('/cars/search/lax/2026-05-10/2026-05-15'), {
-    type: 'car',
-    airport: 'LAX',
-    pickupDate: '2026-05-10',
-    dropoffDate: '2026-05-15',
-  })
+  assert.deepEqual(
+    parseSearchRoute('/car-rentals/search/lax/2026-05-10/2026-05-15'),
+    {
+      type: 'car',
+      airport: 'LAX',
+      pickupDate: '2026-05-10',
+      dropoffDate: '2026-05-15',
+    },
+  )
 })
 
 test('parses direct SearchRequest query input with route-compatible validation', () => {
@@ -94,11 +97,23 @@ test('parses same-day hotel and car routes under current product date rules', ()
     },
   )
 
-  assert.deepEqual(parseSearchRoute('/cars/search/LAX/2026-05-10/2026-05-10'), {
+  assert.deepEqual(
+    parseSearchRoute('/car-rentals/search/LAX/2026-05-10/2026-05-10'),
+    {
+      type: 'car',
+      airport: 'LAX',
+      pickupDate: '2026-05-10',
+      dropoffDate: '2026-05-10',
+    },
+  )
+})
+
+test('continues parsing legacy /cars/search routes while canonical output normalizes elsewhere', () => {
+  assert.deepEqual(parseSearchRoute('/cars/search/LAX/2026-05-10/2026-05-15'), {
     type: 'car',
     airport: 'LAX',
     pickupDate: '2026-05-10',
-    dropoffDate: '2026-05-10',
+    dropoffDate: '2026-05-15',
   })
 })
 
@@ -125,7 +140,7 @@ test('returns invalid date errors for impossible or inverted date ranges', () =>
   )
 
   assert.throws(
-    () => parseSearchRoute('/cars/search/LAX/2026-05-10/2026-05-09'),
+    () => parseSearchRoute('/car-rentals/search/LAX/2026-05-10/2026-05-09'),
     (error: unknown) => {
       assert.ok(error instanceof SearchRouteError)
       assert.equal(error.code, 'INVALID_DATE_RANGE')
@@ -157,7 +172,7 @@ test('returns invalid date errors for impossible or inverted date ranges', () =>
 
 test('returns invalid location errors for malformed location tokens', () => {
   assert.throws(
-    () => parseSearchRoute('/cars/search/lax-airport/2026-05-10/2026-05-12'),
+    () => parseSearchRoute('/car-rentals/search/lax-airport/2026-05-10/2026-05-12'),
     (error: unknown) => {
       assert.ok(error instanceof SearchRouteError)
       assert.equal(error.code, 'INVALID_LOCATION_CODE')

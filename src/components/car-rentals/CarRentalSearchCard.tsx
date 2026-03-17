@@ -1,5 +1,4 @@
 import { component$, useSignal } from "@builder.io/qwik";
-import { useNavigate } from "@builder.io/qwik-city";
 import {
   BOOKING_SEARCH_CONTROL_CLASS,
   BookingSearchField,
@@ -14,9 +13,17 @@ import { buildCanonicalCarSearchHref } from "~/lib/search/entry-routes";
 import { validateLocationSelection } from "~/lib/location/validateLocationSelection";
 import type { CanonicalLocation } from "~/types/location";
 
+const DRIVER_OPTIONS = ["1", "2", "3", "4"] as const;
+
+const normalizeDriverValue = (value: string | null | undefined) => {
+  const normalized = String(value || "").trim();
+  return DRIVER_OPTIONS.includes(normalized as (typeof DRIVER_OPTIONS)[number])
+    ? normalized
+    : "1";
+};
+
 export const CarRentalSearchCard = component$(
   (props: CarRentalSearchCardProps) => {
-    const navigate = useNavigate();
     const variant = props.variant || "stacked";
     const pickupLocation = useSignal<CanonicalLocation | null>(
       props.initialPickupLocation ?? null,
@@ -26,7 +33,7 @@ export const CarRentalSearchCard = component$(
     );
     const pickupDate = useSignal(props.pickupDate ?? "");
     const dropoffDate = useSignal(props.dropoffDate ?? "");
-    const drivers = useSignal(props.drivers ?? "1");
+    const drivers = useSignal(normalizeDriverValue(props.drivers));
     const hasSubmitted = useSignal(false);
     const todayIsoDate = getTodayIsoDate();
     const tomorrowIsoDate = addDays(todayIsoDate, 1) || todayIsoDate;
@@ -42,8 +49,6 @@ export const CarRentalSearchCard = component$(
       dropoffDate: dropoffDate.value,
       drivers: drivers.value,
     });
-    const isValid = errors.length === 0;
-    const submitBehavior = props.submitBehavior ?? "form-submit";
     const surface = props.surface ?? "card";
 
     const content = (
@@ -53,9 +58,15 @@ export const CarRentalSearchCard = component$(
           action={props.action || "/car-rentals"}
           preventdefault:submit
           noValidate
-          onSubmit$={async (_, formEl) => {
+          onSubmit$={async () => {
             hasSubmitted.value = true;
-            const snapshot = readSnapshot(formEl);
+            const snapshot = readSnapshotFromState({
+              destination: destination.value,
+              pickupLocation: pickupLocation.value,
+              pickupDate: pickupDate.value,
+              dropoffDate: dropoffDate.value,
+              drivers: drivers.value,
+            });
             const submitErrors = validateSnapshot(snapshot);
             if (submitErrors.length) {
               return;
@@ -71,19 +82,14 @@ export const CarRentalSearchCard = component$(
             dropoffDate.value = snapshot.dropoffDate;
             drivers.value = snapshot.drivers;
 
-            if (submitBehavior === "canonical-route") {
-              await navigate(
-                buildCanonicalCarSearchHref({
-                  pickupLocation: snapshot.pickupLocation,
-                  pickupDate: snapshot.pickupDate,
-                  dropoffDate: snapshot.dropoffDate,
-                  drivers: snapshot.drivers,
-                }),
-              );
-              return;
-            }
-
-            formEl.submit();
+            window.location.assign(
+              buildCanonicalCarSearchHref({
+                pickupLocation: snapshot.pickupLocation,
+                pickupDate: snapshot.pickupDate,
+                dropoffDate: snapshot.dropoffDate,
+                drivers: snapshot.drivers,
+              }),
+            );
           }}
           class={
             variant === "hero"
@@ -118,7 +124,7 @@ export const CarRentalSearchCard = component$(
                   value={pickupDate}
                   required={true}
                   minValue={todayIsoDate}
-                  class="w-full pr-2"
+                  class="w-full"
                   inputClass={BOOKING_SEARCH_CONTROL_CLASS}
                   iconLabel="Open pickup date picker"
                   overlayLabel="Pickup date picker"
@@ -132,7 +138,7 @@ export const CarRentalSearchCard = component$(
                   value={dropoffDate}
                   required={true}
                   minValue={minimumDropoffDate}
-                  class="w-full pr-2"
+                  class="w-full"
                   inputClass={BOOKING_SEARCH_CONTROL_CLASS}
                   iconLabel="Open dropoff date picker"
                   overlayLabel="Dropoff date picker"
@@ -186,8 +192,7 @@ export const CarRentalSearchCard = component$(
           </BookingSearchField>
 
           <button
-            disabled={hasSubmitted.value && !isValid}
-            class="inline-flex min-h-[3.25rem] items-center justify-center rounded-[var(--radius-lg)] px-5 text-sm font-semibold t-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+            class="inline-flex min-h-[3.25rem] items-center justify-center rounded-[var(--radius-lg)] px-5 text-sm font-semibold t-btn-primary"
             type="submit"
           >
             {props.submitLabel || "Search car rentals"}
@@ -248,23 +253,15 @@ type CarRentalSubmitSnapshot = {
   drivers: string;
 };
 
-const readSnapshot = (form: HTMLFormElement): CarRentalSubmitSnapshot => {
-  const fd = new FormData(form);
-  const pickupSelection = validateLocationSelection({
-    selection: fd.get("pickupLocation"),
-    rawValue: fd.get("q"),
-    required: true,
-    fieldLabel: "pickup location",
-    allowedKinds: ["city", "airport"],
-  });
-  return {
-    destination: String(fd.get("q") || "").trim(),
-    pickupLocation: pickupSelection.location,
-    pickupDate: String(fd.get("pickupDate") || "").trim(),
-    dropoffDate: String(fd.get("dropoffDate") || "").trim(),
-    drivers: String(fd.get("drivers") || "").trim(),
-  };
-};
+const readSnapshotFromState = (
+  snapshot: CarRentalSubmitSnapshot,
+): CarRentalSubmitSnapshot => ({
+  destination: String(snapshot.destination || "").trim(),
+  pickupLocation: snapshot.pickupLocation,
+  pickupDate: String(snapshot.pickupDate || "").trim(),
+  dropoffDate: String(snapshot.dropoffDate || "").trim(),
+  drivers: normalizeDriverValue(snapshot.drivers),
+});
 
 const validateSnapshot = (snapshot: CarRentalSubmitSnapshot) => {
   const validationErrors: string[] = [];

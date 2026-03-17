@@ -95,7 +95,7 @@ test('loads canonical car searches into a page-friendly response shape', async (
   }
 
   let now = 3000
-  const response = await loadCanonicalCarSearch('/cars/search/LAX/2026-05-10/2026-05-15', {
+  const response = await loadCanonicalCarSearch('/car-rentals/search/LAX/2026-05-10/2026-05-15', {
     executeSearchRequest: (request) =>
       executeSearchRequest(request, {
         getProvider: () => provider,
@@ -148,10 +148,10 @@ test('reuses shared search cache results for repeated canonical car routes', asy
       resolveLocationBySearchSlug: async () => buildAirportLocation(),
     })
 
-  const first = await loadCanonicalCarSearch('/cars/search/LAX/2026-05-10/2026-05-15', {
+  const first = await loadCanonicalCarSearch('/car-rentals/search/LAX/2026-05-10/2026-05-15', {
     executeSearchRequest: execute,
   })
-  const second = await loadCanonicalCarSearch('/cars/search/LAX/2026-05-10/2026-05-15', {
+  const second = await loadCanonicalCarSearch('/car-rentals/search/LAX/2026-05-10/2026-05-15', {
     executeSearchRequest: execute,
   })
 
@@ -168,7 +168,7 @@ test('reuses shared search cache results for repeated canonical car routes', asy
 })
 
 test('returns structured validation errors for invalid canonical car dates', async () => {
-  const response = await loadCanonicalCarSearch('/cars/search/LAX/2026-05-15/2026-05-10')
+  const response = await loadCanonicalCarSearch('/car-rentals/search/LAX/2026-05-15/2026-05-10')
 
   assert.equal(response.status, 400)
   assert.deepEqual(response, {
@@ -183,7 +183,7 @@ test('returns structured validation errors for invalid canonical car dates', asy
 })
 
 test('returns structured validation errors for malformed car airport codes', async () => {
-  const response = await loadCanonicalCarSearch('/cars/search/LAX-airport/2026-05-10/2026-05-15')
+  const response = await loadCanonicalCarSearch('/car-rentals/search/LAX-airport/2026-05-10/2026-05-15')
 
   assert.equal(response.status, 400)
   assert.deepEqual(response, {

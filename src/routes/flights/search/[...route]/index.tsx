@@ -5,6 +5,7 @@ import {
   type DocumentHead,
   type RequestHandler,
 } from "@builder.io/qwik-city";
+import { CanonicalFlightResultsSection } from "~/components/search/flights/CanonicalFlightResultsSection";
 import { FlightResultsRenderer } from "~/components/search/flights/FlightResultsRenderer";
 import { resolveFlightResultsRendererModel } from "~/components/search/flights/flightResultsRendererModel";
 import { Page } from "~/components/site/Page";
@@ -140,6 +141,10 @@ export default component$(() => {
   });
   const breadcrumbLabel =
     "error" in data || location.isNavigating ? "Search results" : data.ui.summary.routeTitle;
+  const showShell =
+    !("error" in data) &&
+    rendererModel.state !== "loading" &&
+    rendererModel.state !== "error";
 
   return (
     <Page
@@ -150,7 +155,15 @@ export default component$(() => {
         { label: breadcrumbLabel, href: location.url.pathname },
       ]}
     >
-      <FlightResultsRenderer model={rendererModel} />
+      {showShell ? (
+        <CanonicalFlightResultsSection
+          page={data}
+          currentPath={currentPath}
+          isNavigating={location.isNavigating}
+        />
+      ) : (
+        <FlightResultsRenderer model={rendererModel} />
+      )}
     </Page>
   );
 });

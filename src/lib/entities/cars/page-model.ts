@@ -210,6 +210,36 @@ const readDropoffLocationLabel = (entity: CarBookableEntity) =>
   toText(entity.payload.dropoffLocationName) ||
   "Dropoff location unavailable";
 
+const buildCarCityName = (
+  entity: CarBookableEntity,
+  searchContextCityName?: string | null,
+) => {
+  const explicitCity = toText(searchContextCityName);
+  if (explicitCity) {
+    return explicitCity;
+  }
+
+  for (const locationLabel of [
+    readPickupLocationLabel(entity),
+    readDropoffLocationLabel(entity),
+  ]) {
+    const text = toText(locationLabel);
+    if (!text) continue;
+
+    const commaPrefix = text.split(",")[0]?.trim();
+    if (commaPrefix && !/airport|terminal|station|counter/i.test(commaPrefix)) {
+      return commaPrefix;
+    }
+  }
+
+  return "this destination";
+};
+
+const buildCarEntityTitle = (
+  entity: CarBookableEntity,
+  searchContextCityName?: string | null,
+) => `Car Rental in ${buildCarCityName(entity, searchContextCityName)}`;
+
 const buildEntityHeading = (entity: CarBookableEntity) => {
   const vehicleName = readVehicleName(entity);
   const rentalCompany = readRentalCompanyLabel(entity);
@@ -582,7 +612,10 @@ const buildErrorState = (
   return null;
 };
 
-const buildHeader = (page: BookableEntityPageLoadResult) => {
+const buildHeader = (
+  page: BookableEntityPageLoadResult,
+  searchContextCityName?: string | null,
+) => {
   if (page.kind === "invalid_route") {
     return {
       badge: "Invalid route",
@@ -614,35 +647,41 @@ const buildHeader = (page: BookableEntityPageLoadResult) => {
   }
 
   if (page.kind === "unavailable") {
+    const entity = page.entity as CarBookableEntity;
     return {
       badge: "Currently unavailable",
-      title: buildEntityHeading(page.entity as CarBookableEntity),
+      title: buildCarEntityTitle(entity, searchContextCityName),
       description:
-        "The canonical car entity resolved successfully, but the latest live check says it cannot be booked at the moment.",
+        `Review pricing and pickup details for ${readRentalCompanyLabel(entity) || "this rental"}. The latest live check says it cannot be booked at the moment.`,
       tone: "warning" as const,
     };
   }
 
   if (page.kind === "revalidation_required") {
+    const entity = page.entity as CarBookableEntity;
     return {
       badge: "Revalidation needed",
-      title: buildEntityHeading(page.entity as CarBookableEntity),
+      title: buildCarEntityTitle(entity, searchContextCityName),
       description:
-        "The requested canonical URL drifted to a different live car entity. Review the current normalized match below before using it.",
+        `Review the latest live match for ${readRentalCompanyLabel(entity) || "this rental"} before using it. The requested canonical URL drifted to a different rental.`,
       tone: "warning" as const,
     };
   }
 
+  const entity = page.entity as CarBookableEntity;
   return {
-    badge: "Car entity",
-    title: buildEntityHeading(page.entity as CarBookableEntity),
+    badge: "Car rental",
+    title: buildCarEntityTitle(entity, searchContextCityName),
     description:
-      "This car detail page resolves a canonical rental through Inventory Resolver and renders provider-agnostic vehicle, pickup, policy, and pricing data.",
+      `Review pricing, pickup details, and policies for ${readRentalCompanyLabel(entity) || "this rental"} in a canonical rental flow.`,
     tone: "neutral" as const,
   };
 };
 
-const buildBreadcrumbs = (page: BookableEntityPageLoadResult) => {
+const buildBreadcrumbs = (
+  page: BookableEntityPageLoadResult,
+  searchContextCityName?: string | null,
+) => {
   const verticalLabel = getBookableEntityVerticalLabel("car");
   const canonicalPath = page.kind === "invalid_route" ? undefined : page.route.canonicalPath;
 
@@ -653,10 +692,10 @@ const buildBreadcrumbs = (page: BookableEntityPageLoadResult) => {
     {
       label:
         page.kind === "resolved"
-          ? buildEntityHeading(page.entity as CarBookableEntity)
+          ? buildCarEntityTitle(page.entity as CarBookableEntity, searchContextCityName)
           : page.kind === "invalid_route"
             ? "Invalid route"
-            : buildHeader(page).badge,
+            : buildHeader(page, searchContextCityName).badge,
       href: canonicalPath || getBookableEntitySearchHref("car"),
     },
   ];
@@ -664,8 +703,12 @@ const buildBreadcrumbs = (page: BookableEntityPageLoadResult) => {
 
 export const mapCarEntityPageForUi = (
   page: BookableEntityPageLoadResult,
+  options: {
+    searchContextCityName?: string | null;
+  } = {},
 ): CarEntityPageUiModel => {
-  const header = buildHeader(page);
+  const searchContextCityName = options.searchContextCityName;
+  const header = buildHeader(page, searchContextCityName);
   const errorState = buildErrorState(page);
   const unavailableState = buildUnavailableState(page);
 
@@ -676,7 +719,7 @@ export const mapCarEntityPageForUi = (
   ) {
     return {
       kind: page.kind,
-      breadcrumbs: buildBreadcrumbs(page),
+      breadcrumbs: buildBreadcrumbs(page, searchContextCityName),
       header,
       summary: null,
       status: null,
@@ -694,7 +737,7 @@ export const mapCarEntityPageForUi = (
 
   return {
     kind: page.kind,
-    breadcrumbs: buildBreadcrumbs(page),
+    breadcrumbs: buildBreadcrumbs(page, searchContextCityName),
     header,
     summary: buildSummaryModel(entity),
     status: buildStatusModel(page),

@@ -164,7 +164,7 @@ test("loads canonical car pages through the shared /api/search response path", a
     },
   };
 
-  const response = await loadCanonicalCarSearchPage("/cars/search/LAX/2026-05-10/2026-05-15", {
+  const response = await loadCanonicalCarSearchPage("/car-rentals/search/LAX/2026-05-10/2026-05-15", {
     ...withSearchApi(provider),
   });
 
@@ -198,7 +198,7 @@ test("returns an empty renderer-ready UI model when no canonical car results are
     },
   };
 
-  const response = await loadCanonicalCarSearchPage("/cars/search/LAX/2026-05-10/2026-05-15", {
+  const response = await loadCanonicalCarSearchPage("/car-rentals/search/LAX/2026-05-10/2026-05-15", {
     ...withSearchApi(provider),
   });
 
@@ -228,10 +228,10 @@ test("marks cached canonical car responses in the renderer-facing summary", asyn
     },
   };
 
-  const first = await loadCanonicalCarSearchPage("/cars/search/LAX/2026-05-10/2026-05-15", {
+  const first = await loadCanonicalCarSearchPage("/car-rentals/search/LAX/2026-05-10/2026-05-15", {
     ...withSearchApi(provider),
   });
-  const second = await loadCanonicalCarSearchPage("/cars/search/LAX/2026-05-10/2026-05-15", {
+  const second = await loadCanonicalCarSearchPage("/car-rentals/search/LAX/2026-05-10/2026-05-15", {
     ...withSearchApi(provider),
   });
 
@@ -248,7 +248,7 @@ test("marks cached canonical car responses in the renderer-facing summary", asyn
 
 test("returns structured validation failures for invalid canonical car routes", async () => {
   const response = await loadCanonicalCarSearchPage(
-    "/cars/search/LAX-airport/2026-05-10/2026-05-15",
+    "/car-rentals/search/LAX-airport/2026-05-10/2026-05-15",
   );
 
   assert.equal(response.status, 400);

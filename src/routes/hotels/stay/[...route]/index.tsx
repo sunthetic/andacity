@@ -8,6 +8,7 @@ import { HotelEntityPage } from "~/components/entities/hotels/HotelEntityPage";
 import { buildBookableEntityDocumentHead } from "~/lib/entities/metadata";
 import {
   buildAddToTripErrorHref,
+  buildAddToTripSuccessHref,
   parseAddToTripContextTripId,
 } from "~/lib/trips/add-to-trip-feedback";
 import {
@@ -55,7 +56,12 @@ export const onPost: RequestHandler = async ({ request, redirect, url }) => {
     );
   }
 
-  throw redirect(303, `/trips/${resolvedTripId}`);
+  throw redirect(
+    303,
+    buildAddToTripSuccessHref({
+      tripId: resolvedTripId,
+    }),
+  );
 };
 
 export const useHotelEntityPageLoader = routeLoader$(async ({ status, url }) => {

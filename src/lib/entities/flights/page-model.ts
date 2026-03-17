@@ -9,6 +9,7 @@ import {
   getBookableEntityVerticalLabel,
 } from "~/lib/entities/routing";
 import { formatMoneyFromCents } from "~/lib/pricing/price-display";
+import type { CanonicalLocation } from "~/types/location";
 import type { FlightBookableEntity } from "~/types/bookable-entity";
 import type { BookableEntityPageLoadResult } from "~/types/bookable-entity-route";
 import type {
@@ -54,20 +55,45 @@ const titleCaseToken = (value: string | null | undefined) => {
     .join(" ");
 };
 
+const formatItineraryTypeTitle = (value: string | null | undefined) => {
+  if (value === "round-trip") return "Round-Trip";
+  if (value === "one-way") return "One-Way";
+  return titleCaseToken(value) || null;
+};
+
+const readAirportTimezone = (location: CanonicalLocation | null | undefined) => {
+  const timezone = location?.providerMetadata?.timezone;
+  return typeof timezone === "string" && timezone.trim() ? timezone.trim() : "UTC";
+};
+
 const formatTimestamp = (value: string | null | undefined) => {
   const date = toDate(value);
   if (!date) return toText(value) || "Time unavailable";
   return `${TIME_FORMATTER.format(date)} UTC`;
 };
 
-const formatDateTimeLabel = (value: string | null | undefined, fallbackDate?: string | null) => {
+const formatDateTimeLabel = (
+  value: string | null | undefined,
+  fallbackDate?: string | null,
+  location?: CanonicalLocation | null,
+) => {
   const date = toDate(value);
   if (date) {
-    return `${TIME_FORMATTER.format(date)} UTC`;
+    return new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: readAirportTimezone(location),
+      timeZoneName: "short",
+    }).format(date);
   }
 
   const fallback = toText(fallbackDate);
-  return fallback ? `${fallback} · Time unavailable` : "Time unavailable";
+  return fallback
+    ? `${fallback} · Time unavailable (${readAirportTimezone(location)})`
+    : "Time unavailable";
 };
 
 const formatDurationLabel = (minutes: number | null | undefined) => {
@@ -146,6 +172,18 @@ const buildAirlineLabel = (entity: FlightBookableEntity) => {
   return toText(entity.title) || "Flight option";
 };
 
+const buildFlightNumberLabel = (entity: FlightBookableEntity) => {
+  const firstSegment = readEntitySegments(entity)[0];
+  const carrierCode =
+    toText(firstSegment?.marketingCarrierCode) || toText(entity.bookingContext.carrier);
+  const flightNumber =
+    toText(firstSegment?.flightNumber) || toText(entity.bookingContext.flightNumber);
+
+  return [carrierCode, flightNumber]
+    .filter((value): value is string => Boolean(value))
+    .join(" ") || null;
+};
+
 const readEntitySegments = (entity: FlightBookableEntity) => {
   const segments = entity.payload.segments;
   if (Array.isArray(segments) && segments.length) {
@@ -169,9 +207,102 @@ const readEntitySegments = (entity: FlightBookableEntity) => {
   ];
 };
 
+type FlightAirportLookup = Record<string, CanonicalLocation | null | undefined>;
+
+const resolveAirportLocation = (
+  code: string | null | undefined,
+  airportLookup: FlightAirportLookup | undefined,
+) => {
+  const normalizedCode = toText(code)?.toUpperCase();
+  if (!normalizedCode || !airportLookup) return null;
+  return airportLookup[normalizedCode] || null;
+};
+
+const buildAirportLabel = (
+  code: string | null | undefined,
+  airportLookup: FlightAirportLookup | undefined,
+) => {
+  const normalizedCode = toText(code)?.toUpperCase();
+  const location = resolveAirportLocation(normalizedCode, airportLookup);
+  if (!location) {
+    return normalizedCode || "Airport unavailable";
+  }
+
+  const placeLabel = [
+    location.cityName,
+    location.stateOrProvinceCode || location.stateOrProvinceName,
+    location.countryName,
+  ]
+    .filter((value): value is string => Boolean(toText(value)))
+    .join(", ");
+
+  return [
+    location.airportName || location.displayName,
+    normalizedCode || location.airportCode,
+    placeLabel,
+  ]
+    .filter((value): value is string => Boolean(toText(value)))
+    .join(" · ");
+};
+
+const buildCityRouteLabel = (
+  code: string | null | undefined,
+  airportLookup: FlightAirportLookup | undefined,
+) => {
+  const normalizedCode = toText(code)?.toUpperCase();
+  const location = resolveAirportLocation(normalizedCode, airportLookup);
+  const cityLabel = [
+    location?.cityName,
+    location?.stateOrProvinceCode || location?.stateOrProvinceName,
+  ]
+    .filter((value): value is string => Boolean(toText(value)))
+    .join(", ");
+
+  return [cityLabel || location?.displayName || normalizedCode, normalizedCode]
+    .filter((value): value is string => Boolean(toText(value)))
+    .join(" · ");
+};
+
+const buildFlightEntityTitle = (
+  entity: FlightBookableEntity,
+  airportLookup: FlightAirportLookup | undefined,
+) => {
+  const segments = readEntitySegments(entity);
+  const firstSegment = segments[0];
+  const lastSegment = segments[segments.length - 1];
+  const departureLocation = resolveAirportLocation(
+    toText(firstSegment?.originCode) || toText(entity.bookingContext.origin),
+    airportLookup,
+  );
+  const arrivalLocation = resolveAirportLocation(
+    toText(lastSegment?.destinationCode) || toText(entity.bookingContext.destination),
+    airportLookup,
+  );
+  const itineraryType =
+    formatItineraryTypeTitle(
+      toText(entity.payload.itineraryType) ||
+        toText(entity.payload.providerMetadata?.itineraryType),
+    ) || "Flight";
+  const departureCity =
+    departureLocation?.cityName ||
+    departureLocation?.displayName ||
+    toText(firstSegment?.originCode) ||
+    toText(entity.bookingContext.origin) ||
+    "departure";
+  const arrivalCity =
+    arrivalLocation?.cityName ||
+    arrivalLocation?.displayName ||
+    toText(lastSegment?.destinationCode) ||
+    toText(entity.bookingContext.destination) ||
+    "arrival";
+
+  return `Flight ${itineraryType} from ${departureCity} to ${arrivalCity}`;
+};
+
 const buildSummaryModel = (
   entity: FlightBookableEntity,
   routeDate: string | null,
+  airportLookup?: FlightAirportLookup,
 ): FlightEntitySummaryModel => {
   const segments = readEntitySegments(entity);
   const firstSegment = segments[0];
@@ -197,21 +328,33 @@ const buildSummaryModel = (
     airlineLabel: buildAirlineLabel(entity),
     providerLabel:
       toText(entity.payload.providerMetadata?.providerName) || toText(entity.provider),
-    routeLabel: `${departureAirport} -> ${arrivalAirport}`,
-    departureAirportLabel: departureAirport,
-    arrivalAirportLabel: arrivalAirport,
-    departureTimeLabel: formatDateTimeLabel(firstSegment?.departureAt, routeDate),
-    arrivalTimeLabel: formatDateTimeLabel(lastSegment?.arrivalAt),
+    flightNumberLabel: buildFlightNumberLabel(entity),
+    routeLabel: `${buildCityRouteLabel(departureAirport, airportLookup)} -> ${buildCityRouteLabel(arrivalAirport, airportLookup)}`,
+    departureAirportLabel: buildAirportLabel(departureAirport, airportLookup),
+    arrivalAirportLabel: buildAirportLabel(arrivalAirport, airportLookup),
+    departureTimeLabel: formatDateTimeLabel(
+      firstSegment?.departureAt,
+      routeDate,
+      resolveAirportLocation(departureAirport, airportLookup),
+    ),
+    arrivalTimeLabel: formatDateTimeLabel(
+      lastSegment?.arrivalAt,
+      undefined,
+      resolveAirportLocation(arrivalAirport, airportLookup),
+    ),
     durationLabel: formatDurationLabel(durationMinutes || null),
     stopSummary: formatStopSummary(stopCount, stopAirports),
-    itineraryTypeLabel: titleCaseToken(
+    itineraryTypeLabel: formatItineraryTypeTitle(
       toText(entity.payload.itineraryType) ||
         toText(entity.payload.providerMetadata?.itineraryType),
     ),
   };
 };
 
-const buildSegmentModels = (entity: FlightBookableEntity): FlightEntitySegmentModel[] => {
+const buildSegmentModels = (
+  entity: FlightBookableEntity,
+  airportLookup?: FlightAirportLookup,
+): FlightEntitySegmentModel[] => {
   const segments = readEntitySegments(entity);
 
   return segments.map((segment, index) => {
@@ -237,10 +380,18 @@ const buildSegmentModels = (entity: FlightBookableEntity): FlightEntitySegmentMo
           ? operatingAirline
           : null,
       aircraftLabel: null,
-      departureAirportLabel: toText(segment.originCode) || "Departure unavailable",
-      arrivalAirportLabel: toText(segment.destinationCode) || "Arrival unavailable",
-      departureTimeLabel: formatDateTimeLabel(segment.departureAt),
-      arrivalTimeLabel: formatDateTimeLabel(segment.arrivalAt),
+      departureAirportLabel: buildAirportLabel(segment.originCode, airportLookup),
+      arrivalAirportLabel: buildAirportLabel(segment.destinationCode, airportLookup),
+      departureTimeLabel: formatDateTimeLabel(
+        segment.departureAt,
+        undefined,
+        resolveAirportLocation(segment.originCode, airportLookup),
+      ),
+      arrivalTimeLabel: formatDateTimeLabel(
+        segment.arrivalAt,
+        undefined,
+        resolveAirportLocation(segment.destinationCode, airportLookup),
+      ),
       durationLabel:
         formatDurationLabel(segment.durationMinutes ?? diffMinutes(segment.departureAt, segment.arrivalAt)),
       layoverAfterLabel:
@@ -469,7 +620,10 @@ const buildErrorState = (
   return null;
 };
 
-const buildHeader = (page: BookableEntityPageLoadResult) => {
+const buildHeader = (
+  page: BookableEntityPageLoadResult,
+  airportLookup?: FlightAirportLookup,
+) => {
   if (page.kind === "invalid_route") {
     return {
       badge: "Invalid route",
@@ -503,7 +657,7 @@ const buildHeader = (page: BookableEntityPageLoadResult) => {
   if (page.kind === "unavailable") {
     return {
       badge: "Currently unavailable",
-      title: page.entity.title,
+      title: buildFlightEntityTitle(page.entity as FlightBookableEntity, airportLookup),
       description:
         "The canonical itinerary resolved successfully, but the latest live check says it cannot be booked at the moment.",
       tone: "warning" as const,
@@ -513,7 +667,7 @@ const buildHeader = (page: BookableEntityPageLoadResult) => {
   if (page.kind === "revalidation_required") {
     return {
       badge: "Revalidation needed",
-      title: page.entity.title,
+      title: buildFlightEntityTitle(page.entity as FlightBookableEntity, airportLookup),
       description:
         "The requested canonical URL drifted to a different live itinerary. Review the current normalized match below before using it.",
       tone: "warning" as const,
@@ -522,14 +676,17 @@ const buildHeader = (page: BookableEntityPageLoadResult) => {
 
   return {
     badge: "Flight entity",
-    title: page.entity.title,
+    title: buildFlightEntityTitle(page.entity as FlightBookableEntity, airportLookup),
     description:
       "This flight detail page resolves a canonical itinerary through Inventory Resolver and renders provider-agnostic itinerary data.",
     tone: "neutral" as const,
   };
 };
 
-const buildBreadcrumbs = (page: BookableEntityPageLoadResult) => {
+const buildBreadcrumbs = (
+  page: BookableEntityPageLoadResult,
+  airportLookup?: FlightAirportLookup,
+) => {
   const verticalLabel = getBookableEntityVerticalLabel("flight");
   const canonicalPath = page.kind === "invalid_route" ? undefined : page.route.canonicalPath;
 
@@ -540,10 +697,10 @@ const buildBreadcrumbs = (page: BookableEntityPageLoadResult) => {
     {
       label:
         page.kind === "resolved"
-          ? page.entity.title
+          ? buildFlightEntityTitle(page.entity as FlightBookableEntity, airportLookup)
           : page.kind === "invalid_route"
             ? "Invalid route"
-            : buildHeader(page).badge,
+            : buildHeader(page, airportLookup).badge,
       href: canonicalPath || getBookableEntitySearchHref("flight"),
     },
   ];
@@ -551,8 +708,12 @@ const buildBreadcrumbs = (page: BookableEntityPageLoadResult) => {
 
 export const mapFlightEntityPageForUi = (
   page: BookableEntityPageLoadResult,
+  options: {
+    airportLookup?: FlightAirportLookup;
+  } = {},
 ): FlightEntityPageUiModel => {
-  const header = buildHeader(page);
+  const airportLookup = options.airportLookup;
+  const header = buildHeader(page, airportLookup);
   const errorState = buildErrorState(page);
   const unavailableState = buildUnavailableState(page);
 
@@ -563,7 +724,7 @@ export const mapFlightEntityPageForUi = (
   ) {
     return {
       kind: page.kind,
-      breadcrumbs: buildBreadcrumbs(page),
+      breadcrumbs: buildBreadcrumbs(page, airportLookup),
       header,
       summary: null,
       status: null,
@@ -576,15 +737,19 @@ export const mapFlightEntityPageForUi = (
   }
 
   const entity = page.entity as FlightBookableEntity;
-  const summary = buildSummaryModel(entity, entity.bookingContext.departDate);
+  const summary = buildSummaryModel(
+    entity,
+    entity.bookingContext.departDate,
+    airportLookup,
+  );
 
   return {
     kind: page.kind,
-    breadcrumbs: buildBreadcrumbs(page),
+    breadcrumbs: buildBreadcrumbs(page, airportLookup),
     header,
     summary,
     status: buildStatusModel(page),
-    segments: buildSegmentModels(entity),
+    segments: buildSegmentModels(entity, airportLookup),
     fareSummary: buildFareSummary(entity, page.kind),
     cta: buildCtaModel(page),
     unavailableState,

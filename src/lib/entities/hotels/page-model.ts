@@ -157,6 +157,14 @@ const buildLocationLabel = (entity: HotelBookableEntity) => {
   );
 };
 
+const buildHotelCityName = (entity: HotelBookableEntity) =>
+  toText(entity.payload.propertySummary?.cityName) ||
+  toText(entity.payload.propertySummary?.neighborhood) ||
+  "this destination";
+
+const buildHotelEntityTitle = (entity: HotelBookableEntity) =>
+  `Stay in ${buildHotelCityName(entity)}`;
+
 const buildSummaryModel = (entity: HotelBookableEntity): HotelEntitySummaryModel => {
   const property = entity.payload.propertySummary;
   const room = entity.payload.roomSummary;
@@ -528,30 +536,33 @@ const buildHeader = (page: BookableEntityPageLoadResult) => {
   }
 
   if (page.kind === "unavailable") {
+    const entity = page.entity as HotelBookableEntity;
     return {
       badge: "Currently unavailable",
-      title: page.entity.title,
+      title: buildHotelEntityTitle(entity),
       description:
-        "The canonical hotel entity resolved successfully, but the latest live check says it cannot be booked at the moment.",
+        `Review pricing and room details for ${toText(entity.title) || "this stay"}. The latest live check says it cannot be booked at the moment.`,
       tone: "warning" as const,
     };
   }
 
   if (page.kind === "revalidation_required") {
+    const entity = page.entity as HotelBookableEntity;
     return {
       badge: "Revalidation needed",
-      title: page.entity.title,
+      title: buildHotelEntityTitle(entity),
       description:
-        "The requested canonical URL drifted to a different live hotel entity. Review the current normalized match below before using it.",
+        `Review the latest live match for ${toText(entity.title) || "this stay"} before using it. The requested canonical URL drifted to a different hotel entity.`,
       tone: "warning" as const,
     };
   }
 
+  const entity = page.entity as HotelBookableEntity;
   return {
-    badge: "Hotel entity",
-    title: page.entity.title,
+    badge: "Hotel stay",
+    title: buildHotelEntityTitle(entity),
     description:
-      "This hotel detail page resolves a canonical stay through Inventory Resolver and renders provider-agnostic property, offer, policy, and pricing data.",
+      `Review pricing, room details, and policies for ${toText(entity.title) || "this stay"} in a canonical stay flow.`,
     tone: "neutral" as const,
   };
 };
@@ -567,7 +578,7 @@ const buildBreadcrumbs = (page: BookableEntityPageLoadResult) => {
     {
       label:
         page.kind === "resolved"
-          ? page.entity.title
+          ? buildHotelEntityTitle(page.entity as HotelBookableEntity)
           : page.kind === "invalid_route"
             ? "Invalid route"
             : buildHeader(page).badge,

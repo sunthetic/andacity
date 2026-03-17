@@ -8,21 +8,34 @@ import type {
 } from "~/types/car-entity-page";
 
 export const CarEntitySummary = component$((props: CarEntitySummaryProps) => {
+  const headingLabel =
+    props.summary.rentalCompanyLabel || props.summary.vehicleName;
+  const supportingVehicleLabel =
+    props.summary.rentalCompanyLabel &&
+    props.summary.rentalCompanyLabel !== props.summary.vehicleName
+      ? props.summary.vehicleName
+      : null;
+  const pickupDropoffLabel =
+    props.summary.pickupLocationLabel === props.summary.dropoffLocationLabel
+      ? props.summary.pickupLocationLabel
+      : `Pickup ${props.summary.pickupLocationLabel} · Drop-off ${props.summary.dropoffLocationLabel}`;
+
   return (
     <section class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--color-action)]">
-            Car summary
+            Rental overview
           </p>
           <h2 class="mt-2 text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-            {props.summary.vehicleName}
+            {headingLabel}
           </h2>
           <p class="mt-2 text-sm leading-6 text-[color:var(--color-text-muted)]">
-            {props.summary.categoryLabel}
-            {props.summary.rentalCompanyLabel
-              ? ` · ${props.summary.rentalCompanyLabel}`
-              : ""}
+            {pickupDropoffLabel}
+          </p>
+          <p class="mt-2 text-sm leading-6 text-[color:var(--color-text-muted)]">
+            {supportingVehicleLabel || props.summary.categoryLabel}
+            {supportingVehicleLabel ? ` · ${props.summary.categoryLabel}` : ""}
             {props.summary.providerLabel
               ? ` · Provider ${props.summary.providerLabel}`
               : ""}
@@ -91,25 +104,25 @@ export const CarEntitySummary = component$((props: CarEntitySummaryProps) => {
 
           <div class="rounded-[24px] bg-[color:var(--color-surface-muted)] px-5 py-5">
             <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
-              Category
+              Vehicle
             </p>
             <p class="mt-2 text-lg font-semibold text-[color:var(--color-text-strong)]">
-              {props.summary.categoryLabel}
+              {props.summary.vehicleName}
             </p>
             <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-              {props.summary.rentalLengthLabel || "Rental length unavailable"}
+              {props.summary.categoryLabel}
             </p>
           </div>
 
           <div class="rounded-[24px] bg-[color:var(--color-surface-muted)] px-5 py-5">
             <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
-              Rate plan
+              Rental details
             </p>
             <p class="mt-2 text-lg font-semibold text-[color:var(--color-text-strong)]">
-              {props.summary.ratePlanLabel || "Rate plan pending"}
+              {props.summary.rentalLengthLabel || "Rental length unavailable"}
             </p>
             <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-              {props.summary.providerLabel || "Provider-agnostic"}
+              {props.summary.ratePlanLabel || "Rate plan pending"}
             </p>
           </div>
         </div>

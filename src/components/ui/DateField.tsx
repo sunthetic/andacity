@@ -97,7 +97,7 @@ export const DateField = component$((props: DateFieldProps) => {
       focusInitialCalendarTarget(rootEl);
     });
 
-    const onPointerDown = (event: PointerEvent) => {
+    const onDocumentClick = (event: MouseEvent) => {
       if (!(event.target instanceof Node)) return;
       if (rootEl.contains(event.target)) return;
       pickerOpen.value = false;
@@ -115,17 +115,17 @@ export const DateField = component$((props: DateFieldProps) => {
       }
     };
 
-    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("click", onDocumentClick);
     document.addEventListener("keydown", onKeyDown);
 
     cleanup(() => {
-      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("click", onDocumentClick);
       document.removeEventListener("keydown", onKeyDown);
     });
   });
 
   return (
-    <div ref={rootRef} class={["relative min-w-[10rem]", props.class]}>
+    <div ref={rootRef} class={["relative min-w-0", props.class]}>
       {props.name ? (
         <input
           type="hidden"

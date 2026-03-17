@@ -1,5 +1,6 @@
 export const ADD_TO_TRIP_CONTEXT_QUERY_PARAM = "trip";
 export const ADD_TO_TRIP_ERROR_QUERY_PARAM = "addToTripError";
+export const ADD_TO_TRIP_SUCCESS_QUERY_PARAM = "addedToTrip";
 
 export const ADD_TO_TRIP_DUPLICATE_POLICY = "ignore_existing" as const;
 export type AddToTripDuplicatePolicy = typeof ADD_TO_TRIP_DUPLICATE_POLICY;
@@ -19,6 +20,11 @@ export type AddToTripErrorCode = (typeof ADD_TO_TRIP_ERROR_CODES)[number];
 
 export type AddToTripErrorNotice = {
   code: AddToTripErrorCode;
+  title: string;
+  message: string;
+};
+
+export type AddToTripSuccessNotice = {
   title: string;
   message: string;
 };
@@ -155,4 +161,32 @@ export const readAddToTripErrorNotice = (
   if (!rawCode || !isAddToTripErrorCode(rawCode)) return null;
 
   return buildAddToTripErrorNotice(rawCode);
+};
+
+export const buildAddToTripSuccessHref = (input: {
+  tripId: number;
+}) => {
+  const url = new URL(`/trips/${input.tripId}`, "https://andacity.test");
+  url.searchParams.set(ADD_TO_TRIP_SUCCESS_QUERY_PARAM, "1");
+  return `${url.pathname}${url.search}`;
+};
+
+export const readAddToTripSuccessNotice = (
+  input: string | URL | URLSearchParams,
+): AddToTripSuccessNotice | null => {
+  const searchParams =
+    input instanceof URLSearchParams
+      ? input
+      : input instanceof URL
+        ? input.searchParams
+        : toUrl(input).searchParams;
+
+  if (String(searchParams.get(ADD_TO_TRIP_SUCCESS_QUERY_PARAM) || "").trim() !== "1") {
+    return null;
+  }
+
+  return {
+    title: "Added to trip",
+    message: "This item was added successfully. You can keep building the itinerary from here.",
+  };
 };
