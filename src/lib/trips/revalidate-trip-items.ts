@@ -306,6 +306,43 @@ const compareCarInventories = (
   }
 }
 
+const isLegacyHotelInventoryEquivalent = (
+  snapshotInventory: ParsedHotelInventoryId,
+  currentInventory: ParsedHotelInventoryId,
+) => {
+  return (
+    !snapshotInventory.provider &&
+    !snapshotInventory.providerOfferId &&
+    !snapshotInventory.ratePlanId &&
+    !snapshotInventory.boardType &&
+    !snapshotInventory.cancellationPolicy &&
+    snapshotInventory.roomType === 'standard' &&
+    snapshotInventory.hotelId === currentInventory.hotelId &&
+    snapshotInventory.occupancy === currentInventory.occupancy &&
+    snapshotInventory.checkInDate === currentInventory.checkInDate &&
+    snapshotInventory.checkOutDate === currentInventory.checkOutDate
+  )
+}
+
+const isLegacyCarInventoryEquivalent = (input: {
+  item: TripItemRevalidationCandidate
+  snapshotInventory: ParsedCarInventoryId
+  currentInventory: ParsedCarInventoryId
+}) => {
+  const providerInventoryId =
+    input.item.providerInventoryId != null
+      ? String(input.item.providerInventoryId)
+      : null
+
+  return (
+    input.snapshotInventory.vehicleClass === 'standard' &&
+    providerInventoryId != null &&
+    input.snapshotInventory.providerLocationId === providerInventoryId &&
+    input.snapshotInventory.pickupDateTime === input.currentInventory.pickupDateTime &&
+    input.snapshotInventory.dropoffDateTime === input.currentInventory.dropoffDateTime
+  )
+}
+
 export const normalizeRevalidationTimestamp = (
   value: Date | string | null | undefined,
 ) => {
@@ -603,6 +640,23 @@ export const compareSnapshotToCurrentInventory = (input: {
           }
 
   if (comparison.mismatch) {
+    const allowLegacyMatch =
+      input.parsedInventory.vertical === 'hotel' &&
+        currentParsedInventory.vertical === 'hotel'
+        ? isLegacyHotelInventoryEquivalent(input.parsedInventory, currentParsedInventory)
+        : input.parsedInventory.vertical === 'car' &&
+            currentParsedInventory.vertical === 'car'
+          ? isLegacyCarInventoryEquivalent({
+            item: input.item,
+            snapshotInventory: input.parsedInventory,
+            currentInventory: currentParsedInventory,
+          })
+          : false
+
+    if (allowLegacyMatch) {
+      return []
+    }
+
     return [
       buildTripItemRevalidationIssue({
         code: 'inventory_mismatch',

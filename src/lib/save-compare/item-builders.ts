@@ -22,10 +22,28 @@ const FLIGHTS_VERTICAL = 'flights' as const
 type DateRangeLike = {
   checkIn?: string | null
   checkOut?: string | null
+  adults?: number | null
+  rooms?: number | null
 }
 type RentalDateRangeLike = {
   pickupDate?: string | null
   dropoffDate?: string | null
+}
+
+const DEFAULT_HOTEL_OCCUPANCY = 2
+
+const toPositiveInteger = (value: unknown) => {
+  const parsed = Number.parseInt(String(value ?? '').trim(), 10)
+  if (!Number.isFinite(parsed) || parsed < 1) return null
+  return parsed
+}
+
+const resolveHotelOccupancy = (dates: DateRangeLike | undefined) => {
+  const adults = toPositiveInteger(dates?.adults)
+  if (adults == null) return DEFAULT_HOTEL_OCCUPANCY
+
+  const rooms = toPositiveInteger(dates?.rooms) || 1
+  return Math.max(1, Math.ceil(adults / rooms))
 }
 
 export const buildHotelDetailHref = (hotelSlug: string) =>
@@ -72,14 +90,16 @@ export const buildHotelSavedItem = (
   priceDisplay: PriceDisplayContract,
   href = buildHotelDetailHref(hotel.slug),
 ): SavedItem => {
+  const roomType = String(hotel.rooms[0]?.name || '').trim() || null
+  const occupancy = resolveHotelOccupancy(dates)
   const inventoryId =
-    hotel.inventoryId != null
+    hotel.inventoryId != null && roomType
       ? buildHotelInventoryId({
           hotelId: hotel.inventoryId,
           checkInDate: toOptionalDate(dates?.checkIn) || '1970-01-01',
           checkOutDate: toOptionalDate(dates?.checkOut) || toOptionalDate(dates?.checkIn) || '1970-01-02',
-          roomType: hotel.rooms[0]?.name || 'standard',
-          occupancy: '2',
+          roomType,
+          occupancy,
         })
       : null
   const price = buildPrimaryPrice(priceDisplay, hotel.currency)
@@ -147,9 +167,10 @@ export const buildCarResultSavedItem = (
     result.searchEntity?.subtitle || result.vehicleName || result.category || 'Standard car'
   const inventoryId =
     result.searchEntity?.inventoryId ||
+    result.canonicalInventoryId ||
     (result.inventoryId != null
       ? buildCarInventoryId({
-          providerLocationId: result.inventoryId,
+          providerLocationId: result.locationId ?? result.inventoryId,
           pickupDateTime: toPickupDateTime(dates?.checkIn),
           dropoffDateTime: toPickupDateTime(dates?.checkOut, dates?.checkIn),
           vehicleClass: result.category || result.vehicleName || 'standard',
@@ -225,9 +246,9 @@ export const buildCarDetailSavedItem = (
 ): SavedItem => {
   const headlineOffer = rental.offers[0] || null
   const inventoryId =
-    rental.inventoryId != null
+    rental.locationId != null
       ? buildCarInventoryId({
-          providerLocationId: rental.inventoryId,
+          providerLocationId: rental.locationId,
           pickupDateTime: toPickupDateTime(dates?.pickupDate),
           dropoffDateTime: toPickupDateTime(dates?.dropoffDate, dates?.pickupDate),
           vehicleClass: headlineOffer?.category || 'standard',

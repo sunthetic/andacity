@@ -21,7 +21,9 @@ import {
   carInventory,
   carInventoryImages,
   carLocations,
+  carOffers,
   carProviders,
+  carVehicleClasses,
   cities,
   flightFares,
   flightItineraries,
@@ -29,6 +31,7 @@ import {
   flightSegments,
   hotelAvailabilitySnapshots,
   hotelImages,
+  hotelOffers,
   hotels,
 } from '~/lib/db/schema'
 
@@ -69,6 +72,26 @@ type FlightRecommendationInput = {
   originCityId: number
   destinationCityId: number
   serviceDates: string[]
+}
+
+type RecommendationHotelOfferRow = {
+  externalOfferId: string
+  name: string
+  sleeps: number
+  priceNightlyCents: number
+  currencyCode: string
+  refundable: boolean
+  payLater: boolean
+}
+
+type RecommendationCarOfferRow = {
+  name: string
+  vehicleClassKey: string
+  vehicleClassCategory: string
+  priceDailyCents: number
+  currencyCode: string
+  freeCancellation: boolean
+  payAtCounter: boolean
 }
 
 const titleCaseToken = (value: string) => {
@@ -136,6 +159,52 @@ const getUtcWeekday = (value: string) => {
   return date ? date.getUTCDay() : null
 }
 
+const DEFAULT_RECOMMENDATION_HOTEL_OCCUPANCY = 2
+
+const readHotelRecommendationOffer = async (
+  hotelId: number,
+  occupancy: number,
+): Promise<RecommendationHotelOfferRow | null> => {
+  const db = getDb()
+  const rows = await db
+    .select({
+      externalOfferId: hotelOffers.externalOfferId,
+      name: hotelOffers.name,
+      sleeps: hotelOffers.sleeps,
+      priceNightlyCents: hotelOffers.priceNightlyCents,
+      currencyCode: hotelOffers.currencyCode,
+      refundable: hotelOffers.refundable,
+      payLater: hotelOffers.payLater,
+    })
+    .from(hotelOffers)
+    .where(eq(hotelOffers.hotelId, hotelId))
+    .orderBy(asc(hotelOffers.priceNightlyCents), asc(hotelOffers.id))
+
+  return rows.find((row) => row.sleeps >= occupancy) || rows[0] || null
+}
+
+const readCarRecommendationOffer = async (
+  inventoryId: number,
+): Promise<RecommendationCarOfferRow | null> => {
+  const db = getDb()
+  const rows = await db
+    .select({
+      name: carOffers.name,
+      vehicleClassKey: carVehicleClasses.key,
+      vehicleClassCategory: carVehicleClasses.category,
+      priceDailyCents: carOffers.priceDailyCents,
+      currencyCode: carOffers.currencyCode,
+      freeCancellation: carOffers.freeCancellation,
+      payAtCounter: carOffers.payAtCounter,
+    })
+    .from(carOffers)
+    .innerJoin(carVehicleClasses, eq(carOffers.vehicleClassId, carVehicleClasses.id))
+    .where(eq(carOffers.inventoryId, inventoryId))
+    .orderBy(asc(carOffers.priceDailyCents), asc(carOffers.id))
+
+  return rows[0] || null
+}
+
 const findHotelRecommendation = async (
   input: HotelRecommendationInput,
 ): Promise<RecommendationInventoryMatch | null> => {
@@ -198,6 +267,11 @@ const findHotelRecommendation = async (
   const row = rows[0]
   if (!row) return null
   const cheapestExactMatchPriceCents = cheapestRows[0]?.priceCents ?? null
+  const selectedOffer = await readHotelRecommendationOffer(
+    row.id,
+    DEFAULT_RECOMMENDATION_HOTEL_OCCUPANCY,
+  )
+  if (!selectedOffer) return null
 
   const freshness = buildInventoryFreshness({
     checkedAt: row.freshnessTimestamp,
@@ -209,21 +283,22 @@ const findHotelRecommendation = async (
       hotelId: row.id,
       checkInDate: input.checkIn,
       checkOutDate: input.checkOut,
-      roomType: 'standard',
-      occupancy: '2',
+      roomType: selectedOffer.name,
+      occupancy: DEFAULT_RECOMMENDATION_HOTEL_OCCUPANCY,
     }),
     providerInventoryId: row.id,
     title: row.name,
     subtitle: `${row.neighborhood} · ${row.cityName}`,
     imageUrl: row.imageUrl,
-    priceCents: row.priceCents,
-    currencyCode: row.currencyCode,
+    priceCents: selectedOffer.priceNightlyCents,
+    currencyCode: selectedOffer.currencyCode,
     meta: [
       `${row.stars}★`,
       `${row.rating} rating`,
       `${row.reviewCount.toLocaleString('en-US')} reviews`,
-      ...(row.freeCancellation ? ['Free cancellation'] : []),
-      ...(row.payLater ? ['Pay later'] : []),
+      selectedOffer.name,
+      ...(selectedOffer.refundable || row.freeCancellation ? ['Free cancellation'] : []),
+      ...(selectedOffer.payLater || row.payLater ? ['Pay later'] : []),
     ],
     href: `/hotels/${encodeURIComponent(row.slug)}`,
     availabilityConfidence: buildAvailabilityConfidence({
@@ -271,6 +346,7 @@ const readCarRecommendation = async (
       slug: carInventory.slug,
       providerName: carProviders.name,
       cityName: cities.name,
+      locationId: carLocations.id,
       locationName: carLocations.name,
       locationType: carLocations.locationType,
       priceCents: carInventory.fromDailyCents,
@@ -308,6 +384,8 @@ const readCarRecommendation = async (
   const row = rows[0]
   if (!row) return null
   const cheapestExactMatchPriceCents = cheapestRows[0]?.priceCents ?? null
+  const selectedOffer = await readCarRecommendationOffer(row.id)
+  if (!selectedOffer) return null
 
   const freshness = buildInventoryFreshness({
     checkedAt: row.freshnessTimestamp,
@@ -316,21 +394,22 @@ const readCarRecommendation = async (
 
   return {
     inventoryId: buildCarInventoryId({
-      providerLocationId: row.id,
+      providerLocationId: row.locationId,
       pickupDateTime: `${input.pickupDate}T10:00`,
       dropoffDateTime: `${input.dropoffDate}T10:00`,
-      vehicleClass: 'standard',
+      vehicleClass: selectedOffer.vehicleClassKey,
     }),
     providerInventoryId: row.id,
     title: row.providerName,
     subtitle: `${row.locationName} · ${row.cityName}`,
     imageUrl: row.imageUrl,
-    priceCents: row.priceCents,
-    currencyCode: row.currencyCode,
+    priceCents: selectedOffer.priceDailyCents,
+    currencyCode: selectedOffer.currencyCode,
     meta: [
       row.locationType === 'airport' ? 'Airport pickup' : 'City pickup',
-      ...(row.freeCancellation ? ['Free cancellation'] : []),
-      ...(row.payAtCounter ? ['Pay at counter'] : []),
+      selectedOffer.vehicleClassCategory,
+      ...(selectedOffer.freeCancellation || row.freeCancellation ? ['Free cancellation'] : []),
+      ...(selectedOffer.payAtCounter || row.payAtCounter ? ['Pay at counter'] : []),
     ],
     href: `/car-rentals/${encodeURIComponent(row.slug)}`,
     availabilityConfidence: buildAvailabilityConfidence({

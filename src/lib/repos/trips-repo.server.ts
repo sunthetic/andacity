@@ -11,6 +11,7 @@ import {
   buildCarInventoryId,
   buildFlightInventoryId,
   buildHotelInventoryId,
+  parseInventoryId,
 } from '~/lib/inventory/inventory-id'
 import { detectPriceDrift } from '~/lib/inventory/detectPriceDrift'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
@@ -41,6 +42,7 @@ import {
   flightSegments,
   hotelAvailabilitySnapshots,
   hotelImages,
+  hotelOffers,
   hotels,
   tripDates,
   tripItemInventorySnapshots,
@@ -1572,6 +1574,33 @@ const toTripItemRevalidationCandidate = (
   providerInventoryId: readTripItemRecordProviderInventoryId(item),
 })
 
+const hasLegacyTripItemInventoryEncoding = (item: TripItemRecord) => {
+  const parsedInventory = parseInventoryId(String(item.inventoryId || '').trim())
+  if (!parsedInventory) return false
+
+  if (parsedInventory.vertical === 'hotel') {
+    return (
+      !parsedInventory.provider &&
+      !parsedInventory.providerOfferId &&
+      !parsedInventory.ratePlanId &&
+      !parsedInventory.boardType &&
+      !parsedInventory.cancellationPolicy &&
+      parsedInventory.roomType === 'standard'
+    )
+  }
+
+  if (parsedInventory.vertical === 'car') {
+    const providerInventoryId = readTripItemRecordProviderInventoryId(item)
+    return (
+      parsedInventory.vehicleClass === 'standard' &&
+      providerInventoryId != null &&
+      parsedInventory.providerLocationId === String(providerInventoryId)
+    )
+  }
+
+  return false
+}
+
 const buildTripItemSnapshotPriceQuote = (
   item: Pick<TripItemRevalidationCandidate, 'snapshotCurrencyCode' | 'snapshotPriceCents'>,
 ): PriceQuote | null => {
@@ -1618,9 +1647,10 @@ const resolveTripItemCurrentInventory = async (
   if (!resolution) return null
 
   const snapshotPrice = buildTripItemSnapshotPriceQuote(item)
+  const resolvedInventoryId = resolution.entity.inventoryId || item.inventoryId || ''
   const drift =
     snapshotPrice && resolution.isAvailable !== false
-      ? await detectPriceDrift(item.inventoryId || '', snapshotPrice, {
+      ? await detectPriceDrift(resolvedInventoryId, snapshotPrice, {
           resolvedInventory: resolution.entity,
         })
       : null
@@ -2073,7 +2103,11 @@ const resolveTripItemRevalidation = async (
   for (const item of items) {
     const cached = readStoredTripItemRevalidation(item.metadata)
     const isFresh = isStoredTripItemRevalidationFresh(cached, now)
-    const shouldRefresh = mode === 'force' || !isFresh || !isLiveInventoryPresent(item)
+    const shouldRefresh =
+      mode === 'force' ||
+      hasLegacyTripItemInventoryEncoding(item) ||
+      !isFresh ||
+      !isLiveInventoryPresent(item)
 
     if (cached && !shouldRefresh) {
       resolved.set(item.id, toResolvedTripItemRevalidation(item, cached))
@@ -2104,7 +2138,12 @@ const resolveTripItemRevalidationPreview = async (
     const cached = readStoredTripItemRevalidation(item.metadata)
     const isFresh = isStoredTripItemRevalidationFresh(cached, now)
 
-    if (cached && isFresh && isLiveInventoryPresent(item)) {
+    if (
+      cached &&
+      isFresh &&
+      isLiveInventoryPresent(item) &&
+      !hasLegacyTripItemInventoryEncoding(item)
+    ) {
       resolved.set(item.id, toResolvedTripItemRevalidation(item, cached))
       continue
     }
@@ -3115,6 +3154,168 @@ const readPrimaryCarImages = async (inventoryIds: number[]) => {
   return byInventoryId
 }
 
+type HotelReplacementOfferRow = {
+  hotelId: number
+  externalOfferId: string
+  name: string
+  sleeps: number
+  beds: string
+  sizeSqft: number
+  priceNightlyCents: number
+  currencyCode: string
+  refundable: boolean
+  payLater: boolean
+  badges: string[]
+  features: string[]
+}
+
+type CarReplacementOfferRow = {
+  inventoryId: number
+  name: string
+  vehicleClassKey: string
+  vehicleClassCategory: string
+  transmission: 'automatic' | 'manual'
+  seats: number
+  doors: number
+  bagsLabel: string
+  airConditioning: boolean
+  priceDailyCents: number
+  currencyCode: string
+  freeCancellation: boolean
+  payAtCounter: boolean
+  badges: string[]
+  features: string[]
+}
+
+const readReplacementHotelOccupancy = (item: TripItemRecord) => {
+  const entity = item.inventorySnapshot?.bookableEntity
+  if (entity?.vertical !== 'hotel') return null
+  return entity.bookingContext.occupancy
+}
+
+const readReplacementCarVehicleClass = (item: TripItemRecord) => {
+  const entity = item.inventorySnapshot?.bookableEntity
+  if (entity?.vertical !== 'car') return null
+  return entity.bookingContext.vehicleClass
+}
+
+const buildHotelReplacementOfferMap = async (hotelIds: number[]) => {
+  const ids = Array.from(new Set(hotelIds.filter((hotelId) => hotelId > 0)))
+  if (!ids.length) return new Map<number, HotelReplacementOfferRow[]>()
+
+  const db = getDb()
+  const rows = await db
+    .select({
+      hotelId: hotelOffers.hotelId,
+      externalOfferId: hotelOffers.externalOfferId,
+      name: hotelOffers.name,
+      sleeps: hotelOffers.sleeps,
+      beds: hotelOffers.beds,
+      sizeSqft: hotelOffers.sizeSqft,
+      priceNightlyCents: hotelOffers.priceNightlyCents,
+      currencyCode: hotelOffers.currencyCode,
+      refundable: hotelOffers.refundable,
+      payLater: hotelOffers.payLater,
+      badges: hotelOffers.badges,
+      features: hotelOffers.features,
+    })
+    .from(hotelOffers)
+    .where(inArray(hotelOffers.hotelId, ids))
+    .orderBy(
+      asc(hotelOffers.hotelId),
+      asc(hotelOffers.priceNightlyCents),
+      asc(hotelOffers.externalOfferId),
+    )
+
+  const offersByHotelId = new Map<number, HotelReplacementOfferRow[]>()
+  for (const row of rows) {
+    const existing = offersByHotelId.get(row.hotelId)
+    const normalizedRow = row satisfies HotelReplacementOfferRow
+
+    if (existing) {
+      existing.push(normalizedRow)
+      continue
+    }
+
+    offersByHotelId.set(row.hotelId, [normalizedRow])
+  }
+
+  return offersByHotelId
+}
+
+const selectHotelReplacementOffer = (
+  offers: HotelReplacementOfferRow[],
+  occupancy: number,
+) => {
+  return (
+    offers.find((offer) => offer.sleeps >= occupancy) ||
+    offers[0] ||
+    null
+  )
+}
+
+const buildCarReplacementOfferMap = async (inventoryIds: number[]) => {
+  const ids = Array.from(new Set(inventoryIds.filter((inventoryId) => inventoryId > 0)))
+  if (!ids.length) return new Map<number, CarReplacementOfferRow[]>()
+
+  const db = getDb()
+  const rows = await db
+    .select({
+      inventoryId: carOffers.inventoryId,
+      name: carOffers.name,
+      vehicleClassKey: carVehicleClasses.key,
+      vehicleClassCategory: carVehicleClasses.category,
+      transmission: carOffers.transmission,
+      seats: carOffers.seats,
+      doors: carOffers.doors,
+      bagsLabel: carOffers.bagsLabel,
+      airConditioning: carOffers.airConditioning,
+      priceDailyCents: carOffers.priceDailyCents,
+      currencyCode: carOffers.currencyCode,
+      freeCancellation: carOffers.freeCancellation,
+      payAtCounter: carOffers.payAtCounter,
+      badges: carOffers.badges,
+      features: carOffers.features,
+    })
+    .from(carOffers)
+    .innerJoin(carVehicleClasses, eq(carOffers.vehicleClassId, carVehicleClasses.id))
+    .where(inArray(carOffers.inventoryId, ids))
+    .orderBy(
+      asc(carOffers.inventoryId),
+      asc(carOffers.priceDailyCents),
+      asc(carOffers.id),
+    )
+
+  const offersByInventoryId = new Map<number, CarReplacementOfferRow[]>()
+  for (const row of rows) {
+    const existing = offersByInventoryId.get(row.inventoryId)
+    const normalizedRow = row satisfies CarReplacementOfferRow
+
+    if (existing) {
+      existing.push(normalizedRow)
+      continue
+    }
+
+    offersByInventoryId.set(row.inventoryId, [normalizedRow])
+  }
+
+  return offersByInventoryId
+}
+
+const selectCarReplacementOffer = (
+  offers: CarReplacementOfferRow[],
+  preferredVehicleClass: string | null,
+) => {
+  const normalizedPreferred = String(preferredVehicleClass || '').trim()
+  return (
+    (normalizedPreferred
+      ? offers.find((offer) => offer.vehicleClassKey === normalizedPreferred)
+      : null) ||
+    offers[0] ||
+    null
+  )
+}
+
 const buildHotelReplacementOptions = async (item: TripItemRecord): Promise<TripItemReplacementOption[]> => {
   if (!item.startCityId) return []
 
@@ -3144,12 +3345,20 @@ const buildHotelReplacementOptions = async (item: TripItemRecord): Promise<TripI
     .limit(12)
 
   const imageByHotelId = await readPrimaryHotelImages(rows.map((row) => row.id))
+  const offersByHotelId = await buildHotelReplacementOfferMap(rows.map((row) => row.id))
   const availabilityByHotelId = await readLatestHotelAvailabilitySnapshots(
     rows.map((row) => row.id),
   )
   const nights = computeNights(item.startDate, item.endDate)
+  const desiredOccupancy = Math.max(1, readReplacementHotelOccupancy(item) || 2)
   const exactMatchPriceCents = rows
     .flatMap((row) => {
+      const selectedOffer = selectHotelReplacementOffer(
+        offersByHotelId.get(row.id) || [],
+        desiredOccupancy,
+      )
+      if (!selectedOffer) return []
+
       const availability = availabilityByHotelId.get(row.id) || null
       const assessment = evaluateHotelAvailabilityContext({
         availability: availability
@@ -3166,12 +3375,25 @@ const buildHotelReplacementOptions = async (item: TripItemRecord): Promise<TripI
       })
 
       return assessment.match === 'exact' && assessment.unavailable !== true
-        ? [row.priceCents]
+        ? [
+          Math.max(
+            0,
+            Math.round(
+              selectedOffer.priceNightlyCents * Math.max(nights || 1, 1),
+            ),
+          ),
+        ]
         : []
     })
     .sort((left, right) => left - right)[0] ?? null
 
   return rows.flatMap((row) => {
+    const selectedOffer = selectHotelReplacementOffer(
+      offersByHotelId.get(row.id) || [],
+      desiredOccupancy,
+    )
+    if (!selectedOffer) return []
+
     const availability = availabilityByHotelId.get(row.id) || null
     const freshness = availability
       ? buildInventoryFreshness({
@@ -3198,33 +3420,35 @@ const buildHotelReplacementOptions = async (item: TripItemRecord): Promise<TripI
       freshness,
       ...assessment,
     })
+    const nightlyPriceCents = selectedOffer.priceNightlyCents
     const meta = [
       `${row.stars}-star stay`,
       `Rated ${row.rating}`,
-      row.freeCancellation ? 'Free cancellation' : null,
-      row.payLater ? 'Pay later' : null,
+      selectedOffer.name,
+      selectedOffer.refundable || row.freeCancellation ? 'Free cancellation' : null,
+      selectedOffer.payLater || row.payLater ? 'Pay later' : null,
     ].filter((entry): entry is string => Boolean(entry))
     const imageUrl = imageByHotelId.get(row.id) || null
     const priceDisplay = resolveReplacementPriceDisplay({
       itemType: 'hotel',
-      priceCents: row.priceCents,
-      currencyCode: row.currencyCode,
+      priceCents: nightlyPriceCents,
+      currencyCode: selectedOffer.currencyCode,
       startDate: item.startDate,
       endDate: item.endDate,
     })
     const displayedBaseCents = resolveDisplayedReplacementBaseCents(
       priceDisplay,
-      row.priceCents,
+      nightlyPriceCents,
     )
     const previewMetadata = {
-      previewCurrentPriceCents: row.priceCents,
-      previewCurrentCurrencyCode: row.currencyCode,
+      previewCurrentPriceCents: displayedBaseCents,
+      previewCurrentCurrencyCode: selectedOffer.currencyCode,
     }
     const metadata = buildReplacementCandidateMetadata({
       item,
       inventoryId: row.id,
       previewMetadata,
-      currencyCode: row.currencyCode,
+      currencyCode: selectedOffer.currencyCode,
       startDate: item.startDate,
       endDate: item.endDate,
       displayedBaseCents,
@@ -3240,14 +3464,15 @@ const buildHotelReplacementOptions = async (item: TripItemRecord): Promise<TripI
       hotelId: row.id,
       checkInDate: item.startDate || '1970-01-01',
       checkOutDate: item.endDate || item.startDate || '1970-01-02',
-      roomType: 'standard',
-      occupancy: '2',
+      roomType: selectedOffer.name,
+      occupancy: desiredOccupancy,
     })
     const reasons = [
       'Same city',
       item.startDate && item.endDate
         ? 'Keeps current stay dates'
         : 'Dates can stay unchanged',
+      `Sleeps ${selectedOffer.sleeps}`,
       nights != null ? `${nights} night${nights === 1 ? '' : 's'}` : null,
       availabilityConfidence.degraded ? availabilityConfidence.supportText : null,
     ].filter((entry): entry is string => Boolean(entry))
@@ -3260,8 +3485,8 @@ const buildHotelReplacementOptions = async (item: TripItemRecord): Promise<TripI
       subtitle: `${row.neighborhood} · ${row.cityName}`,
       imageUrl,
       meta,
-      priceCents: row.priceCents,
-      currencyCode: row.currencyCode,
+      priceCents: displayedBaseCents,
+      currencyCode: selectedOffer.currencyCode,
       startDate: item.startDate,
       endDate: item.endDate,
       candidate: {
@@ -3271,7 +3496,7 @@ const buildHotelReplacementOptions = async (item: TripItemRecord): Promise<TripI
         startDate: item.startDate || undefined,
         endDate: item.endDate || undefined,
         priceCents: displayedBaseCents,
-        currencyCode: row.currencyCode,
+        currencyCode: selectedOffer.currencyCode,
         title: row.name,
         subtitle: `${row.neighborhood} · ${row.cityName}`,
         imageUrl: imageUrl || undefined,
@@ -3288,6 +3513,7 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
 
   const db = getDb()
   const preferredLocationType = item.liveCarLocationType
+  const preferredVehicleClass = readReplacementCarVehicleClass(item)
   const pickupTypeRankSql =
     preferredLocationType === 'airport' || preferredLocationType === 'city'
       ? sql<number>`case when ${carLocations.locationType} = ${preferredLocationType} then 0 else 1 end`
@@ -3302,6 +3528,7 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
       id: carInventory.id,
       providerName: carProviders.name,
       cityName: cities.name,
+      locationId: carLocations.id,
       locationType: carLocations.locationType,
       locationName: carLocations.name,
       priceCents: carInventory.fromDailyCents,
@@ -3325,9 +3552,16 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
     .limit(12)
 
   const imageByInventoryId = await readPrimaryCarImages(rows.map((row) => row.id))
+  const offersByInventoryId = await buildCarReplacementOfferMap(rows.map((row) => row.id))
   const exactMatchPriceCents =
     rows
       .flatMap((row) => {
+        const selectedOffer = selectCarReplacementOffer(
+          offersByInventoryId.get(row.id) || [],
+          preferredVehicleClass,
+        )
+        if (!selectedOffer) return []
+
         const assessment = evaluateCarAvailabilityContext({
           availability: {
             pickupStart: row.availabilityStart,
@@ -3345,11 +3579,29 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
           return []
         }
 
-        return assessment.match === 'exact' ? [row.priceCents] : []
+        const priceDisplay = resolveReplacementPriceDisplay({
+          itemType: 'car',
+          priceCents: selectedOffer.priceDailyCents,
+          currencyCode: selectedOffer.currencyCode,
+          startDate: item.startDate,
+          endDate: item.endDate,
+        })
+        const displayedBaseCents = resolveDisplayedReplacementBaseCents(
+          priceDisplay,
+          selectedOffer.priceDailyCents,
+        )
+
+        return assessment.match === 'exact' ? [displayedBaseCents] : []
       })
       .sort((left, right) => left - right)[0] ?? null
 
   return rows.flatMap((row) => {
+    const selectedOffer = selectCarReplacementOffer(
+      offersByInventoryId.get(row.id) || [],
+      preferredVehicleClass,
+    )
+    if (!selectedOffer) return []
+
     const assessment = evaluateCarAvailabilityContext({
       availability: {
         pickupStart: row.availabilityStart,
@@ -3375,27 +3627,30 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
     const imageUrl = imageByInventoryId.get(row.id) || null
     const meta = [
       pickupLabel,
+      selectedOffer.vehicleClassCategory,
       `Rated ${row.rating}`,
-      row.freeCancellation ? 'Free cancellation' : null,
-      row.payAtCounter ? 'Pay at counter' : null,
+      selectedOffer.freeCancellation || row.freeCancellation
+        ? 'Free cancellation'
+        : null,
+      selectedOffer.payAtCounter || row.payAtCounter ? 'Pay at counter' : null,
     ].filter((entry): entry is string => Boolean(entry))
     const priceDisplay = resolveReplacementPriceDisplay({
       itemType: 'car',
-      priceCents: row.priceCents,
-      currencyCode: row.currencyCode,
+      priceCents: selectedOffer.priceDailyCents,
+      currencyCode: selectedOffer.currencyCode,
       startDate: item.startDate,
       endDate: item.endDate,
     })
     const displayedBaseCents = resolveDisplayedReplacementBaseCents(
       priceDisplay,
-      row.priceCents,
+      selectedOffer.priceDailyCents,
     )
     const previewMetadata = {
       previewAvailabilityStart: row.availabilityStart,
       previewAvailabilityEnd: row.availabilityEnd,
       previewBlockedWeekdays: toIntList(row.blockedWeekdays),
-      previewCurrentPriceCents: row.priceCents,
-      previewCurrentCurrencyCode: row.currencyCode,
+      previewCurrentPriceCents: displayedBaseCents,
+      previewCurrentCurrencyCode: selectedOffer.currencyCode,
       previewLocationName: row.locationName,
       previewLocationType: row.locationType,
       previewMaxDays: row.maxDays,
@@ -3405,7 +3660,7 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
       item,
       inventoryId: row.id,
       previewMetadata,
-      currencyCode: row.currencyCode,
+      currencyCode: selectedOffer.currencyCode,
       startDate: item.startDate,
       endDate: item.endDate,
       displayedBaseCents,
@@ -3418,16 +3673,20 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
       },
     })
     const inventoryId = buildCarInventoryId({
-      providerLocationId: row.id,
+      providerLocationId: row.locationId,
       pickupDateTime: `${item.startDate || '1970-01-01'}T10:00`,
       dropoffDateTime: `${item.endDate || item.startDate || '1970-01-02'}T10:00`,
-      vehicleClass: 'standard',
+      vehicleClass: selectedOffer.vehicleClassKey,
     })
     const reasons = [
       'Same city',
       pickupLabel,
+      selectedOffer.name,
       preferredLocationType && row.locationType === preferredLocationType
         ? 'Matches current pickup style'
+        : null,
+      preferredVehicleClass && selectedOffer.vehicleClassKey === preferredVehicleClass
+        ? 'Matches current vehicle class'
         : null,
       availabilityConfidence.degraded ? availabilityConfidence.supportText : null,
     ].filter((entry): entry is string => Boolean(entry))
@@ -3440,8 +3699,8 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
       subtitle: `${row.locationName} · ${row.cityName}`,
       imageUrl,
       meta,
-      priceCents: row.priceCents,
-      currencyCode: row.currencyCode,
+      priceCents: displayedBaseCents,
+      currencyCode: selectedOffer.currencyCode,
       startDate: item.startDate,
       endDate: item.endDate,
       candidate: {
@@ -3451,7 +3710,7 @@ const buildCarReplacementOptions = async (item: TripItemRecord): Promise<TripIte
         startDate: item.startDate || undefined,
         endDate: item.endDate || undefined,
         priceCents: displayedBaseCents,
-        currencyCode: row.currencyCode,
+        currencyCode: selectedOffer.currencyCode,
         title: row.providerName,
         subtitle: `${row.locationName} · ${row.cityName}`,
         imageUrl: imageUrl || undefined,
@@ -4065,6 +4324,23 @@ export async function listTrips(): Promise<TripListItem[]> {
   })
 }
 
+export async function deleteTrip(tripId: number): Promise<void> {
+  return withTripSchemaGuard(async () => {
+    const db = getDb()
+
+    await db.transaction(async (tx) => {
+      const deleted = await tx
+        .delete(trips)
+        .where(eq(trips.id, tripId))
+        .returning({ id: trips.id })
+
+      if (!deleted.length) {
+        throw new TripRepoError('trip_not_found', `Trip ${tripId} was not found.`)
+      }
+    })
+  })
+}
+
 export async function getTripDetails(
   tripId: number,
   options: {
@@ -4253,6 +4529,195 @@ export async function removeItemFromTrip(tripId: number, itemId: number): Promis
     }
 
     return details
+  })
+}
+
+export async function moveTripItemToTrip(
+  sourceTripId: number,
+  itemId: number,
+  targetTripId: number,
+): Promise<{
+  sourceTrip: TripDetails
+  targetTrip: TripDetails
+  targetAlreadyHadItem: boolean
+}> {
+  return withTripSchemaGuard(async () => {
+    if (sourceTripId === targetTripId) {
+      throw new TripRepoError(
+        'invalid_edit',
+        `Trip item ${itemId} is already on trip ${targetTripId}.`,
+      )
+    }
+
+    const db = getDb()
+    let targetAlreadyHadItem = false
+
+    await db.transaction(async (tx) => {
+      await assertTripExists(tx, sourceTripId)
+      await assertTripExists(tx, targetTripId)
+
+      const sourceRows = await tx
+        .select({
+          id: tripItems.id,
+          itemType: tripItems.itemType,
+          inventoryId: tripItems.inventoryId,
+          bookingSessionId: tripItems.bookingSessionId,
+          hotelId: tripItems.hotelId,
+          flightItineraryId: tripItems.flightItineraryId,
+          carInventoryId: tripItems.carInventoryId,
+          startCityId: tripItems.startCityId,
+          endCityId: tripItems.endCityId,
+          startDate: tripItems.startDate,
+          endDate: tripItems.endDate,
+          snapshotPriceCents: tripItems.snapshotPriceCents,
+          snapshotCurrencyCode: tripItems.snapshotCurrencyCode,
+          snapshotTimestamp: tripItems.snapshotTimestamp,
+          title: tripItems.title,
+          subtitle: tripItems.subtitle,
+          imageUrl: tripItems.imageUrl,
+          meta: tripItems.meta,
+          metadata: tripItems.metadata,
+          inventorySnapshotProviderInventoryId: tripItemInventorySnapshots.providerInventoryId,
+          inventorySnapshotHotelAvailabilitySnapshotId:
+            tripItemInventorySnapshots.hotelAvailabilitySnapshotId,
+          inventorySnapshotBookableEntity: tripItemInventorySnapshots.bookableEntity,
+          inventorySnapshotAvailability: tripItemInventorySnapshots.availabilitySnapshot,
+        })
+        .from(tripItems)
+        .leftJoin(
+          tripItemInventorySnapshots,
+          eq(tripItemInventorySnapshots.tripItemId, tripItems.id),
+        )
+        .where(and(eq(tripItems.tripId, sourceTripId), eq(tripItems.id, itemId)))
+        .limit(1)
+
+      const sourceItem = sourceRows[0]
+      if (!sourceItem) {
+        throw new TripRepoError(
+          'trip_item_not_found',
+          `Trip item ${itemId} was not found on trip ${sourceTripId}.`,
+        )
+      }
+
+      const duplicateRows = await tx
+        .select({ id: tripItems.id })
+        .from(tripItems)
+        .where(
+          and(
+            eq(tripItems.tripId, targetTripId),
+            eq(tripItems.inventoryId, sourceItem.inventoryId),
+          ),
+        )
+        .limit(1)
+
+      targetAlreadyHadItem = Boolean(duplicateRows[0]?.id)
+
+      if (!targetAlreadyHadItem) {
+        const [positionRow] = await tx
+          .select({
+            maxPosition: sql<number>`coalesce(max(${tripItems.position}), -1)::int`,
+          })
+          .from(tripItems)
+          .where(eq(tripItems.tripId, targetTripId))
+
+        const nextPosition = (positionRow?.maxPosition ?? -1) + 1
+        const [insertedItem] = await tx
+          .insert(tripItems)
+          .values({
+            tripId: targetTripId,
+            itemType: sourceItem.itemType,
+            inventoryId: sourceItem.inventoryId,
+            bookingSessionId: sourceItem.bookingSessionId,
+            position: nextPosition,
+            hotelId: sourceItem.hotelId,
+            flightItineraryId: sourceItem.flightItineraryId,
+            carInventoryId: sourceItem.carInventoryId,
+            startCityId: sourceItem.startCityId,
+            endCityId: sourceItem.endCityId,
+            startDate: sourceItem.startDate,
+            endDate: sourceItem.endDate,
+            snapshotPriceCents: sourceItem.snapshotPriceCents,
+            snapshotCurrencyCode: sourceItem.snapshotCurrencyCode,
+            snapshotTimestamp: sourceItem.snapshotTimestamp,
+            title: sourceItem.title,
+            subtitle: sourceItem.subtitle,
+            imageUrl: sourceItem.imageUrl,
+            meta: normalizeMeta(sourceItem.meta),
+            metadata: normalizeMetadata(sourceItem.metadata),
+          })
+          .returning({ id: tripItems.id })
+
+        const metadata = normalizeMetadata(sourceItem.metadata)
+        await tx.insert(tripItemInventorySnapshots).values({
+          tripItemId: insertedItem.id,
+          itemType: sourceItem.itemType,
+          inventoryId: sourceItem.inventoryId,
+          providerInventoryId:
+            toPositiveInteger(sourceItem.inventorySnapshotProviderInventoryId) ||
+            resolveStoredProviderInventoryId({
+              itemType: sourceItem.itemType,
+              hotelId: sourceItem.hotelId,
+              flightItineraryId: sourceItem.flightItineraryId,
+              carInventoryId: sourceItem.carInventoryId,
+            }) ||
+            toPositiveInteger(metadata[TRIP_ITEM_PROVIDER_INVENTORY_ID_KEY]) ||
+            null,
+          hotelAvailabilitySnapshotId:
+            sourceItem.inventorySnapshotHotelAvailabilitySnapshotId,
+          bookableEntity: isRecord(sourceItem.inventorySnapshotBookableEntity)
+            ? sourceItem.inventorySnapshotBookableEntity
+            : {},
+          availabilitySnapshot: isRecord(sourceItem.inventorySnapshotAvailability)
+            ? sourceItem.inventorySnapshotAvailability
+            : {},
+        })
+      }
+
+      const deleted = await tx
+        .delete(tripItems)
+        .where(and(eq(tripItems.tripId, sourceTripId), eq(tripItems.id, itemId)))
+        .returning({ id: tripItems.id })
+
+      if (!deleted.length) {
+        throw new TripRepoError(
+          'trip_item_not_found',
+          `Trip item ${itemId} was not found on trip ${sourceTripId}.`,
+        )
+      }
+
+      await normalizeTripItemPositions(tx, sourceTripId)
+      await syncTripDatesIfAuto(tx, sourceTripId)
+      if (!targetAlreadyHadItem) {
+        await syncTripDatesIfAuto(tx, targetTripId)
+      }
+      await touchTrip(tx, sourceTripId)
+      await touchTrip(tx, targetTripId)
+    })
+
+    const [sourceTrip, targetTrip] = await Promise.all([
+      getTripDetails(sourceTripId),
+      getTripDetails(targetTripId),
+    ])
+
+    if (!sourceTrip) {
+      throw new TripRepoError(
+        'trip_not_found',
+        `Trip ${sourceTripId} was not found after moving its item.`,
+      )
+    }
+
+    if (!targetTrip) {
+      throw new TripRepoError(
+        'trip_not_found',
+        `Trip ${targetTripId} was not found after receiving a moved item.`,
+      )
+    }
+
+    return {
+      sourceTrip,
+      targetTrip,
+      targetAlreadyHadItem,
+    }
   })
 }
 

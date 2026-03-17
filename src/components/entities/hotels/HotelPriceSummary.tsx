@@ -4,6 +4,7 @@ import type {
   HotelEntityCtaModel,
   HotelPriceSummaryModel,
 } from "~/types/hotel-entity-page";
+import type { BookableEntity } from "~/types/bookable-entity";
 
 export const HotelPriceSummary = component$((props: HotelPriceSummaryProps) => {
   return (
@@ -75,7 +76,11 @@ export const HotelPriceSummary = component$((props: HotelPriceSummaryProps) => {
         </p>
       ) : null}
 
-      <BookableEntityAddToTripForm cta={props.cta} vertical="hotel" />
+      <BookableEntityAddToTripForm
+        cta={props.cta}
+        entity={props.entity}
+        vertical="hotel"
+      />
     </aside>
   );
 });
@@ -83,4 +88,5 @@ export const HotelPriceSummary = component$((props: HotelPriceSummaryProps) => {
 type HotelPriceSummaryProps = {
   price: HotelPriceSummaryModel;
   cta: HotelEntityCtaModel;
+  entity: BookableEntity;
 };

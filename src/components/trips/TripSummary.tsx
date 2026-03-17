@@ -74,11 +74,11 @@ export const TripSummary = component$(
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                Continue booking later
+                Manage this trip
               </p>
               <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                This page reads persisted trip state. Editing and mutation hooks
-                attach in the next milestone tasks.
+                Open the trip builder to update status, move items between
+                trips, or delete this plan.
               </p>
             </div>
 
@@ -87,7 +87,7 @@ export const TripSummary = component$(
                 href={summary.continueHref}
                 class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm font-medium text-[color:var(--color-text-strong)] hover:border-[color:var(--color-text-strong)]"
               >
-                Continue later
+                Open builder
               </a>
               {summary.futureActions.map((action) => (
                 <button

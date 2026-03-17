@@ -4,6 +4,7 @@ import type {
   FlightEntityCtaModel,
   FlightFareSummaryModel,
 } from "~/types/flight-entity-page";
+import type { BookableEntity } from "~/types/bookable-entity";
 
 export const FlightFareSummary = component$((props: FlightFareSummaryProps) => {
   return (
@@ -96,7 +97,11 @@ export const FlightFareSummary = component$((props: FlightFareSummaryProps) => {
         ) : null}
       </div>
 
-      <BookableEntityAddToTripForm cta={props.cta} vertical="flight" />
+      <BookableEntityAddToTripForm
+        cta={props.cta}
+        entity={props.entity}
+        vertical="flight"
+      />
     </aside>
   );
 });
@@ -104,4 +109,5 @@ export const FlightFareSummary = component$((props: FlightFareSummaryProps) => {
 type FlightFareSummaryProps = {
   fare: FlightFareSummaryModel;
   cta: FlightEntityCtaModel;
+  entity: BookableEntity;
 };

@@ -28,7 +28,9 @@ const CABIN_OPTIONS = [
 
 const normalizeTravelerValue = (value: string | null | undefined) => {
   const normalized = String(value || "").trim();
-  return TRAVELER_OPTIONS.includes(normalized as (typeof TRAVELER_OPTIONS)[number])
+  return TRAVELER_OPTIONS.includes(
+    normalized as (typeof TRAVELER_OPTIONS)[number],
+  )
     ? normalized
     : "1";
 };
@@ -67,16 +69,20 @@ const requestCurrentCoordinates = () =>
 
 const resolveDefaultOriginLocation = async () => {
   const coordinates = await requestCurrentCoordinates();
-  const discovered = coordinates
-    ? await discoverLocations({
-        limit: 1,
-        latitude: coordinates.latitude,
-        longitude: coordinates.longitude,
-      }).catch(() => [])
-    : await discoverLocations({ limit: 1 }).catch(() => []);
+  if (!coordinates) {
+    return null;
+  }
+
+  const discovered = await discoverLocations({
+    limit: 1,
+    latitude: coordinates.latitude,
+    longitude: coordinates.longitude,
+  }).catch(() => []);
 
   return discovered[0] || null;
 };
+
+type FlightOriginAutofillStatus = "idle" | "locating" | "unavailable";
 
 export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
   const fromLocation = useSignal<CanonicalLocation | null>(
@@ -99,9 +105,9 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
   const travelers = useSignal(normalizeTravelerValue(props.initialTravelers));
   const cabin = useSignal(normalizeCabinValue(props.initialCabin));
   const hasSubmitted = useSignal(false);
-  const defaultOriginResolution = useSignal<Promise<CanonicalLocation | null> | null>(
-    null,
-  );
+  const defaultOriginResolution =
+    useSignal<Promise<CanonicalLocation | null> | null>(null);
+  const originAutofillStatus = useSignal<FlightOriginAutofillStatus>("idle");
   const todayIsoDate = getTodayIsoDate();
   const tomorrowIsoDate = addDays(todayIsoDate, 1) || todayIsoDate;
   const minimumReturnDate =
@@ -125,35 +131,82 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
   const surface = props.surface ?? "card";
 
   // eslint-disable-next-line qwik/no-use-visible-task
-  useVisibleTask$(({ track }) => {
-    const autoResolveOrigin = track(() => props.autoResolveOriginLocation === true);
+  useVisibleTask$(({ track, cleanup }) => {
+    const autoResolveOrigin = track(
+      () => props.autoResolveOriginLocation === true,
+    );
     const currentFrom = track(() => from.value);
     const currentFromLocation = track(() => fromLocation.value);
 
-    if (
-      !autoResolveOrigin ||
-      defaultOriginResolution.value ||
-      String(currentFrom || "").trim() ||
-      currentFromLocation
-    ) {
+    if (!autoResolveOrigin) {
+      originAutofillStatus.value = "idle";
       return;
     }
 
+    if (String(currentFrom || "").trim() || currentFromLocation) {
+      originAutofillStatus.value = "idle";
+      return;
+    }
+
+    if (defaultOriginResolution.value) {
+      return;
+    }
+
+    let cancelled = false;
+    originAutofillStatus.value = "locating";
+
     const pendingResolution = resolveDefaultOriginLocation()
       .then((location) => {
+        if (cancelled) return null;
+
+        const hasOriginValue =
+          Boolean(String(from.value || "").trim()) ||
+          Boolean(fromLocation.value);
         if (!location) return null;
-        if (String(from.value || "").trim() || fromLocation.value) {
+
+        if (hasOriginValue) {
+          originAutofillStatus.value = "idle";
           return location;
         }
 
         fromLocation.value = location;
         from.value = location.displayName;
+        originAutofillStatus.value = "idle";
         return location;
       })
-      .catch(() => null);
+      .catch(() => null)
+      .then((location) => {
+        if (cancelled) return null;
+
+        if (
+          !location &&
+          !String(from.value || "").trim() &&
+          !fromLocation.value
+        ) {
+          originAutofillStatus.value = "unavailable";
+        }
+
+        return location;
+      });
 
     defaultOriginResolution.value = pendingResolution;
+
+    cleanup(() => {
+      cancelled = true;
+    });
   });
+
+  const showOriginAutofillNotice =
+    props.autoResolveOriginLocation &&
+    !String(from.value || "").trim() &&
+    !fromLocation.value &&
+    originAutofillStatus.value !== "idle";
+  const originAutofillNotice =
+    originAutofillStatus.value === "locating"
+      ? "Using current location..."
+      : originAutofillStatus.value === "unavailable"
+        ? "Location unavailable. Enter a city or airport."
+        : "";
 
   const content = (
     <>
@@ -262,7 +315,16 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
             inputClass={BOOKING_SEARCH_CONTROL_CLASS}
             ariaLabel="Origin city or airport"
             required={true}
+            enableGeolocationDiscovery={!props.autoResolveOriginLocation}
           />
+          {showOriginAutofillNotice ? (
+            <p
+              class="mt-1 text-xs text-[color:var(--color-text-muted)]"
+              aria-live="polite"
+            >
+              {originAutofillNotice}
+            </p>
+          ) : null}
         </BookingSearchField>
 
         <BookingSearchField label="To" forId="flight-to" class="md:col-span-2">
@@ -276,6 +338,7 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
             inputClass={BOOKING_SEARCH_CONTROL_CLASS}
             ariaLabel="Destination city or airport"
             required={true}
+            enableGeolocationDiscovery={!props.autoResolveOriginLocation}
           />
         </BookingSearchField>
 

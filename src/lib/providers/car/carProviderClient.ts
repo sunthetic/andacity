@@ -553,9 +553,14 @@ const loadResolvedOfferRow = async (
     if (!resolved) return null
 
     const parsedLocationId = toPositiveInteger(lookup.parsedInventory.providerLocationId)
+    const isLegacyInventoryLocationEncoding =
+      parsedLocationId != null &&
+      parsedLocationId === providerInventoryId &&
+      targetVehicleClass === 'standard'
     if (
       parsedLocationId != null &&
-      resolved.providerLocationId !== parsedLocationId
+      resolved.providerLocationId !== parsedLocationId &&
+      !isLegacyInventoryLocationEncoding
     ) {
       return null
     }

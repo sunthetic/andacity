@@ -166,7 +166,8 @@ export const readAddToTripErrorNotice = (
 export const buildAddToTripSuccessHref = (input: {
   tripId: number;
 }) => {
-  const url = new URL(`/trips/${input.tripId}`, "https://andacity.test");
+  const url = new URL("/trips", "https://andacity.test");
+  url.searchParams.set(ADD_TO_TRIP_CONTEXT_QUERY_PARAM, String(input.tripId));
   url.searchParams.set(ADD_TO_TRIP_SUCCESS_QUERY_PARAM, "1");
   return `${url.pathname}${url.search}`;
 };

@@ -73,6 +73,8 @@ const toResult = (
 
   return {
     id: `car-${row.slug}-${index}`,
+    inventoryId: row.id,
+    locationId: row.locationId,
     slug: row.slug,
     name: row.providerName,
     city: row.cityName,
@@ -139,6 +141,7 @@ export async function loadCarRentalBySlugFromDb(slug: string): Promise<CarRental
 
   return {
     inventoryId: row.id,
+    locationId: row.locationId,
     slug: row.slug,
     name: row.providerName,
     city: row.cityName,

@@ -26,6 +26,12 @@ const headerToneClass = (tone: "neutral" | "warning" | "critical") => {
 
 export const HotelEntityPage = component$((props: HotelEntityPageProps) => {
   const model = mapHotelEntityPageForUi(props.page);
+  const entity =
+    props.page.kind === "resolved" ||
+    props.page.kind === "unavailable" ||
+    props.page.kind === "revalidation_required"
+      ? props.page.entity
+      : null;
 
   return (
     <Page breadcrumbs={model.breadcrumbs}>
@@ -45,7 +51,9 @@ export const HotelEntityPage = component$((props: HotelEntityPageProps) => {
           <p class="mt-3 max-w-[78ch] text-sm leading-6 text-[color:var(--color-text-muted)] lg:text-base">
             {model.header.description}
           </p>
-          <EntitySearchFlowLinks searchHref={getBookableEntitySearchHref("hotel")} />
+          <EntitySearchFlowLinks
+            searchHref={getBookableEntitySearchHref("hotel")}
+          />
         </section>
 
         {model.errorState ? (
@@ -60,10 +68,18 @@ export const HotelEntityPage = component$((props: HotelEntityPageProps) => {
           </section>
         ) : null}
 
-        {!model.errorState && model.summary && model.priceSummary && model.cta ? (
+        {!model.errorState &&
+        model.summary &&
+        model.priceSummary &&
+        model.cta &&
+        entity ? (
           <section class="mt-6 grid gap-4 lg:grid-cols-[1.45fr,0.95fr]">
             <HotelEntitySummary summary={model.summary} status={model.status} />
-            <HotelPriceSummary price={model.priceSummary} cta={model.cta} />
+            <HotelPriceSummary
+              price={model.priceSummary}
+              cta={model.cta}
+              entity={entity}
+            />
           </section>
         ) : null}
 

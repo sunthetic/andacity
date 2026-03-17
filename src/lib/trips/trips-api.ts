@@ -125,6 +125,25 @@ export const removeTripItemApi = async (tripId: number, itemId: number): Promise
   return payload.trip
 }
 
+export const moveTripItemToTripApi = async (
+  tripId: number,
+  itemId: number,
+  targetTripId: number,
+): Promise<{
+  sourceTrip: TripDetails
+  targetTrip: TripDetails
+  targetAlreadyHadItem: boolean
+}> => {
+  return requestJson<{
+    sourceTrip: TripDetails
+    targetTrip: TripDetails
+    targetAlreadyHadItem: boolean
+  }>(`/api/trips/${tripId}/items/${itemId}/move`, {
+    method: 'POST',
+    body: JSON.stringify({ targetTripId }),
+  })
+}
+
 export const updateTripItemApi = async (
   tripId: number,
   itemId: number,
@@ -241,6 +260,13 @@ export const updateTripMetadataApi = async (
     body: JSON.stringify(input || {}),
   })
   return payload.trip
+}
+
+export const deleteTripApi = async (tripId: number): Promise<number> => {
+  const payload = await requestJson<{ deletedTripId: number }>(`/api/trips/${tripId}`, {
+    method: 'DELETE',
+  })
+  return payload.deletedTripId
 }
 
 export const restoreTripRollbackDraftApi = async (

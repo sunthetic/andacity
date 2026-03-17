@@ -1,5 +1,5 @@
-import type { AvailabilityConfidenceModel } from '~/lib/inventory/availability-confidence'
-import type { InventoryFreshnessModel } from '~/lib/inventory/freshness'
+import type { AvailabilityConfidenceModel } from "~/lib/inventory/availability-confidence";
+import type { InventoryFreshnessModel } from "~/lib/inventory/freshness";
 import { generateCarRentalsInventory } from "~/seed/generators/generate-cars.js";
 
 export const CAR_RENTALS: CarRental[] = (
@@ -70,6 +70,7 @@ export type CarRentalAvailability = {
 
 export type CarRental = {
   inventoryId?: number;
+  locationId?: number;
   slug: string;
   name: string;
   city: string;

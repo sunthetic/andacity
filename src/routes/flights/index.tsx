@@ -118,6 +118,7 @@ export default component$(() => {
           initialReturn={ret}
           initialTravelers={travelers}
           initialCabin={cabin}
+          autoResolveOriginLocation={true}
         />
       }
     >

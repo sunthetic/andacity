@@ -28,6 +28,12 @@ export const CarEntityPage = component$((props: CarEntityPageProps) => {
   const model = mapCarEntityPageForUi(props.page, {
     searchContextCityName: props.searchContextCityName,
   });
+  const entity =
+    props.page.kind === "resolved" ||
+    props.page.kind === "unavailable" ||
+    props.page.kind === "revalidation_required"
+      ? props.page.entity
+      : null;
 
   return (
     <Page breadcrumbs={model.breadcrumbs}>
@@ -47,7 +53,9 @@ export const CarEntityPage = component$((props: CarEntityPageProps) => {
           <p class="mt-3 max-w-[78ch] text-sm leading-6 text-[color:var(--color-text-muted)] lg:text-base">
             {model.header.description}
           </p>
-          <EntitySearchFlowLinks searchHref={getBookableEntitySearchHref("car")} />
+          <EntitySearchFlowLinks
+            searchHref={getBookableEntitySearchHref("car")}
+          />
         </section>
 
         {model.errorState ? (
@@ -62,10 +70,18 @@ export const CarEntityPage = component$((props: CarEntityPageProps) => {
           </section>
         ) : null}
 
-        {!model.errorState && model.summary && model.priceSummary && model.cta ? (
+        {!model.errorState &&
+        model.summary &&
+        model.priceSummary &&
+        model.cta &&
+        entity ? (
           <section class="mt-6 grid gap-4 lg:grid-cols-[1.45fr,0.95fr]">
             <CarEntitySummary summary={model.summary} status={model.status} />
-            <CarPriceSummary price={model.priceSummary} cta={model.cta} />
+            <CarPriceSummary
+              price={model.priceSummary}
+              cta={model.cta}
+              entity={entity}
+            />
           </section>
         ) : null}
 

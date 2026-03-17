@@ -32,11 +32,15 @@ export const VerticalHeroSearchLayout = component$(
                 <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-on-hero-muted)] md:text-base">
                   {props.description}
                 </p>
+              </div>
 
-                <div class="mt-6">{props.searchCard}</div>
+              <div class="mt-6 mx-auto max-w-5xl text-left">
+                {props.searchCard}
+              </div>
 
-                {props.helperLinks?.length ? (
-                  <div class="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm text-[color:var(--color-text-on-hero-muted)]">
+              {props.helperLinks?.length ? (
+                <div class="mt-4 mx-auto max-w-5xl">
+                  <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm text-[color:var(--color-text-on-hero-muted)]">
                     <span>Popular:</span>
 
                     {props.helperLinks.map((link) => (
@@ -49,8 +53,8 @@ export const VerticalHeroSearchLayout = component$(
                       </a>
                     ))}
                   </div>
-                ) : null}
-              </div>
+                </div>
+              ) : null}
             </div>
           </HeroBackground>
         </section>

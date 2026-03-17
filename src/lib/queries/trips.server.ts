@@ -32,6 +32,10 @@ type ParsedUpdateTripItemInput = {
   candidate?: TripItemCandidate
 }
 
+type ParsedMoveTripItemInput = {
+  targetTripId: number
+}
+
 type ParsedTripEditPreviewInput =
   | {
       actionType: Extract<TripEditPreviewActionType, 'reorder'>
@@ -218,6 +222,16 @@ export const parseUpdateTripItemInput = (body: unknown): ParsedUpdateTripItemInp
   return {
     locked,
     candidate: candidate || undefined,
+  }
+}
+
+export const parseMoveTripItemInput = (body: unknown): ParsedMoveTripItemInput | null => {
+  const obj = isRecord(body) ? body : {}
+  const targetTripId = toOptionalInt(obj.targetTripId)
+  if (targetTripId == null || targetTripId < 1) return null
+
+  return {
+    targetTripId,
   }
 }
 

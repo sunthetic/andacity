@@ -27,6 +27,12 @@ export const FlightEntityPage = component$((props: FlightEntityPageProps) => {
   const model = mapFlightEntityPageForUi(props.page, {
     airportLookup: props.airportLookup,
   });
+  const entity =
+    props.page.kind === "resolved" ||
+    props.page.kind === "unavailable" ||
+    props.page.kind === "revalidation_required"
+      ? props.page.entity
+      : null;
 
   return (
     <Page breadcrumbs={model.breadcrumbs}>
@@ -46,7 +52,9 @@ export const FlightEntityPage = component$((props: FlightEntityPageProps) => {
           <p class="mt-3 max-w-[78ch] text-sm leading-6 text-[color:var(--color-text-muted)] lg:text-base">
             {model.header.description}
           </p>
-          <EntitySearchFlowLinks searchHref={getBookableEntitySearchHref("flight")} />
+          <EntitySearchFlowLinks
+            searchHref={getBookableEntitySearchHref("flight")}
+          />
         </section>
 
         {model.errorState ? (
@@ -61,10 +69,21 @@ export const FlightEntityPage = component$((props: FlightEntityPageProps) => {
           </section>
         ) : null}
 
-        {!model.errorState && model.summary && model.fareSummary && model.cta ? (
+        {!model.errorState &&
+        model.summary &&
+        model.fareSummary &&
+        model.cta &&
+        entity ? (
           <section class="mt-6 grid gap-4 lg:grid-cols-[1.5fr,0.95fr]">
-            <FlightEntitySummary summary={model.summary} status={model.status} />
-            <FlightFareSummary fare={model.fareSummary} cta={model.cta} />
+            <FlightEntitySummary
+              summary={model.summary}
+              status={model.status}
+            />
+            <FlightFareSummary
+              fare={model.fareSummary}
+              cta={model.cta}
+              entity={entity}
+            />
           </section>
         ) : null}
 

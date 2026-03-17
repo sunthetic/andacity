@@ -4,6 +4,7 @@ import type {
   CarEntityCtaModel,
   CarPriceSummaryModel,
 } from "~/types/car-entity-page";
+import type { BookableEntity } from "~/types/bookable-entity";
 
 export const CarPriceSummary = component$((props: CarPriceSummaryProps) => {
   return (
@@ -75,7 +76,11 @@ export const CarPriceSummary = component$((props: CarPriceSummaryProps) => {
         </p>
       ) : null}
 
-      <BookableEntityAddToTripForm cta={props.cta} vertical="car" />
+      <BookableEntityAddToTripForm
+        cta={props.cta}
+        entity={props.entity}
+        vertical="car"
+      />
     </aside>
   );
 });
@@ -83,4 +88,5 @@ export const CarPriceSummary = component$((props: CarPriceSummaryProps) => {
 type CarPriceSummaryProps = {
   price: CarPriceSummaryModel;
   cta: CarEntityCtaModel;
+  entity: BookableEntity;
 };

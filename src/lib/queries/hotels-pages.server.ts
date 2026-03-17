@@ -1,6 +1,9 @@
+import { asc, inArray } from 'drizzle-orm'
 import { buildAvailabilityConfidence } from '~/lib/inventory/availability-confidence'
 import type { HotelCity } from '~/data/hotel-cities'
 import type { Hotel, Room } from '~/data/hotels'
+import { getDb } from '~/lib/db/client.server'
+import { hotelOffers } from '~/lib/db/schema'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import {
   countHotels,
@@ -75,7 +78,59 @@ const defaultHotelFaq = (hotelName: string, city: string) => [
   },
 ]
 
-const mapCityHotelRowToHotel = (row: HotelListRow): Hotel => {
+const loadRoomsByHotelId = async (hotelIds: number[]) => {
+  const ids = Array.from(new Set(hotelIds.filter((hotelId) => hotelId > 0)))
+  if (!ids.length) return new Map<number, Room[]>()
+
+  const db = getDb()
+  const rows = await db
+    .select({
+      hotelId: hotelOffers.hotelId,
+      externalOfferId: hotelOffers.externalOfferId,
+      name: hotelOffers.name,
+      sleeps: hotelOffers.sleeps,
+      beds: hotelOffers.beds,
+      sizeSqft: hotelOffers.sizeSqft,
+      priceNightlyCents: hotelOffers.priceNightlyCents,
+      refundable: hotelOffers.refundable,
+      payLater: hotelOffers.payLater,
+      badges: hotelOffers.badges,
+      features: hotelOffers.features,
+    })
+    .from(hotelOffers)
+    .where(inArray(hotelOffers.hotelId, ids))
+    .orderBy(
+      asc(hotelOffers.hotelId),
+      asc(hotelOffers.priceNightlyCents),
+      asc(hotelOffers.id),
+    )
+
+  const roomsByHotelId = new Map<number, Room[]>()
+  for (const row of rows) {
+    const room: Room = {
+      id: row.externalOfferId,
+      name: row.name,
+      sleeps: row.sleeps,
+      beds: row.beds,
+      sizeSqft: row.sizeSqft,
+      priceFrom: toMoneyAmount(row.priceNightlyCents),
+      refundable: row.refundable,
+      payLater: row.payLater,
+      badges: row.badges || [],
+      features: row.features || [],
+    }
+    const existing = roomsByHotelId.get(row.hotelId)
+    if (existing) {
+      existing.push(room)
+      continue
+    }
+    roomsByHotelId.set(row.hotelId, [room])
+  }
+
+  return roomsByHotelId
+}
+
+const mapCityHotelRowToHotel = (row: HotelListRow, rooms: Room[] = []): Hotel => {
   const freshness = buildInventoryFreshness({
     checkedAt: row.freshnessTimestamp,
     profile: 'inventory_snapshot',
@@ -111,7 +166,7 @@ const mapCityHotelRowToHotel = (row: HotelListRow): Hotel => {
       paymentBlurb: row.paymentBlurb,
       feesBlurb: row.feesBlurb,
     }),
-    rooms: [],
+    rooms,
     faq: defaultHotelFaq(row.name, row.cityName),
     availabilityConfidence: buildAvailabilityConfidence({
       freshness,
@@ -194,7 +249,8 @@ export async function loadHotelBySlugFromDb(slug: string): Promise<Hotel | null>
 
 export async function loadHotelsForCityFromDb(citySlug: string): Promise<Hotel[]> {
   const rows = await listHotelsByCitySlug(citySlug)
-  return rows.map(mapCityHotelRowToHotel)
+  const roomsByHotelId = await loadRoomsByHotelId(rows.map((row) => row.id))
+  return rows.map((row) => mapCityHotelRowToHotel(row, roomsByHotelId.get(row.id) || []))
 }
 
 const mapCitySummaryToHotelCity = (row: Awaited<ReturnType<typeof getHotelCitySummaryBySlug>>) => {
