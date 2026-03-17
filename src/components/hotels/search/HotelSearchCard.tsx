@@ -1,4 +1,5 @@
 import { component$, useSignal } from "@builder.io/qwik";
+import { useNavigate } from "@builder.io/qwik-city";
 import {
   BOOKING_SEARCH_CONTROL_CLASS,
   BookingSearchField,
@@ -9,10 +10,12 @@ import { DateField } from "~/components/ui/DateField";
 import { LocationAutosuggestField } from "~/components/ui/LocationAutosuggestField";
 import { getTodayIsoDate, normalizeIsoDate } from "~/lib/date/validateDate";
 import { addDays } from "~/lib/trips/date-utils";
+import { buildCanonicalHotelSearchHref } from "~/lib/search/entry-routes";
 import { validateLocationSelection } from "~/lib/location/validateLocationSelection";
 import type { CanonicalLocation } from "~/types/location";
 
 export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
+  const navigate = useNavigate();
   const destinationLocation = useSignal<CanonicalLocation | null>(
     props.initialDestinationLocation ?? null,
   );
@@ -39,25 +42,42 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
     guests: guests.value,
   });
   const isValid = errors.length === 0;
+  const submitBehavior = props.submitBehavior ?? "form-submit";
+  const surface = props.surface ?? "card";
 
-  return (
-    <BookingSearchSurface>
+  const content = (
+    <>
       <form
         action={props.action ?? "/hotels"}
         method="get"
         preventdefault:submit
         noValidate
-        onSubmit$={(_, form) => {
+        onSubmit$={async (_, form) => {
           hasSubmitted.value = true;
           const snapshot = readSnapshot(form);
           const submitErrors = validateSnapshot(snapshot);
           if (submitErrors.length) return;
+
+          if (!snapshot.destinationLocation) return;
 
           destination.value = snapshot.destination;
           destinationLocation.value = snapshot.destinationLocation;
           checkIn.value = snapshot.checkIn;
           checkOut.value = snapshot.checkOut;
           guests.value = snapshot.guests;
+
+          if (submitBehavior === "canonical-route") {
+            await navigate(
+              buildCanonicalHotelSearchHref({
+                destinationLocation: snapshot.destinationLocation,
+                checkIn: snapshot.checkIn,
+                checkOut: snapshot.checkOut,
+                guests: snapshot.guests,
+              }),
+            );
+            return;
+          }
+
           form.submit();
         }}
         class="grid gap-3 md:grid-cols-[minmax(0,2.65fr)_minmax(10rem,0.95fr)_minmax(10rem,0.95fr)_minmax(170px,0.85fr)_auto]"
@@ -130,8 +150,14 @@ export const HotelSearchCard = component$((props: HotelSearchCardProps) => {
       </form>
 
       <BookingValidationSummary errors={errors} show={hasSubmitted.value} />
-    </BookingSearchSurface>
+    </>
   );
+
+  if (surface === "plain") {
+    return content;
+  }
+
+  return <BookingSearchSurface>{content}</BookingSearchSurface>;
 });
 
 type HotelSearchCardProps = {
@@ -141,6 +167,8 @@ type HotelSearchCardProps = {
   initialCheckIn?: string;
   initialCheckOut?: string;
   initialGuests?: string;
+  surface?: "card" | "plain";
+  submitBehavior?: "form-submit" | "canonical-route";
 };
 
 type HotelSubmitSnapshot = {
@@ -181,8 +209,16 @@ const validateSnapshot = (snapshot: HotelSubmitSnapshot) => {
       1,
     ) || todayIsoDate;
 
-  if (!snapshot.destinationLocation) {
-    validationErrors.push("Choose a destination from the suggestions.");
+  const destinationSelection = validateLocationSelection({
+    selection: snapshot.destinationLocation,
+    rawValue: snapshot.destination,
+    required: true,
+    fieldLabel: "destination",
+    allowedKinds: ["city", "airport"],
+  });
+
+  if (destinationSelection.error) {
+    validationErrors.push(destinationSelection.error);
   }
 
   if (!checkInDate) {

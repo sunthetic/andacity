@@ -1,4 +1,5 @@
 import { component$, useSignal } from "@builder.io/qwik";
+import { useNavigate } from "@builder.io/qwik-city";
 import {
   BOOKING_SEARCH_CONTROL_CLASS,
   BookingSearchField,
@@ -9,11 +10,13 @@ import { DateField } from "~/components/ui/DateField";
 import { LocationAutosuggestField } from "~/components/ui/LocationAutosuggestField";
 import { getTodayIsoDate, normalizeIsoDate } from "~/lib/date/validateDate";
 import { addDays } from "~/lib/trips/date-utils";
+import { buildCanonicalCarSearchHref } from "~/lib/search/entry-routes";
 import { validateLocationSelection } from "~/lib/location/validateLocationSelection";
 import type { CanonicalLocation } from "~/types/location";
 
 export const CarRentalSearchCard = component$(
   (props: CarRentalSearchCardProps) => {
+    const navigate = useNavigate();
     const variant = props.variant || "stacked";
     const pickupLocation = useSignal<CanonicalLocation | null>(
       props.initialPickupLocation ?? null,
@@ -40,9 +43,11 @@ export const CarRentalSearchCard = component$(
       drivers: drivers.value,
     });
     const isValid = errors.length === 0;
+    const submitBehavior = props.submitBehavior ?? "form-submit";
+    const surface = props.surface ?? "card";
 
-    return (
-      <BookingSearchSurface title={props.title}>
+    const content = (
+      <>
         <form
           method="get"
           action={props.action || "/car-rentals"}
@@ -56,11 +61,28 @@ export const CarRentalSearchCard = component$(
               return;
             }
 
+            if (!snapshot.pickupLocation) {
+              return;
+            }
+
             destination.value = snapshot.destination;
             pickupLocation.value = snapshot.pickupLocation;
             pickupDate.value = snapshot.pickupDate;
             dropoffDate.value = snapshot.dropoffDate;
             drivers.value = snapshot.drivers;
+
+            if (submitBehavior === "canonical-route") {
+              await navigate(
+                buildCanonicalCarSearchHref({
+                  pickupLocation: snapshot.pickupLocation,
+                  pickupDate: snapshot.pickupDate,
+                  dropoffDate: snapshot.dropoffDate,
+                  drivers: snapshot.drivers,
+                }),
+              );
+              return;
+            }
+
             formEl.submit();
           }}
           class={
@@ -185,7 +207,15 @@ export const CarRentalSearchCard = component$(
         </form>
 
         <BookingValidationSummary errors={errors} show={hasSubmitted.value} />
-      </BookingSearchSurface>
+      </>
+    );
+
+    if (surface === "plain") {
+      return content;
+    }
+
+    return (
+      <BookingSearchSurface title={props.title}>{content}</BookingSearchSurface>
     );
   },
 );
@@ -206,6 +236,8 @@ type CarRentalSearchCardProps = {
   drivers?: string;
   submitLabel?: string;
   helperText?: string;
+  surface?: "card" | "plain";
+  submitBehavior?: "form-submit" | "canonical-route";
 };
 
 type CarRentalSubmitSnapshot = {
@@ -247,8 +279,16 @@ const validateSnapshot = (snapshot: CarRentalSubmitSnapshot) => {
       1,
     ) || todayIsoDate;
 
-  if (!snapshot.pickupLocation) {
-    validationErrors.push("Choose a pickup location from the suggestions.");
+  const pickupSelection = validateLocationSelection({
+    selection: snapshot.pickupLocation,
+    rawValue: snapshot.destination,
+    required: true,
+    fieldLabel: "pickup location",
+    allowedKinds: ["city", "airport"],
+  });
+
+  if (pickupSelection.error) {
+    validationErrors.push(pickupSelection.error);
   }
 
   if (!pickupIsoDate) {

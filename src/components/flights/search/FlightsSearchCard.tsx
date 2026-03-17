@@ -1,4 +1,5 @@
 import { component$, useSignal } from "@builder.io/qwik";
+import { useNavigate } from "@builder.io/qwik-city";
 import {
   BOOKING_SEARCH_CONTROL_CLASS,
   BookingSearchField,
@@ -13,10 +14,12 @@ import {
 } from "~/lib/search/flights/routing";
 import { getTodayIsoDate, normalizeIsoDate } from "~/lib/date/validateDate";
 import { addDays } from "~/lib/trips/date-utils";
+import { buildCanonicalFlightSearchHref } from "~/lib/search/entry-routes";
 import { validateLocationSelection } from "~/lib/location/validateLocationSelection";
 import type { CanonicalLocation } from "~/types/location";
 
 export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
+  const navigate = useNavigate();
   const fromLocation = useSignal<CanonicalLocation | null>(
     props.initialFromLocation ?? null,
   );
@@ -59,20 +62,26 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
   const errors = validateFlightSubmit(renderSnapshot);
 
   const isValid = errors.length === 0;
+  const submitBehavior = props.submitBehavior ?? "form-submit";
+  const surface = props.surface ?? "card";
 
-  return (
-    <BookingSearchSurface>
+  const content = (
+    <>
       <form
         action={props.action || "/flights"}
         method="get"
         preventdefault:submit
         noValidate
-        onSubmit$={(_, formEl) => {
+        onSubmit$={async (_, formEl) => {
           hasSubmitted.value = true;
 
           const snapshot = readFlightSubmitSnapshot(formEl);
           const submitErrors = validateFlightSubmit(snapshot);
           if (submitErrors.length) {
+            return;
+          }
+
+          if (!snapshot.fromLocation || !snapshot.toLocation) {
             return;
           }
 
@@ -85,6 +94,21 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
           itineraryType.value = snapshot.itineraryType;
           travelers.value = snapshot.travelers;
           cabin.value = snapshot.cabin;
+
+          if (submitBehavior === "canonical-route") {
+            await navigate(
+              buildCanonicalFlightSearchHref({
+                fromLocation: snapshot.fromLocation,
+                toLocation: snapshot.toLocation,
+                itineraryType: snapshot.itineraryType,
+                departDate: snapshot.depart,
+                returnDate: snapshot.ret,
+                travelers: snapshot.travelers,
+                cabin: snapshot.cabin,
+              }),
+            );
+            return;
+          }
 
           formEl.submit();
         }}
@@ -107,7 +131,6 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
           </select>
         </BookingSearchField>
 
-        {/* From */}
         <BookingSearchField
           label="From"
           forId="flight-from"
@@ -126,7 +149,6 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
           />
         </BookingSearchField>
 
-        {/* To */}
         <BookingSearchField label="To" forId="flight-to" class="md:col-span-2">
           <LocationAutosuggestField
             id="flight-to"
@@ -141,7 +163,6 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
           />
         </BookingSearchField>
 
-        {/* Depart */}
         <BookingSearchField label="Depart" forId="flight-depart">
           <DateField
             id="flight-depart"
@@ -156,7 +177,6 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
           />
         </BookingSearchField>
 
-        {/* Return */}
         <BookingSearchField label="Return" forId="flight-return">
           <DateField
             id="flight-return"
@@ -173,7 +193,6 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
           />
         </BookingSearchField>
 
-        {/* Travelers */}
         <BookingSearchField label="Travelers" forId="flight-travelers">
           <select
             id="flight-travelers"
@@ -188,7 +207,6 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
           </select>
         </BookingSearchField>
 
-        {/* Cabin */}
         <BookingSearchField label="Cabin" forId="flight-cabin">
           <select
             id="flight-cabin"
@@ -213,8 +231,14 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
       </form>
 
       <BookingValidationSummary errors={errors} show={hasSubmitted.value} />
-    </BookingSearchSurface>
+    </>
   );
+
+  if (surface === "plain") {
+    return content;
+  }
+
+  return <BookingSearchSurface>{content}</BookingSearchSurface>;
 });
 
 type FlightsSearchCardProps = {
@@ -228,6 +252,8 @@ type FlightsSearchCardProps = {
   initialItineraryType?: FlightItineraryTypeSlug;
   initialTravelers?: string;
   initialCabin?: string;
+  surface?: "card" | "plain";
+  submitBehavior?: "form-submit" | "canonical-route";
 };
 
 type FlightSubmitSnapshot = {
@@ -289,20 +315,33 @@ const validateFlightSubmit = (snapshot: FlightSubmitSnapshot) => {
 
   const isRoundTrip = snapshot.itineraryType === "round-trip";
 
-  if (!snapshot.fromLocation) {
-    validationErrors.push("Choose an origin city or airport from the suggestions.");
+  const fromSelection = validateLocationSelection({
+    selection: snapshot.fromLocation,
+    rawValue: snapshot.from,
+    required: true,
+    fieldLabel: "origin city or airport",
+    allowedKinds: ["city", "airport"],
+  });
+  const toSelection = validateLocationSelection({
+    selection: snapshot.toLocation,
+    rawValue: snapshot.to,
+    required: true,
+    fieldLabel: "destination city or airport",
+    allowedKinds: ["city", "airport"],
+  });
+
+  if (fromSelection.error) {
+    validationErrors.push(fromSelection.error);
   }
 
-  if (!snapshot.toLocation) {
-    validationErrors.push(
-      "Choose a destination city or airport from the suggestions.",
-    );
+  if (toSelection.error) {
+    validationErrors.push(toSelection.error);
   }
 
   if (
-    snapshot.fromLocation &&
-    snapshot.toLocation &&
-    snapshot.fromLocation.locationId === snapshot.toLocation.locationId
+    fromSelection.location &&
+    toSelection.location &&
+    fromSelection.location.locationId === toSelection.location.locationId
   ) {
     validationErrors.push("Origin and destination must be different.");
   }
