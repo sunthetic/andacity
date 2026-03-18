@@ -42,6 +42,14 @@ export const flightTimeWindowEnum = dbEnum('flight_time_window', ['morning', 'af
 export const tripStatusEnum = dbEnum('trip_status', ['draft', 'planning', 'ready', 'archived'])
 export const tripDateSourceEnum = dbEnum('trip_date_source', ['auto', 'manual'])
 export const tripItemTypeEnum = dbEnum('trip_item_type', ['hotel', 'flight', 'car'])
+export const checkoutSessionStatusEnum = dbEnum('checkout_session_status', [
+  'draft',
+  'blocked',
+  'ready',
+  'expired',
+  'completed',
+  'abandoned',
+])
 
 export const countries = dbTable(
   'countries',
@@ -793,6 +801,35 @@ export const tripItemInventorySnapshots = dbTable(
   }),
 )
 
+export const checkoutSessions = dbTable(
+  'checkout_sessions',
+  {
+    id: text('id').primaryKey(),
+    tripId: bigint('trip_id', { mode: 'number' })
+      .notNull()
+      .references(() => trips.id, { onDelete: 'cascade' }),
+    status: checkoutSessionStatusEnum('status').notNull().default('draft'),
+    currency: varchar('currency', { length: 3 }),
+    itemsJson: jsonb('items_json').$type<Record<string, unknown>[]>().notNull().default(sql`'[]'::jsonb`),
+    totalsJson: jsonb('totals_json').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    abandonedAt: timestamp('abandoned_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    tripIdx: index('checkout_sessions_trip_idx').on(table.tripId),
+    statusIdx: index('checkout_sessions_status_idx').on(table.status),
+    updatedIdx: index('checkout_sessions_updated_idx').on(table.updatedAt),
+    tripStatusUpdatedIdx: index('checkout_sessions_trip_status_updated_idx').on(
+      table.tripId,
+      table.status,
+      table.updatedAt,
+    ),
+  }),
+)
+
 export const countriesRelations = relations(countries, ({ many }) => ({
   regions: many(regions),
   cities: many(cities),
@@ -1022,6 +1059,7 @@ export const tripsRelations = relations(trips, ({ one, many }) => ({
     references: [tripDates.tripId],
   }),
   items: many(tripItems),
+  checkoutSessions: many(checkoutSessions),
 }))
 
 export const tripDatesRelations = relations(tripDates, ({ one }) => ({
@@ -1077,3 +1115,10 @@ export const tripItemInventorySnapshotsRelations = relations(
     }),
   }),
 )
+
+export const checkoutSessionsRelations = relations(checkoutSessions, ({ one }) => ({
+  trip: one(trips, {
+    fields: [checkoutSessions.tripId],
+    references: [trips.id],
+  }),
+}))

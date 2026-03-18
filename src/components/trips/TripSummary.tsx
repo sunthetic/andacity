@@ -83,6 +83,20 @@ export const TripSummary = component$(
             </div>
 
             <div class="flex flex-wrap gap-2">
+              <form method="post" action="/checkout">
+                <input
+                  type="hidden"
+                  name="tripId"
+                  value={String(summary.tripId)}
+                />
+                <button
+                  type="submit"
+                  disabled={summary.totalItemCount < 1}
+                  class="rounded-lg bg-[color:var(--color-action)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Start checkout
+                </button>
+              </form>
               <a
                 href={summary.continueHref}
                 class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm font-medium text-[color:var(--color-text-strong)] hover:border-[color:var(--color-text-strong)]"

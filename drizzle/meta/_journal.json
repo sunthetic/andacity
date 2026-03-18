@@ -50,6 +50,13 @@
       "when": 1773266400000,
       "tag": "0006_trip_item_persistence_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1773795600000,
+      "tag": "0007_checkout_sessions",
+      "breakpoints": true
     }
   ]
 }
