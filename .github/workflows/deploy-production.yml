@@ -1,13 +1,13 @@
-name: Deploy development to EC2
+name: Deploy production to EC2
 
 on:
   push:
-    branches: [ dev ]
+    branches: [ main ]
 
 jobs:
   run-ec2-deploy-script:
     runs-on: ubuntu-latest
-    environment: development
+    environment: production
     steps:
       - id: configure-ssh
         name: Configure SSH
