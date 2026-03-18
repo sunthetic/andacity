@@ -2,6 +2,7 @@ import { canCheckoutProceedToPayment } from '~/lib/checkout/canCheckoutProceedTo
 import { getCheckoutReadinessState } from '~/lib/checkout/getCheckoutReadinessState'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import { formatMoneyFromCents } from '~/lib/pricing/price-display'
+import type { CheckoutBookingSummary } from '~/types/booking'
 import type {
   CheckoutSession,
   CheckoutSessionEntryMode,
@@ -63,7 +64,7 @@ const describeStatus = (
   }
 
   if (status === 'completed') {
-    return 'This checkout session is complete. Confirmation and booking persistence arrive in later tasks.'
+    return 'This checkout session is complete and its booking records can be rediscovered on reload.'
   }
 
   if (status === 'abandoned') {
@@ -115,6 +116,7 @@ export const getCheckoutSessionSummary = (
   session: CheckoutSession,
   options: {
     entryMode?: CheckoutSessionEntryMode | null
+    bookingSummary?: CheckoutBookingSummary | null
   } = {},
 ): CheckoutSessionSummary => {
   const readinessState = getCheckoutReadinessState(session)
@@ -153,5 +155,8 @@ export const getCheckoutSessionSummary = (
     readinessLabel: describeReadiness(session, readinessState),
     canProceed: canCheckoutProceedToPayment(session),
     blockingIssueCount: session.revalidationSummary?.blockingIssueCount || 0,
+    bookingStatus: options.bookingSummary?.status || 'idle',
+    activeBookingRunId: options.bookingSummary?.bookingRunId || null,
+    hasCompletedBooking: options.bookingSummary?.hasCompletedBooking || false,
   }
 }

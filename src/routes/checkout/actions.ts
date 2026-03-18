@@ -1,4 +1,11 @@
 import {
+  createOrResumeBookingRun,
+} from "~/lib/booking/createOrResumeBookingRun";
+import { executeBookingRun } from "~/lib/booking/executeBookingRun";
+import { getBookingEligibility } from "~/lib/booking/getBookingEligibility";
+import { getBookingSummary } from "~/lib/booking/getBookingSummary";
+import { refreshBookingRunStatus } from "~/lib/booking/refreshBookingRunStatus";
+import {
   createOrResumeCheckoutSession,
   CheckoutSessionTransitionError,
 } from "~/lib/checkout/createOrResumeCheckoutSession";
@@ -24,6 +31,10 @@ import {
   listTrips,
   TripRepoError,
 } from "~/lib/repos/trips-repo.server";
+import type {
+  BookingExecutionStatus,
+  BookingEligibilityCode,
+} from "~/types/booking";
 import type {
   CheckoutEntryResult,
   CheckoutReadinessState,
@@ -613,4 +624,164 @@ export const refreshCheckoutPaymentSession = async (
   } catch (error) {
     return mapPaymentErrorResult(error);
   }
+};
+
+export type CheckoutBookingActionResult =
+  | {
+      ok: true;
+      code: "BOOKING_STARTED" | "BOOKING_SUCCEEDED" | "BOOKING_PARTIAL";
+      bookingRunId: string | null;
+      status: BookingExecutionStatus;
+      redirectTo: string | null;
+      message: string;
+      eligibilityCode: BookingEligibilityCode;
+    }
+  | {
+      ok: false;
+      code:
+        | "BOOKING_FAILED"
+        | "BOOKING_INELIGIBLE"
+        | "BOOKING_ALREADY_IN_PROGRESS";
+      bookingRunId: string | null;
+      status: BookingExecutionStatus;
+      redirectTo: string | null;
+      message: string;
+      eligibilityCode: BookingEligibilityCode;
+    };
+
+const mapBookingSummaryToActionResult = (
+  bookingSummary: Awaited<ReturnType<typeof getBookingSummary>>,
+): CheckoutBookingActionResult => {
+  if (bookingSummary.status === "succeeded") {
+    return {
+      ok: true,
+      code: "BOOKING_SUCCEEDED",
+      bookingRunId: bookingSummary.bookingRunId,
+      status: bookingSummary.status,
+      redirectTo: null,
+      message: "All checkout items were booked successfully.",
+      eligibilityCode: bookingSummary.eligibilityCode,
+    };
+  }
+
+  if (
+    bookingSummary.status === "partial" ||
+    bookingSummary.status === "requires_manual_review"
+  ) {
+    return {
+      ok: true,
+      code: "BOOKING_PARTIAL",
+      bookingRunId: bookingSummary.bookingRunId,
+      status: bookingSummary.status,
+      redirectTo: null,
+      message: bookingSummary.statusDescription,
+      eligibilityCode: bookingSummary.eligibilityCode,
+    };
+  }
+
+  if (
+    bookingSummary.status === "pending" ||
+    bookingSummary.status === "processing"
+  ) {
+    return {
+      ok: true,
+      code: "BOOKING_STARTED",
+      bookingRunId: bookingSummary.bookingRunId,
+      status: bookingSummary.status,
+      redirectTo: null,
+      message: bookingSummary.statusDescription,
+      eligibilityCode: bookingSummary.eligibilityCode,
+    };
+  }
+
+  return {
+    ok: false,
+    code: "BOOKING_FAILED",
+    bookingRunId: bookingSummary.bookingRunId,
+    status: bookingSummary.status,
+    redirectTo: null,
+    message: bookingSummary.statusDescription,
+    eligibilityCode: bookingSummary.eligibilityCode,
+  };
+};
+
+export const executeCheckoutBooking = async (
+  checkoutSessionId: string,
+): Promise<CheckoutBookingActionResult> => {
+  const eligibility = await getBookingEligibility(checkoutSessionId, {
+    now: new Date(),
+  });
+
+  if (!eligibility.ok) {
+    if (eligibility.code === "BOOKING_ALREADY_IN_PROGRESS") {
+      return {
+        ok: false,
+        code: "BOOKING_ALREADY_IN_PROGRESS",
+        bookingRunId: eligibility.activeBookingRun?.id || null,
+        status:
+          eligibility.activeBookingRun?.summary?.overallStatus || "processing",
+        redirectTo: null,
+        message: eligibility.message,
+        eligibilityCode: eligibility.code,
+      };
+    }
+
+    const summary = await getBookingSummary(checkoutSessionId, {
+      now: new Date(),
+    });
+
+    return {
+      ok: false,
+      code: "BOOKING_INELIGIBLE",
+      bookingRunId:
+        eligibility.activeBookingRun?.id ||
+        eligibility.completedBookingRun?.id ||
+        summary.bookingRunId,
+      status: summary.status,
+      redirectTo: null,
+      message: eligibility.message,
+      eligibilityCode: eligibility.code,
+    };
+  }
+
+  const bookingRun = await createOrResumeBookingRun(
+    checkoutSessionId,
+    eligibility.executionKey,
+    {
+      now: new Date(),
+    },
+  );
+  await executeBookingRun(bookingRun.id, {
+    now: new Date(),
+  });
+
+  const bookingSummary = await getBookingSummary(checkoutSessionId, {
+    now: new Date(),
+  });
+  return mapBookingSummaryToActionResult(bookingSummary);
+};
+
+export const refreshBookingRun = async (
+  checkoutSessionId: string,
+): Promise<CheckoutBookingActionResult> => {
+  const refreshed = await refreshBookingRunStatus(checkoutSessionId, {
+    now: new Date(),
+  });
+  const bookingSummary = await getBookingSummary(checkoutSessionId, {
+    now: new Date(),
+  });
+
+  if (!refreshed && !bookingSummary.run) {
+    return {
+      ok: false,
+      code: "BOOKING_INELIGIBLE",
+      bookingRunId: null,
+      status: "idle",
+      redirectTo: null,
+      message: "There is no booking run to refresh yet.",
+      eligibilityCode: bookingSummary.eligibilityCode,
+    };
+  }
+
+  return mapBookingSummaryToActionResult(bookingSummary);
 };

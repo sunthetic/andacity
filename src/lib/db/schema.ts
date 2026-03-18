@@ -59,6 +59,18 @@ export const checkoutPaymentSessionStatusEnum = dbEnum(
   'checkout_payment_session_status',
   ['draft', 'pending', 'requires_action', 'authorized', 'succeeded', 'canceled', 'failed', 'expired'],
 )
+export const bookingRunStatusEnum = dbEnum('booking_run_status', [
+  'pending',
+  'processing',
+  'partial',
+  'succeeded',
+  'failed',
+  'canceled',
+])
+export const bookingItemExecutionStatusEnum = dbEnum(
+  'booking_item_execution_status',
+  ['pending', 'processing', 'succeeded', 'failed', 'requires_manual_review', 'skipped'],
+)
 
 export const countries = dbTable(
   'countries',
@@ -886,6 +898,78 @@ export const checkoutPaymentSessions = dbTable(
   }),
 )
 
+export const bookingRuns = dbTable(
+  'booking_runs',
+  {
+    id: text('id').primaryKey(),
+    checkoutSessionId: text('checkout_session_id')
+      .notNull()
+      .references(() => checkoutSessions.id, { onDelete: 'cascade' }),
+    paymentSessionId: text('payment_session_id')
+      .notNull()
+      .references(() => checkoutPaymentSessions.id, { onDelete: 'cascade' }),
+    status: bookingRunStatusEnum('status').notNull().default('pending'),
+    executionKey: text('execution_key').notNull(),
+    summaryJson: jsonb('summary_json').$type<Record<string, unknown>>(),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    checkoutIdx: index('booking_runs_checkout_idx').on(table.checkoutSessionId),
+    paymentIdx: index('booking_runs_payment_idx').on(table.paymentSessionId),
+    statusIdx: index('booking_runs_status_idx').on(table.status),
+    executionKeyUq: uniqueIndex('booking_runs_execution_key_uq').on(
+      table.executionKey,
+    ),
+    checkoutUpdatedIdx: index('booking_runs_checkout_updated_idx').on(
+      table.checkoutSessionId,
+      table.updatedAt,
+    ),
+  }),
+)
+
+export const bookingItemExecutions = dbTable(
+  'booking_item_executions',
+  {
+    id: text('id').primaryKey(),
+    bookingRunId: text('booking_run_id')
+      .notNull()
+      .references(() => bookingRuns.id, { onDelete: 'cascade' }),
+    checkoutItemKey: text('checkout_item_key').notNull(),
+    tripItemId: bigint('trip_item_id', { mode: 'number' }),
+    title: text('title').notNull(),
+    vertical: tripItemTypeEnum('vertical').notNull(),
+    provider: text('provider'),
+    status: bookingItemExecutionStatusEnum('status').notNull().default('pending'),
+    providerBookingReference: text('provider_booking_reference'),
+    providerConfirmationCode: text('provider_confirmation_code'),
+    requestSnapshotJson: jsonb('request_snapshot_json')
+      .$type<Record<string, unknown>>()
+      .default(sql`'{}'::jsonb`),
+    responseSnapshotJson: jsonb('response_snapshot_json')
+      .$type<Record<string, unknown>>()
+      .default(sql`'{}'::jsonb`),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    bookingRunIdx: index('booking_item_executions_booking_run_idx').on(
+      table.bookingRunId,
+    ),
+    statusIdx: index('booking_item_executions_status_idx').on(table.status),
+    checkoutItemKeyUq: uniqueIndex(
+      'booking_item_executions_run_checkout_item_key_uq',
+    ).on(table.bookingRunId, table.checkoutItemKey),
+    tripItemIdx: index('booking_item_executions_trip_item_idx').on(table.tripItemId),
+  }),
+)
+
 export const countriesRelations = relations(countries, ({ many }) => ({
   regions: many(regions),
   cities: many(cities),
@@ -1178,14 +1262,38 @@ export const checkoutSessionsRelations = relations(checkoutSessions, ({ one, man
     references: [trips.id],
   }),
   paymentSessions: many(checkoutPaymentSessions),
+  bookingRuns: many(bookingRuns),
 }))
 
 export const checkoutPaymentSessionsRelations = relations(
   checkoutPaymentSessions,
-  ({ one }) => ({
+  ({ one, many }) => ({
     checkoutSession: one(checkoutSessions, {
       fields: [checkoutPaymentSessions.checkoutSessionId],
       references: [checkoutSessions.id],
+    }),
+    bookingRuns: many(bookingRuns),
+  }),
+)
+
+export const bookingRunsRelations = relations(bookingRuns, ({ one, many }) => ({
+  checkoutSession: one(checkoutSessions, {
+    fields: [bookingRuns.checkoutSessionId],
+    references: [checkoutSessions.id],
+  }),
+  paymentSession: one(checkoutPaymentSessions, {
+    fields: [bookingRuns.paymentSessionId],
+    references: [checkoutPaymentSessions.id],
+  }),
+  itemExecutions: many(bookingItemExecutions),
+}))
+
+export const bookingItemExecutionsRelations = relations(
+  bookingItemExecutions,
+  ({ one }) => ({
+    bookingRun: one(bookingRuns, {
+      fields: [bookingItemExecutions.bookingRunId],
+      references: [bookingRuns.id],
     }),
   }),
 )

@@ -6,6 +6,8 @@ import {
 } from "@builder.io/qwik-city";
 import { CheckoutShell } from "~/components/checkout/CheckoutShell";
 import { Page } from "~/components/site/Page";
+import { getBookingSummary } from "~/lib/booking/getBookingSummary";
+import { refreshBookingRunStatus } from "~/lib/booking/refreshBookingRunStatus";
 import { getCheckoutSessionSummary } from "~/lib/checkout/getCheckoutSessionSummary";
 import {
   getCheckoutSession,
@@ -16,10 +18,13 @@ import { getCheckoutPaymentSummary } from "~/lib/payments/getCheckoutPaymentSumm
 import { refreshCheckoutPaymentStatus } from "~/lib/payments/refreshCheckoutPaymentStatus";
 import { shouldCheckoutSessionRevalidate } from "~/lib/checkout/shouldCheckoutSessionRevalidate";
 import type { CheckoutSessionEntryMode } from "~/types/checkout";
+import type { CheckoutBookingSummary } from "~/types/booking";
 import type { CheckoutPaymentSummary } from "~/types/payment";
 import {
   cancelCheckoutPayment,
   createCheckoutPaymentIntent,
+  executeCheckoutBooking,
+  refreshBookingRun,
   refreshCheckoutPaymentSession,
   runCheckoutRevalidation,
 } from "~/routes/checkout/actions";
@@ -45,24 +50,54 @@ const readPaymentNotice = (url: URL) => {
   } as const;
 };
 
+const readBookingNotice = (url: URL) => {
+  const code = String(url.searchParams.get("booking_code") || "").trim();
+  const message = String(url.searchParams.get("booking_message") || "").trim();
+  const tone = String(url.searchParams.get("booking_tone") || "").trim();
+  if (!code || !message) return null;
+
+  return {
+    code,
+    message,
+    tone:
+      tone === "success" || tone === "error" || tone === "info" ? tone : "info",
+  } as const;
+};
+
 const buildCheckoutPageHref = (
   pathname: string,
   sourceUrl: URL,
-  notice?: {
-    code: string;
-    message: string;
-    tone: "info" | "success" | "error";
-  } | null,
+  notices: {
+    paymentNotice?: {
+      code: string;
+      message: string;
+      tone: "info" | "success" | "error";
+    } | null;
+    bookingNotice?: {
+      code: string;
+      message: string;
+      tone: "info" | "success" | "error";
+    } | null;
+  } = {},
 ) => {
   const params = new URLSearchParams(sourceUrl.search);
   params.delete("payment_code");
   params.delete("payment_message");
   params.delete("payment_tone");
+  params.delete("booking_code");
+  params.delete("booking_message");
+  params.delete("booking_tone");
 
-  if (notice) {
-    params.set("payment_code", notice.code);
-    params.set("payment_message", notice.message);
-    params.set("payment_tone", notice.tone);
+  if (notices.paymentNotice) {
+    params.set("payment_code", notices.paymentNotice.code);
+    params.set("payment_message", notices.paymentNotice.message);
+    params.set("payment_tone", notices.paymentNotice.tone);
+  }
+
+  if (notices.bookingNotice) {
+    params.set("booking_code", notices.bookingNotice.code);
+    params.set("booking_message", notices.bookingNotice.message);
+    params.set("booking_tone", notices.bookingNotice.tone);
   }
 
   const query = params.toString();
@@ -80,6 +115,12 @@ type CheckoutSessionRouteData =
       entryMode: CheckoutSessionEntryMode | null;
       paymentSummary: CheckoutPaymentSummary;
       paymentNotice: {
+        code: string;
+        message: string;
+        tone: "info" | "success" | "error";
+      } | null;
+      bookingSummary: CheckoutBookingSummary;
+      bookingNotice: {
         code: string;
         message: string;
         tone: "info" | "success" | "error";
@@ -119,9 +160,11 @@ export const onPost: RequestHandler = async ({
     throw redirect(
       303,
       buildCheckoutPageHref(url.pathname, url, {
-        code: result.code,
-        message: result.message,
-        tone: result.ok ? "success" : "error",
+        paymentNotice: {
+          code: result.code,
+          message: result.message,
+          tone: result.ok ? "success" : "error",
+        },
       }),
     );
   }
@@ -131,9 +174,11 @@ export const onPost: RequestHandler = async ({
     throw redirect(
       303,
       buildCheckoutPageHref(url.pathname, url, {
-        code: result.code,
-        message: result.message,
-        tone: result.ok ? "success" : "error",
+        paymentNotice: {
+          code: result.code,
+          message: result.message,
+          tone: result.ok ? "success" : "error",
+        },
       }),
     );
   }
@@ -143,9 +188,44 @@ export const onPost: RequestHandler = async ({
     throw redirect(
       303,
       buildCheckoutPageHref(url.pathname, url, {
-        code: result.code,
-        message: result.message,
-        tone: result.ok ? "info" : "error",
+        paymentNotice: {
+          code: result.code,
+          message: result.message,
+          tone: result.ok ? "info" : "error",
+        },
+      }),
+    );
+  }
+
+  if (checkoutSessionId && intent === "execute-booking") {
+    const result = await executeCheckoutBooking(checkoutSessionId);
+    throw redirect(
+      303,
+      buildCheckoutPageHref(url.pathname, url, {
+        bookingNotice: {
+          code: result.code,
+          message: result.message,
+          tone:
+            result.code === "BOOKING_SUCCEEDED"
+              ? "success"
+              : result.ok
+                ? "info"
+                : "error",
+        },
+      }),
+    );
+  }
+
+  if (checkoutSessionId && intent === "refresh-booking") {
+    const result = await refreshBookingRun(checkoutSessionId);
+    throw redirect(
+      303,
+      buildCheckoutPageHref(url.pathname, url, {
+        bookingNotice: {
+          code: result.code,
+          message: result.message,
+          tone: result.ok ? "info" : "error",
+        },
       }),
     );
   }
@@ -211,6 +291,12 @@ export const useCheckoutSessionPage = routeLoader$(
       const paymentSummary = await getCheckoutPaymentSummary(session, {
         now: new Date(),
       });
+      await refreshBookingRunStatus(checkoutSessionId, {
+        now: new Date(),
+      }).catch(() => null);
+      const bookingSummary = await getBookingSummary(checkoutSessionId, {
+        now: new Date(),
+      });
 
       return {
         kind: "loaded",
@@ -218,6 +304,8 @@ export const useCheckoutSessionPage = routeLoader$(
         entryMode: readEntryMode(url.searchParams.get("entry")),
         paymentSummary,
         paymentNotice: readPaymentNotice(url),
+        bookingSummary,
+        bookingNotice: readBookingNotice(url),
       } satisfies CheckoutSessionRouteData;
     } catch (error) {
       if (error instanceof CheckoutSessionError) {
@@ -251,6 +339,7 @@ export default component$(() => {
   if (data.kind === "loaded") {
     const summary = getCheckoutSessionSummary(data.session, {
       entryMode: data.entryMode,
+      bookingSummary: data.bookingSummary,
     });
     return (
       <CheckoutShell
@@ -258,6 +347,8 @@ export default component$(() => {
         summary={summary}
         paymentSummary={data.paymentSummary}
         paymentNotice={data.paymentNotice}
+        bookingSummary={data.bookingSummary}
+        bookingNotice={data.bookingNotice}
       />
     );
   }
@@ -304,6 +395,7 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
   if (data.kind === "loaded") {
     const summary = getCheckoutSessionSummary(data.session, {
       entryMode: data.entryMode,
+      bookingSummary: data.bookingSummary,
     });
     const title = `${summary.tripReference} checkout | Andacity`;
     return {

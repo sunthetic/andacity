@@ -2,11 +2,13 @@ import { component$ } from "@builder.io/qwik";
 import { CheckoutPaymentMethodForm } from "~/components/checkout/payment/CheckoutPaymentMethodForm";
 import { CheckoutPaymentStatusNotice } from "~/components/checkout/payment/CheckoutPaymentStatusNotice";
 import { CheckoutPaymentSummaryCard } from "~/components/checkout/payment/CheckoutPaymentSummaryCard";
+import type { CheckoutBookingSummary } from "~/types/booking";
 import type { CheckoutPaymentSummary } from "~/types/payment";
 
 export const CheckoutPaymentSection = component$(
   (props: {
     paymentSummary: CheckoutPaymentSummary;
+    bookingSummary: CheckoutBookingSummary;
     paymentNotice?: {
       code: string;
       message: string;
@@ -42,6 +44,7 @@ export const CheckoutPaymentSection = component$(
             <div class="rounded-xl bg-[color:var(--color-surface-muted,#f8fafc)] p-4">
               <CheckoutPaymentMethodForm
                 paymentSummary={props.paymentSummary}
+                bookingSummary={props.bookingSummary}
               />
             </div>
           </div>

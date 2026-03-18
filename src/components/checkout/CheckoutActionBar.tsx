@@ -1,5 +1,6 @@
 import { $, component$, useSignal } from "@builder.io/qwik";
 import { AsyncPendingButton } from "~/components/async/AsyncPendingButton";
+import type { CheckoutBookingSummary } from "~/types/booking";
 import type { CheckoutSessionSummary } from "~/types/checkout";
 import type { CheckoutPaymentSummary } from "~/types/payment";
 
@@ -15,6 +16,7 @@ export const CheckoutActionBar = component$(
   (props: {
     summary: CheckoutSessionSummary;
     paymentSummary: CheckoutPaymentSummary;
+    bookingSummary: CheckoutBookingSummary;
   }) => {
     const pending = useSignal(false);
     const onSubmit$ = $(() => {
@@ -32,23 +34,49 @@ export const CheckoutActionBar = component$(
             ? "Payment stays blocked until the latest pricing and availability check passes."
             : props.paymentSummary.status == null
               ? "Initialize a payment session from the current checkout totals."
-              : props.paymentSummary.status === "authorized" ||
-                  props.paymentSummary.status === "succeeded"
-                ? "Payment is ready for booking execution once TASK-040 lands."
+              : props.bookingSummary.canExecute
+                ? "Payment is authorized. Complete booking to start the server-backed booking run."
+                : props.bookingSummary.isProcessing
+                  ? "Booking is already running. Refresh the checkout page to review the latest item statuses."
+                  : props.bookingSummary.hasCompletedBooking
+                    ? "Booking completed for this checkout."
                 : "Continue or refresh the active payment session below."}
         </p>
 
         <div class="mt-5 space-y-3">
-          <a
-            href="#checkout-payment"
-            class="block w-full rounded-lg bg-[color:var(--color-action)] px-3 py-2 text-center text-sm font-medium text-white hover:opacity-90"
-          >
-            {props.paymentSummary.checkoutReady
-              ? props.paymentSummary.status == null
-                ? "Start payment"
-                : "Open payment section"
-              : "Review checkout blockers"}
-          </a>
+          {props.bookingSummary.canExecute ? (
+            <form method="post" onSubmit$={onSubmit$}>
+              <input type="hidden" name="intent" value="execute-booking" />
+              <AsyncPendingButton
+                type="submit"
+                pending={pending.value}
+                pendingLabel="Starting booking"
+                class="w-full rounded-lg bg-[color:var(--color-action)] px-3 py-2 text-sm font-medium text-white hover:opacity-90"
+              >
+                Complete booking
+              </AsyncPendingButton>
+            </form>
+          ) : (
+            <a
+              href={
+                props.paymentSummary.checkoutReady &&
+                (props.paymentSummary.status === "authorized" ||
+                  props.paymentSummary.status === "succeeded" ||
+                  props.bookingSummary.run)
+                  ? "#checkout-booking"
+                  : "#checkout-payment"
+              }
+              class="block w-full rounded-lg bg-[color:var(--color-action)] px-3 py-2 text-center text-sm font-medium text-white hover:opacity-90"
+            >
+              {props.paymentSummary.checkoutReady
+                ? props.paymentSummary.status == null
+                  ? "Start payment"
+                  : props.bookingSummary.run
+                    ? "Open booking section"
+                    : "Open payment section"
+                : "Review checkout blockers"}
+            </a>
+          )}
 
           {isRetryAllowed(props.summary) ? (
             <form method="post" onSubmit$={onSubmit$}>

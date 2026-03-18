@@ -58,9 +58,9 @@ const describeStatus = (summary: {
     case 'requires_action':
       return 'Your payment session is waiting for payment details or additional authentication.'
     case 'authorized':
-      return 'Payment authorization succeeded. Booking execution is still deferred to the next task.'
+      return 'Payment authorization succeeded. You can now complete booking from this checkout session.'
     case 'succeeded':
-      return 'Payment succeeded, but booking execution has not started yet.'
+      return 'Payment succeeded. Complete booking to send each checkout item through the provider adapters.'
     case 'canceled':
       return 'This payment session was canceled and can be recreated from the latest checkout totals.'
     case 'failed':

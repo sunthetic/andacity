@@ -1,5 +1,6 @@
 import { component$ } from "@builder.io/qwik";
 import { CheckoutActionBar } from "~/components/checkout/CheckoutActionBar";
+import { CheckoutBookingSection } from "~/components/checkout/booking/CheckoutBookingSection";
 import { CheckoutPaymentSection } from "~/components/checkout/payment/CheckoutPaymentSection";
 import { Page } from "~/components/site/Page";
 import { CheckoutHeader } from "~/components/checkout/CheckoutHeader";
@@ -9,6 +10,7 @@ import { CheckoutRevalidationSummaryCard } from "~/components/checkout/CheckoutR
 import { CheckoutSectionPlaceholder } from "~/components/checkout/CheckoutSectionPlaceholder";
 import { CheckoutStatusNotice } from "~/components/checkout/CheckoutStatusNotice";
 import { CheckoutTotalsCard } from "~/components/checkout/CheckoutTotalsCard";
+import type { CheckoutBookingSummary } from "~/types/booking";
 import type { CheckoutSession, CheckoutSessionSummary } from "~/types/checkout";
 import type { CheckoutPaymentSummary } from "~/types/payment";
 
@@ -17,13 +19,26 @@ export const CheckoutShell = component$(
     session: CheckoutSession;
     summary: CheckoutSessionSummary;
     paymentSummary: CheckoutPaymentSummary;
+    bookingSummary: CheckoutBookingSummary;
     paymentNotice?: {
       code: string;
       message: string;
       tone: "info" | "success" | "error";
     } | null;
+    bookingNotice?: {
+      code: string;
+      message: string;
+      tone: "info" | "success" | "error";
+    } | null;
   }) => {
-    const { session, summary, paymentSummary, paymentNotice } = props;
+    const {
+      session,
+      summary,
+      paymentSummary,
+      bookingSummary,
+      paymentNotice,
+      bookingNotice,
+    } = props;
 
     return (
       <Page
@@ -50,6 +65,7 @@ export const CheckoutShell = component$(
           <CheckoutStatusNotice
             summary={summary}
             paymentSummary={paymentSummary}
+            bookingSummary={bookingSummary}
           />
 
           <div class="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
@@ -70,16 +86,22 @@ export const CheckoutShell = component$(
 
               <CheckoutPaymentSection
                 paymentSummary={paymentSummary}
+                bookingSummary={bookingSummary}
                 paymentNotice={paymentNotice}
+              />
+
+              <CheckoutBookingSection
+                bookingSummary={bookingSummary}
+                bookingNotice={bookingNotice}
               />
 
               <CheckoutSectionPlaceholder
                 title="Review & confirm"
-                description="Booking execution and confirmation persistence will extend this session once traveler and payment steps exist."
+                description="Confirmation routing and post-booking ownership modeling land after the booking engine is in place."
                 statusLabel="Reserved"
               >
-                Payment and booking stay separate. This final step begins once
-                TASK-040 consumes an authorized or successful payment state.
+                Booking now runs server-side from the persisted checkout and
+                payment records. Final confirmation surfaces are still coming.
               </CheckoutSectionPlaceholder>
             </div>
 
@@ -96,6 +118,7 @@ export const CheckoutShell = component$(
               <CheckoutActionBar
                 summary={summary}
                 paymentSummary={paymentSummary}
+                bookingSummary={bookingSummary}
               />
             </div>
           </div>

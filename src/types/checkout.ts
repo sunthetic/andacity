@@ -1,4 +1,5 @@
 import type { BookableEntity, BookableVertical } from "~/types/bookable-entity";
+import type { BookingExecutionStatus } from "~/types/booking";
 import type {
   TripDetails,
   TripItemAvailabilitySnapshot,
@@ -190,6 +191,9 @@ export type CheckoutSessionSummary = {
   readinessLabel: string | null;
   canProceed: boolean;
   blockingIssueCount: number;
+  bookingStatus: BookingExecutionStatus;
+  activeBookingRunId: string | null;
+  hasCompletedBooking: boolean;
 };
 
 export type CheckoutEntrySuccessResult = {

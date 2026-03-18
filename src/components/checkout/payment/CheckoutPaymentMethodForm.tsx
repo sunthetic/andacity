@@ -1,10 +1,14 @@
 import { component$ } from "@builder.io/qwik";
 import { StripeElementsProvider } from "~/components/payments/StripeElementsProvider";
+import type { CheckoutBookingSummary } from "~/types/booking";
 import type { CheckoutPaymentSummary } from "~/types/payment";
 
 export const CheckoutPaymentMethodForm = component$(
-  (props: { paymentSummary: CheckoutPaymentSummary }) => {
-    const { paymentSummary } = props;
+  (props: {
+    paymentSummary: CheckoutPaymentSummary;
+    bookingSummary: CheckoutBookingSummary;
+  }) => {
+    const { paymentSummary, bookingSummary } = props;
 
     if (!paymentSummary.checkoutReady) {
       return (
@@ -49,7 +53,12 @@ export const CheckoutPaymentMethodForm = component$(
           />
         ) : (
           <p class="text-sm text-[color:var(--color-text-muted)]">
-            Resume or refresh the current payment session below.
+            {paymentSummary.status === "authorized" ||
+            paymentSummary.status === "succeeded"
+              ? bookingSummary.hasCompletedBooking
+                ? "Payment and booking are both complete for this checkout."
+                : "Payment is ready. Continue to the booking step below."
+              : "Resume or refresh the current payment session below."}
           </p>
         )}
 
