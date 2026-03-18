@@ -1,23 +1,30 @@
-import { getBookingAdapter } from "~/lib/booking/adapters";
+import { getBookingAdapter } from "~/lib/booking/adapters/index";
 import type { CreateBookingAdapterInput } from "~/types/booking-adapter";
 
-const resolveProvider = (input: CreateBookingAdapterInput) => {
-  const bookableEntityProvider = input.checkoutItem.inventory.bookableEntity?.provider;
-  const metadataProvider = input.checkoutItem.inventory.providerMetadata?.provider;
-
-  return (
-    String(bookableEntityProvider || metadataProvider || input.provider || "")
-      .trim()
-      .toLowerCase() || input.checkoutItem.vertical
-  );
-};
-
 export const createBooking = async (input: CreateBookingAdapterInput) => {
-  const provider = resolveProvider(input);
-  const adapter = getBookingAdapter(provider);
+  const adapter = getBookingAdapter(input.provider);
 
-  return adapter.createBooking({
-    ...input,
-    provider,
-  });
+  if (!adapter) {
+    return {
+      status: "failed" as const,
+      provider: input.provider,
+      vertical: input.vertical,
+      providerBookingReference: null,
+      providerConfirmationCode: null,
+      providerStatus: "unsupported_provider",
+      message: `Booking provider "${input.provider}" is not supported.`,
+      requestSnapshot: null,
+      responseSnapshot: {
+        provider: input.provider,
+        providerStatus: "unsupported_provider",
+      },
+      errorCode: "UNSUPPORTED_PROVIDER" as const,
+      errorMessage: `Booking provider "${input.provider}" is not supported.`,
+      requiresManualReview: false,
+      retryable: false,
+      latestResolvedInventory: null,
+    };
+  }
+
+  return adapter.createBooking(input);
 };

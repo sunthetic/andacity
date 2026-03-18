@@ -78,8 +78,13 @@ export type BookingEligibilityCode =
 export const BOOKING_ERROR_CODES = [
   "INVENTORY_UNAVAILABLE",
   "PRICE_MISMATCH",
+  "VALIDATION_ERROR",
   "TRAVELER_DATA_INVALID",
+  "PAYMENT_DECLINED",
   "PROVIDER_UNAVAILABLE",
+  "TIMEOUT",
+  "UNSUPPORTED_PROVIDER",
+  "READ_UNAVAILABLE",
   "UNKNOWN_BOOKING_ERROR",
 ] as const;
 export type BookingErrorCode = (typeof BOOKING_ERROR_CODES)[number];
@@ -93,8 +98,12 @@ export type BookingExecutionSummaryItem = {
   status: BookingItemExecutionStatus;
   providerBookingReference: string | null;
   providerConfirmationCode: string | null;
+  providerStatus: string | null;
+  message: string | null;
   errorCode: string | null;
   errorMessage: string | null;
+  requiresManualReview: boolean;
+  isPendingConfirmation: boolean;
 };
 
 export type BookingExecutionSummary = {
@@ -108,6 +117,7 @@ export type BookingExecutionSummary = {
   manualReviewCount: number;
   skippedCount: number;
   completedCount: number;
+  pendingProviderConfirmationCount: number;
   message: string;
   items: BookingExecutionSummaryItem[];
 };

@@ -16,6 +16,7 @@ const describeBookingStatus = (summary: {
   canExecute: boolean;
   eligibilityMessage: string;
   hasCompletedBooking: boolean;
+  pendingProviderConfirmationCount: number;
 }) => {
   if (summary.hasCompletedBooking) {
     return "All checkout items have been booked successfully.";
@@ -23,7 +24,9 @@ const describeBookingStatus = (summary: {
 
   switch (summary.status) {
     case "processing":
-      return "Booking is in progress. Items may complete at different times.";
+      return summary.pendingProviderConfirmationCount > 0
+        ? "At least one item is waiting on provider confirmation."
+        : "Booking is in progress. Items may complete at different times.";
     case "pending":
       return "Booking is ready to begin.";
     case "partial":
@@ -57,12 +60,12 @@ export const getBookingSummary = async (
     }));
   const hasMatchingLatestRun =
     eligibility.ok &&
-    Boolean(latestRun) &&
+    latestRun != null &&
     latestRun.executionKey === eligibility.executionKey;
   const status = latestRun?.summary?.overallStatus || "idle";
   const hasCompletedBooking =
     latestRun?.summary?.overallStatus === "succeeded" ||
-    latestRun?.status === "succeeded";
+    Boolean(latestRun && latestRun.status === "succeeded");
 
   return {
     checkoutSessionId,
@@ -75,6 +78,8 @@ export const getBookingSummary = async (
       canExecute: eligibility.ok && !hasMatchingLatestRun,
       eligibilityMessage: eligibility.message,
       hasCompletedBooking,
+      pendingProviderConfirmationCount:
+        latestRun?.summary?.pendingProviderConfirmationCount || 0,
     }),
     canExecute: eligibility.ok && !hasMatchingLatestRun,
     canRefresh: Boolean(latestRun),

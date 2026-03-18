@@ -88,8 +88,12 @@ const normalizeBookingExecutionSummary = (
             providerConfirmationCode: toNullableText(
               item.providerConfirmationCode,
             ),
+            providerStatus: toNullableText(item.providerStatus),
+            message: toNullableText(item.message),
             errorCode: toNullableText(item.errorCode),
             errorMessage: toNullableText(item.errorMessage),
+            requiresManualReview: Boolean(item.requiresManualReview),
+            isPendingConfirmation: Boolean(item.isPendingConfirmation),
           };
         })
         .filter(
@@ -109,6 +113,8 @@ const normalizeBookingExecutionSummary = (
     manualReviewCount: Number(input.manualReviewCount) || 0,
     skippedCount: Number(input.skippedCount) || 0,
     completedCount: Number(input.completedCount) || 0,
+    pendingProviderConfirmationCount:
+      Number(input.pendingProviderConfirmationCount) || 0,
     message: toNullableText(input.message) || "Booking status available.",
     items,
   };

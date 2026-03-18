@@ -1,5 +1,7 @@
 import { createBooking } from "~/lib/booking/adapters/createBooking";
 import { mapBookingAdapterError } from "~/lib/booking/mapBookingAdapterError";
+import { sanitizeBookingRequestSnapshot } from "~/lib/booking/sanitizeBookingRequestSnapshot";
+import { sanitizeBookingResponseSnapshot } from "~/lib/booking/sanitizeBookingResponseSnapshot";
 import { updateBookingItemExecution } from "~/lib/booking/getBookingRun";
 import type { BookingItemExecution, BookingRun } from "~/types/booking";
 import type { CheckoutItemSnapshot, CheckoutSession } from "~/types/checkout";
@@ -9,6 +11,22 @@ const normalizeTimestamp = (value: Date | string | null | undefined) => {
   const date = value instanceof Date ? value : value ? new Date(value) : new Date();
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
 };
+
+const toNullableText = (value: unknown) => {
+  const text = String(value ?? "").trim();
+  return text ? text : null;
+};
+
+const buildPaymentContext = (paymentSession: CheckoutPaymentSession) => ({
+  paymentSessionId: paymentSession.id,
+  provider: paymentSession.provider,
+  status: paymentSession.status,
+  providerPaymentIntentId: paymentSession.providerPaymentIntentId,
+  currency: paymentSession.currency,
+  amount: paymentSession.amountSnapshot.totalAmountCents,
+  authorizedAt: paymentSession.authorizedAt,
+  metadata: paymentSession.providerMetadata,
+});
 
 export const executeBookingItem = async (input: {
   bookingRun: BookingRun;
@@ -39,25 +57,46 @@ export const executeBookingItem = async (input: {
 
   try {
     const result = await createBooking({
-      checkoutSession: input.checkoutSession,
-      paymentSession: input.paymentSession,
+      checkoutSessionId: input.checkoutSession.id,
+      bookingRunId: input.bookingRun.id,
+      checkoutItemKey: input.bookingItemExecution.checkoutItemKey,
+      vertical: input.checkoutItem.vertical,
+      provider,
+      canonicalEntityId: input.checkoutItem.entityId,
+      canonicalBookableEntityId: input.checkoutItem.bookableEntityId,
+      canonicalInventoryId: input.checkoutItem.inventory.inventoryId,
       checkoutItem: input.checkoutItem,
-      bookingRun: input.bookingRun,
-      bookingItemExecution: {
-        ...input.bookingItemExecution,
-        startedAt,
-        status: "processing",
+      inventorySnapshot: {
+        inventoryId: input.checkoutItem.inventory.inventoryId,
+        providerInventoryId: input.checkoutItem.inventory.providerInventoryId,
+        snapshotTimestamp: input.checkoutItem.snapshotTimestamp,
+        pricing: input.checkoutItem.pricing,
+        providerMetadata: input.checkoutItem.inventory.providerMetadata,
+        bookableEntity: input.checkoutItem.inventory.bookableEntity,
+        availability: input.checkoutItem.inventory.availability,
       },
-      provider:
-        provider,
+      travelerContext: null,
+      paymentContext: buildPaymentContext(input.paymentSession),
       idempotencyKey,
+      currency:
+        toNullableText(input.checkoutItem.pricing.currencyCode)?.toUpperCase() ||
+        input.paymentSession.currency,
+      amount:
+        input.checkoutItem.pricing.totalAmountCents ??
+        input.paymentSession.amountSnapshot.items.find(
+          (item) => item.inventoryId === input.checkoutItem.inventory.inventoryId,
+        )?.totalAmountCents ??
+        null,
       metadata: {
         checkoutItemKey: input.bookingItemExecution.checkoutItemKey,
+        bookingItemExecutionId: input.bookingItemExecution.id,
       },
     });
 
     const completedAt =
       result.status === "pending" ? null : normalizeTimestamp(input.now);
+    const requestSnapshot = sanitizeBookingRequestSnapshot(result.requestSnapshot);
+    const responseSnapshot = sanitizeBookingResponseSnapshot(result.responseSnapshot);
 
     return updateBookingItemExecution(input.bookingItemExecution.id, {
       status:
@@ -65,8 +104,8 @@ export const executeBookingItem = async (input: {
       provider: result.provider,
       providerBookingReference: result.providerBookingReference,
       providerConfirmationCode: result.providerConfirmationCode,
-      requestSnapshotJson: result.requestSnapshot,
-      responseSnapshotJson: result.responseSnapshot,
+      requestSnapshotJson: requestSnapshot,
+      responseSnapshotJson: responseSnapshot,
       errorCode: result.errorCode,
       errorMessage: result.errorMessage || result.message,
       startedAt,

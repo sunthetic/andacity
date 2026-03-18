@@ -7,7 +7,12 @@ import type {
   CheckoutItemSnapshot,
   CheckoutPricingSnapshot,
 } from '~/types/checkout'
-import type { BookableEntity } from '~/types/bookable-entity'
+import type {
+  BookableEntity,
+  CarBookableEntity,
+  FlightBookableEntity,
+  HotelBookableEntity,
+} from '~/types/bookable-entity'
 
 const toNullableText = (value: unknown) => {
   const text = String(value ?? '').trim()
@@ -146,8 +151,9 @@ const verticalIdentityMatches = (
   if (snapshotParsed.vertical === 'flight' && currentParsed.vertical === 'flight') {
     const snapshotEntity =
       snapshot.inventory.bookableEntity?.vertical === 'flight'
-        ? snapshot.inventory.bookableEntity
+        ? (snapshot.inventory.bookableEntity as FlightBookableEntity)
         : null
+    const currentEntity = current as FlightBookableEntity
 
     return (
       snapshotParsed.carrier === currentParsed.carrier &&
@@ -155,21 +161,22 @@ const verticalIdentityMatches = (
       snapshotParsed.origin === currentParsed.origin &&
       snapshotParsed.destination === currentParsed.destination &&
       snapshotParsed.departDate === currentParsed.departDate &&
-      compareOptionalText(snapshotEntity?.payload.fareCode, current.payload.fareCode) &&
-      compareOptionalText(snapshotEntity?.payload.cabinClass, current.payload.cabinClass) &&
+      compareOptionalText(snapshotEntity?.payload.fareCode, currentEntity.payload.fareCode) &&
+      compareOptionalText(snapshotEntity?.payload.cabinClass, currentEntity.payload.cabinClass) &&
       compareOptionalText(
         snapshotEntity?.payload.departureAt,
-        current.payload.departureAt,
+        currentEntity.payload.departureAt,
       ) &&
-      compareOptionalText(snapshotEntity?.payload.arrivalAt, current.payload.arrivalAt)
+      compareOptionalText(snapshotEntity?.payload.arrivalAt, currentEntity.payload.arrivalAt)
     )
   }
 
   if (snapshotParsed.vertical === 'hotel' && currentParsed.vertical === 'hotel') {
     const snapshotEntity =
       snapshot.inventory.bookableEntity?.vertical === 'hotel'
-        ? snapshot.inventory.bookableEntity
+        ? (snapshot.inventory.bookableEntity as HotelBookableEntity)
         : null
+    const currentEntity = current as HotelBookableEntity
 
     return (
       snapshotParsed.provider === currentParsed.provider &&
@@ -184,7 +191,7 @@ const verticalIdentityMatches = (
       snapshotParsed.checkOutDate === currentParsed.checkOutDate &&
       compareOptionalText(
         snapshotEntity?.bookingContext.hotelId,
-        current.bookingContext.hotelId,
+        currentEntity.bookingContext.hotelId,
       )
     )
   }
@@ -195,15 +202,16 @@ const verticalIdentityMatches = (
 
   const snapshotEntity =
     snapshot.inventory.bookableEntity?.vertical === 'car'
-      ? snapshot.inventory.bookableEntity
+      ? (snapshot.inventory.bookableEntity as CarBookableEntity)
       : null
+  const currentEntity = current as CarBookableEntity
 
   return (
     snapshotParsed.providerLocationId === currentParsed.providerLocationId &&
     snapshotParsed.vehicleClass === currentParsed.vehicleClass &&
     snapshotParsed.pickupDateTime === currentParsed.pickupDateTime &&
     snapshotParsed.dropoffDateTime === currentParsed.dropoffDateTime &&
-    compareOptionalText(snapshotEntity?.payload.ratePlanCode, current.payload.ratePlanCode)
+    compareOptionalText(snapshotEntity?.payload.ratePlanCode, currentEntity.payload.ratePlanCode)
   )
 }
 
