@@ -22,6 +22,46 @@ export const TERMINAL_CHECKOUT_SESSION_STATUSES = [
 
 export type CheckoutSessionStatus = (typeof CHECKOUT_SESSION_STATUSES)[number];
 
+export const CHECKOUT_SESSION_ENTRY_MODES = ["created", "resumed"] as const;
+export type CheckoutSessionEntryMode =
+  (typeof CHECKOUT_SESSION_ENTRY_MODES)[number];
+
+export const CHECKOUT_ENTRY_ERROR_CODES = [
+  "TRIP_NOT_FOUND",
+  "TRIP_EMPTY",
+  "TRIP_INVALID",
+  "CHECKOUT_CREATE_FAILED",
+  "CHECKOUT_RESUME_FAILED",
+] as const;
+export type CheckoutEntryErrorCode =
+  (typeof CHECKOUT_ENTRY_ERROR_CODES)[number];
+
+export const TRIP_CHECKOUT_READINESS_ISSUE_CODES = [
+  "no_trip",
+  "no_items",
+  "missing_pricing_snapshot",
+  "missing_inventory_reference",
+  "unsupported_item_shape",
+] as const;
+export type TripCheckoutReadinessIssueCode =
+  (typeof TRIP_CHECKOUT_READINESS_ISSUE_CODES)[number];
+
+export type TripCheckoutReadinessIssue = {
+  code: TripCheckoutReadinessIssueCode;
+  message: string;
+  itemId: number | null;
+  itemTitle: string | null;
+};
+
+export type TripCheckoutReadiness = {
+  isReady: boolean;
+  issues: TripCheckoutReadinessIssue[];
+  itemCount: number;
+  currency: string | null;
+  estimatedTotal: number | null;
+  readinessLabel: string;
+};
+
 export type CheckoutPricingSnapshot = {
   currencyCode: string | null;
   baseAmountCents: number | null;
@@ -88,8 +128,28 @@ export type CheckoutSessionSummary = {
   updatedLabel: string;
   expiresAt: string;
   expiresLabel: string;
+  entryMode: CheckoutSessionEntryMode | null;
+  canReturnToTrip: boolean;
+  readinessLabel: string | null;
   canProceed: boolean;
 };
+
+export type CheckoutEntrySuccessResult = {
+  ok: true;
+  checkoutSessionId: string;
+  redirectTo: string;
+  entryMode: CheckoutSessionEntryMode;
+};
+
+export type CheckoutEntryFailureResult = {
+  ok: false;
+  code: CheckoutEntryErrorCode;
+  message: string;
+};
+
+export type CheckoutEntryResult =
+  | CheckoutEntrySuccessResult
+  | CheckoutEntryFailureResult;
 
 export type CreateCheckoutSessionInput = {
   trip: TripDetails;
@@ -100,5 +160,6 @@ export type CreateCheckoutSessionInput = {
 export type CreateCheckoutSessionResult = {
   session: CheckoutSession;
   createdNew: boolean;
-  redirectHref: string;
+  entryMode: CheckoutSessionEntryMode;
+  redirectTo: string;
 };

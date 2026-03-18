@@ -24,14 +24,23 @@ export const CheckoutStatusNotice = component$(
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-              Status: {summary.statusLabel}
+              {summary.entryMode === "resumed"
+                ? "Resumed your current checkout session"
+                : summary.entryMode === "created"
+                  ? "Started a fresh checkout snapshot"
+                  : `Status: ${summary.statusLabel}`}
             </p>
             <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
               {summary.statusDescription}
             </p>
+            <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
+              Pricing and availability will be confirmed before payment. To
+              change the trip itself, return to the trip page and start checkout
+              again when you are ready.
+            </p>
           </div>
 
-          {isWarning ? (
+          {isWarning && summary.canReturnToTrip ? (
             <a
               href={summary.tripHref}
               class="rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-2 text-sm font-medium text-[color:var(--color-text-strong)] hover:border-[color:var(--color-text-strong)]"

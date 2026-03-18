@@ -10,11 +10,15 @@ export const CheckoutHeader = component$(
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div class="min-w-0">
             <p class="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--color-text-muted)]">
-              Checkout session
+              Checkout snapshot
             </p>
             <h1 class="mt-2 text-2xl font-semibold text-[color:var(--color-text-strong)]">
               Checkout
             </h1>
+            <p class="mt-2 max-w-2xl text-sm text-[color:var(--color-text-muted)]">
+              This checkout is based on your current saved trip snapshot. Make
+              trip changes before returning here.
+            </p>
             <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-[color:var(--color-text-muted)]">
               <span class="rounded-full border border-[color:var(--color-border)] px-2.5 py-1 font-medium text-[color:var(--color-text-strong)]">
                 {summary.shortId}
@@ -27,16 +31,27 @@ export const CheckoutHeader = component$(
             </div>
           </div>
 
-          <div class="rounded-xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-muted,#f8fafc)] px-4 py-3 text-left sm:text-right">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--color-text-muted)]">
-              Snapshot total
-            </p>
-            <p class="mt-1 text-xl font-semibold text-[color:var(--color-text-strong)]">
-              {summary.totalLabel}
-            </p>
-            <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-              Trip {summary.tripReference} · expires {summary.expiresLabel}
-            </p>
+          <div class="flex flex-col items-start gap-3 sm:items-end">
+            <div class="rounded-xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-muted,#f8fafc)] px-4 py-3 text-left sm:text-right">
+              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--color-text-muted)]">
+                Snapshot total
+              </p>
+              <p class="mt-1 text-xl font-semibold text-[color:var(--color-text-strong)]">
+                {summary.totalLabel}
+              </p>
+              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+                Trip {summary.tripReference} · expires {summary.expiresLabel}
+              </p>
+            </div>
+
+            {summary.canReturnToTrip ? (
+              <a
+                href={summary.tripHref}
+                class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm font-medium text-[color:var(--color-text-strong)] hover:border-[color:var(--color-text-strong)]"
+              >
+                Return to trip
+              </a>
+            ) : null}
           </div>
         </div>
       </section>

@@ -1,5 +1,9 @@
 import { formatMoneyFromCents } from '~/lib/pricing/price-display'
-import type { CheckoutSession, CheckoutSessionSummary } from '~/types/checkout'
+import type {
+  CheckoutSession,
+  CheckoutSessionEntryMode,
+  CheckoutSessionSummary,
+} from '~/types/checkout'
 
 const buildTripReference = (tripId: number) => {
   return `TRIP-${String(Math.max(0, tripId)).padStart(6, '0')}`
@@ -37,15 +41,15 @@ const toTitleCase = (value: string) => {
 
 const describeStatus = (status: CheckoutSession['status']) => {
   if (status === 'blocked') {
-    return 'This checkout snapshot is missing required inventory context and cannot proceed yet.'
+    return 'This checkout snapshot needs more trip updates before it can move forward.'
   }
 
   if (status === 'expired') {
-    return 'This checkout snapshot expired. Return to the trip to start a fresh session.'
+    return 'This checkout snapshot expired. Return to the trip to start a fresh checkout.'
   }
 
   if (status === 'completed') {
-    return 'This checkout session is complete. Confirmation and booking persistence come in later tasks.'
+    return 'This checkout session is complete. Confirmation and booking persistence arrive in later tasks.'
   }
 
   if (status === 'abandoned') {
@@ -53,10 +57,19 @@ const describeStatus = (status: CheckoutSession['status']) => {
   }
 
   if (status === 'ready') {
-    return 'This checkout session passed its current structural checks and is ready for later traveler and payment work.'
+    return 'This checkout snapshot is ready for the next traveler and payment steps once they are introduced.'
   }
 
-  return 'This checkout session is a frozen trip snapshot waiting for later traveler, payment, and confirmation steps.'
+  return 'This checkout session is a frozen trip snapshot that will be rechecked before payment.'
+}
+
+const describeReadiness = (status: CheckoutSession['status']) => {
+  if (status === 'expired') return 'Expired snapshot'
+  if (status === 'blocked') return 'Needs trip updates'
+  if (status === 'completed') return 'Checkout complete'
+  if (status === 'abandoned') return 'Checkout paused'
+  if (status === 'ready') return 'Ready for next checkout steps'
+  return 'Snapshot ready for confirmation checks'
 }
 
 const formatTotalLabel = (session: CheckoutSession) => {
@@ -73,6 +86,9 @@ const formatTotalLabel = (session: CheckoutSession) => {
 
 export const getCheckoutSessionSummary = (
   session: CheckoutSession,
+  options: {
+    entryMode?: CheckoutSessionEntryMode | null
+  } = {},
 ): CheckoutSessionSummary => {
   return {
     id: session.id,
@@ -91,6 +107,9 @@ export const getCheckoutSessionSummary = (
     updatedLabel: formatDateTime(session.updatedAt),
     expiresAt: session.expiresAt,
     expiresLabel: formatDateTime(session.expiresAt),
+    entryMode: options.entryMode ?? null,
+    canReturnToTrip: true,
+    readinessLabel: describeReadiness(session.status),
     canProceed: session.status === 'draft' || session.status === 'ready',
   }
 }

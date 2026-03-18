@@ -419,6 +419,8 @@ test("maps persisted trip details into grouped trip page models", () => {
   assert.equal(page.summary.itemCounts.hotel, 1);
   assert.equal(page.summary.itemCounts.car, 1);
   assert.equal(page.summary.continueHref, "/trips?trip=42");
+  assert.equal(page.summary.checkoutHref, "/checkout?trip=42");
+  assert.equal(page.summary.checkoutReadiness.isReady, true);
   assert.deepEqual(
     page.groups.map((group) => group.itemType),
     ["flight", "hotel", "car"],
@@ -451,5 +453,6 @@ test("maps empty persisted trips into an empty grouped page model", () => {
   assert.equal(page.summary.itemCounts.flight, 0);
   assert.equal(page.summary.itemCounts.hotel, 0);
   assert.equal(page.summary.itemCounts.car, 0);
+  assert.equal(page.summary.checkoutReadiness.isReady, false);
   assert.deepEqual(page.groups, []);
 });

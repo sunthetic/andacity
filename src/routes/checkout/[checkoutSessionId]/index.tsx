@@ -11,6 +11,14 @@ import {
   getCheckoutSession,
   CheckoutSessionError,
 } from "~/lib/checkout/getCheckoutSession";
+import type { CheckoutSessionEntryMode } from "~/types/checkout";
+
+const readEntryMode = (
+  value: string | null | undefined,
+): CheckoutSessionEntryMode | null => {
+  if (value !== "created" && value !== "resumed") return null;
+  return value;
+};
 
 type CheckoutSessionRouteData =
   | {
@@ -20,6 +28,7 @@ type CheckoutSessionRouteData =
       > extends never
         ? never
         : NonNullable<Awaited<ReturnType<typeof getCheckoutSession>>>;
+      entryMode: CheckoutSessionEntryMode | null;
     }
   | {
       kind: "not_found";
@@ -36,7 +45,7 @@ export const onRequest: RequestHandler = ({ headers }) => {
 };
 
 export const useCheckoutSessionPage = routeLoader$(
-  async ({ params, status }) => {
+  async ({ params, status, url }) => {
     const checkoutSessionId = String(params.checkoutSessionId || "").trim();
     if (!checkoutSessionId) {
       status(404);
@@ -61,6 +70,7 @@ export const useCheckoutSessionPage = routeLoader$(
       return {
         kind: "loaded",
         session,
+        entryMode: readEntryMode(url.searchParams.get("entry")),
       } satisfies CheckoutSessionRouteData;
     } catch (error) {
       if (error instanceof CheckoutSessionError) {
@@ -92,12 +102,10 @@ export default component$(() => {
   const data = useCheckoutSessionPage().value;
 
   if (data.kind === "loaded") {
-    return (
-      <CheckoutShell
-        session={data.session}
-        summary={getCheckoutSessionSummary(data.session)}
-      />
-    );
+    const summary = getCheckoutSessionSummary(data.session, {
+      entryMode: data.entryMode,
+    });
+    return <CheckoutShell session={data.session} summary={summary} />;
   }
 
   return (
@@ -140,7 +148,9 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
   const canonicalHref = new URL(url.pathname, url.origin).href;
 
   if (data.kind === "loaded") {
-    const summary = getCheckoutSessionSummary(data.session);
+    const summary = getCheckoutSessionSummary(data.session, {
+      entryMode: data.entryMode,
+    });
     const title = `${summary.tripReference} checkout | Andacity`;
     return {
       title,

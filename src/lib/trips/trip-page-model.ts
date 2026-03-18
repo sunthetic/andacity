@@ -1,4 +1,5 @@
 import { buildBookableEntityPath } from "~/lib/entities/routing";
+import { getTripCheckoutReadiness } from "~/lib/checkout/getTripCheckoutReadiness";
 import {
   buildPriceDisplayFromMetadata,
   formatMoney,
@@ -14,6 +15,7 @@ import type {
   FlightBookableEntity,
   HotelBookableEntity,
 } from "~/types/bookable-entity";
+import type { TripCheckoutReadiness } from "~/types/checkout";
 import type { TripDetails, TripItem, TripItemType } from "~/types/trips/trip";
 
 export const TRIP_PAGE_GROUP_ORDER = ["flight", "hotel", "car"] as const;
@@ -38,6 +40,8 @@ export type TripPageSummaryModel = {
   citiesLabel: string | null;
   bookingSessionLabel: string | null;
   continueHref: string;
+  checkoutHref: string;
+  checkoutReadiness: TripCheckoutReadiness;
   futureActions: TripPageActionSlot[];
 };
 
@@ -128,6 +132,7 @@ const REMOVE_ACTION: TripPageActionSlot = {
 };
 
 export const mapTripDetailsToTripPageModel = (trip: TripDetails): TripPageModel => {
+  const checkoutReadiness = getTripCheckoutReadiness(trip);
   const itemCounts: Record<TripItemType, number> = {
     flight: 0,
     hotel: 0,
@@ -196,6 +201,8 @@ export const mapTripDetailsToTripPageModel = (trip: TripDetails): TripPageModel 
         ? shortenOpaqueId(trip.bookingSessionId)
         : null,
       continueHref: `/trips?trip=${trip.id}`,
+      checkoutHref: `/checkout?trip=${trip.id}`,
+      checkoutReadiness,
       futureActions: FUTURE_ACTIONS,
     },
     groups,

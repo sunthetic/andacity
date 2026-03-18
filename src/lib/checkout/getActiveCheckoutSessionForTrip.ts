@@ -8,14 +8,15 @@ export const getActiveCheckoutSessionForTrip = async (
     now?: Date | string | number
   } = {},
 ): Promise<CheckoutSession | null> => {
-  const row = await getLatestActiveCheckoutSessionRow(tripId)
-  if (!row) return null
+  while (true) {
+    const row = await getLatestActiveCheckoutSessionRow(tripId)
+    if (!row) return null
 
-  const session = mapCheckoutSessionRow(row)
-  if (!isCheckoutSessionExpired(session, options.now)) {
-    return session
+    const session = mapCheckoutSessionRow(row)
+    if (!isCheckoutSessionExpired(session, options.now)) {
+      return session
+    }
+
+    await persistCheckoutSessionStatus(session.id, 'expired', options)
   }
-
-  await persistCheckoutSessionStatus(session.id, 'expired', options)
-  return null
 }

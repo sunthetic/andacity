@@ -22,6 +22,16 @@ export const CheckoutShell = component$(
       >
         <div class="space-y-6">
           <CheckoutHeader summary={summary} />
+          <section class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-muted,#f8fafc)] p-4 shadow-[var(--shadow-sm)]">
+            <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+              Checkout is a saved trip snapshot
+            </p>
+            <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+              We’ll confirm the latest pricing and availability before payment.
+              If you need to change flights, stays, or cars, return to the trip
+              page first.
+            </p>
+          </section>
           <CheckoutStatusNotice summary={summary} />
 
           <div class="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
