@@ -25,4 +25,4 @@ jobs:
         run: |
           ssh -t myserver \
             'cd ${{ vars.EC2_DEPLOY_ROOT_DIR }}; \
-            ./deploy.sh ${{ github.ref_name }} ${{ vars.APP_NAME }} ${{ vars.APP_SERVER_PORT }} ${{ vars.APP_FRAMEWORK}} $(pwd)'
+            sudo ./deploy.sh ${{ github.ref_name }} ${{ vars.APP_NAME }} ${{ vars.APP_SERVER_PORT }} ${{ vars.APP_FRAMEWORK}} $(pwd)'
