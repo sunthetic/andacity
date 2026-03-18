@@ -72,7 +72,7 @@ const describeStatus = (
 
   if (status === 'ready') {
     return readinessState === 'ready'
-      ? 'We rechecked pricing and availability for your trip. This checkout snapshot is ready for the next payment step once it is introduced.'
+      ? 'We rechecked pricing and availability for your trip. This checkout snapshot is ready for payment.'
       : 'This checkout snapshot exists, but it still needs a successful revalidation pass before payment can continue.'
   }
 
@@ -91,7 +91,7 @@ const describeReadiness = (
   if (session.revalidationStatus === 'pending') {
     return 'Verifying pricing and availability'
   }
-  if (readinessState === 'ready') return 'Ready for payment once enabled'
+  if (readinessState === 'ready') return 'Ready for payment'
   if (status === 'blocked') return 'Review inventory changes'
   if (status === 'completed') return 'Checkout complete'
   if (status === 'abandoned') return 'Checkout paused'

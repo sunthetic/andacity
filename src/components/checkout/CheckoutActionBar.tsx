@@ -1,6 +1,7 @@
 import { $, component$, useSignal } from "@builder.io/qwik";
 import { AsyncPendingButton } from "~/components/async/AsyncPendingButton";
 import type { CheckoutSessionSummary } from "~/types/checkout";
+import type { CheckoutPaymentSummary } from "~/types/payment";
 
 const isRetryAllowed = (summary: CheckoutSessionSummary) => {
   return (
@@ -11,7 +12,10 @@ const isRetryAllowed = (summary: CheckoutSessionSummary) => {
 };
 
 export const CheckoutActionBar = component$(
-  (props: { summary: CheckoutSessionSummary }) => {
+  (props: {
+    summary: CheckoutSessionSummary;
+    paymentSummary: CheckoutPaymentSummary;
+  }) => {
     const pending = useSignal(false);
     const onSubmit$ = $(() => {
       if (!isRetryAllowed(props.summary) || pending.value) return;
@@ -24,21 +28,27 @@ export const CheckoutActionBar = component$(
           Next step
         </p>
         <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-          {props.summary.readinessState === "ready"
-            ? "This checkout session passed the revalidation gate. Payment intent work lands next."
-            : "Payment stays blocked until the latest pricing and availability check passes."}
+          {!props.paymentSummary.checkoutReady
+            ? "Payment stays blocked until the latest pricing and availability check passes."
+            : props.paymentSummary.status == null
+              ? "Initialize a payment session from the current checkout totals."
+              : props.paymentSummary.status === "authorized" ||
+                  props.paymentSummary.status === "succeeded"
+                ? "Payment is ready for booking execution once TASK-040 lands."
+                : "Continue or refresh the active payment session below."}
         </p>
 
         <div class="mt-5 space-y-3">
-          <button
-            type="button"
-            disabled
-            class="w-full rounded-lg bg-[color:rgba(15,23,42,0.08)] px-3 py-2 text-sm font-medium text-[color:var(--color-text-muted)]"
+          <a
+            href="#checkout-payment"
+            class="block w-full rounded-lg bg-[color:var(--color-action)] px-3 py-2 text-center text-sm font-medium text-white hover:opacity-90"
           >
-            {props.summary.readinessState === "ready"
-              ? "Payment step coming in TASK-039"
-              : "Payment blocked until revalidation passes"}
-          </button>
+            {props.paymentSummary.checkoutReady
+              ? props.paymentSummary.status == null
+                ? "Start payment"
+                : "Open payment section"
+              : "Review checkout blockers"}
+          </a>
 
           {isRetryAllowed(props.summary) ? (
             <form method="post" onSubmit$={onSubmit$}>

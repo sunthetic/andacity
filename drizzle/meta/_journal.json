@@ -64,6 +64,13 @@
       "when": 1773892800000,
       "tag": "0008_checkout_revalidation_gate",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1773979200000,
+      "tag": "0009_checkout_payment_sessions",
+      "breakpoints": true
     }
   ]
 }

@@ -11,15 +11,62 @@ import {
   getCheckoutSession,
   CheckoutSessionError,
 } from "~/lib/checkout/getCheckoutSession";
+import { getActiveCheckoutPaymentSession } from "~/lib/payments/getActiveCheckoutPaymentSession";
+import { getCheckoutPaymentSummary } from "~/lib/payments/getCheckoutPaymentSummary";
+import { refreshCheckoutPaymentStatus } from "~/lib/payments/refreshCheckoutPaymentStatus";
 import { shouldCheckoutSessionRevalidate } from "~/lib/checkout/shouldCheckoutSessionRevalidate";
 import type { CheckoutSessionEntryMode } from "~/types/checkout";
-import { runCheckoutRevalidation } from "~/routes/checkout/actions";
+import type { CheckoutPaymentSummary } from "~/types/payment";
+import {
+  cancelCheckoutPayment,
+  createCheckoutPaymentIntent,
+  refreshCheckoutPaymentSession,
+  runCheckoutRevalidation,
+} from "~/routes/checkout/actions";
 
 const readEntryMode = (
   value: string | null | undefined,
 ): CheckoutSessionEntryMode | null => {
   if (value !== "created" && value !== "resumed") return null;
   return value;
+};
+
+const readPaymentNotice = (url: URL) => {
+  const code = String(url.searchParams.get("payment_code") || "").trim();
+  const message = String(url.searchParams.get("payment_message") || "").trim();
+  const tone = String(url.searchParams.get("payment_tone") || "").trim();
+  if (!code || !message) return null;
+
+  return {
+    code,
+    message,
+    tone:
+      tone === "success" || tone === "error" || tone === "info" ? tone : "info",
+  } as const;
+};
+
+const buildCheckoutPageHref = (
+  pathname: string,
+  sourceUrl: URL,
+  notice?: {
+    code: string;
+    message: string;
+    tone: "info" | "success" | "error";
+  } | null,
+) => {
+  const params = new URLSearchParams(sourceUrl.search);
+  params.delete("payment_code");
+  params.delete("payment_message");
+  params.delete("payment_tone");
+
+  if (notice) {
+    params.set("payment_code", notice.code);
+    params.set("payment_message", notice.message);
+    params.set("payment_tone", notice.tone);
+  }
+
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
 };
 
 type CheckoutSessionRouteData =
@@ -31,6 +78,12 @@ type CheckoutSessionRouteData =
         ? never
         : NonNullable<Awaited<ReturnType<typeof getCheckoutSession>>>;
       entryMode: CheckoutSessionEntryMode | null;
+      paymentSummary: CheckoutPaymentSummary;
+      paymentNotice: {
+        code: string;
+        message: string;
+        tone: "info" | "success" | "error";
+      } | null;
     }
   | {
       kind: "not_found";
@@ -58,9 +111,46 @@ export const onPost: RequestHandler = async ({
 
   if (checkoutSessionId && intent === "revalidate") {
     await runCheckoutRevalidation(checkoutSessionId);
+    throw redirect(303, buildCheckoutPageHref(url.pathname, url));
   }
 
-  throw redirect(303, `${url.pathname}${url.search}`);
+  if (checkoutSessionId && intent === "create-payment") {
+    const result = await createCheckoutPaymentIntent(checkoutSessionId);
+    throw redirect(
+      303,
+      buildCheckoutPageHref(url.pathname, url, {
+        code: result.code,
+        message: result.message,
+        tone: result.ok ? "success" : "error",
+      }),
+    );
+  }
+
+  if (checkoutSessionId && intent === "cancel-payment") {
+    const result = await cancelCheckoutPayment(checkoutSessionId);
+    throw redirect(
+      303,
+      buildCheckoutPageHref(url.pathname, url, {
+        code: result.code,
+        message: result.message,
+        tone: result.ok ? "success" : "error",
+      }),
+    );
+  }
+
+  if (checkoutSessionId && intent === "refresh-payment") {
+    const result = await refreshCheckoutPaymentSession(checkoutSessionId);
+    throw redirect(
+      303,
+      buildCheckoutPageHref(url.pathname, url, {
+        code: result.code,
+        message: result.message,
+        tone: result.ok ? "info" : "error",
+      }),
+    );
+  }
+
+  throw redirect(303, buildCheckoutPageHref(url.pathname, url));
 };
 
 export const useCheckoutSessionPage = routeLoader$(
@@ -98,10 +188,36 @@ export const useCheckoutSessionPage = routeLoader$(
         }
       }
 
+      const activePaymentSession = await getActiveCheckoutPaymentSession(
+        checkoutSessionId,
+        { now: new Date() },
+      );
+      if (activePaymentSession) {
+        try {
+          await refreshCheckoutPaymentStatus(activePaymentSession.id, {
+            now: new Date(),
+          });
+        } catch {
+          // Keep checkout available even when provider status refresh fails.
+        }
+      }
+
+      const refreshedSession = await getCheckoutSession(checkoutSessionId, {
+        includeTerminal: true,
+      });
+      if (refreshedSession) {
+        session = refreshedSession;
+      }
+      const paymentSummary = await getCheckoutPaymentSummary(session, {
+        now: new Date(),
+      });
+
       return {
         kind: "loaded",
         session,
         entryMode: readEntryMode(url.searchParams.get("entry")),
+        paymentSummary,
+        paymentNotice: readPaymentNotice(url),
       } satisfies CheckoutSessionRouteData;
     } catch (error) {
       if (error instanceof CheckoutSessionError) {
@@ -136,7 +252,14 @@ export default component$(() => {
     const summary = getCheckoutSessionSummary(data.session, {
       entryMode: data.entryMode,
     });
-    return <CheckoutShell session={data.session} summary={summary} />;
+    return (
+      <CheckoutShell
+        session={data.session}
+        summary={summary}
+        paymentSummary={data.paymentSummary}
+        paymentNotice={data.paymentNotice}
+      />
+    );
   }
 
   return (

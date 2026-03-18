@@ -17,16 +17,22 @@ import {
 } from '~/types/checkout'
 
 export const CHECKOUT_SESSION_DEFAULT_TTL_MS = 30 * 60 * 1000
-const LATEST_CHECKOUT_MIGRATION = '0008_checkout_revalidation_gate.sql'
+const LATEST_CHECKOUT_MIGRATION = '0009_checkout_payment_sessions.sql'
 const CHECKOUT_SCHEMA_IDENTIFIERS = [
   'checkout_sessions',
   'checkout_session_status',
   'checkout_revalidation_status',
+  'checkout_payment_sessions',
+  'checkout_payment_session_status',
+  'payment_provider',
   'items_json',
   'totals_json',
   'revalidation_status',
   'revalidation_summary_json',
   'last_revalidated_at',
+  'amount_json',
+  'revalidation_fingerprint',
+  'provider_payment_intent_id',
 ] as const
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

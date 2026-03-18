@@ -44,7 +44,7 @@ export const CheckoutRevalidationNotice = component$(
             </p>
             <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
               {isReady
-                ? "Payment stays blocked until the payment layer is added, but this session has passed the canonical revalidation gate."
+                ? "Payment can now be initialized from the current revalidated checkout totals."
                 : "Review the updates below before proceeding."}
             </p>
           </div>

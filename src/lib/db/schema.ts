@@ -54,6 +54,11 @@ export const checkoutRevalidationStatusEnum = dbEnum(
   'checkout_revalidation_status',
   ['idle', 'pending', 'passed', 'failed'],
 )
+export const paymentProviderEnum = dbEnum('payment_provider', ['stripe'])
+export const checkoutPaymentSessionStatusEnum = dbEnum(
+  'checkout_payment_session_status',
+  ['draft', 'pending', 'requires_action', 'authorized', 'succeeded', 'canceled', 'failed', 'expired'],
+)
 
 export const countries = dbTable(
   'countries',
@@ -839,6 +844,48 @@ export const checkoutSessions = dbTable(
   }),
 )
 
+export const checkoutPaymentSessions = dbTable(
+  'checkout_payment_sessions',
+  {
+    id: text('id').primaryKey(),
+    checkoutSessionId: text('checkout_session_id')
+      .notNull()
+      .references(() => checkoutSessions.id, { onDelete: 'cascade' }),
+    provider: paymentProviderEnum('provider').notNull(),
+    status: checkoutPaymentSessionStatusEnum('status').notNull().default('draft'),
+    currency: varchar('currency', { length: 3 }).notNull(),
+    amountJson: jsonb('amount_json').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    revalidationFingerprint: text('revalidation_fingerprint').notNull(),
+    providerPaymentIntentId: text('provider_payment_intent_id').notNull(),
+    providerClientSecret: text('provider_client_secret'),
+    providerMetadataJson: jsonb('provider_metadata_json')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    authorizedAt: timestamp('authorized_at', { withTimezone: true }),
+    succeededAt: timestamp('succeeded_at', { withTimezone: true }),
+    failedAt: timestamp('failed_at', { withTimezone: true }),
+    canceledAt: timestamp('canceled_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    checkoutIdx: index('checkout_payment_sessions_checkout_idx').on(table.checkoutSessionId),
+    statusIdx: index('checkout_payment_sessions_status_idx').on(table.status),
+    updatedIdx: index('checkout_payment_sessions_updated_idx').on(table.updatedAt),
+    fingerprintIdx: index('checkout_payment_sessions_fingerprint_idx').on(
+      table.checkoutSessionId,
+      table.revalidationFingerprint,
+      table.updatedAt,
+    ),
+    providerIntentUq: uniqueIndex('checkout_payment_sessions_provider_intent_uq').on(
+      table.provider,
+      table.providerPaymentIntentId,
+    ),
+  }),
+)
+
 export const countriesRelations = relations(countries, ({ many }) => ({
   regions: many(regions),
   cities: many(cities),
@@ -1125,9 +1172,20 @@ export const tripItemInventorySnapshotsRelations = relations(
   }),
 )
 
-export const checkoutSessionsRelations = relations(checkoutSessions, ({ one }) => ({
+export const checkoutSessionsRelations = relations(checkoutSessions, ({ one, many }) => ({
   trip: one(trips, {
     fields: [checkoutSessions.tripId],
     references: [trips.id],
   }),
+  paymentSessions: many(checkoutPaymentSessions),
 }))
+
+export const checkoutPaymentSessionsRelations = relations(
+  checkoutPaymentSessions,
+  ({ one }) => ({
+    checkoutSession: one(checkoutSessions, {
+      fields: [checkoutPaymentSessions.checkoutSessionId],
+      references: [checkoutSessions.id],
+    }),
+  }),
+)

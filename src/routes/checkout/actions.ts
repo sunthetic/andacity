@@ -12,6 +12,11 @@ import {
 } from "~/lib/checkout/getCheckoutSession";
 import { isCheckoutSessionExpired } from "~/lib/checkout/isCheckoutSessionExpired";
 import { isCheckoutSessionTerminal } from "~/lib/checkout/isCheckoutSessionTerminal";
+import { cancelCheckoutPaymentSession } from "~/lib/payments/cancelCheckoutPaymentSession";
+import { createOrResumeCheckoutPaymentSession } from "~/lib/payments/createOrResumeCheckoutPaymentSession";
+import { CheckoutPaymentSessionError } from "~/lib/payments/createCheckoutPaymentSession";
+import { getActiveCheckoutPaymentSession } from "~/lib/payments/getActiveCheckoutPaymentSession";
+import { refreshCheckoutPaymentStatus } from "~/lib/payments/refreshCheckoutPaymentStatus";
 import { revalidateCheckoutSession } from "~/lib/checkout/revalidateCheckoutSession";
 import { parseTripIdParam } from "~/lib/queries/trips.server";
 import {
@@ -25,6 +30,10 @@ import type {
   CheckoutRevalidationStatus,
   TripCheckoutReadiness,
 } from "~/types/checkout";
+import type {
+  CheckoutPaymentSessionStatus,
+  PaymentProvider,
+} from "~/types/payment";
 import type { TripDetails } from "~/types/trips/trip";
 
 type ResolveCheckoutTripResult =
@@ -444,4 +453,164 @@ export const abandonCheckoutSession = async (
   }
 
   await persistCheckoutSessionStatus(normalizedId, "abandoned", options);
+};
+
+export type CheckoutPaymentActionResult =
+  | {
+      ok: true;
+      code:
+        | "PAYMENT_SESSION_READY"
+        | "PAYMENT_SESSION_CANCELED"
+        | "PAYMENT_SESSION_REFRESHED";
+      paymentSessionId: string | null;
+      paymentStatus: CheckoutPaymentSessionStatus | null;
+      provider: PaymentProvider | null;
+      clientSecret: string | null;
+      message: string;
+    }
+  | {
+      ok: false;
+      code:
+        | "CHECKOUT_NOT_FOUND"
+        | "CHECKOUT_NOT_READY"
+        | "CHECKOUT_EXPIRED"
+        | "PAYMENT_PROVIDER_UNAVAILABLE"
+        | "PAYMENT_INTENT_CREATE_FAILED"
+        | "PAYMENT_SESSION_STALE"
+        | "PAYMENT_SESSION_CANCELED";
+      paymentSessionId: string | null;
+      paymentStatus: CheckoutPaymentSessionStatus | null;
+      provider: PaymentProvider | null;
+      clientSecret: string | null;
+      message: string;
+    };
+
+const mapPaymentErrorResult = (error: unknown): CheckoutPaymentActionResult => {
+  if (error instanceof CheckoutPaymentSessionError) {
+    return {
+      ok: false,
+      code: error.code,
+      paymentSessionId: null,
+      paymentStatus: null,
+      provider: null,
+      clientSecret: null,
+      message: error.message,
+    };
+  }
+
+  return {
+    ok: false,
+    code: "PAYMENT_INTENT_CREATE_FAILED",
+    paymentSessionId: null,
+    paymentStatus: null,
+    provider: null,
+    clientSecret: null,
+    message:
+      error instanceof Error
+        ? error.message
+        : "Payment session creation failed.",
+  };
+};
+
+export const createCheckoutPaymentIntent = async (
+  checkoutSessionId: string,
+): Promise<CheckoutPaymentActionResult> => {
+  try {
+    const paymentSession =
+      await createOrResumeCheckoutPaymentSession(checkoutSessionId);
+
+    return {
+      ok: true,
+      code: "PAYMENT_SESSION_READY",
+      paymentSessionId: paymentSession.id,
+      paymentStatus: paymentSession.status,
+      provider: paymentSession.provider,
+      clientSecret: paymentSession.providerClientSecret,
+      message:
+        paymentSession.status === "requires_action"
+          ? "Your payment session is ready for card details."
+          : "Your payment session is ready to resume.",
+    };
+  } catch (error) {
+    return mapPaymentErrorResult(error);
+  }
+};
+
+export const cancelCheckoutPayment = async (
+  checkoutSessionId: string,
+): Promise<CheckoutPaymentActionResult> => {
+  const activeSession = await getActiveCheckoutPaymentSession(
+    checkoutSessionId,
+    {
+      now: new Date(),
+    },
+  );
+  if (!activeSession) {
+    return {
+      ok: false,
+      code: "PAYMENT_SESSION_CANCELED",
+      paymentSessionId: null,
+      paymentStatus: null,
+      provider: null,
+      clientSecret: null,
+      message: "There is no active payment session to cancel.",
+    };
+  }
+
+  const canceled = await cancelCheckoutPaymentSession(activeSession.id, {
+    now: new Date(),
+    reason: "checkout_user_canceled",
+  });
+
+  return {
+    ok: true,
+    code: "PAYMENT_SESSION_CANCELED",
+    paymentSessionId: canceled?.id || null,
+    paymentStatus: canceled?.status || null,
+    provider: canceled?.provider || null,
+    clientSecret: null,
+    message: "Payment session canceled.",
+  };
+};
+
+export const refreshCheckoutPaymentSession = async (
+  checkoutSessionId: string,
+): Promise<CheckoutPaymentActionResult> => {
+  const activeSession = await getActiveCheckoutPaymentSession(
+    checkoutSessionId,
+    {
+      now: new Date(),
+    },
+  );
+
+  if (!activeSession) {
+    return {
+      ok: false,
+      code: "PAYMENT_SESSION_CANCELED",
+      paymentSessionId: null,
+      paymentStatus: null,
+      provider: null,
+      clientSecret: null,
+      message: "There is no active payment session to refresh.",
+    };
+  }
+
+  try {
+    const refreshed = await refreshCheckoutPaymentStatus(activeSession.id, {
+      now: new Date(),
+    });
+
+    return {
+      ok: true,
+      code: "PAYMENT_SESSION_REFRESHED",
+      paymentSessionId: refreshed?.id || activeSession.id,
+      paymentStatus: refreshed?.status || activeSession.status,
+      provider: refreshed?.provider || activeSession.provider,
+      clientSecret:
+        refreshed?.providerClientSecret || activeSession.providerClientSecret,
+      message: "Payment status refreshed.",
+    };
+  } catch (error) {
+    return mapPaymentErrorResult(error);
+  }
 };

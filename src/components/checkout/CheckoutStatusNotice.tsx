@@ -1,9 +1,13 @@
 import { component$ } from "@builder.io/qwik";
 import type { CheckoutSessionSummary } from "~/types/checkout";
+import type { CheckoutPaymentSummary } from "~/types/payment";
 
 export const CheckoutStatusNotice = component$(
-  (props: { summary: CheckoutSessionSummary }) => {
-    const { summary } = props;
+  (props: {
+    summary: CheckoutSessionSummary;
+    paymentSummary: CheckoutPaymentSummary;
+  }) => {
+    const { summary, paymentSummary } = props;
     const isWarning =
       summary.status === "blocked" ||
       summary.status === "expired" ||
@@ -36,6 +40,11 @@ export const CheckoutStatusNotice = component$(
             <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
               {summary.readinessLabel}
             </p>
+            {paymentSummary.status ? (
+              <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
+                Payment: {paymentSummary.statusDescription}
+              </p>
+            ) : null}
           </div>
 
           {isWarning && summary.canReturnToTrip ? (
