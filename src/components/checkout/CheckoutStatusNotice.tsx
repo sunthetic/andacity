@@ -34,9 +34,7 @@ export const CheckoutStatusNotice = component$(
               {summary.statusDescription}
             </p>
             <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-              Pricing and availability will be confirmed before payment. To
-              change the trip itself, return to the trip page and start checkout
-              again when you are ready.
+              {summary.readinessLabel}
             </p>
           </div>
 

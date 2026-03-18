@@ -50,6 +50,10 @@ export const checkoutSessionStatusEnum = dbEnum('checkout_session_status', [
   'completed',
   'abandoned',
 ])
+export const checkoutRevalidationStatusEnum = dbEnum(
+  'checkout_revalidation_status',
+  ['idle', 'pending', 'passed', 'failed'],
+)
 
 export const countries = dbTable(
   'countries',
@@ -809,9 +813,14 @@ export const checkoutSessions = dbTable(
       .notNull()
       .references(() => trips.id, { onDelete: 'cascade' }),
     status: checkoutSessionStatusEnum('status').notNull().default('draft'),
+    revalidationStatus: checkoutRevalidationStatusEnum('revalidation_status')
+      .notNull()
+      .default('idle'),
     currency: varchar('currency', { length: 3 }),
     itemsJson: jsonb('items_json').$type<Record<string, unknown>[]>().notNull().default(sql`'[]'::jsonb`),
     totalsJson: jsonb('totals_json').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    revalidationSummaryJson: jsonb('revalidation_summary_json').$type<Record<string, unknown>>(),
+    lastRevalidatedAt: timestamp('last_revalidated_at', { withTimezone: true }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     abandonedAt: timestamp('abandoned_at', { withTimezone: true }),

@@ -28,6 +28,12 @@ export const CheckoutHeader = component$(
               <span>
                 {summary.itemCount} item{summary.itemCount === 1 ? "" : "s"}
               </span>
+              {summary.lastRevalidatedLabel ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{summary.lastRevalidatedLabel}</span>
+                </>
+              ) : null}
             </div>
           </div>
 

@@ -4,10 +4,15 @@ import {
 } from "~/lib/checkout/createOrResumeCheckoutSession";
 import { getCheckoutEntryErrorMessage } from "~/lib/checkout/getCheckoutEntryErrorMessage";
 import { getTripCheckoutReadiness } from "~/lib/checkout/getTripCheckoutReadiness";
+import { getCheckoutReadinessState } from "~/lib/checkout/getCheckoutReadinessState";
 import {
   CheckoutSessionError,
+  getCheckoutSession,
   persistCheckoutSessionStatus,
 } from "~/lib/checkout/getCheckoutSession";
+import { isCheckoutSessionExpired } from "~/lib/checkout/isCheckoutSessionExpired";
+import { isCheckoutSessionTerminal } from "~/lib/checkout/isCheckoutSessionTerminal";
+import { revalidateCheckoutSession } from "~/lib/checkout/revalidateCheckoutSession";
 import { parseTripIdParam } from "~/lib/queries/trips.server";
 import {
   getTripDetails,
@@ -16,6 +21,8 @@ import {
 } from "~/lib/repos/trips-repo.server";
 import type {
   CheckoutEntryResult,
+  CheckoutReadinessState,
+  CheckoutRevalidationStatus,
   TripCheckoutReadiness,
 } from "~/types/checkout";
 import type { TripDetails } from "~/types/trips/trip";
@@ -265,6 +272,159 @@ export const beginCheckoutFromTrip = async (input: {
             : "Checkout could not be started from this trip.",
         tripReference: buildTripReference(resolved.trip.id),
       }),
+    };
+  }
+};
+
+export type CheckoutRevalidationActionResult =
+  | {
+      ok: true;
+      code: "REVALIDATION_PASSED";
+      readiness: CheckoutReadinessState;
+      revalidationStatus: CheckoutRevalidationStatus;
+      counts: {
+        blockingIssueCount: number;
+        priceChangeCount: number;
+        unavailableCount: number;
+        changedCount: number;
+        failedCount: number;
+      };
+    }
+  | {
+      ok: false;
+      code:
+        | "CHECKOUT_NOT_FOUND"
+        | "CHECKOUT_EXPIRED"
+        | "REVALIDATION_FAILED"
+        | "REVALIDATION_BLOCKED";
+      readiness: CheckoutReadinessState;
+      revalidationStatus: CheckoutRevalidationStatus;
+      counts: {
+        blockingIssueCount: number;
+        priceChangeCount: number;
+        unavailableCount: number;
+        changedCount: number;
+        failedCount: number;
+      };
+      message: string;
+    };
+
+const emptyRevalidationCounts = {
+  blockingIssueCount: 0,
+  priceChangeCount: 0,
+  unavailableCount: 0,
+  changedCount: 0,
+  failedCount: 0,
+};
+
+export const runCheckoutRevalidation = async (
+  checkoutSessionId: string,
+): Promise<CheckoutRevalidationActionResult> => {
+  const session = await getCheckoutSession(checkoutSessionId, {
+    includeTerminal: true,
+  });
+
+  if (!session) {
+    return {
+      ok: false,
+      code: "CHECKOUT_NOT_FOUND",
+      readiness: "blocked",
+      revalidationStatus: "failed",
+      counts: emptyRevalidationCounts,
+      message: "Checkout session could not be found.",
+    };
+  }
+
+  if (isCheckoutSessionExpired(session)) {
+    return {
+      ok: false,
+      code: "CHECKOUT_EXPIRED",
+      readiness: "blocked",
+      revalidationStatus: session.revalidationStatus,
+      counts: session.revalidationSummary
+        ? {
+            blockingIssueCount: session.revalidationSummary.blockingIssueCount,
+            priceChangeCount: session.revalidationSummary.priceChangeCount,
+            unavailableCount: session.revalidationSummary.unavailableCount,
+            changedCount: session.revalidationSummary.changedCount,
+            failedCount: session.revalidationSummary.failedCount,
+          }
+        : emptyRevalidationCounts,
+      message:
+        "This checkout session expired. Return to the trip to create a fresh checkout snapshot.",
+    };
+  }
+
+  if (isCheckoutSessionTerminal(session.status)) {
+    return {
+      ok: false,
+      code: "REVALIDATION_FAILED",
+      readiness: "blocked",
+      revalidationStatus: session.revalidationStatus,
+      counts: session.revalidationSummary
+        ? {
+            blockingIssueCount: session.revalidationSummary.blockingIssueCount,
+            priceChangeCount: session.revalidationSummary.priceChangeCount,
+            unavailableCount: session.revalidationSummary.unavailableCount,
+            changedCount: session.revalidationSummary.changedCount,
+            failedCount: session.revalidationSummary.failedCount,
+          }
+        : emptyRevalidationCounts,
+      message: "This checkout session can no longer be revalidated.",
+    };
+  }
+
+  try {
+    const refreshed = await revalidateCheckoutSession(checkoutSessionId);
+    const readiness = getCheckoutReadinessState(refreshed);
+    const counts = refreshed.revalidationSummary
+      ? {
+          blockingIssueCount: refreshed.revalidationSummary.blockingIssueCount,
+          priceChangeCount: refreshed.revalidationSummary.priceChangeCount,
+          unavailableCount: refreshed.revalidationSummary.unavailableCount,
+          changedCount: refreshed.revalidationSummary.changedCount,
+          failedCount: refreshed.revalidationSummary.failedCount,
+        }
+      : emptyRevalidationCounts;
+
+    if (
+      readiness === "ready" &&
+      refreshed.revalidationStatus === "passed" &&
+      refreshed.revalidationSummary?.allItemsPassed
+    ) {
+      return {
+        ok: true,
+        code: "REVALIDATION_PASSED",
+        readiness,
+        revalidationStatus: refreshed.revalidationStatus,
+        counts,
+      };
+    }
+
+    return {
+      ok: false,
+      code:
+        refreshed.revalidationStatus === "failed"
+          ? "REVALIDATION_FAILED"
+          : "REVALIDATION_BLOCKED",
+      readiness,
+      revalidationStatus: refreshed.revalidationStatus,
+      counts,
+      message: refreshed.revalidationSummary?.blockingIssueCount
+        ? "One or more items changed before checkout could continue."
+        : "Checkout could not be revalidated right now.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "REVALIDATION_FAILED",
+      readiness: "blocked",
+      revalidationStatus: "failed",
+      counts: emptyRevalidationCounts,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Checkout revalidation failed.",
     };
   }
 };

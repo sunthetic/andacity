@@ -26,6 +26,28 @@ export const CHECKOUT_SESSION_ENTRY_MODES = ["created", "resumed"] as const;
 export type CheckoutSessionEntryMode =
   (typeof CHECKOUT_SESSION_ENTRY_MODES)[number];
 
+export const CHECKOUT_REVALIDATION_STATUSES = [
+  "idle",
+  "pending",
+  "passed",
+  "failed",
+] as const;
+export type CheckoutRevalidationStatus =
+  (typeof CHECKOUT_REVALIDATION_STATUSES)[number];
+
+export const CHECKOUT_ITEM_REVALIDATION_STATUSES = [
+  "passed",
+  "price_changed",
+  "unavailable",
+  "changed",
+  "failed",
+] as const;
+export type CheckoutItemRevalidationStatus =
+  (typeof CHECKOUT_ITEM_REVALIDATION_STATUSES)[number];
+
+export const CHECKOUT_READINESS_STATES = ["blocked", "ready"] as const;
+export type CheckoutReadinessState = (typeof CHECKOUT_READINESS_STATES)[number];
+
 export const CHECKOUT_ENTRY_ERROR_CODES = [
   "TRIP_NOT_FOUND",
   "TRIP_EMPTY",
@@ -97,10 +119,41 @@ export type CheckoutItemSnapshot = {
   pricing: CheckoutPricingSnapshot;
 };
 
+export type CheckoutItemRevalidationResult = {
+  tripItemId: number;
+  itemType: TripItemType;
+  vertical: BookableVertical;
+  title: string;
+  subtitle: string | null;
+  status: CheckoutItemRevalidationStatus;
+  message: string | null;
+  previousPricing: CheckoutPricingSnapshot;
+  currentPricing: CheckoutPricingSnapshot | null;
+  previousInventory: CheckoutInventoryReference | null;
+  currentInventory: CheckoutInventoryReference | null;
+  providerMetadata: Record<string, unknown> | null;
+};
+
+export type CheckoutRevalidationSummary = {
+  status: CheckoutRevalidationStatus;
+  checkedAt: string;
+  itemResults: CheckoutItemRevalidationResult[];
+  allItemsPassed: boolean;
+  blockingIssueCount: number;
+  priceChangeCount: number;
+  unavailableCount: number;
+  changedCount: number;
+  failedCount: number;
+  currentTotals: CheckoutPricingSnapshot | null;
+};
+
 export type CheckoutSession = {
   id: string;
   tripId: number;
   status: CheckoutSessionStatus;
+  revalidationStatus: CheckoutRevalidationStatus;
+  revalidationSummary: CheckoutRevalidationSummary | null;
+  lastRevalidatedAt: string | null;
   currencyCode: string | null;
   items: CheckoutItemSnapshot[];
   totals: CheckoutPricingSnapshot;
@@ -129,9 +182,14 @@ export type CheckoutSessionSummary = {
   expiresAt: string;
   expiresLabel: string;
   entryMode: CheckoutSessionEntryMode | null;
+  revalidationStatus: CheckoutRevalidationStatus;
+  readinessState: CheckoutReadinessState;
+  lastRevalidatedAt: string | null;
+  lastRevalidatedLabel: string | null;
   canReturnToTrip: boolean;
   readinessLabel: string | null;
   canProceed: boolean;
+  blockingIssueCount: number;
 };
 
 export type CheckoutEntrySuccessResult = {

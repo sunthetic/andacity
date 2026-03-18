@@ -57,6 +57,13 @@
       "when": 1773795600000,
       "tag": "0007_checkout_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1773892800000,
+      "tag": "0008_checkout_revalidation_gate",
+      "breakpoints": true
     }
   ]
 }

@@ -4,20 +4,29 @@ import { checkoutSessions } from '~/lib/db/schema'
 import { isCheckoutSessionExpired } from '~/lib/checkout/isCheckoutSessionExpired'
 import { isCheckoutSessionTerminal } from '~/lib/checkout/isCheckoutSessionTerminal'
 import {
+  CHECKOUT_ITEM_REVALIDATION_STATUSES,
+  CHECKOUT_REVALIDATION_STATUSES,
   CHECKOUT_SESSION_STATUSES,
+  type CheckoutItemRevalidationResult,
   type CheckoutItemSnapshot,
   type CheckoutPricingSnapshot,
+  type CheckoutRevalidationStatus,
+  type CheckoutRevalidationSummary,
   type CheckoutSession,
   type CheckoutSessionStatus,
 } from '~/types/checkout'
 
 export const CHECKOUT_SESSION_DEFAULT_TTL_MS = 30 * 60 * 1000
-const LATEST_CHECKOUT_MIGRATION = '0007_checkout_sessions.sql'
+const LATEST_CHECKOUT_MIGRATION = '0008_checkout_revalidation_gate.sql'
 const CHECKOUT_SCHEMA_IDENTIFIERS = [
   'checkout_sessions',
   'checkout_session_status',
+  'checkout_revalidation_status',
   'items_json',
   'totals_json',
+  'revalidation_status',
+  'revalidation_summary_json',
+  'last_revalidated_at',
 ] as const
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -61,6 +70,14 @@ const normalizeCheckoutSessionStatus = (value: unknown): CheckoutSessionStatus =
   return CHECKOUT_SESSION_STATUSES.includes(value as CheckoutSessionStatus)
     ? (value as CheckoutSessionStatus)
     : 'draft'
+}
+
+const normalizeCheckoutRevalidationStatus = (
+  value: unknown,
+): CheckoutRevalidationStatus => {
+  return CHECKOUT_REVALIDATION_STATUSES.includes(value as CheckoutRevalidationStatus)
+    ? (value as CheckoutRevalidationStatus)
+    : 'idle'
 }
 
 const normalizePricingSnapshot = (value: unknown): CheckoutPricingSnapshot => {
@@ -112,6 +129,81 @@ const normalizeCheckoutItemSnapshot = (value: unknown): CheckoutItemSnapshot | n
     endDate: toNullableText(input.endDate),
     snapshotTimestamp: normalizeTimestamp(input.snapshotTimestamp as string | Date | null | undefined),
     pricing: normalizePricingSnapshot(input.pricing),
+  }
+}
+
+const normalizeCheckoutItemRevalidationStatus = (value: unknown) => {
+  return CHECKOUT_ITEM_REVALIDATION_STATUSES.includes(
+    value as CheckoutItemRevalidationResult['status'],
+  )
+    ? (value as CheckoutItemRevalidationResult['status'])
+    : 'failed'
+}
+
+const normalizeCheckoutItemRevalidationResult = (
+  value: unknown,
+): CheckoutItemRevalidationResult | null => {
+  const input = isRecord(value) ? value : {}
+  const previousPricing = normalizePricingSnapshot(input.previousPricing)
+  const currentPricing = input.currentPricing == null
+    ? null
+    : normalizePricingSnapshot(input.currentPricing)
+  const previousInventory = normalizeCheckoutItemSnapshot({
+    itemType: input.itemType,
+    inventory: input.previousInventory,
+  })?.inventory || null
+  const currentInventory =
+    input.currentInventory == null
+      ? null
+      : normalizeCheckoutItemSnapshot({
+          itemType: input.itemType,
+          inventory: input.currentInventory,
+        })?.inventory || null
+  const itemType = toNullableText(input.itemType)
+  if (itemType !== 'flight' && itemType !== 'hotel' && itemType !== 'car') {
+    return null
+  }
+
+  return {
+    tripItemId: toPositiveInteger(input.tripItemId) ?? 0,
+    itemType,
+    vertical: itemType,
+    title: toNullableText(input.title) || previousInventory?.inventoryId || 'Checkout item',
+    subtitle: toNullableText(input.subtitle),
+    status: normalizeCheckoutItemRevalidationStatus(input.status),
+    message: toNullableText(input.message),
+    previousPricing,
+    currentPricing,
+    previousInventory,
+    currentInventory,
+    providerMetadata: isRecord(input.providerMetadata) ? input.providerMetadata : null,
+  }
+}
+
+const normalizeCheckoutRevalidationSummary = (
+  value: unknown,
+): CheckoutRevalidationSummary | null => {
+  const input = isRecord(value) ? value : null
+  if (!input) return null
+
+  const itemResults = Array.isArray(input.itemResults)
+    ? input.itemResults
+        .map((entry) => normalizeCheckoutItemRevalidationResult(entry))
+        .filter((entry): entry is CheckoutItemRevalidationResult => Boolean(entry))
+    : []
+
+  return {
+    status: normalizeCheckoutRevalidationStatus(input.status),
+    checkedAt: normalizeTimestamp(input.checkedAt as string | Date | null | undefined),
+    itemResults,
+    allItemsPassed: Boolean(input.allItemsPassed),
+    blockingIssueCount: toNonNegativeInteger(input.blockingIssueCount) ?? 0,
+    priceChangeCount: toNonNegativeInteger(input.priceChangeCount) ?? 0,
+    unavailableCount: toNonNegativeInteger(input.unavailableCount) ?? 0,
+    changedCount: toNonNegativeInteger(input.changedCount) ?? 0,
+    failedCount: toNonNegativeInteger(input.failedCount) ?? 0,
+    currentTotals:
+      input.currentTotals == null ? null : normalizePricingSnapshot(input.currentTotals),
   }
 }
 
@@ -204,6 +296,13 @@ export const mapCheckoutSessionRow = (row: CheckoutSessionRow): CheckoutSession 
     id: row.id,
     tripId: row.tripId,
     status: normalizeCheckoutSessionStatus(row.status),
+    revalidationStatus: normalizeCheckoutRevalidationStatus(row.revalidationStatus),
+    revalidationSummary: normalizeCheckoutRevalidationSummary(
+      row.revalidationSummaryJson,
+    ),
+    lastRevalidatedAt: row.lastRevalidatedAt
+      ? normalizeTimestamp(row.lastRevalidatedAt)
+      : null,
     currencyCode: normalizeCurrencyCode(row.currency),
     items: normalizeCheckoutItems(row.itemsJson),
     totals: normalizePricingSnapshot(row.totalsJson),

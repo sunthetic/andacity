@@ -11,7 +11,9 @@ import {
   getCheckoutSession,
   CheckoutSessionError,
 } from "~/lib/checkout/getCheckoutSession";
+import { shouldCheckoutSessionRevalidate } from "~/lib/checkout/shouldCheckoutSessionRevalidate";
 import type { CheckoutSessionEntryMode } from "~/types/checkout";
+import { runCheckoutRevalidation } from "~/routes/checkout/actions";
 
 const readEntryMode = (
   value: string | null | undefined,
@@ -44,6 +46,23 @@ export const onRequest: RequestHandler = ({ headers }) => {
   headers.set("x-robots-tag", "noindex, follow");
 };
 
+export const onPost: RequestHandler = async ({
+  params,
+  request,
+  redirect,
+  url,
+}) => {
+  const checkoutSessionId = String(params.checkoutSessionId || "").trim();
+  const formData = await request.formData().catch(() => null);
+  const intent = String(formData?.get("intent") || "").trim();
+
+  if (checkoutSessionId && intent === "revalidate") {
+    await runCheckoutRevalidation(checkoutSessionId);
+  }
+
+  throw redirect(303, `${url.pathname}${url.search}`);
+};
+
 export const useCheckoutSessionPage = routeLoader$(
   async ({ params, status, url }) => {
     const checkoutSessionId = String(params.checkoutSessionId || "").trim();
@@ -56,7 +75,7 @@ export const useCheckoutSessionPage = routeLoader$(
     }
 
     try {
-      const session = await getCheckoutSession(checkoutSessionId, {
+      let session = await getCheckoutSession(checkoutSessionId, {
         includeTerminal: true,
       });
       if (!session) {
@@ -65,6 +84,18 @@ export const useCheckoutSessionPage = routeLoader$(
           kind: "not_found",
           checkoutSessionId,
         } satisfies CheckoutSessionRouteData;
+      }
+
+      if (shouldCheckoutSessionRevalidate(session)) {
+        const revalidation = await runCheckoutRevalidation(checkoutSessionId);
+        if (revalidation.code !== "CHECKOUT_NOT_FOUND") {
+          const refreshed = await getCheckoutSession(checkoutSessionId, {
+            includeTerminal: true,
+          });
+          if (refreshed) {
+            session = refreshed;
+          }
+        }
       }
 
       return {

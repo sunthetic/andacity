@@ -1,3 +1,6 @@
+import { canCheckoutProceedToPayment } from '~/lib/checkout/canCheckoutProceedToPayment'
+import { getCheckoutReadinessState } from '~/lib/checkout/getCheckoutReadinessState'
+import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import { formatMoneyFromCents } from '~/lib/pricing/price-display'
 import type {
   CheckoutSession,
@@ -39,9 +42,20 @@ const toTitleCase = (value: string) => {
     .join(' ')
 }
 
-const describeStatus = (status: CheckoutSession['status']) => {
+const describeStatus = (
+  session: CheckoutSession,
+  readinessState: CheckoutSessionSummary['readinessState'],
+) => {
+  const status = session.status
+
+  if (session.revalidationStatus === 'pending') {
+    return 'We are verifying the latest pricing and availability for this checkout snapshot.'
+  }
+
   if (status === 'blocked') {
-    return 'This checkout snapshot needs more trip updates before it can move forward.'
+    return session.revalidationSummary?.blockingIssueCount
+      ? 'One or more items changed before checkout could continue. Review the updates below before proceeding.'
+      : 'This checkout snapshot needs more trip updates before it can move forward.'
   }
 
   if (status === 'expired') {
@@ -57,19 +71,32 @@ const describeStatus = (status: CheckoutSession['status']) => {
   }
 
   if (status === 'ready') {
-    return 'This checkout snapshot is ready for the next traveler and payment steps once they are introduced.'
+    return readinessState === 'ready'
+      ? 'We rechecked pricing and availability for your trip. This checkout snapshot is ready for the next payment step once it is introduced.'
+      : 'This checkout snapshot exists, but it still needs a successful revalidation pass before payment can continue.'
   }
 
-  return 'This checkout session is a frozen trip snapshot that will be rechecked before payment.'
+  return session.revalidationStatus === 'passed'
+    ? 'This checkout session was recently verified against current inventory.'
+    : 'This checkout session is a frozen trip snapshot that must be revalidated before payment.'
 }
 
-const describeReadiness = (status: CheckoutSession['status']) => {
+const describeReadiness = (
+  session: CheckoutSession,
+  readinessState: CheckoutSessionSummary['readinessState'],
+) => {
+  const status = session.status
+
   if (status === 'expired') return 'Expired snapshot'
-  if (status === 'blocked') return 'Needs trip updates'
+  if (session.revalidationStatus === 'pending') {
+    return 'Verifying pricing and availability'
+  }
+  if (readinessState === 'ready') return 'Ready for payment once enabled'
+  if (status === 'blocked') return 'Review inventory changes'
   if (status === 'completed') return 'Checkout complete'
   if (status === 'abandoned') return 'Checkout paused'
-  if (status === 'ready') return 'Ready for next checkout steps'
-  return 'Snapshot ready for confirmation checks'
+  if (session.revalidationStatus === 'failed') return 'Revalidation blocked checkout'
+  return 'Awaiting checkout verification'
 }
 
 const formatTotalLabel = (session: CheckoutSession) => {
@@ -90,6 +117,14 @@ export const getCheckoutSessionSummary = (
     entryMode?: CheckoutSessionEntryMode | null
   } = {},
 ): CheckoutSessionSummary => {
+  const readinessState = getCheckoutReadinessState(session)
+  const freshness = session.lastRevalidatedAt
+    ? buildInventoryFreshness({
+        checkedAt: session.lastRevalidatedAt,
+        profile: 'availability_revalidation',
+      })
+    : null
+
   return {
     id: session.id,
     shortId: shortenOpaqueId(session.id),
@@ -98,7 +133,7 @@ export const getCheckoutSessionSummary = (
     tripHref: `/trips/${session.tripId}`,
     status: session.status,
     statusLabel: toTitleCase(session.status),
-    statusDescription: describeStatus(session.status),
+    statusDescription: describeStatus(session, readinessState),
     itemCount: session.items.length,
     currencyCode: session.currencyCode,
     totalAmountCents: session.totals.totalAmountCents,
@@ -108,8 +143,15 @@ export const getCheckoutSessionSummary = (
     expiresAt: session.expiresAt,
     expiresLabel: formatDateTime(session.expiresAt),
     entryMode: options.entryMode ?? null,
+    revalidationStatus: session.revalidationStatus,
+    readinessState,
+    lastRevalidatedAt: session.lastRevalidatedAt,
+    lastRevalidatedLabel: freshness
+      ? `Last checked ${freshness.relativeLabel === 'moments ago' ? 'just now' : freshness.relativeLabel}`
+      : null,
     canReturnToTrip: true,
-    readinessLabel: describeReadiness(session.status),
-    canProceed: session.status === 'draft' || session.status === 'ready',
+    readinessLabel: describeReadiness(session, readinessState),
+    canProceed: canCheckoutProceedToPayment(session),
+    blockingIssueCount: session.revalidationSummary?.blockingIssueCount || 0,
   }
 }

@@ -15,6 +15,9 @@ const buildSession = (
     id: "cko_1234567890abcdef",
     tripId: 42,
     status: "draft",
+    revalidationStatus: "idle",
+    revalidationSummary: null,
+    lastRevalidatedAt: null,
     currencyCode: "USD",
     items: [
       {
@@ -56,7 +59,7 @@ const buildSession = (
     },
     createdAt: "2026-03-16T09:00:00.000Z",
     updatedAt: "2026-03-16T09:15:00.000Z",
-    expiresAt: "2026-03-16T09:45:00.000Z",
+    expiresAt: "2030-03-16T09:45:00.000Z",
     completedAt: null,
     abandonedAt: null,
     ...overrides,
@@ -72,7 +75,9 @@ test("maps checkout session summaries with entry-mode transition details", () =>
   assert.equal(summary.tripHref, "/trips/42");
   assert.equal(summary.entryMode, "resumed");
   assert.equal(summary.canReturnToTrip, true);
-  assert.equal(summary.readinessLabel, "Snapshot ready for confirmation checks");
+  assert.equal(summary.revalidationStatus, "idle");
+  assert.equal(summary.readinessState, "blocked");
+  assert.equal(summary.readinessLabel, "Awaiting checkout verification");
   assert.equal(summary.totalLabel, "$250");
 });
 
@@ -86,4 +91,30 @@ test("derives expiration messaging for expired snapshots", () => {
   assert.equal(summary.readinessLabel, "Expired snapshot");
   assert.match(summary.statusDescription, /expired/i);
   assert.equal(summary.canProceed, false);
+});
+
+test("marks a passed revalidation session as payment-ready", () => {
+  const summary = getCheckoutSessionSummary(
+    buildSession({
+      status: "ready",
+      revalidationStatus: "passed",
+      lastRevalidatedAt: "2026-03-16T09:16:00.000Z",
+      revalidationSummary: {
+        status: "passed",
+        checkedAt: "2026-03-16T09:16:00.000Z",
+        itemResults: [],
+        allItemsPassed: true,
+        blockingIssueCount: 0,
+        priceChangeCount: 0,
+        unavailableCount: 0,
+        changedCount: 0,
+        failedCount: 0,
+        currentTotals: null,
+      },
+    }),
+  );
+
+  assert.equal(summary.readinessState, "ready");
+  assert.equal(summary.canProceed, true);
+  assert.match(summary.lastRevalidatedLabel || "", /Last checked/i);
 });

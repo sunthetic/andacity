@@ -1,7 +1,10 @@
 import { component$ } from "@builder.io/qwik";
+import { CheckoutActionBar } from "~/components/checkout/CheckoutActionBar";
 import { Page } from "~/components/site/Page";
 import { CheckoutHeader } from "~/components/checkout/CheckoutHeader";
 import { CheckoutItemList } from "~/components/checkout/CheckoutItemList";
+import { CheckoutRevalidationNotice } from "~/components/checkout/CheckoutRevalidationNotice";
+import { CheckoutRevalidationSummaryCard } from "~/components/checkout/CheckoutRevalidationSummaryCard";
 import { CheckoutSectionPlaceholder } from "~/components/checkout/CheckoutSectionPlaceholder";
 import { CheckoutStatusNotice } from "~/components/checkout/CheckoutStatusNotice";
 import { CheckoutTotalsCard } from "~/components/checkout/CheckoutTotalsCard";
@@ -32,11 +35,16 @@ export const CheckoutShell = component$(
               page first.
             </p>
           </section>
+          <CheckoutRevalidationNotice summary={summary} />
           <CheckoutStatusNotice summary={summary} />
 
           <div class="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
             <div class="space-y-6">
-              <CheckoutItemList items={session.items} />
+              <CheckoutItemList
+                items={session.items}
+                revalidationSummary={session.revalidationSummary}
+                revalidationStatus={session.revalidationStatus}
+              />
 
               <div class="grid gap-4 md:grid-cols-3">
                 <CheckoutSectionPlaceholder
@@ -68,7 +76,13 @@ export const CheckoutShell = component$(
               <CheckoutTotalsCard
                 totals={session.totals}
                 itemCount={session.items.length}
+                revalidationSummary={session.revalidationSummary}
+                revalidationStatus={session.revalidationStatus}
               />
+              <CheckoutRevalidationSummaryCard
+                revalidationSummary={session.revalidationSummary}
+              />
+              <CheckoutActionBar summary={summary} />
             </div>
           </div>
         </div>
