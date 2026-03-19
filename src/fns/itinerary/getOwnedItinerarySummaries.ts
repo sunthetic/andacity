@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, inArray } from "drizzle-orm";
 import { buildNotificationSummary } from "~/fns/notifications/buildNotificationSummary";
 import { mapNotificationRow } from "~/fns/notifications/getNotification";
 import { getDb } from "~/lib/db/client.server";
