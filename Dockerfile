@@ -1,5 +1,6 @@
-ARG NODE_VERSION
-ARG APP_DEPLOY_DOMAIN
+ARG NODE_ENV="production"
+ARG NODE_VERSION="25"
+ARG APP_ORIGIN="http://localhost"
 
 ################################################################################
 # Use node image for base image for all stages.
@@ -12,6 +13,7 @@ WORKDIR /usr/src/app
 # Create a stage for installing production dependencies.
 FROM base as deps
 
+RUN npm install -g pnpm@latest
 RUN pnpm install
 
 ################################################################################
@@ -29,10 +31,10 @@ RUN pnpm build
 FROM base as final
 
 # Use production node environment by default.
-ENV NODE_ENV production
+ENV NODE_ENV ${NODE_ENV}
 
 # IMPORTANT: Set your actual domain for CSRF protection
-ENV ORIGIN https://${APP_DEPLOY_DOMAIN}
+ENV ORIGIN ${APP_ORIGIN}
 
 # Run the application as a non-root user.
 USER node
@@ -50,4 +52,4 @@ COPY --from=build /usr/src/app/server ./server
 EXPOSE 3000
 
 # Run the application.
-CMD yarn serve
+CMD pnpm serve
