@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type {
+  BookableEntity,
   CarBookableEntity,
   FlightBookableEntity,
   HotelBookableEntity,
@@ -43,6 +44,38 @@ const { sanitizeBookingRequestSnapshot } = sanitizeModule;
 const { mapFlightBookingRequest } = flightRequestModule;
 const { mapHotelBookingResponse } = hotelResponseModule;
 const { mapCarBookingResponse } = carResponseModule;
+
+const getRequestedServiceDate = (entity: BookableEntity): string | null => {
+  if (entity.vertical !== "flight") {
+    return null;
+  }
+
+  return entity.payload.providerMetadata?.requestedServiceDate ?? null;
+};
+
+const getStartDate = (entity: BookableEntity): string | null => {
+  if (entity.vertical === "hotel") {
+    return entity.bookingContext.checkInDate;
+  }
+
+  if (entity.vertical === "car") {
+    return entity.bookingContext.pickupDateTime;
+  }
+
+  return entity.bookingContext.departDate;
+};
+
+const getEndDate = (entity: BookableEntity): string | null => {
+  if (entity.vertical === "hotel") {
+    return entity.bookingContext.checkOutDate;
+  }
+
+  if (entity.vertical === "car") {
+    return entity.bookingContext.dropoffDateTime;
+  }
+
+  return null;
+};
 
 const buildFlightEntity = (): FlightBookableEntity => ({
   inventoryId: "flight:DL:123:2026-04-01:JFK:LAX",
@@ -238,61 +271,54 @@ const buildCarEntity = (): CarBookableEntity => ({
 const buildCheckoutItem = (
   vertical: CheckoutItemSnapshot["vertical"],
   entity: FlightBookableEntity | HotelBookableEntity | CarBookableEntity,
-): CheckoutItemSnapshot => ({
-  tripItemId: 1,
-  itemType: vertical,
-  vertical,
-  entityId: 100,
-  bookableEntityId: 200,
-  inventory: {
-    inventoryId: entity.inventoryId,
-    providerInventoryId: entity.payload.providerInventoryId,
-    hotelAvailabilitySnapshotId: null,
-    availability: null,
-    bookableEntity: entity,
-    providerMetadata: {
-      provider: entity.provider,
-      requestedServiceDate:
-        vertical === "flight"
-          ? entity.payload.providerMetadata?.requestedServiceDate
-          : null,
+): CheckoutItemSnapshot => {
+  const requestedServiceDate = getRequestedServiceDate(entity);
+  const startDate = getStartDate(entity);
+  const endDate = getEndDate(entity);
+
+  return {
+    tripItemId: 1,
+    itemType: vertical,
+    vertical,
+    entityId: 100,
+    bookableEntityId: 200,
+    inventory: {
+      inventoryId: entity.inventoryId,
+      providerInventoryId: entity.payload.providerInventoryId,
+      hotelAvailabilitySnapshotId: null,
+      availability: null,
+      bookableEntity: entity,
+      providerMetadata: {
+        provider: entity.provider,
+        requestedServiceDate,
+      },
     },
-  },
-  title: entity.title,
-  subtitle: entity.subtitle,
-  imageUrl: entity.imageUrl,
-  meta: [],
-  startDate:
-    vertical === "hotel"
-      ? entity.bookingContext.checkInDate
-      : vertical === "car"
-        ? entity.bookingContext.pickupDateTime
-        : entity.bookingContext.departDate,
-  endDate:
-    vertical === "hotel"
-      ? entity.bookingContext.checkOutDate
-      : vertical === "car"
-        ? entity.bookingContext.dropoffDateTime
-        : null,
-  snapshotTimestamp: "2026-03-18T12:00:00.000Z",
-  pricing: {
-    currencyCode: "USD",
-    baseAmountCents:
-      vertical === "flight"
-        ? 39900
-        : vertical === "hotel"
-          ? 75600
-          : 26800,
-    taxesAmountCents: vertical === "car" ? 1200 : 0,
-    feesAmountCents: vertical === "car" ? 800 : 0,
-    totalAmountCents:
-      vertical === "flight"
-        ? 39900
-        : vertical === "hotel"
-          ? 75600
-          : 28800,
-  },
-});
+    title: entity.title,
+    subtitle: entity.subtitle,
+    imageUrl: entity.imageUrl,
+    meta: [],
+    startDate,
+    endDate,
+    snapshotTimestamp: "2026-03-18T12:00:00.000Z",
+    pricing: {
+      currencyCode: "USD",
+      baseAmountCents:
+        vertical === "flight"
+          ? 39900
+          : vertical === "hotel"
+            ? 75600
+            : 26800,
+      taxesAmountCents: vertical === "car" ? 1200 : 0,
+      feesAmountCents: vertical === "car" ? 800 : 0,
+      totalAmountCents:
+        vertical === "flight"
+          ? 39900
+          : vertical === "hotel"
+            ? 75600
+            : 28800,
+    },
+  };
+};
 
 const buildInput = (
   vertical: CreateProviderBookingInput["vertical"],
