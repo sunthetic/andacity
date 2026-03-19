@@ -35,6 +35,19 @@ export type ItineraryOwnershipRef = {
   ownerSessionId: string | null;
 };
 
+export const ITINERARY_REF_PATTERN = /^ITN-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/;
+
+export const normalizeItineraryRef = (value: unknown): string => {
+  return String(value || "")
+    .trim()
+    .toUpperCase();
+};
+
+export const isItineraryRef = (value: unknown): value is string => {
+  const normalized = normalizeItineraryRef(value);
+  return Boolean(normalized) && ITINERARY_REF_PATTERN.test(normalized);
+};
+
 export type OwnedItineraryItem = {
   id: string;
   itineraryId: string;

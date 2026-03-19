@@ -20,8 +20,7 @@ import {
   attachAnonymousItinerariesToCurrentUser,
   claimItineraryOwnership,
 } from "~/routes/itinerary/actions";
-
-const ITINERARY_REF_PATTERN = /^ITN-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/;
+import { ITINERARY_REF_PATTERN } from "~/types/itinerary";
 
 type ItineraryClaimNotice = {
   code: string;
@@ -43,6 +42,28 @@ const readClaimNotice = (url: URL): ItineraryClaimNotice | null => {
       tone === "success" || tone === "warning" || tone === "error" || tone === "info"
         ? tone
         : "info",
+  };
+};
+
+const readResumeClaimNotice = (
+  url: URL,
+  input: {
+    isClaimable: boolean;
+    hasCurrentUser: boolean;
+  },
+): ItineraryClaimNotice | null => {
+  const resumeMode = String(url.searchParams.get("resume") || "")
+    .trim()
+    .toLowerCase();
+
+  if (resumeMode !== "claim" || !input.isClaimable) return null;
+
+  return {
+    code: "RESUME_CLAIM",
+    tone: "warning",
+    message: input.hasCurrentUser
+      ? "This itinerary is claimable. Attach it to your account to preserve post-booking ownership."
+      : "This itinerary is claimable. Sign in to attach it to your account.",
   };
 };
 
@@ -187,7 +208,12 @@ export const useItineraryPage = routeLoader$(async ({
   const model = getItineraryPageModel(detail, {
     hasCurrentUser: Boolean(context.ownerUserId),
     ownershipDisplayState: displayState,
-    claimNotice: readClaimNotice(url),
+    claimNotice:
+      readClaimNotice(url) ||
+      readResumeClaimNotice(url, {
+        isClaimable: access.isClaimable,
+        hasCurrentUser: Boolean(context.ownerUserId),
+      }),
     previewOnly: !access.isOwner,
   });
 

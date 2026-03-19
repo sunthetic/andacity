@@ -20,8 +20,7 @@ import {
 import { getOwnershipDisplayState } from "~/lib/ownership/getOwnershipDisplayState";
 import { resolveItineraryAccess } from "~/lib/ownership/resolveItineraryAccess";
 import { attachAnonymousItinerariesToCurrentUser } from "~/routes/itinerary/actions";
-
-const CONFIRMATION_REF_PATTERN = /^CNF-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/;
+import { CONFIRMATION_REF_PATTERN } from "~/types/confirmation";
 
 type ConfirmationPageData =
   | {

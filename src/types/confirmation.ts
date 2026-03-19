@@ -25,6 +25,19 @@ export type ConfirmationItemStatus =
 
 export type BookingConfirmationPublicRef = string;
 
+export const CONFIRMATION_REF_PATTERN = /^CNF-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/;
+
+export const normalizeConfirmationRef = (value: unknown): string => {
+  return String(value || "")
+    .trim()
+    .toUpperCase();
+};
+
+export const isConfirmationRef = (value: unknown): value is string => {
+  const normalized = normalizeConfirmationRef(value);
+  return Boolean(normalized) && CONFIRMATION_REF_PATTERN.test(normalized);
+};
+
 export type BookingConfirmationItem = {
   id: string;
   confirmationId: string;
