@@ -17,10 +17,10 @@ RUN yarn install
 
 # Download dependencies as a separate step to take advantage of Docker's caching.
 # Leverage a cache mount to /root/.yarn to speed up subsequent builds.
-RUN --mount=type=bind,source=package.json,target=package.json \
-    --mount=type=bind,source=yarn.lock,target=yarn.lock \
-    --mount=type=cache,target=/root/.yarn \
-    yarn install --frozen-lockfile
+#RUN --mount=type=bind,source=package.json,#target=package.json \
+#    --mount=type=bind,source=yarn.lock,#target=yarn.lock \
+#    --mount=type=cache,target=/root/.yarn \
+#    yarn install --frozen-lockfile
 
 ################################################################################
 # Create a stage for building the application.
