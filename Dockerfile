@@ -13,7 +13,9 @@ WORKDIR /usr/src/app
 # Create a stage for installing production dependencies.
 FROM base as deps
 
-RUN yarn install
+COPY package.json .
+
+RUN yarn install --production=false
 
 # Download dependencies as a separate step to take advantage of Docker's caching.
 # Leverage a cache mount to /root/.yarn to speed up subsequent builds.
@@ -28,9 +30,10 @@ FROM deps as build
 
 # Copy the rest of the source files into the image.
 COPY . .
-RUN yarn install
-# Run the build script.
+
+# Run the build scripts.
 RUN yarn run build
+RUN yarn run build.server
 
 ################################################################################
 # Create a new stage to run the application with minimal runtime dependencies
@@ -58,4 +61,4 @@ COPY --from=build /usr/src/app/server ./server
 EXPOSE 3000
 
 # Run the application.
-CMD yarn serve
+CMD ["yarn", "serve"]
