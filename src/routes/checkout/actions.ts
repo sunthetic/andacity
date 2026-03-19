@@ -68,8 +68,14 @@ import { fromPaymentState } from "~/fns/recovery/fromPaymentState";
 import { getPrimaryRecoveryAction } from "~/fns/recovery/getPrimaryRecoveryAction";
 import { logRecoveryEvent } from "~/fns/recovery/logRecoveryEvent";
 import { normalizeTransactionError } from "~/fns/recovery/normalizeTransactionError";
+import { canManageSavedTravelers } from "~/fns/saved-travelers/canManageSavedTravelers";
+import { createSavedTravelerProfile } from "~/fns/saved-travelers/createSavedTravelerProfile";
+import { importSavedTravelerToCheckout } from "~/fns/saved-travelers/importSavedTravelerToCheckout";
+import { mapCheckoutTravelerToSavedTraveler } from "~/fns/saved-travelers/mapCheckoutTravelerToSavedTraveler";
+import { SavedTravelerProfileError } from "~/fns/saved-travelers/shared";
 import { buildCheckoutTravelerCollection } from "~/fns/travelers/buildCheckoutTravelerCollection";
 import { deleteCheckoutTravelerProfile } from "~/fns/travelers/deleteCheckoutTravelerProfile";
+import { getCheckoutTravelers } from "~/fns/travelers/getCheckoutTravelers";
 import { upsertCheckoutTravelerAssignment } from "~/fns/travelers/upsertCheckoutTravelerAssignment";
 import { upsertCheckoutTravelerProfile } from "~/fns/travelers/upsertCheckoutTravelerProfile";
 import { validateCheckoutTravelers } from "~/fns/travelers/validateCheckoutTravelers";
@@ -741,40 +747,38 @@ export const runCheckoutRevalidation = async (
   }
 };
 
-export type CheckoutTravelerActionResult =
-  | {
-      ok: true;
-      code:
-        | "TRAVELER_SAVED"
-        | "TRAVELER_ASSIGNED"
-        | "TRAVELER_REMOVED"
-        | "TRAVELER_VALIDATION_PASSED";
-      message: string;
-      validationSummary: Awaited<
+export type CheckoutTravelerActionResult = {
+  ok: boolean;
+  code:
+    | "TRAVELER_SAVED"
+    | "TRAVELER_ASSIGNED"
+    | "TRAVELER_REMOVED"
+    | "TRAVELER_VALIDATION_PASSED"
+    | "TRAVELER_VALIDATION_FAILED"
+    | "TRAVELER_SAVE_FAILED"
+    | "TRAVELER_ASSIGN_FAILED"
+    | "TRAVELER_REMOVE_FAILED"
+    | "CHECKOUT_NOT_FOUND"
+    | "SAVED_TRAVELER_CREATED"
+    | "SAVED_TRAVELER_IMPORTED"
+    | "SAVED_TRAVELER_INVALID"
+    | "SAVED_TRAVELER_UNAUTHORIZED";
+  message: string;
+  validationSummary:
+    | Awaited<
         ReturnType<typeof buildCheckoutTravelerCollection>
-      >["validationSummary"] | null;
-      recoveryState: RecoveryState | null;
-      reasonCode: RecoveryReasonCode | null;
-      nextRecommendedAction: RecoveryActionType | null;
-    }
-  | {
-      ok: false;
-      code:
-        | "CHECKOUT_NOT_FOUND"
-        | "TRAVELER_VALIDATION_FAILED"
-        | "TRAVELER_SAVE_FAILED"
-        | "TRAVELER_ASSIGN_FAILED"
-        | "TRAVELER_REMOVE_FAILED";
-      message: string;
-      validationSummary: Awaited<
-        ReturnType<typeof buildCheckoutTravelerCollection>
-      >["validationSummary"] | null;
-      recoveryState: RecoveryState | null;
-      reasonCode: RecoveryReasonCode | null;
-      nextRecommendedAction: RecoveryActionType | null;
-    };
+      >["validationSummary"]
+    | null;
+  recoveryState: RecoveryState | null;
+  reasonCode: RecoveryReasonCode | null;
+  nextRecommendedAction: RecoveryActionType | null;
+  savedTravelerId?: string | null;
+  checkoutTravelerId?: string | null;
+};
 
-const getCheckoutTravelerValidationSummary = async (checkoutSessionId: string) => {
+const getCheckoutTravelerValidationSummary = async (
+  checkoutSessionId: string,
+) => {
   const session = await getCheckoutSession(checkoutSessionId, {
     includeTerminal: true,
   });
@@ -877,7 +881,9 @@ export const saveCheckoutTravelerProfile = async (input: {
       ok: false,
       code: "TRAVELER_SAVE_FAILED",
       message:
-        error instanceof Error ? error.message : "Traveler profile save failed.",
+        error instanceof Error
+          ? error.message
+          : "Traveler profile save failed.",
       validationSummary,
       ...withRecoveryFields(recoveryState),
     };
@@ -1069,6 +1075,212 @@ export const removeCheckoutTravelerProfile = async (input: {
   }
 };
 
+export const saveCheckoutTravelerAsSavedProfile = async (input: {
+  checkoutSessionId: string;
+  travelerProfileId: string;
+  ownerUserId: string | null | undefined;
+  isDefault?: boolean | null;
+}): Promise<CheckoutTravelerActionResult> => {
+  const session = await getCheckoutSession(input.checkoutSessionId, {
+    includeTerminal: true,
+  });
+  if (!session) {
+    const recoveryState = buildRecoveryState({
+      stage: "checkout",
+      reasonCode: "CHECKOUT_NOT_FOUND",
+      metadata: {
+        checkoutSessionId: input.checkoutSessionId,
+      },
+    });
+    return {
+      ok: false,
+      code: "CHECKOUT_NOT_FOUND",
+      message: "Checkout session could not be found.",
+      validationSummary: null,
+      ...withRecoveryFields(recoveryState),
+      savedTravelerId: null,
+      checkoutTravelerId: null,
+    };
+  }
+
+  const access = canManageSavedTravelers(input.ownerUserId);
+  if (!access.ok) {
+    const validationSummary = await getCheckoutTravelerValidationSummary(
+      session.id,
+    );
+    return {
+      ok: false,
+      code: "SAVED_TRAVELER_UNAUTHORIZED",
+      message:
+        "Sign in with an account context before saving reusable traveler profiles.",
+      validationSummary,
+      ...withRecoveryFields(null),
+      savedTravelerId: null,
+      checkoutTravelerId: input.travelerProfileId,
+    };
+  }
+
+  try {
+    const traveler = (await getCheckoutTravelers(session.id)).find(
+      (profile) => profile.id === input.travelerProfileId,
+    );
+
+    if (!traveler) {
+      return {
+        ok: false,
+        code: "SAVED_TRAVELER_INVALID",
+        message:
+          "Checkout traveler profile could not be found for account save.",
+        validationSummary: await getCheckoutTravelerValidationSummary(
+          session.id,
+        ),
+        ...withRecoveryFields(null),
+        savedTravelerId: null,
+        checkoutTravelerId: input.travelerProfileId,
+      };
+    }
+
+    const savedTraveler = await createSavedTravelerProfile(
+      mapCheckoutTravelerToSavedTraveler({
+        traveler,
+        ownerUserId: access.ownerUserId!,
+        isDefault: input.isDefault,
+      }),
+    );
+    const validationSummary = await getCheckoutTravelerValidationSummary(
+      session.id,
+    );
+
+    return {
+      ok: true,
+      code: "SAVED_TRAVELER_CREATED",
+      message: "Reusable traveler profile saved to your account.",
+      validationSummary,
+      ...withRecoveryFields(null),
+      savedTravelerId: savedTraveler.id,
+      checkoutTravelerId: traveler.id,
+    };
+  } catch (error) {
+    const validationSummary = await getCheckoutTravelerValidationSummary(
+      session.id,
+    );
+    return {
+      ok: false,
+      code:
+        error instanceof SavedTravelerProfileError &&
+        error.code === "SAVED_TRAVELER_UNAUTHORIZED"
+          ? "SAVED_TRAVELER_UNAUTHORIZED"
+          : "SAVED_TRAVELER_INVALID",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Saved traveler profile could not be created.",
+      validationSummary,
+      ...withRecoveryFields(null),
+      savedTravelerId: null,
+      checkoutTravelerId: input.travelerProfileId,
+    };
+  }
+};
+
+export const importSavedTravelerIntoCheckoutAction = async (input: {
+  checkoutSessionId: string;
+  savedTravelerId: string;
+  ownerUserId: string | null | undefined;
+}): Promise<CheckoutTravelerActionResult> => {
+  const session = await getCheckoutSession(input.checkoutSessionId, {
+    includeTerminal: true,
+  });
+  if (!session) {
+    const recoveryState = buildRecoveryState({
+      stage: "checkout",
+      reasonCode: "CHECKOUT_NOT_FOUND",
+      metadata: {
+        checkoutSessionId: input.checkoutSessionId,
+      },
+    });
+    return {
+      ok: false,
+      code: "CHECKOUT_NOT_FOUND",
+      message: "Checkout session could not be found.",
+      validationSummary: null,
+      ...withRecoveryFields(recoveryState),
+      savedTravelerId: input.savedTravelerId,
+      checkoutTravelerId: null,
+    };
+  }
+
+  const access = canManageSavedTravelers(input.ownerUserId);
+  if (!access.ok) {
+    return {
+      ok: false,
+      code: "SAVED_TRAVELER_UNAUTHORIZED",
+      message:
+        "Sign in with an account context before importing saved travelers.",
+      validationSummary: await getCheckoutTravelerValidationSummary(session.id),
+      ...withRecoveryFields(null),
+      savedTravelerId: input.savedTravelerId,
+      checkoutTravelerId: null,
+    };
+  }
+
+  try {
+    const imported = await importSavedTravelerToCheckout({
+      checkoutSessionId: session.id,
+      savedTravelerId: input.savedTravelerId,
+      ownerUserId: access.ownerUserId!,
+    });
+    const validationSummary = await getCheckoutTravelerValidationSummary(
+      session.id,
+    );
+    const reasonCode =
+      validationSummary?.status === "invalid"
+        ? "CHECKOUT_TRAVELERS_INVALID"
+        : validationSummary?.status === "incomplete"
+          ? "CHECKOUT_TRAVELERS_INCOMPLETE"
+          : null;
+
+    return {
+      ok: true,
+      code: "SAVED_TRAVELER_IMPORTED",
+      message:
+        "Saved traveler imported into checkout. You can edit the checkout copy without changing the saved profile.",
+      validationSummary,
+      ...withRecoveryFields(
+        reasonCode
+          ? buildRecoveryState({
+              stage: "checkout",
+              reasonCode,
+              metadata: {
+                checkoutSessionId: session.id,
+                issueCount: validationSummary?.issueCount || 0,
+              },
+            })
+          : null,
+      ),
+      savedTravelerId: imported.savedTraveler.id,
+      checkoutTravelerId: imported.checkoutTraveler.id,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code:
+        error instanceof SavedTravelerProfileError &&
+        error.code === "SAVED_TRAVELER_UNAUTHORIZED"
+          ? "SAVED_TRAVELER_UNAUTHORIZED"
+          : "SAVED_TRAVELER_INVALID",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Saved traveler import failed.",
+      validationSummary: await getCheckoutTravelerValidationSummary(session.id),
+      ...withRecoveryFields(null),
+      savedTravelerId: input.savedTravelerId,
+      checkoutTravelerId: null,
+    };
+  }
+};
+
 export const validateCheckoutTravelersAction = async (input: {
   checkoutSessionId: string;
 }): Promise<CheckoutTravelerActionResult> => {
@@ -1129,7 +1341,8 @@ export const validateCheckoutTravelersAction = async (input: {
   return {
     ok: false,
     code: "TRAVELER_VALIDATION_FAILED",
-    message: "Traveler details still need attention before checkout can proceed.",
+    message:
+      "Traveler details still need attention before checkout can proceed.",
     validationSummary,
     ...withRecoveryFields(recoveryState),
   };

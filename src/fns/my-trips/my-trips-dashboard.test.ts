@@ -214,6 +214,7 @@ test("builds an account-aware page model with grouped trips and issue summary", 
   });
 
   assert.equal(model.header.modeLabel, "Account access");
+  assert.equal(model.accountTools?.href, "/travelers");
   assert.equal(model.groups.length, 2);
   assert.equal(model.groups[0]?.key, "upcoming");
   assert.equal(model.groups[1]?.key, "issues");

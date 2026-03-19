@@ -1,4 +1,5 @@
 import type { BookableVertical } from "~/types/bookable-entity";
+import type { CheckoutSavedTravelerSuggestion } from "~/types/saved-travelers";
 
 export const TRAVELER_TYPES = ["adult", "child", "infant"] as const;
 export type TravelerType = (typeof TRAVELER_TYPES)[number];
@@ -163,6 +164,9 @@ export type CheckoutTravelerPageModel = {
   assignments: CheckoutTravelerAssignment[];
   validationSummary: TravelerValidationSummary;
   hasCompleteTravelerDetails: boolean;
+  canManageSavedTravelers: boolean;
+  savedTravelerSuggestions: CheckoutSavedTravelerSuggestion[];
+  savedTravelerManageHref: string | null;
 };
 
 export type BookingTraveler = {

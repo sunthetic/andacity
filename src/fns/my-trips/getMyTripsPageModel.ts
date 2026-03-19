@@ -92,6 +92,11 @@ export type MyTripsPageModel = {
     ctaLabel: string;
     refLabel: string | null;
   } | null;
+  accountTools: {
+    href: string;
+    label: string;
+    description: string;
+  } | null;
   groups: MyTripsGroupModel[];
   emptyState: {
     title: string;
@@ -675,6 +680,14 @@ export const getMyTripsPageModel = (input: {
     resumeBanner: buildResumeBanner(input.summaries, {
       now: input.now,
     }),
+    accountTools: input.ownershipContext.ownerUserId
+      ? {
+          href: "/travelers",
+          label: "Manage saved travelers",
+          description:
+            "Reuse account-owned traveler profiles across bookings without re-entering passenger, guest, or driver details.",
+        }
+      : null,
     groups,
     emptyState:
       filteredSummaries.length === 0

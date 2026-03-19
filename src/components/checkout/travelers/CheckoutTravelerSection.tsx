@@ -2,6 +2,7 @@ import { component$ } from "@builder.io/qwik";
 import { CheckoutTravelerAssignmentCard } from "~/components/checkout/travelers/CheckoutTravelerAssignmentCard";
 import { CheckoutTravelerForm } from "~/components/checkout/travelers/CheckoutTravelerForm";
 import { CheckoutTravelerList } from "~/components/checkout/travelers/CheckoutTravelerList";
+import { SavedTravelerPicker } from "~/components/checkout/travelers/SavedTravelerPicker";
 import { CheckoutTravelerValidationNotice } from "~/components/checkout/travelers/CheckoutTravelerValidationNotice";
 import type { CheckoutTravelerPageModel } from "~/types/travelers";
 
@@ -40,12 +41,46 @@ export const CheckoutTravelerSection = component$(
             travelerNotice={props.travelerNotice}
           />
 
+          {props.pageModel.canManageSavedTravelers ? (
+            <div class="space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                    Reuse saved travelers
+                  </p>
+                  <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                    Import an account-owned profile as a checkout copy. Changes
+                    in checkout will not modify the saved profile.
+                  </p>
+                </div>
+                {props.pageModel.savedTravelerManageHref ? (
+                  <a
+                    href={props.pageModel.savedTravelerManageHref}
+                    class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)] hover:border-[color:var(--color-text-strong)] hover:text-[color:var(--color-text-strong)]"
+                  >
+                    Manage saved travelers
+                  </a>
+                ) : null}
+              </div>
+
+              <SavedTravelerPicker
+                suggestions={props.pageModel.savedTravelerSuggestions}
+                manageHref={props.pageModel.savedTravelerManageHref}
+              />
+            </div>
+          ) : null}
+
           <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div class="space-y-3">
               <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                Saved traveler profiles
+                Checkout traveler profiles
               </p>
-              <CheckoutTravelerList travelers={props.pageModel.profiles} />
+              <CheckoutTravelerList
+                travelers={props.pageModel.profiles}
+                canManageSavedTravelers={
+                  props.pageModel.canManageSavedTravelers
+                }
+              />
             </div>
             <div class="space-y-3">
               <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">

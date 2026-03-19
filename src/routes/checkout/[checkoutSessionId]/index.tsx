@@ -18,6 +18,7 @@ import { getActiveCheckoutPaymentSession } from "~/lib/payments/getActiveCheckou
 import { getCheckoutPaymentSummary } from "~/lib/payments/getCheckoutPaymentSummary";
 import { refreshCheckoutPaymentStatus } from "~/lib/payments/refreshCheckoutPaymentStatus";
 import { shouldCheckoutSessionRevalidate } from "~/lib/checkout/shouldCheckoutSessionRevalidate";
+import { getCurrentOwnershipContext } from "~/lib/ownership/getCurrentOwnershipContext";
 import { getCheckoutTravelerPageModel } from "~/fns/travelers/getCheckoutTravelerPageModel";
 import { attachCheckoutTravelerState } from "~/fns/travelers/attachCheckoutTravelerState";
 import type { CheckoutSessionEntryMode } from "~/types/checkout";
@@ -30,7 +31,9 @@ import {
   createCheckoutPaymentIntent,
   executeCheckoutBooking,
   saveCheckoutTravelerProfile,
+  saveCheckoutTravelerAsSavedProfile,
   assignCheckoutTravelerToItem,
+  importSavedTravelerIntoCheckoutAction,
   removeCheckoutTravelerProfile,
   validateCheckoutTravelersAction,
   refreshBookingConfirmation,
@@ -199,7 +202,9 @@ type CheckoutSessionRouteData =
         message: string;
         tone: "info" | "success" | "error";
       } | null;
-      travelerPageModel: Awaited<ReturnType<typeof getCheckoutTravelerPageModel>>;
+      travelerPageModel: Awaited<
+        ReturnType<typeof getCheckoutTravelerPageModel>
+      >;
       travelerNotice: {
         code: string;
         message: string;
@@ -225,10 +230,18 @@ export const onPost: RequestHandler = async ({
   request,
   redirect,
   url,
+  cookie,
+  sharedMap,
 }) => {
   const checkoutSessionId = String(params.checkoutSessionId || "").trim();
   const formData = await request.formData().catch(() => null);
   const intent = String(formData?.get("intent") || "").trim();
+  const ownershipContext = getCurrentOwnershipContext({
+    cookie,
+    request,
+    sharedMap,
+    url,
+  });
 
   if (checkoutSessionId && intent === "revalidate") {
     await runCheckoutRevalidation(checkoutSessionId);
@@ -358,8 +371,7 @@ export const onPost: RequestHandler = async ({
         firstName: String(formData?.get("firstName") || "").trim() || null,
         middleName: String(formData?.get("middleName") || "").trim() || null,
         lastName: String(formData?.get("lastName") || "").trim() || null,
-        dateOfBirth:
-          String(formData?.get("dateOfBirth") || "").trim() || null,
+        dateOfBirth: String(formData?.get("dateOfBirth") || "").trim() || null,
         email: String(formData?.get("email") || "").trim() || null,
         phone: String(formData?.get("phone") || "").trim() || null,
         nationality: String(formData?.get("nationality") || "").trim() || null,
@@ -397,7 +409,9 @@ export const onPost: RequestHandler = async ({
         id: String(formData?.get("travelerAssignmentId") || "").trim() || null,
         checkoutItemKey:
           String(formData?.get("checkoutItemKey") || "").trim() || null,
-        travelerProfileId: String(formData?.get("travelerProfileId") || "").trim(),
+        travelerProfileId: String(
+          formData?.get("travelerProfileId") || "",
+        ).trim(),
         role: String(formData?.get("role") || "").trim() || null,
         isPrimary: (formData?.getAll("isPrimary") || []).some(
           (value) => String(value || "").trim() === "true",
@@ -416,11 +430,57 @@ export const onPost: RequestHandler = async ({
     );
   }
 
+  if (checkoutSessionId && intent === "import-saved-traveler-into-checkout") {
+    const result = await importSavedTravelerIntoCheckoutAction({
+      checkoutSessionId,
+      savedTravelerId: String(formData?.get("savedTravelerId") || "").trim(),
+      ownerUserId: ownershipContext.ownerUserId,
+    });
+    throw redirect(
+      303,
+      buildCheckoutPageHref(url.pathname, url, {
+        travelerNotice: {
+          code: result.code,
+          message: result.message,
+          tone: result.ok ? "success" : "error",
+        },
+      }),
+    );
+  }
+
   if (checkoutSessionId && intent === "remove-traveler-profile") {
-    const travelerProfileId = String(formData?.get("travelerProfileId") || "").trim();
+    const travelerProfileId = String(
+      formData?.get("travelerProfileId") || "",
+    ).trim();
     const result = await removeCheckoutTravelerProfile({
       checkoutSessionId,
       travelerProfileId,
+    });
+    throw redirect(
+      303,
+      buildCheckoutPageHref(url.pathname, url, {
+        travelerNotice: {
+          code: result.code,
+          message: result.message,
+          tone: result.ok ? "success" : "error",
+        },
+      }),
+    );
+  }
+
+  if (
+    checkoutSessionId &&
+    intent === "save-checkout-traveler-as-saved-profile"
+  ) {
+    const result = await saveCheckoutTravelerAsSavedProfile({
+      checkoutSessionId,
+      travelerProfileId: String(
+        formData?.get("travelerProfileId") || "",
+      ).trim(),
+      ownerUserId: ownershipContext.ownerUserId,
+      isDefault: (formData?.getAll("isDefault") || []).some(
+        (value) => String(value || "").trim() === "true",
+      ),
     });
     throw redirect(
       303,
@@ -454,7 +514,7 @@ export const onPost: RequestHandler = async ({
 };
 
 export const useCheckoutSessionPage = routeLoader$(
-  async ({ params, status, url }) => {
+  async ({ params, status, url, cookie, request, sharedMap }) => {
     const checkoutSessionId = String(params.checkoutSessionId || "").trim();
     if (!checkoutSessionId) {
       status(404);
@@ -509,9 +569,12 @@ export const useCheckoutSessionPage = routeLoader$(
         session = refreshedSession;
       }
       const sessionWithTravelers = await attachCheckoutTravelerState(session);
-      const paymentSummary = await getCheckoutPaymentSummary(sessionWithTravelers, {
-        now: new Date(),
-      });
+      const paymentSummary = await getCheckoutPaymentSummary(
+        sessionWithTravelers,
+        {
+          now: new Date(),
+        },
+      );
       await refreshBookingRunStatus(checkoutSessionId, {
         now: new Date(),
       }).catch(() => null);
@@ -521,8 +584,18 @@ export const useCheckoutSessionPage = routeLoader$(
       const confirmation = bookingSummary.run
         ? await getBookingConfirmationForBookingRun(bookingSummary.run.id)
         : null;
-      const travelerPageModel =
-        await getCheckoutTravelerPageModel(sessionWithTravelers);
+      const ownershipContext = getCurrentOwnershipContext({
+        cookie,
+        request,
+        sharedMap,
+        url,
+      });
+      const travelerPageModel = await getCheckoutTravelerPageModel(
+        sessionWithTravelers,
+        {
+          ownerUserId: ownershipContext.ownerUserId,
+        },
+      );
 
       return {
         kind: "loaded",
@@ -572,7 +645,8 @@ export default component$(() => {
       bookingSummary: data.bookingSummary,
       confirmation: data.confirmation,
       travelerValidationSummary: data.travelerPageModel.validationSummary,
-      hasCompleteTravelerDetails: data.travelerPageModel.hasCompleteTravelerDetails,
+      hasCompleteTravelerDetails:
+        data.travelerPageModel.hasCompleteTravelerDetails,
     });
     return (
       <CheckoutShell
@@ -635,7 +709,8 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
       bookingSummary: data.bookingSummary,
       confirmation: data.confirmation,
       travelerValidationSummary: data.travelerPageModel.validationSummary,
-      hasCompleteTravelerDetails: data.travelerPageModel.hasCompleteTravelerDetails,
+      hasCompleteTravelerDetails:
+        data.travelerPageModel.hasCompleteTravelerDetails,
     });
     const title = `${summary.tripReference} checkout | Andacity`;
     return {

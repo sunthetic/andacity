@@ -17,7 +17,7 @@ import {
 } from '~/types/checkout'
 
 export const CHECKOUT_SESSION_DEFAULT_TTL_MS = 30 * 60 * 1000
-const LATEST_CHECKOUT_MIGRATION = '0015_notifications.sql'
+const LATEST_CHECKOUT_MIGRATION = '0016_saved_traveler_profiles.sql'
 const CHECKOUT_SCHEMA_IDENTIFIERS = [
   'checkout_sessions',
   'checkout_session_status',
@@ -70,6 +70,11 @@ const CHECKOUT_SCHEMA_IDENTIFIERS = [
   'traveler_document_type',
   'driver_age',
   'document_number',
+  'saved_traveler_profiles',
+  'saved_traveler_profile_status',
+  'owner_user_id',
+  'is_default',
+  'label',
   'notifications',
   'notification_channel',
   'notification_provider',

@@ -66,6 +66,10 @@ export const travelerDocumentTypeEnum = dbEnum('traveler_document_type', [
   'drivers_license',
   'national_id',
 ])
+export const savedTravelerProfileStatusEnum = dbEnum(
+  'saved_traveler_profile_status',
+  ['active', 'archived'],
+)
 export const paymentProviderEnum = dbEnum('payment_provider', ['stripe'])
 export const checkoutPaymentSessionStatusEnum = dbEnum(
   'checkout_payment_session_status',
@@ -968,6 +972,52 @@ export const checkoutTravelerProfiles = dbTable(
     ),
     emailIdx: index('checkout_traveler_profiles_email_idx').on(table.email),
     documentIdx: index('checkout_traveler_profiles_document_idx').on(
+      table.documentType,
+      table.documentNumber,
+    ),
+  }),
+)
+
+export const savedTravelerProfiles = dbTable(
+  'saved_traveler_profiles',
+  {
+    id: text('id').primaryKey(),
+    ownerUserId: text('owner_user_id').notNull(),
+    status: savedTravelerProfileStatusEnum('status').notNull().default('active'),
+    type: travelerTypeEnum('type').notNull().default('adult'),
+    firstName: text('first_name').notNull(),
+    middleName: text('middle_name'),
+    lastName: text('last_name').notNull(),
+    dateOfBirth: date('date_of_birth'),
+    email: text('email'),
+    phone: text('phone'),
+    nationality: varchar('nationality', { length: 2 }),
+    documentType: travelerDocumentTypeEnum('document_type'),
+    documentNumber: text('document_number'),
+    documentExpiryDate: date('document_expiry_date'),
+    issuingCountry: varchar('issuing_country', { length: 2 }),
+    knownTravelerNumber: text('known_traveler_number'),
+    redressNumber: text('redress_number'),
+    driverAge: integer('driver_age'),
+    label: text('label'),
+    isDefault: boolean('is_default').notNull().default(false),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    ownerIdx: index('saved_traveler_profiles_owner_idx').on(table.ownerUserId),
+    ownerStatusIdx: index('saved_traveler_profiles_owner_status_idx').on(
+      table.ownerUserId,
+      table.status,
+    ),
+    ownerDefaultIdx: index('saved_traveler_profiles_owner_default_idx').on(
+      table.ownerUserId,
+      table.isDefault,
+      table.status,
+    ),
+    emailIdx: index('saved_traveler_profiles_email_idx').on(table.email),
+    updatedIdx: index('saved_traveler_profiles_updated_idx').on(table.updatedAt),
+    documentIdx: index('saved_traveler_profiles_document_idx').on(
       table.documentType,
       table.documentNumber,
     ),

@@ -27,6 +27,27 @@ export const MyTripsPageShell = component$(
           />
         ) : null}
 
+        {model.accountTools ? (
+          <section class="rounded-[var(--radius-xl)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5 shadow-[var(--shadow-sm)]">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                  {model.accountTools.label}
+                </p>
+                <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                  {model.accountTools.description}
+                </p>
+              </div>
+              <a
+                href={model.accountTools.href}
+                class="rounded-lg border border-[color:var(--color-border)] px-4 py-2 text-sm font-medium text-[color:var(--color-text-strong)] hover:border-[color:var(--color-text-strong)]"
+              >
+                Open travelers
+              </a>
+            </div>
+          </section>
+        ) : null}
+
         <MyTripsStatusSummary summary={model.statusSummary} />
 
         <section class="rounded-[var(--radius-xl)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5 shadow-[var(--shadow-sm)]">
