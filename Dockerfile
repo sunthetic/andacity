@@ -14,7 +14,7 @@ WORKDIR /usr/src/app
 FROM base as deps
 
 RUN npm install -g pnpm@latest
-RUN pnpm install
+
 
 ################################################################################
 # Create a stage for building the application.
@@ -22,7 +22,7 @@ FROM deps as build
 
 # Copy the rest of the source files into the image.
 COPY . .
-
+RUN pnpm install
 # Run the build script.
 RUN pnpm build
 
