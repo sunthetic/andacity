@@ -2,6 +2,7 @@ import type { BookableVertical } from "~/types/bookable-entity";
 import type { BookingConfirmation } from "~/types/confirmation";
 import type { BookingRun } from "~/types/booking";
 import type { CheckoutSession } from "~/types/checkout";
+import type { NotificationSummary } from "~/types/notifications";
 import type {
   ItineraryAccessResult,
   ItineraryOwnership,
@@ -87,6 +88,7 @@ export type OwnedItinerary = ItineraryOwnershipRef & {
   updatedAt: string;
   ownership: ItineraryOwnership | null;
   items: OwnedItineraryItem[];
+  notificationSummary?: NotificationSummary | null;
 };
 
 export type CreateItineraryFromConfirmationInput = ItineraryOwnershipRef & {
@@ -161,6 +163,7 @@ export type ItineraryDetail = {
   createdAt: string;
   updatedAt: string;
   access: ItineraryAccessResult | null;
+  notificationSummary?: NotificationSummary | null;
   summary: ItinerarySummary;
   items: Array<
     OwnedItineraryItem & {

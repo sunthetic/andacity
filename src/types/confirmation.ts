@@ -2,6 +2,7 @@ import type { BookingItemExecution, BookingRun } from "~/types/booking";
 import type { BookableVertical } from "~/types/bookable-entity";
 import type { CheckoutSession } from "~/types/checkout";
 import type { ItineraryStatus } from "~/types/itinerary";
+import type { NotificationSummary } from "~/types/notifications";
 import type { CheckoutPaymentSession } from "~/types/payment";
 
 export const BOOKING_CONFIRMATION_STATUSES = [
@@ -95,6 +96,7 @@ export type BookingConfirmation = {
   createdAt: string;
   updatedAt: string;
   items: BookingConfirmationItem[];
+  notificationSummary?: NotificationSummary | null;
 };
 
 export type CreateBookingConfirmationInput = {

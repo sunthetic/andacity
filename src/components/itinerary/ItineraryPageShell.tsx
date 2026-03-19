@@ -2,6 +2,7 @@ import { component$ } from "@builder.io/qwik";
 import { ItineraryActionBar } from "~/components/itinerary/ItineraryActionBar";
 import { ItineraryHeader } from "~/components/itinerary/ItineraryHeader";
 import { ItineraryItemList } from "~/components/itinerary/ItineraryItemList";
+import { ItineraryNotificationNotice } from "~/components/itinerary/ItineraryNotificationNotice";
 import { ItineraryOwnershipNotice } from "~/components/itinerary/ItineraryOwnershipNotice";
 import { ItineraryStatusNotice } from "~/components/itinerary/ItineraryStatusNotice";
 import { ItinerarySummaryCard } from "~/components/itinerary/ItinerarySummaryCard";
@@ -20,6 +21,7 @@ export const ItineraryPageShell = component$(
           notice={model.statusNotice}
           recoveryState={model.recoveryState}
         />
+        <ItineraryNotificationNotice notice={model.notificationNotice} />
 
         <div class="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
           <div class="space-y-6">

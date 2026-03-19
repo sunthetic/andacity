@@ -121,6 +121,31 @@ export const itineraryOwnershipSourceEnum = dbEnum(
     'auto_attach_on_signin',
   ],
 )
+export const notificationChannelEnum = dbEnum('notification_channel', [
+  'email',
+  'sms',
+  'push',
+])
+export const notificationProviderEnum = dbEnum('notification_provider', [
+  'resend',
+  'sendgrid',
+])
+export const notificationEventTypeEnum = dbEnum('notification_event_type', [
+  'booking_confirmation',
+  'booking_partial_confirmation',
+  'booking_manual_review',
+  'itinerary_ready',
+  'itinerary_claim_available',
+])
+export const notificationStatusEnum = dbEnum('notification_status', [
+  'draft',
+  'queued',
+  'sent',
+  'delivered',
+  'failed',
+  'skipped',
+  'canceled',
+])
 
 export const countries = dbTable(
   'countries',
@@ -1325,6 +1350,66 @@ export const itineraryOwnerships = dbTable(
   }),
 )
 
+export const notifications = dbTable(
+  'notifications',
+  {
+    id: text('id').primaryKey(),
+    eventType: notificationEventTypeEnum('event_type').notNull(),
+    channel: notificationChannelEnum('channel').notNull().default('email'),
+    provider: notificationProviderEnum('provider').notNull().default('resend'),
+    status: notificationStatusEnum('status').notNull().default('draft'),
+    recipientJson: jsonb('recipient_json')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    subject: text('subject').notNull(),
+    payloadJson: jsonb('payload_json')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    providerMessageId: text('provider_message_id'),
+    providerMetadataJson: jsonb('provider_metadata_json')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    dedupeKey: text('dedupe_key'),
+    relatedConfirmationId: text('related_confirmation_id').references(
+      () => bookingConfirmations.id,
+      { onDelete: 'set null' },
+    ),
+    relatedItineraryId: text('related_itinerary_id').references(
+      () => itineraries.id,
+      { onDelete: 'set null' },
+    ),
+    relatedCheckoutSessionId: text('related_checkout_session_id').references(
+      () => checkoutSessions.id,
+      { onDelete: 'set null' },
+    ),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    failedAt: timestamp('failed_at', { withTimezone: true }),
+    failureMessage: text('failure_message'),
+    skipReason: text('skip_reason'),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    eventTypeIdx: index('notifications_event_type_idx').on(table.eventType),
+    statusIdx: index('notifications_status_idx').on(table.status),
+    providerIdx: index('notifications_provider_idx').on(table.provider),
+    dedupeKeyUq: uniqueIndex('notifications_dedupe_key_uq').on(table.dedupeKey),
+    confirmationIdx: index('notifications_confirmation_idx').on(
+      table.relatedConfirmationId,
+    ),
+    itineraryIdx: index('notifications_itinerary_idx').on(table.relatedItineraryId),
+    checkoutIdx: index('notifications_checkout_idx').on(
+      table.relatedCheckoutSessionId,
+    ),
+    sentIdx: index('notifications_sent_idx').on(table.sentAt),
+    createdIdx: index('notifications_created_idx').on(table.createdAt),
+  }),
+)
+
 export const countriesRelations = relations(countries, ({ many }) => ({
   regions: many(regions),
   cities: many(cities),
@@ -1622,6 +1707,7 @@ export const checkoutSessionsRelations = relations(checkoutSessions, ({ one, man
   paymentSessions: many(checkoutPaymentSessions),
   bookingRuns: many(bookingRuns),
   itineraries: many(itineraries),
+  notifications: many(notifications),
 }))
 
 export const checkoutTravelerProfilesRelations = relations(
@@ -1710,6 +1796,7 @@ export const bookingConfirmationsRelations = relations(
       fields: [bookingConfirmations.id],
       references: [itineraries.confirmationId],
     }),
+    notifications: many(notifications),
   }),
 )
 
@@ -1753,6 +1840,7 @@ export const itinerariesRelations = relations(itineraries, ({ one, many }) => ({
     references: [itineraryOwnerships.itineraryId],
   }),
   items: many(itineraryItems),
+  notifications: many(notifications),
 }))
 
 export const itineraryItemsRelations = relations(
@@ -1782,3 +1870,18 @@ export const itineraryOwnershipsRelations = relations(
     }),
   }),
 )
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  confirmation: one(bookingConfirmations, {
+    fields: [notifications.relatedConfirmationId],
+    references: [bookingConfirmations.id],
+  }),
+  itinerary: one(itineraries, {
+    fields: [notifications.relatedItineraryId],
+    references: [itineraries.id],
+  }),
+  checkoutSession: one(checkoutSessions, {
+    fields: [notifications.relatedCheckoutSessionId],
+    references: [checkoutSessions.id],
+  }),
+}))

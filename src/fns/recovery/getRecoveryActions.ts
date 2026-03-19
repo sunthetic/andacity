@@ -59,6 +59,10 @@ const ACTION_COPY: Record<
     label: "Manual review",
     description: "Review the items that still need manual follow-up.",
   },
+  resend_notification: {
+    label: "Resend notification",
+    description: "Retry the transactional notification from persisted state.",
+  },
   contact_support: {
     label: "Contact support",
     description: "Share the saved references with support for follow-up.",
@@ -122,6 +126,17 @@ const actionHrefForType = (
           : null;
     case "start_new_search":
       return "/";
+    case "resend_notification":
+      if (typeof metadata.itineraryRef === "string" && metadata.itineraryRef) {
+        return `/itinerary/${metadata.itineraryRef}`;
+      }
+      if (
+        typeof metadata.confirmationRef === "string" &&
+        metadata.confirmationRef
+      ) {
+        return `/confirmation/${metadata.confirmationRef}`;
+      }
+      return null;
     default:
       return null;
   }
@@ -144,6 +159,10 @@ const actionIntentForType = (
       return "create-payment";
     case "resume_booking":
       return "execute-booking";
+    case "resend_notification":
+      if (stage === "itinerary") return "resend-itinerary-notification";
+      if (stage === "confirmation") return "resend-confirmation-notification";
+      return null;
     default:
       return null;
   }
@@ -196,6 +215,8 @@ const actionPlanByReason = (
       return ["retry", "return_to_trip"];
     case "ITINERARY_CREATE_FAILED":
       return ["retry", "view_confirmation"];
+    case "NOTIFICATION_FAILED":
+      return ["resend_notification", "view_itinerary", "view_confirmation"];
     case "UNKNOWN_TRANSACTION_ERROR":
     default:
       return ["retry", "return_to_trip"];

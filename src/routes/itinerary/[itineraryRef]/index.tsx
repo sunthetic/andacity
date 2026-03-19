@@ -19,10 +19,17 @@ import { resolveItineraryAccess } from "~/lib/ownership/resolveItineraryAccess";
 import {
   attachAnonymousItinerariesToCurrentUser,
   claimItineraryOwnership,
+  resendItineraryNotification,
 } from "~/routes/itinerary/actions";
 import { ITINERARY_REF_PATTERN } from "~/types/itinerary";
 
 type ItineraryClaimNotice = {
+  code: string;
+  message: string;
+  tone: "success" | "warning" | "error" | "info";
+};
+
+type ItineraryNotificationNotice = {
   code: string;
   message: string;
   tone: "success" | "warning" | "error" | "info";
@@ -67,22 +74,50 @@ const readResumeClaimNotice = (
   };
 };
 
+const readNotificationNotice = (
+  url: URL,
+): ItineraryNotificationNotice | null => {
+  const code = String(url.searchParams.get("notification_code") || "").trim();
+  const message = String(url.searchParams.get("notification_message") || "").trim();
+  const tone = String(url.searchParams.get("notification_tone") || "").trim();
+  if (!code || !message) return null;
+
+  return {
+    code,
+    message,
+    tone:
+      tone === "success" || tone === "warning" || tone === "error" || tone === "info"
+        ? tone
+        : "info",
+  };
+};
+
 const buildItineraryPageHref = (
   pathname: string,
   sourceUrl: URL,
   options: {
     claimNotice?: ItineraryClaimNotice | null;
+    notificationNotice?: ItineraryNotificationNotice | null;
   } = {},
 ) => {
   const params = new URLSearchParams(sourceUrl.search);
   params.delete("claim_code");
   params.delete("claim_message");
   params.delete("claim_tone");
+  params.delete("notification_code");
+  params.delete("notification_message");
+  params.delete("notification_tone");
 
   if (options.claimNotice) {
     params.set("claim_code", options.claimNotice.code);
     params.set("claim_message", options.claimNotice.message);
     params.set("claim_tone", options.claimNotice.tone);
+  }
+
+  if (options.notificationNotice) {
+    params.set("notification_code", options.notificationNotice.code);
+    params.set("notification_message", options.notificationNotice.message);
+    params.set("notification_tone", options.notificationNotice.tone);
   }
 
   const query = params.toString();
@@ -122,6 +157,24 @@ export const onPost: RequestHandler = async ({
           code: result.reasonCode,
           message: result.message,
           tone: result.ok ? "success" : "error",
+        },
+      }),
+    );
+  }
+
+  if (intent === "resend-itinerary-notification" && itineraryRef) {
+    const result = await resendItineraryNotification(itineraryRef);
+    throw redirect(
+      303,
+      buildItineraryPageHref(`/itinerary/${itineraryRef}`, url, {
+        notificationNotice: {
+          code: result.code,
+          message: result.message,
+          tone: result.ok
+            ? "success"
+            : result.code === "NOTIFICATION_SKIPPED"
+              ? "warning"
+              : "error",
         },
       }),
     );
@@ -214,6 +267,7 @@ export const useItineraryPage = routeLoader$(async ({
         isClaimable: access.isClaimable,
         hasCurrentUser: Boolean(context.ownerUserId),
       }),
+    notificationActionNotice: readNotificationNotice(url),
     previewOnly: !access.isOwner,
   });
 

@@ -38,6 +38,7 @@ export const buildItineraryDetail = (
     createdAt: itinerary.createdAt,
     updatedAt: itinerary.updatedAt,
     access: options.access || null,
+    notificationSummary: itinerary.notificationSummary || null,
     summary,
     items: itinerary.items.map((item) => ({
       ...item,

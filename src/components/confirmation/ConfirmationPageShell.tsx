@@ -2,6 +2,7 @@ import { component$ } from "@builder.io/qwik";
 import { ConfirmationHeader } from "~/components/confirmation/ConfirmationHeader";
 import { ConfirmationItineraryNotice } from "~/components/confirmation/ConfirmationItineraryNotice";
 import { ConfirmationItemList } from "~/components/confirmation/ConfirmationItemList";
+import { ConfirmationNotificationNotice } from "~/components/confirmation/ConfirmationNotificationNotice";
 import { ConfirmationReferenceBlock } from "~/components/confirmation/ConfirmationReferenceBlock";
 import { ConfirmationStatusNotice } from "~/components/confirmation/ConfirmationStatusNotice";
 import { ConfirmationSummaryCard } from "~/components/confirmation/ConfirmationSummaryCard";
@@ -26,6 +27,7 @@ export const ConfirmationPageShell = component$(
           notice={model.itineraryNotice}
           recoveryState={model.itineraryRecovery}
         />
+        <ConfirmationNotificationNotice notice={model.notificationNotice} />
 
         <div class="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
           <div class="space-y-6">

@@ -7,6 +7,7 @@ import { getItineraryForConfirmation } from "~/lib/itinerary/getItineraryForConf
 import { isUniqueViolationError } from "~/lib/itinerary/shared";
 import { createOrResumeItineraryOwnership } from "~/lib/ownership/createOrResumeItineraryOwnership";
 import { getCheckoutPaymentSession } from "~/lib/payments/getCheckoutPaymentSession";
+import { sendItineraryLifecycleNotifications } from "~/fns/notifications/sendItineraryLifecycleNotifications";
 
 export const createOrResumeItineraryFromConfirmation = async (
   confirmationId: string,
@@ -50,9 +51,15 @@ export const createOrResumeItineraryFromConfirmation = async (
       now: options.now,
     });
     const hydrated = await getExistingItinerary(confirmationId);
+    const resolvedItinerary = hydrated || existing;
+    try {
+      await sendItineraryLifecycleNotifications(resolvedItinerary);
+    } catch {
+      // Itinerary retrieval should not fail if outbound notification delivery fails.
+    }
 
     return {
-      itinerary: hydrated || existing,
+      itinerary: resolvedItinerary,
       created: false,
       ownership: ownershipResult.ownership,
       claimToken: ownershipResult.claimToken,
@@ -108,6 +115,11 @@ export const createOrResumeItineraryFromConfirmation = async (
       ownerSessionId: options.ownerSessionId ?? null,
       now: options.now,
     });
+    try {
+      await sendItineraryLifecycleNotifications(created.itinerary);
+    } catch {
+      // Itinerary creation is canonical; notifications are downstream and non-blocking.
+    }
 
     return {
       itinerary: created.itinerary,
@@ -126,6 +138,11 @@ export const createOrResumeItineraryFromConfirmation = async (
           source: "confirmation_flow",
           now: options.now,
         });
+        try {
+          await sendItineraryLifecycleNotifications(resumed);
+        } catch {
+          // Duplicate conflict recovery should not block itinerary access.
+        }
         return {
           itinerary: resumed,
           created: false,

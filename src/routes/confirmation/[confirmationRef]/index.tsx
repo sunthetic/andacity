@@ -20,6 +20,7 @@ import {
 import { getOwnershipDisplayState } from "~/lib/ownership/getOwnershipDisplayState";
 import { resolveItineraryAccess } from "~/lib/ownership/resolveItineraryAccess";
 import { attachAnonymousItinerariesToCurrentUser } from "~/routes/itinerary/actions";
+import { resendConfirmationNotification } from "~/routes/confirmation/actions";
 import { CONFIRMATION_REF_PATTERN } from "~/types/confirmation";
 
 type ConfirmationPageData =
@@ -43,6 +44,48 @@ type ConfirmationPageData =
 
 export const onRequest: RequestHandler = ({ headers }) => {
   headers.set("x-robots-tag", "noindex, follow");
+};
+
+const readNotificationNotice = (url: URL) => {
+  const code = String(url.searchParams.get("notification_code") || "").trim();
+  const message = String(url.searchParams.get("notification_message") || "").trim();
+  const tone = String(url.searchParams.get("notification_tone") || "").trim();
+  if (!code || !message) return null;
+
+  return {
+    code,
+    message,
+    tone:
+      tone === "success" || tone === "warning" || tone === "error" || tone === "info"
+        ? tone
+        : "info",
+  } as const;
+};
+
+const buildConfirmationPageHref = (
+  pathname: string,
+  sourceUrl: URL,
+  input?: {
+    notificationNotice?: {
+      code: string;
+      message: string;
+      tone: "success" | "warning" | "error" | "info";
+    } | null;
+  },
+) => {
+  const params = new URLSearchParams(sourceUrl.search);
+  params.delete("notification_code");
+  params.delete("notification_message");
+  params.delete("notification_tone");
+
+  if (input?.notificationNotice) {
+    params.set("notification_code", input.notificationNotice.code);
+    params.set("notification_message", input.notificationNotice.message);
+    params.set("notification_tone", input.notificationNotice.tone);
+  }
+
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
 };
 
 export const onPost: RequestHandler = async ({
@@ -100,7 +143,28 @@ export const onPost: RequestHandler = async ({
     }
   }
 
-  throw redirect(303, `/confirmation/${confirmationRef}`);
+  if (intent === "resend-confirmation-notification" && confirmationRef) {
+    const result = await resendConfirmationNotification(confirmationRef);
+    throw redirect(
+      303,
+      buildConfirmationPageHref(`/confirmation/${confirmationRef}`, url, {
+        notificationNotice: {
+          code: result.code,
+          message: result.message,
+          tone: result.ok
+            ? "success"
+            : result.code === "NOTIFICATION_SKIPPED"
+              ? "warning"
+              : "error",
+        },
+      }),
+    );
+  }
+
+  throw redirect(
+    303,
+    buildConfirmationPageHref(`/confirmation/${confirmationRef}`, url),
+  );
 };
 
 export const useConfirmationPage = routeLoader$(async ({
@@ -210,6 +274,7 @@ export const useConfirmationPage = routeLoader$(async ({
         model: getConfirmationPageModel(hydratedConfirmation, {
           itineraryPromotionFailed,
           itineraryNotice,
+          notificationActionNotice: readNotificationNotice(url),
         }),
       } satisfies ConfirmationPageData;
     } catch {

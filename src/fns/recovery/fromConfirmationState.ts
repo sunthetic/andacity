@@ -76,5 +76,16 @@ export const fromConfirmationState = (input: {
     });
   }
 
+  const notificationStatus = String(metadata.notificationStatus || "")
+    .trim()
+    .toLowerCase();
+  if (notificationStatus === "failed" || notificationStatus === "skipped") {
+    return buildRecoveryState({
+      stage: "confirmation",
+      reasonCode: "NOTIFICATION_FAILED",
+      metadata,
+    });
+  }
+
   return null;
 };

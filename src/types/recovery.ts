@@ -43,6 +43,7 @@ export const RECOVERY_REASON_CODES = [
   "CONFIRMATION_PENDING",
   "CONFIRMATION_FAILED",
   "ITINERARY_CREATE_FAILED",
+  "NOTIFICATION_FAILED",
   "UNKNOWN_TRANSACTION_ERROR",
 ] as const;
 
@@ -60,6 +61,7 @@ export const RECOVERY_ACTION_TYPES = [
   "view_itinerary",
   "start_new_search",
   "manual_review",
+  "resend_notification",
   "contact_support",
 ] as const;
 

@@ -6,6 +6,8 @@ import {
 } from "~/lib/db/schema";
 import { withCheckoutSchemaGuard } from "~/lib/checkout/getCheckoutSession";
 import { getItineraryOwnershipByItineraryId } from "~/lib/ownership/getItineraryOwnershipByItineraryId";
+import { buildNotificationSummary } from "~/fns/notifications/buildNotificationSummary";
+import { getNotificationsForEntity } from "~/fns/notifications/getNotificationsForEntity";
 import type { ItineraryOwnership } from "~/types/ownership";
 import {
   isRecord,
@@ -117,6 +119,30 @@ export const getItinerary = async (
 
     const items = await listItineraryItems(row.id);
     const ownership = await getItineraryOwnershipByItineraryId(row.id);
-    return mapItineraryRow(row, items, ownership);
+    const itinerary = mapItineraryRow(row, items, ownership);
+    const notificationSummary = await (async () => {
+      try {
+        const notificationRecords = await getNotificationsForEntity({
+          itineraryId: itinerary.id,
+          eventTypes: ["itinerary_ready", "itinerary_claim_available"],
+          limit: 20,
+        });
+        return buildNotificationSummary({
+          records: notificationRecords,
+          preferredEventTypes: ["itinerary_claim_available", "itinerary_ready"],
+        });
+      } catch {
+        // Notification persistence should not block itinerary retrieval.
+        return buildNotificationSummary({
+          records: [],
+          preferredEventTypes: ["itinerary_claim_available", "itinerary_ready"],
+        });
+      }
+    })();
+
+    return {
+      ...itinerary,
+      notificationSummary,
+    };
   });
 };

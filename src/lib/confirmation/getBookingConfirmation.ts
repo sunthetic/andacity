@@ -7,6 +7,8 @@ import {
 } from "~/lib/db/schema";
 import { withCheckoutSchemaGuard } from "~/lib/checkout/getCheckoutSession";
 import { buildBookingConfirmationSummary } from "~/lib/confirmation/buildBookingConfirmationSummary";
+import { buildNotificationSummary } from "~/fns/notifications/buildNotificationSummary";
+import { getNotificationsForEntity } from "~/fns/notifications/getNotificationsForEntity";
 import {
   isRecord,
   normalizeBookingConfirmationStatus,
@@ -152,9 +154,41 @@ export const getBookingConfirmation = async (
       .where(eq(itineraries.confirmationId, row.id))
       .limit(1);
     const confirmation = mapBookingConfirmationRow(row, items);
+    const notificationSummary = await (async () => {
+      try {
+        const notificationRecords = await getNotificationsForEntity({
+          confirmationId: confirmation.id,
+          eventTypes: [
+            "booking_confirmation",
+            "booking_partial_confirmation",
+            "booking_manual_review",
+          ],
+          limit: 20,
+        });
+        return buildNotificationSummary({
+          records: notificationRecords,
+          preferredEventTypes: [
+            "booking_confirmation",
+            "booking_partial_confirmation",
+            "booking_manual_review",
+          ],
+        });
+      } catch {
+        // Notification persistence should not block confirmation retrieval.
+        return buildNotificationSummary({
+          records: [],
+          preferredEventTypes: [
+            "booking_confirmation",
+            "booking_partial_confirmation",
+            "booking_manual_review",
+          ],
+        });
+      }
+    })();
 
     return {
       ...confirmation,
+      notificationSummary,
       summaryJson: buildBookingConfirmationSummary(confirmation, {
         itinerary: itineraryRow
           ? {

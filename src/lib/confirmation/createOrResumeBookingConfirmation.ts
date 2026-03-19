@@ -5,6 +5,7 @@ import { getBookingConfirmationForBookingRun } from "~/lib/confirmation/getBooki
 import { isUniqueViolationError } from "~/lib/confirmation/shared";
 import { getCheckoutSession } from "~/lib/checkout/getCheckoutSession";
 import { getCheckoutPaymentSession } from "~/lib/payments/getCheckoutPaymentSession";
+import { sendConfirmationLifecycleNotifications } from "~/fns/notifications/sendConfirmationLifecycleNotifications";
 
 export const createOrResumeBookingConfirmation = async (
   bookingRunId: string,
@@ -14,6 +15,12 @@ export const createOrResumeBookingConfirmation = async (
 ) => {
   const existing = await getBookingConfirmationForBookingRun(bookingRunId);
   if (existing) {
+    try {
+      await sendConfirmationLifecycleNotifications(existing);
+    } catch {
+      // Notifications are downstream side-effects and must never block confirmation retrieval.
+    }
+
     return {
       confirmation: existing,
       created: false,
@@ -56,6 +63,11 @@ export const createOrResumeBookingConfirmation = async (
       paymentSession,
       now: options.now,
     });
+    try {
+      await sendConfirmationLifecycleNotifications(confirmation);
+    } catch {
+      // Notification delivery failures should not block confirmation persistence.
+    }
 
     return {
       confirmation,
@@ -65,6 +77,12 @@ export const createOrResumeBookingConfirmation = async (
     if (isUniqueViolationError(error)) {
       const resumed = await getBookingConfirmationForBookingRun(bookingRunId);
       if (resumed) {
+        try {
+          await sendConfirmationLifecycleNotifications(resumed);
+        } catch {
+          // Duplicate reconciliation should stay non-blocking for notification retries.
+        }
+
         return {
           confirmation: resumed,
           created: false,

@@ -1,4 +1,5 @@
 import { buildRecoveryState } from "~/fns/recovery/buildRecoveryState";
+import { fromItineraryState } from "~/fns/recovery/fromItineraryState";
 import { formatItineraryCurrency } from "~/fns/itinerary/formatItineraryCurrency";
 import {
   formatItineraryDateRange,
@@ -7,6 +8,7 @@ import {
 import type { ItineraryDetail } from "~/types/itinerary";
 import type { RecoveryState } from "~/types/recovery";
 import type { OwnershipDisplayState } from "~/types/ownership";
+import type { NotificationSummary } from "~/types/notifications";
 
 export type ItineraryPageNoticeTone = "success" | "warning" | "error" | "info";
 
@@ -77,6 +79,18 @@ export type ItineraryPageModel = {
     tone: ItineraryPageNoticeTone;
     title: string;
     message: string;
+  } | null;
+  notificationNotice: {
+    tone: ItineraryPageNoticeTone;
+    title: string;
+    message: string;
+    canResend: boolean;
+    resendIntent: string;
+    actionNotice: {
+      code: string;
+      message: string;
+      tone: ItineraryPageNoticeTone;
+    } | null;
   } | null;
   recoveryState: RecoveryState | null;
   items: ItineraryPageItemModel[];
@@ -353,6 +367,29 @@ const buildStatusPresentation = (input: {
   };
 };
 
+const buildNotificationNotice = (input: {
+  summary: NotificationSummary | null | undefined;
+  actionNotice?: {
+    code: string;
+    message: string;
+    tone: ItineraryPageNoticeTone;
+  } | null;
+}): ItineraryPageModel["notificationNotice"] => {
+  const summary = input.summary || null;
+  if (!summary && !input.actionNotice) return null;
+
+  return {
+    tone: input.actionNotice?.tone || summary?.tone || "info",
+    title: summary?.title || "Notification status",
+    message: input.actionNotice
+      ? `${summary?.message || ""} ${input.actionNotice.message}`.trim()
+      : summary?.message || "Notification state is available for this itinerary.",
+    canResend: summary?.canResend ?? true,
+    resendIntent: "resend-itinerary-notification",
+    actionNotice: input.actionNotice || null,
+  };
+};
+
 const getOwnershipBadge = (detail: ItineraryDetail) => {
   if (detail.isClaimable && !detail.isOwnedByCurrentContext) {
     return "Claimable itinerary";
@@ -383,6 +420,11 @@ export const getItineraryPageModel = (
     hasCurrentUser?: boolean;
     ownershipDisplayState?: OwnershipDisplayState | null;
     claimNotice?: {
+      code: string;
+      message: string;
+      tone: ItineraryPageNoticeTone;
+    } | null;
+    notificationActionNotice?: {
       code: string;
       message: string;
       tone: ItineraryPageNoticeTone;
@@ -436,6 +478,21 @@ export const getItineraryPageModel = (
     detail.items,
     detail.summary.locationSummary,
   );
+  const notificationRecovery =
+    statusPresentation.recoveryState ||
+    fromItineraryState({
+      hasItinerary: true,
+      itineraryRef: detail.publicRef,
+      confirmationRef: null,
+      tripHref: detail.tripHref,
+      canCreate: detail.summary.confirmedItemCount
+        ? detail.summary.confirmedItemCount > 0
+        : true,
+      failed: false,
+      metadata: {
+        notificationStatus: detail.notificationSummary?.status || null,
+      },
+    });
 
   return {
     itineraryRef: detail.publicRef,
@@ -498,7 +555,11 @@ export const getItineraryPageModel = (
           : statusPresentation.progressLabel,
     },
     statusNotice: statusPresentation.statusNotice,
-    recoveryState: statusPresentation.recoveryState,
+    notificationNotice: buildNotificationNotice({
+      summary: detail.notificationSummary || null,
+      actionNotice: options.notificationActionNotice || null,
+    }),
+    recoveryState: notificationRecovery,
     items: mappedItems.map((item) => ({
       id: item.id,
       typeLabel: item.typeLabel,

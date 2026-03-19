@@ -9,6 +9,7 @@ import { formatConfirmationCurrency } from "~/lib/confirmation/formatConfirmatio
 import { getConfirmationDisplayStatus } from "~/lib/confirmation/getConfirmationDisplayStatus";
 import type { RecoveryState } from "~/types/recovery";
 import type { OwnershipDisplayState } from "~/types/ownership";
+import type { NotificationSummary } from "~/types/notifications";
 import type {
   BookingConfirmation,
   BookingConfirmationItem,
@@ -82,6 +83,18 @@ export type ConfirmationPageModel = {
     label: string;
   } | null;
   itineraryRecovery: RecoveryState | null;
+  notificationNotice: {
+    tone: ConfirmationUiTone;
+    title: string;
+    message: string;
+    canResend: boolean;
+    resendIntent: string;
+    actionNotice: {
+      code: string;
+      message: string;
+      tone: ConfirmationUiTone;
+    } | null;
+  } | null;
   items: ConfirmationPageItemModel[];
   references: ConfirmationReferenceGroup[];
   nextSteps: {
@@ -317,11 +330,40 @@ const buildItineraryNotice = (
   };
 };
 
+const buildNotificationNotice = (input: {
+  summary: NotificationSummary | null | undefined;
+  actionNotice?: {
+    code: string;
+    message: string;
+    tone: ConfirmationUiTone;
+  } | null;
+}): ConfirmationPageModel["notificationNotice"] => {
+  const summary = input.summary || null;
+  if (!summary && !input.actionNotice) return null;
+
+  return {
+    tone: input.actionNotice?.tone || summary?.tone || "info",
+    title: summary?.title || "Notification status",
+    message: input.actionNotice
+      ? `${summary?.message || ""} ${input.actionNotice.message}`.trim()
+      : summary?.message ||
+        "Notification state is available for this confirmation.",
+    canResend: summary?.canResend ?? true,
+    resendIntent: "resend-confirmation-notification",
+    actionNotice: input.actionNotice || null,
+  };
+};
+
 export const getConfirmationPageModel = (
   confirmation: BookingConfirmation,
   options: {
     itineraryPromotionFailed?: boolean;
     itineraryNotice?: OwnershipDisplayState | null;
+    notificationActionNotice?: {
+      code: string;
+      message: string;
+      tone: ConfirmationUiTone;
+    } | null;
   } = {},
 ): ConfirmationPageModel => {
   if (!confirmation.items.length) {
@@ -402,6 +444,9 @@ export const getConfirmationPageModel = (
     statusRecovery: fromConfirmationState({
       confirmation,
       tripHref,
+      metadata: {
+        notificationStatus: confirmation.notificationSummary?.status || null,
+      },
     }),
     itineraryNotice: options.itineraryNotice || buildItineraryNotice(summary),
     itineraryRecovery: fromItineraryState({
@@ -411,6 +456,10 @@ export const getConfirmationPageModel = (
       tripHref,
       canCreate: summary.confirmedItemCount > 0,
       failed: Boolean(options.itineraryPromotionFailed),
+    }),
+    notificationNotice: buildNotificationNotice({
+      summary: confirmation.notificationSummary,
+      actionNotice: options.notificationActionNotice || null,
     }),
     items,
     references,

@@ -240,6 +240,14 @@ export const getRecoveryDisplayCopy = (input: {
           "Your confirmation is still saved, but the durable itinerary record could not be created yet. Retry itinerary creation without rerunning booking.",
         isTerminal: false,
       };
+    case "NOTIFICATION_FAILED":
+      return {
+        severity: "info",
+        title: "Notification delivery needs another attempt",
+        message:
+          "The booking record is saved, but outbound delivery failed or was skipped. You can resend the notification from this page.",
+        isTerminal: false,
+      };
     case "UNKNOWN_TRANSACTION_ERROR":
     default:
       return {

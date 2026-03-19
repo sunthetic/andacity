@@ -10,6 +10,26 @@ export const fromItineraryState = (input: {
   failed?: boolean;
   metadata?: RecoveryMetadata;
 }): RecoveryState | null => {
+  const metadata = input.metadata || {};
+  const notificationStatus = String(metadata.notificationStatus || "")
+    .trim()
+    .toLowerCase();
+  if (
+    input.hasItinerary &&
+    (notificationStatus === "failed" || notificationStatus === "skipped")
+  ) {
+    return buildRecoveryState({
+      stage: "itinerary",
+      reasonCode: "NOTIFICATION_FAILED",
+      metadata: {
+        itineraryRef: input.itineraryRef || null,
+        confirmationRef: input.confirmationRef || null,
+        tripHref: input.tripHref || null,
+        ...metadata,
+      },
+    });
+  }
+
   if (input.hasItinerary || !input.failed) return null;
 
   return buildRecoveryState({
@@ -20,7 +40,7 @@ export const fromItineraryState = (input: {
       confirmationRef: input.confirmationRef || null,
       tripHref: input.tripHref || null,
       hasConfirmedItems: input.canCreate,
-      ...input.metadata,
+      ...metadata,
     },
   });
 };
