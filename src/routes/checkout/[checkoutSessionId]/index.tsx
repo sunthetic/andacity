@@ -70,7 +70,9 @@ const readBookingNotice = (url: URL) => {
 
 const readConfirmationNotice = (url: URL) => {
   const code = String(url.searchParams.get("confirmation_code") || "").trim();
-  const message = String(url.searchParams.get("confirmation_message") || "").trim();
+  const message = String(
+    url.searchParams.get("confirmation_message") || "",
+  ).trim();
   const tone = String(url.searchParams.get("confirmation_tone") || "").trim();
   if (!code || !message) return null;
 
@@ -269,7 +271,13 @@ export const onPost: RequestHandler = async ({
   }
 
   if (checkoutSessionId && intent === "create-confirmation") {
-    const result = await createBookingConfirmationFromCheckout(checkoutSessionId);
+    const result =
+      await createBookingConfirmationFromCheckout(checkoutSessionId);
+
+    if (result.ok && result.redirectTo) {
+      throw redirect(303, result.redirectTo);
+    }
+
     throw redirect(
       303,
       buildCheckoutPageHref(url.pathname, url, {

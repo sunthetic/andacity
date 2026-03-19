@@ -11,9 +11,12 @@ const publicRefModule: typeof import("./createBookingConfirmationPublicRef.ts") 
   );
 const mappingModule: typeof import("./mapBookingRunToConfirmation.ts") =
   await import(new URL("./mapBookingRunToConfirmation.ts", import.meta.url).href);
+const pageModelModule: typeof import("./getConfirmationPageModel.ts") =
+  await import(new URL("./getConfirmationPageModel.ts", import.meta.url).href);
 
 const { createBookingConfirmationPublicRef } = publicRefModule;
 const { mapBookingRunToConfirmation } = mappingModule;
+const { getConfirmationPageModel } = pageModelModule;
 
 const buildCheckoutSession = (
   overrides: Partial<CheckoutSession> = {},
@@ -370,4 +373,46 @@ test("creates human-safe booking confirmation references", () => {
   for (const ref of refs) {
     assert.match(ref, /^CNF-[A-Z2-9]{5}-[A-Z2-9]{5}$/);
   }
+});
+
+test("builds a user-facing confirmation page model from persisted confirmation data", () => {
+  const confirmation = mapBookingRunToConfirmation({
+    bookingRun: buildBookingRun(),
+    checkoutSession: buildCheckoutSession(),
+    paymentSession: buildPaymentSession(),
+    publicRef: "CNF-ABCDE-23456",
+    now: "2026-03-18T16:15:00.000Z",
+  }).confirmation;
+
+  const model = getConfirmationPageModel(confirmation);
+
+  assert.equal(model.confirmationRef, "CNF-ABCDE-23456");
+  assert.equal(model.tripReference, "TRIP-000042");
+  assert.equal(model.header.title, "Your trip is partially confirmed");
+  assert.equal(model.summary.totalPaidLabel, "$430.00");
+  assert.equal(model.summary.tripSummary, "1 flight · 1 hotel");
+  assert.equal(model.statusNotice?.title, "Some bookings were not confirmed");
+  assert.equal(model.items[0]?.statusLabel, "Confirmed");
+  assert.equal(model.items[0]?.bookingReference, "HB-123");
+  assert.equal(model.items[1]?.statusLabel, "Failed");
+  assert.equal(model.references[0]?.references[0]?.label, "Confirmation code");
+});
+
+test("rejects confirmation page models without persisted items", () => {
+  const confirmation = mapBookingRunToConfirmation({
+    bookingRun: buildBookingRun(),
+    checkoutSession: buildCheckoutSession(),
+    paymentSession: buildPaymentSession(),
+    publicRef: "CNF-ABCDE-23456",
+    now: "2026-03-18T16:15:00.000Z",
+  }).confirmation;
+
+  assert.throws(
+    () =>
+      getConfirmationPageModel({
+        ...confirmation,
+        items: [],
+      }),
+    /missing booking items/i,
+  );
 });

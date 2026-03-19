@@ -1,110 +1,159 @@
 import { component$ } from "@builder.io/qwik";
-import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
+import {
+  routeLoader$,
+  useLocation,
+  type DocumentHead,
+  type RequestHandler,
+} from "@builder.io/qwik-city";
+import { ConfirmationLoading } from "~/components/confirmation/ConfirmationLoading";
+import { ConfirmationNotFound } from "~/components/confirmation/ConfirmationNotFound";
+import { ConfirmationPageShell } from "~/components/confirmation/ConfirmationPageShell";
 import { Page } from "~/components/site/Page";
 import { getBookingConfirmationByPublicRef } from "~/lib/confirmation/getBookingConfirmationByPublicRef";
-import { getConfirmationDisplayStatus } from "~/lib/confirmation/getConfirmationDisplayStatus";
+import { getConfirmationPageModel } from "~/lib/confirmation/getConfirmationPageModel";
+
+const CONFIRMATION_REF_PATTERN = /^CNF-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/;
+
+type ConfirmationPageData =
+  | {
+      kind: "loaded";
+      model: ReturnType<typeof getConfirmationPageModel>;
+    }
+  | {
+      kind: "invalid_ref";
+      confirmationRef: string;
+    }
+  | {
+      kind: "not_found";
+      confirmationRef: string;
+    }
+  | {
+      kind: "unavailable";
+      confirmationRef: string;
+      tripId: number | null;
+    };
+
+export const onRequest: RequestHandler = ({ headers }) => {
+  headers.set("x-robots-tag", "noindex, follow");
+};
 
 export const useConfirmationPage = routeLoader$(async ({ params, status }) => {
-  const confirmationRef = String(params.confirmationRef || "").trim();
-  if (!confirmationRef) {
-    status(404);
+  const confirmationRef = String(params.confirmationRef || "")
+    .trim()
+    .toUpperCase();
+
+  if (!confirmationRef || !CONFIRMATION_REF_PATTERN.test(confirmationRef)) {
+    status(400);
     return {
-      kind: "not_found" as const,
-      confirmationRef: "(empty)",
-    };
+      kind: "invalid_ref",
+      confirmationRef: confirmationRef || "(empty)",
+    } satisfies ConfirmationPageData;
   }
 
-  const confirmation = await getBookingConfirmationByPublicRef(confirmationRef);
-  if (!confirmation) {
-    status(404);
+  try {
+    const confirmation =
+      await getBookingConfirmationByPublicRef(confirmationRef);
+    if (!confirmation) {
+      status(404);
+      return {
+        kind: "not_found",
+        confirmationRef,
+      } satisfies ConfirmationPageData;
+    }
+
+    try {
+      return {
+        kind: "loaded",
+        model: getConfirmationPageModel(confirmation),
+      } satisfies ConfirmationPageData;
+    } catch {
+      status(500);
+      return {
+        kind: "unavailable",
+        confirmationRef,
+        tripId: confirmation.tripId,
+      } satisfies ConfirmationPageData;
+    }
+  } catch {
+    status(500);
     return {
-      kind: "not_found" as const,
+      kind: "unavailable",
       confirmationRef,
-    };
+      tripId: null,
+    } satisfies ConfirmationPageData;
   }
-
-  return {
-    kind: "loaded" as const,
-    confirmation,
-  };
 });
 
 export default component$(() => {
   const data = useConfirmationPage().value;
+  const location = useLocation();
+  const pendingRef = String(location.params.confirmationRef || "")
+    .trim()
+    .toUpperCase();
 
-  if (data.kind === "not_found") {
+  if (location.isNavigating) {
     return (
       <Page
         breadcrumbs={[
           { label: "Home", href: "/" },
           { label: "Confirmation" },
+          { label: pendingRef || "Loading" },
         ]}
       >
-        <section class="rounded-[var(--radius-xl)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 shadow-[var(--shadow-sm)]">
-          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--color-text-muted)]">
-            Confirmation
-          </p>
-          <h1 class="mt-2 text-2xl font-semibold text-[color:var(--color-text-strong)]">
-            Confirmation not found
-          </h1>
-          <p class="mt-3 text-sm text-[color:var(--color-text-muted)]">
-            Confirmation {data.confirmationRef} does not exist or is no longer
-            available.
-          </p>
-        </section>
+        <ConfirmationLoading />
       </Page>
     );
   }
 
-  const display = getConfirmationDisplayStatus(data.confirmation.status);
-  const summary = data.confirmation.summaryJson;
+  if (data.kind === "loaded") {
+    return (
+      <Page
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "Trips", href: "/trips" },
+          { label: data.model.tripReference, href: data.model.tripHref },
+          { label: data.model.confirmationRef },
+        ]}
+      >
+        <ConfirmationPageShell model={data.model} />
+      </Page>
+    );
+  }
+
+  if (data.kind === "invalid_ref") {
+    return (
+      <Page
+        breadcrumbs={[{ label: "Home", href: "/" }, { label: "Confirmation" }]}
+      >
+        <ConfirmationNotFound
+          message={`The confirmation reference "${data.confirmationRef}" is not valid.`}
+        />
+      </Page>
+    );
+  }
+
+  if (data.kind === "unavailable") {
+    return (
+      <Page
+        breadcrumbs={[{ label: "Home", href: "/" }, { label: "Confirmation" }]}
+      >
+        <ConfirmationNotFound
+          title="This confirmation is unavailable"
+          message="We found this confirmation reference, but its saved details could not be loaded safely right now."
+          primaryHref={data.tripId ? `/trips/${data.tripId}` : "/trips"}
+          primaryLabel="Go to trip"
+        />
+      </Page>
+    );
+  }
 
   return (
     <Page
-      breadcrumbs={[
-        { label: "Home", href: "/" },
-        { label: "Confirmation" },
-        { label: data.confirmation.publicRef },
-      ]}
+      breadcrumbs={[{ label: "Home", href: "/" }, { label: "Confirmation" }]}
     >
-      <div class="space-y-6">
-        <section class="rounded-[var(--radius-xl)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 shadow-[var(--shadow-sm)]">
-          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--color-text-muted)]">
-            Booking confirmation
-          </p>
-          <h1 class="mt-2 text-2xl font-semibold text-[color:var(--color-text-strong)]">
-            {data.confirmation.publicRef}
-          </h1>
-          <p class="mt-3 text-sm text-[color:var(--color-text-muted)]">
-            {display.description}
-          </p>
-
-          <div class="mt-5 flex flex-wrap gap-3 text-sm text-[color:var(--color-text-muted)]">
-            <span class="rounded-full border border-[color:var(--color-border)] px-3 py-1">
-              {display.label}
-            </span>
-            {summary ? (
-              <span class="rounded-full border border-[color:var(--color-border)] px-3 py-1">
-                {summary.confirmedItemCount} confirmed of {summary.totalItemCount}
-              </span>
-            ) : null}
-            <span class="rounded-full border border-[color:var(--color-border)] px-3 py-1">
-              Trip {data.confirmation.tripId}
-            </span>
-          </div>
-        </section>
-
-        <section class="rounded-[var(--radius-xl)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 shadow-[var(--shadow-sm)]">
-          <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-            Placeholder confirmation page
-          </p>
-          <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-            TASK-042 prepares the confirmation domain and route contract. A more
-            complete confirmation page lands in TASK-043 on top of this public
-            reference model.
-          </p>
-        </section>
-      </div>
+      <ConfirmationNotFound
+        message={`Confirmation ${data.confirmationRef} does not exist or is no longer available.`}
+      />
     </Page>
   );
 });
@@ -115,11 +164,11 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
 
   if (data.kind === "loaded") {
     return {
-      title: `${data.confirmation.publicRef} | Andacity`,
+      title: `${data.model.confirmationRef} | Booking confirmation | Andacity`,
       meta: [
         {
           name: "description",
-          content: `View booking confirmation ${data.confirmation.publicRef}.`,
+          content: `View booking confirmation ${data.model.confirmationRef} for ${data.model.tripReference}.`,
         },
         { name: "robots", content: "noindex,follow,max-image-preview:large" },
       ],
@@ -128,11 +177,17 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
   }
 
   return {
-    title: "Confirmation unavailable | Andacity",
+    title:
+      data.kind === "invalid_ref"
+        ? "Invalid confirmation link | Andacity"
+        : "Confirmation unavailable | Andacity",
     meta: [
       {
         name: "description",
-        content: "The requested confirmation could not be loaded.",
+        content:
+          data.kind === "invalid_ref"
+            ? "The requested confirmation reference is not valid."
+            : "The requested confirmation could not be loaded.",
       },
       { name: "robots", content: "noindex,follow,max-image-preview:large" },
     ],
