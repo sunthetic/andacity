@@ -49,4 +49,4 @@ const qwikPlugin: FastifyPluginAsync<FastifyQwikOptions> = async (
   });
 };
 
-export default fastifyPlugin(qwikPlugin, { fastify: ">=4.0.0 <6.0.0" });
+export default fastifyPlugin(qwikPlugin, { fastify: ">=5.0.0 <6.0.0" });

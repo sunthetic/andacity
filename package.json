@@ -108,14 +108,14 @@
     "vite-tsconfig-paths": "^4.2.1"
   },
   "dependencies": {
-    "@fastify/compress": "^6.2.1",
-    "@fastify/static": "^6.10.1",
+    "@fastify/compress": "^8.1.0",
+    "@fastify/static": "^8.2.0",
     "@fontsource-variable/lexend": "^5.2.11",
     "@fontsource/poppins": "^5.2.7",
     "dotenv": "^16.3.2",
     "drizzle-orm": "^0.45.1",
     "fastify": "^5.7.3",
-    "fastify-plugin": "^4.5.0",
+    "fastify-plugin": "^5.0.1",
     "pg": "^8.20.0",
     "zod": "^3.25.48"
   }
