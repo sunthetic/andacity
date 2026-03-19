@@ -18,8 +18,14 @@ export const ConfirmationPageShell = component$(
           tripReference={model.tripReference}
         />
 
-        <ConfirmationStatusNotice notice={model.statusNotice} />
-        <ConfirmationItineraryNotice notice={model.itineraryNotice} />
+        <ConfirmationStatusNotice
+          notice={model.statusNotice}
+          recoveryState={model.statusRecovery}
+        />
+        <ConfirmationItineraryNotice
+          notice={model.itineraryNotice}
+          recoveryState={model.itineraryRecovery}
+        />
 
         <div class="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
           <div class="space-y-6">

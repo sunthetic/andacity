@@ -13,6 +13,7 @@ import { getBookingConfirmation } from "~/lib/confirmation/getBookingConfirmatio
 import { getBookingConfirmationByPublicRef } from "~/lib/confirmation/getBookingConfirmationByPublicRef";
 import { getConfirmationPageModel } from "~/lib/confirmation/getConfirmationPageModel";
 import { createOrResumeItineraryFromConfirmation } from "~/lib/itinerary/createOrResumeItineraryFromConfirmation";
+import { createItineraryFromConfirmation } from "~/routes/checkout/actions";
 
 const CONFIRMATION_REF_PATTERN = /^CNF-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/;
 
@@ -37,6 +38,26 @@ type ConfirmationPageData =
 
 export const onRequest: RequestHandler = ({ headers }) => {
   headers.set("x-robots-tag", "noindex, follow");
+};
+
+export const onPost: RequestHandler = async ({ params, request, redirect }) => {
+  const confirmationRef = String(params.confirmationRef || "")
+    .trim()
+    .toUpperCase();
+  const formData = await request.formData().catch(() => null);
+  const intent = String(formData?.get("intent") || "").trim();
+
+  if (intent === "create-itinerary" && confirmationRef) {
+    const result = await createItineraryFromConfirmation({
+      confirmationRef,
+    });
+
+    if (result.ok && result.itineraryRef) {
+      throw redirect(303, `/itinerary/${result.itineraryRef}`);
+    }
+  }
+
+  throw redirect(303, `/confirmation/${confirmationRef}`);
 };
 
 export const useConfirmationPage = routeLoader$(async ({ params, status }) => {
@@ -64,12 +85,14 @@ export const useConfirmationPage = routeLoader$(async ({ params, status }) => {
     }
 
     try {
+      let itineraryPromotionFailed = false;
       if (!confirmation.summaryJson?.hasItinerary) {
         try {
           await createOrResumeItineraryFromConfirmation(confirmation.id, {
             now: new Date(),
           });
         } catch {
+          itineraryPromotionFailed = true;
           // Keep the confirmation page available even if itinerary promotion fails.
         }
       }
@@ -79,7 +102,9 @@ export const useConfirmationPage = routeLoader$(async ({ params, status }) => {
 
       return {
         kind: "loaded",
-        model: getConfirmationPageModel(hydratedConfirmation),
+        model: getConfirmationPageModel(hydratedConfirmation, {
+          itineraryPromotionFailed,
+        }),
       } satisfies ConfirmationPageData;
     } catch {
       status(500);

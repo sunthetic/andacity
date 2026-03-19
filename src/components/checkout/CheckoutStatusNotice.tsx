@@ -1,4 +1,6 @@
 import { component$ } from "@builder.io/qwik";
+import { RecoveryNotice } from "~/components/recovery/RecoveryNotice";
+import { fromCheckoutState } from "~/fns/recovery/fromCheckoutState";
 import type { CheckoutBookingSummary } from "~/types/booking";
 import type { CheckoutSessionSummary } from "~/types/checkout";
 import type { CheckoutPaymentSummary } from "~/types/payment";
@@ -10,11 +12,16 @@ export const CheckoutStatusNotice = component$(
     bookingSummary: CheckoutBookingSummary;
   }) => {
     const { summary, paymentSummary, bookingSummary } = props;
+    const recoveryState = fromCheckoutState({ summary });
     const isWarning =
       summary.status === "blocked" ||
       summary.status === "expired" ||
       summary.status === "abandoned";
     const isComplete = summary.status === "completed";
+
+    if (recoveryState) {
+      return <RecoveryNotice recoveryState={recoveryState} />;
+    }
 
     return (
       <section

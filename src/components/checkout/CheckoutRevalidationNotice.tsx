@@ -1,12 +1,28 @@
 import { component$ } from "@builder.io/qwik";
-import type { CheckoutSessionSummary } from "~/types/checkout";
+import { RecoveryNotice } from "~/components/recovery/RecoveryNotice";
+import { fromRevalidationState } from "~/fns/recovery/fromRevalidationState";
+import type {
+  CheckoutRevalidationSummary,
+  CheckoutSessionSummary,
+} from "~/types/checkout";
 
 export const CheckoutRevalidationNotice = component$(
-  (props: { summary: CheckoutSessionSummary }) => {
+  (props: {
+    summary: CheckoutSessionSummary;
+    revalidationSummary?: CheckoutRevalidationSummary | null;
+  }) => {
     const { summary } = props;
+    const recoveryState = fromRevalidationState({
+      summary,
+      revalidationSummary: props.revalidationSummary,
+    });
     const isVerifying = summary.revalidationStatus === "pending";
     const isReady = summary.readinessState === "ready";
     const isExpired = summary.status === "expired";
+
+    if (recoveryState) {
+      return <RecoveryNotice recoveryState={recoveryState} />;
+    }
 
     const title = isVerifying
       ? "Verifying pricing and availability"

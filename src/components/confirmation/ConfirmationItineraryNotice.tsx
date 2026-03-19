@@ -1,4 +1,5 @@
 import { component$ } from "@builder.io/qwik";
+import { RecoveryNotice } from "~/components/recovery/RecoveryNotice";
 import type { ConfirmationPageModel } from "~/lib/confirmation/getConfirmationPageModel";
 
 const getToneClasses = (
@@ -20,7 +21,14 @@ const getToneClasses = (
 };
 
 export const ConfirmationItineraryNotice = component$(
-  (props: { notice: ConfirmationPageModel["itineraryNotice"] }) => {
+  (props: {
+    notice: ConfirmationPageModel["itineraryNotice"];
+    recoveryState?: ConfirmationPageModel["itineraryRecovery"];
+  }) => {
+    if (props.recoveryState) {
+      return <RecoveryNotice recoveryState={props.recoveryState} />;
+    }
+
     if (!props.notice) return null;
 
     return (

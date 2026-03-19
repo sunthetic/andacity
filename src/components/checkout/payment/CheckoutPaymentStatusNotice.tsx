@@ -1,4 +1,6 @@
 import { component$ } from "@builder.io/qwik";
+import { RecoveryNotice } from "~/components/recovery/RecoveryNotice";
+import { fromPaymentState } from "~/fns/recovery/fromPaymentState";
 import type { CheckoutPaymentSummary } from "~/types/payment";
 
 export const CheckoutPaymentStatusNotice = component$(
@@ -11,6 +13,10 @@ export const CheckoutPaymentStatusNotice = component$(
     } | null;
   }) => {
     const { paymentSummary, paymentNotice } = props;
+    const recoveryState = fromPaymentState({
+      paymentSummary,
+      checkoutSessionId: paymentSummary.checkoutSessionId,
+    });
     const isReady =
       paymentSummary.checkoutReady &&
       (paymentSummary.status === null ||
@@ -36,6 +42,10 @@ export const CheckoutPaymentStatusNotice = component$(
           : isReady
             ? "info"
             : "info";
+
+    if (recoveryState) {
+      return <RecoveryNotice recoveryState={recoveryState} />;
+    }
 
     return (
       <section

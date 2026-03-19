@@ -1,5 +1,7 @@
 import { component$ } from "@builder.io/qwik";
 import { getConfirmationDisplayStatus } from "~/lib/confirmation/getConfirmationDisplayStatus";
+import { RecoveryNotice } from "~/components/recovery/RecoveryNotice";
+import { fromConfirmationState } from "~/fns/recovery/fromConfirmationState";
 import type { BookingConfirmation } from "~/types/confirmation";
 
 export const CheckoutConfirmationStatusNotice = component$(
@@ -14,6 +16,9 @@ export const CheckoutConfirmationStatusNotice = component$(
     const display = props.confirmation
       ? getConfirmationDisplayStatus(props.confirmation.status)
       : null;
+    const recoveryState = fromConfirmationState({
+      confirmation: props.confirmation,
+    });
     const tone = props.confirmationNotice?.tone
       ? props.confirmationNotice.tone
       : display?.tone === "success"
@@ -21,6 +26,10 @@ export const CheckoutConfirmationStatusNotice = component$(
         : display?.tone === "error"
           ? "error"
           : "info";
+
+    if (recoveryState) {
+      return <RecoveryNotice recoveryState={recoveryState} />;
+    }
 
     return (
       <section
@@ -34,7 +43,9 @@ export const CheckoutConfirmationStatusNotice = component$(
         ]}
       >
         <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-          {props.confirmationNotice?.message || display?.label || "Confirmation"}
+          {props.confirmationNotice?.message ||
+            display?.label ||
+            "Confirmation"}
         </p>
         <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
           {display?.description ||

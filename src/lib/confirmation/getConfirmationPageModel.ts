@@ -1,10 +1,13 @@
 import { buildBookingConfirmationSummary } from "~/lib/confirmation/buildBookingConfirmationSummary";
+import { fromConfirmationState } from "~/fns/recovery/fromConfirmationState";
+import { fromItineraryState } from "~/fns/recovery/fromItineraryState";
 import {
   formatConfirmationDateRange,
   formatConfirmationDateTime,
 } from "~/lib/confirmation/formatConfirmationDates";
 import { formatConfirmationCurrency } from "~/lib/confirmation/formatConfirmationCurrency";
 import { getConfirmationDisplayStatus } from "~/lib/confirmation/getConfirmationDisplayStatus";
+import type { RecoveryState } from "~/types/recovery";
 import type {
   BookingConfirmation,
   BookingConfirmationItem,
@@ -69,6 +72,7 @@ export type ConfirmationPageModel = {
     title: string;
     message: string;
   } | null;
+  statusRecovery: RecoveryState | null;
   itineraryNotice: {
     tone: ConfirmationUiTone;
     title: string;
@@ -76,6 +80,7 @@ export type ConfirmationPageModel = {
     href: string | null;
     label: string;
   } | null;
+  itineraryRecovery: RecoveryState | null;
   items: ConfirmationPageItemModel[];
   references: ConfirmationReferenceGroup[];
   nextSteps: {
@@ -313,6 +318,9 @@ const buildItineraryNotice = (
 
 export const getConfirmationPageModel = (
   confirmation: BookingConfirmation,
+  options: {
+    itineraryPromotionFailed?: boolean;
+  } = {},
 ): ConfirmationPageModel => {
   if (!confirmation.items.length) {
     throw new Error("Confirmation record is missing booking items.");
@@ -320,6 +328,7 @@ export const getConfirmationPageModel = (
 
   const summary = confirmation.summaryJson || buildBookingConfirmationSummary(confirmation);
   const display = getConfirmationDisplayStatus(confirmation.status);
+  const tripHref = `/trips/${confirmation.tripId}`;
   const bookingDate =
     confirmation.confirmedAt || summary.confirmedAt || confirmation.createdAt;
   const items = confirmation.items.map((item) => {
@@ -354,7 +363,7 @@ export const getConfirmationPageModel = (
     confirmationRef: confirmation.publicRef,
     tripId: confirmation.tripId,
     tripReference: buildTripReference(confirmation.tripId),
-    tripHref: `/trips/${confirmation.tripId}`,
+    tripHref,
     homeHref: "/",
     header: {
       statusLabel: display.label,
@@ -388,7 +397,19 @@ export const getConfirmationPageModel = (
       failedCount: summary.failedItemCount,
       requiresManualReviewCount: summary.requiresManualReviewCount,
     }),
+    statusRecovery: fromConfirmationState({
+      confirmation,
+      tripHref,
+    }),
     itineraryNotice: buildItineraryNotice(summary),
+    itineraryRecovery: fromItineraryState({
+      hasItinerary: summary.hasItinerary,
+      itineraryRef: summary.itineraryRef,
+      confirmationRef: confirmation.publicRef,
+      tripHref,
+      canCreate: summary.confirmedItemCount > 0,
+      failed: Boolean(options.itineraryPromotionFailed),
+    }),
     items,
     references,
     nextSteps: {

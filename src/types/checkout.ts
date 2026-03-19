@@ -5,6 +5,11 @@ import type {
   BookingConfirmationStatus,
 } from "~/types/confirmation";
 import type {
+  RecoveryActionType,
+  RecoveryReasonCode,
+  RecoveryState,
+} from "~/types/recovery";
+import type {
   TripDetails,
   TripItemAvailabilitySnapshot,
   TripItemType,
@@ -208,12 +213,18 @@ export type CheckoutEntrySuccessResult = {
   checkoutSessionId: string;
   redirectTo: string;
   entryMode: CheckoutSessionEntryMode;
+  recoveryState: RecoveryState | null;
+  reasonCode: RecoveryReasonCode | null;
+  nextRecommendedAction: RecoveryActionType | null;
 };
 
 export type CheckoutEntryFailureResult = {
   ok: false;
   code: CheckoutEntryErrorCode;
   message: string;
+  recoveryState: RecoveryState | null;
+  reasonCode: RecoveryReasonCode | null;
+  nextRecommendedAction: RecoveryActionType | null;
 };
 
 export type CheckoutEntryResult =

@@ -1,4 +1,6 @@
 import { component$ } from "@builder.io/qwik";
+import { RecoveryNotice } from "~/components/recovery/RecoveryNotice";
+import { fromBookingState } from "~/fns/recovery/fromBookingState";
 import type { CheckoutBookingSummary } from "~/types/booking";
 
 export const CheckoutBookingStatusNotice = component$(
@@ -11,6 +13,10 @@ export const CheckoutBookingStatusNotice = component$(
     } | null;
   }) => {
     const { bookingSummary, bookingNotice } = props;
+    const recoveryState = fromBookingState({
+      bookingSummary,
+      checkoutSessionId: bookingSummary.checkoutSessionId,
+    });
     const tone = bookingNotice?.tone
       ? bookingNotice.tone
       : bookingSummary.status === "succeeded"
@@ -19,6 +25,10 @@ export const CheckoutBookingStatusNotice = component$(
             bookingSummary.status === "requires_manual_review"
           ? "error"
           : "info";
+
+    if (recoveryState) {
+      return <RecoveryNotice recoveryState={recoveryState} />;
+    }
 
     return (
       <section

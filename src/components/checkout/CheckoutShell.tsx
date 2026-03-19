@@ -71,7 +71,10 @@ export const CheckoutShell = component$(
               page first.
             </p>
           </section>
-          <CheckoutRevalidationNotice summary={summary} />
+          <CheckoutRevalidationNotice
+            summary={summary}
+            revalidationSummary={session.revalidationSummary}
+          />
           <CheckoutStatusNotice
             summary={summary}
             paymentSummary={paymentSummary}
@@ -126,6 +129,8 @@ export const CheckoutShell = component$(
                 summary={summary}
                 paymentSummary={paymentSummary}
                 bookingSummary={bookingSummary}
+                confirmation={confirmation}
+                revalidationSummary={session.revalidationSummary}
               />
             </div>
           </div>

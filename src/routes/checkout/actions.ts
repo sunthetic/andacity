@@ -27,6 +27,7 @@ import { cancelCheckoutPaymentSession } from "~/lib/payments/cancelCheckoutPayme
 import { createOrResumeCheckoutPaymentSession } from "~/lib/payments/createOrResumeCheckoutPaymentSession";
 import { CheckoutPaymentSessionError } from "~/lib/payments/createCheckoutPaymentSession";
 import { getActiveCheckoutPaymentSession } from "~/lib/payments/getActiveCheckoutPaymentSession";
+import { getCheckoutPaymentSummary } from "~/lib/payments/getCheckoutPaymentSummary";
 import { refreshCheckoutPaymentStatus } from "~/lib/payments/refreshCheckoutPaymentStatus";
 import { canCreateItineraryFromConfirmation } from "~/lib/itinerary/canCreateItineraryFromConfirmation";
 import { createOrResumeItineraryFromConfirmation } from "~/lib/itinerary/createOrResumeItineraryFromConfirmation";
@@ -51,10 +52,58 @@ import type {
   TripCheckoutReadiness,
 } from "~/types/checkout";
 import type {
+  RecoveryActionType,
+  RecoveryReasonCode,
+  RecoveryState,
+} from "~/types/recovery";
+import type {
   CheckoutPaymentSessionStatus,
   PaymentProvider,
 } from "~/types/payment";
 import type { TripDetails } from "~/types/trips/trip";
+import { buildRecoveryState } from "~/fns/recovery/buildRecoveryState";
+import { fromBookingState } from "~/fns/recovery/fromBookingState";
+import { fromConfirmationState } from "~/fns/recovery/fromConfirmationState";
+import { fromPaymentState } from "~/fns/recovery/fromPaymentState";
+import { getPrimaryRecoveryAction } from "~/fns/recovery/getPrimaryRecoveryAction";
+import { logRecoveryEvent } from "~/fns/recovery/logRecoveryEvent";
+import { normalizeTransactionError } from "~/fns/recovery/normalizeTransactionError";
+
+type RecoveryResultFields = {
+  recoveryState: RecoveryState | null;
+  reasonCode: RecoveryReasonCode | null;
+  nextRecommendedAction: RecoveryActionType | null;
+};
+
+const withRecoveryFields = (
+  recoveryState: RecoveryState | null,
+): RecoveryResultFields => {
+  if (!recoveryState) {
+    return {
+      recoveryState: null,
+      reasonCode: null,
+      nextRecommendedAction: null,
+    };
+  }
+
+  return {
+    recoveryState,
+    reasonCode: recoveryState.reasonCode,
+    nextRecommendedAction:
+      getPrimaryRecoveryAction(recoveryState)?.type || null,
+  };
+};
+
+const logIfRecovery = (
+  recoveryState: RecoveryState | null,
+  input: {
+    event: "action_result" | "page_load" | "service_error";
+    ids?: Record<string, string | number | null | undefined>;
+  },
+) => {
+  if (!recoveryState) return;
+  logRecoveryEvent(recoveryState, input);
+};
 
 type ResolveCheckoutTripResult =
   | {
@@ -201,6 +250,20 @@ export const beginCheckoutFromTrip = async (input: {
   const resolved = await resolveCheckoutTrip({ tripId: input.tripId });
 
   if (resolved.kind === "missing_trip" || resolved.kind === "trip_not_found") {
+    const recoveryState = buildRecoveryState({
+      stage: "checkout",
+      reasonCode: "TRIP_NOT_FOUND",
+      metadata: {
+        tripId: resolved.kind === "trip_not_found" ? resolved.tripId : null,
+        tripHref: "/trips",
+      },
+    });
+    logIfRecovery(recoveryState, {
+      event: "action_result",
+      ids: {
+        tripId: resolved.kind === "trip_not_found" ? resolved.tripId : null,
+      },
+    });
     return {
       ok: false,
       code: "TRIP_NOT_FOUND",
@@ -214,28 +277,71 @@ export const beginCheckoutFromTrip = async (input: {
             ? resolved.tripId
             : resolved.tripIdParam,
       }),
+      ...withRecoveryFields(recoveryState),
     };
   }
 
   if (resolved.kind === "invalid_trip") {
+    const recoveryState = buildRecoveryState({
+      stage: "checkout",
+      reasonCode: "TRIP_INVALID",
+      metadata: {
+        rawMessage: `Invalid trip reference: ${resolved.tripIdParam || "(empty)"}`,
+        tripHref: "/trips",
+      },
+    });
+    logIfRecovery(recoveryState, {
+      event: "action_result",
+    });
     return {
       ok: false,
       code: "TRIP_INVALID",
       message: getCheckoutEntryErrorMessage("TRIP_INVALID", {
         detail: `The trip reference "${resolved.tripIdParam || "(empty)"}" is not valid.`,
       }),
+      ...withRecoveryFields(recoveryState),
     };
   }
 
   if (resolved.kind === "empty_trip") {
+    const recoveryState = buildRecoveryState({
+      stage: "checkout",
+      reasonCode: "TRIP_EMPTY",
+      metadata: {
+        tripId: resolved.trip.id,
+        tripHref: `/trips/${resolved.trip.id}`,
+      },
+    });
+    logIfRecovery(recoveryState, {
+      event: "action_result",
+      ids: {
+        tripId: resolved.trip.id,
+      },
+    });
     return {
       ok: false,
       code: "TRIP_EMPTY",
       message: getCheckoutEntryErrorMessage("TRIP_EMPTY"),
+      ...withRecoveryFields(recoveryState),
     };
   }
 
   if (resolved.kind === "invalid_trip_state") {
+    const recoveryState = buildRecoveryState({
+      stage: "checkout",
+      reasonCode: "TRIP_INVALID",
+      metadata: {
+        tripId: resolved.trip.id,
+        tripHref: `/trips/${resolved.trip.id}`,
+        rawMessage: resolved.readiness.readinessLabel,
+      },
+    });
+    logIfRecovery(recoveryState, {
+      event: "action_result",
+      ids: {
+        tripId: resolved.trip.id,
+      },
+    });
     return {
       ok: false,
       code: "TRIP_INVALID",
@@ -243,16 +349,29 @@ export const beginCheckoutFromTrip = async (input: {
         detail: resolved.readiness.readinessLabel,
         tripReference: buildTripReference(resolved.trip.id),
       }),
+      ...withRecoveryFields(recoveryState),
     };
   }
 
   if (resolved.kind === "error") {
+    const recoveryState = buildRecoveryState({
+      stage: "checkout",
+      reasonCode: "TRIP_INVALID",
+      metadata: {
+        rawMessage: resolved.message,
+        tripHref: "/trips",
+      },
+    });
+    logIfRecovery(recoveryState, {
+      event: "service_error",
+    });
     return {
       ok: false,
       code: "TRIP_INVALID",
       message: getCheckoutEntryErrorMessage("TRIP_INVALID", {
         detail: resolved.message,
       }),
+      ...withRecoveryFields(recoveryState),
     };
   }
 
@@ -267,9 +386,30 @@ export const beginCheckoutFromTrip = async (input: {
       checkoutSessionId: result.session.id,
       redirectTo: result.redirectTo,
       entryMode: result.entryMode,
+      ...withRecoveryFields(null),
     };
   } catch (error) {
     if (error instanceof CheckoutSessionTransitionError) {
+      const normalized = normalizeTransactionError(error, {
+        stage: "checkout",
+        safeUserMessage: "Checkout could not be started from this trip.",
+      });
+      const recoveryState = buildRecoveryState({
+        stage: normalized.stage,
+        reasonCode: normalized.code,
+        metadata: {
+          tripId: resolved.trip.id,
+          tripHref: `/trips/${resolved.trip.id}`,
+          rawCode: String(normalized.details?.rawCode || ""),
+          rawMessage: normalized.message,
+        },
+      });
+      logIfRecovery(recoveryState, {
+        event: "service_error",
+        ids: {
+          tripId: resolved.trip.id,
+        },
+      });
       return {
         ok: false,
         code: error.code,
@@ -277,10 +417,32 @@ export const beginCheckoutFromTrip = async (input: {
           detail: error.message,
           tripReference: buildTripReference(resolved.trip.id),
         }),
+        ...withRecoveryFields(recoveryState),
       };
     }
 
     if (error instanceof CheckoutSessionError) {
+      const normalized = normalizeTransactionError(error, {
+        stage: "checkout",
+        code: "CHECKOUT_CREATE_FAILED",
+        safeUserMessage: "Checkout could not be created from this trip.",
+      });
+      const recoveryState = buildRecoveryState({
+        stage: normalized.stage,
+        reasonCode: normalized.code,
+        metadata: {
+          tripId: resolved.trip.id,
+          tripHref: `/trips/${resolved.trip.id}`,
+          rawCode: String(normalized.details?.rawCode || ""),
+          rawMessage: normalized.message,
+        },
+      });
+      logIfRecovery(recoveryState, {
+        event: "service_error",
+        ids: {
+          tripId: resolved.trip.id,
+        },
+      });
       return {
         ok: false,
         code: "CHECKOUT_CREATE_FAILED",
@@ -288,9 +450,30 @@ export const beginCheckoutFromTrip = async (input: {
           detail: error.message,
           tripReference: buildTripReference(resolved.trip.id),
         }),
+        ...withRecoveryFields(recoveryState),
       };
     }
 
+    const normalized = normalizeTransactionError(error, {
+      stage: "checkout",
+      code: "CHECKOUT_CREATE_FAILED",
+      safeUserMessage: "Checkout could not be started from this trip.",
+    });
+    const recoveryState = buildRecoveryState({
+      stage: normalized.stage,
+      reasonCode: normalized.code,
+      metadata: {
+        tripId: resolved.trip.id,
+        tripHref: `/trips/${resolved.trip.id}`,
+        rawMessage: normalized.message,
+      },
+    });
+    logIfRecovery(recoveryState, {
+      event: "service_error",
+      ids: {
+        tripId: resolved.trip.id,
+      },
+    });
     return {
       ok: false,
       code: "CHECKOUT_CREATE_FAILED",
@@ -301,6 +484,7 @@ export const beginCheckoutFromTrip = async (input: {
             : "Checkout could not be started from this trip.",
         tripReference: buildTripReference(resolved.trip.id),
       }),
+      ...withRecoveryFields(recoveryState),
     };
   }
 };
@@ -318,6 +502,9 @@ export type CheckoutRevalidationActionResult =
         changedCount: number;
         failedCount: number;
       };
+      recoveryState: RecoveryState | null;
+      reasonCode: RecoveryReasonCode | null;
+      nextRecommendedAction: RecoveryActionType | null;
     }
   | {
       ok: false;
@@ -336,6 +523,9 @@ export type CheckoutRevalidationActionResult =
         failedCount: number;
       };
       message: string;
+      recoveryState: RecoveryState | null;
+      reasonCode: RecoveryReasonCode | null;
+      nextRecommendedAction: RecoveryActionType | null;
     };
 
 const emptyRevalidationCounts = {
@@ -354,6 +544,13 @@ export const runCheckoutRevalidation = async (
   });
 
   if (!session) {
+    const recoveryState = buildRecoveryState({
+      stage: "revalidation",
+      reasonCode: "CHECKOUT_NOT_FOUND",
+      metadata: {
+        checkoutSessionId,
+      },
+    });
     return {
       ok: false,
       code: "CHECKOUT_NOT_FOUND",
@@ -361,10 +558,27 @@ export const runCheckoutRevalidation = async (
       revalidationStatus: "failed",
       counts: emptyRevalidationCounts,
       message: "Checkout session could not be found.",
+      ...withRecoveryFields(recoveryState),
     };
   }
 
   if (isCheckoutSessionExpired(session)) {
+    const recoveryState = buildRecoveryState({
+      stage: "revalidation",
+      reasonCode: "CHECKOUT_EXPIRED",
+      metadata: {
+        checkoutSessionId: session.id,
+        checkoutStatus: session.status,
+        tripId: session.tripId,
+        tripHref: `/trips/${session.tripId}`,
+      },
+    });
+    logIfRecovery(recoveryState, {
+      event: "action_result",
+      ids: {
+        checkoutSessionId: session.id,
+      },
+    });
     return {
       ok: false,
       code: "CHECKOUT_EXPIRED",
@@ -381,10 +595,27 @@ export const runCheckoutRevalidation = async (
         : emptyRevalidationCounts,
       message:
         "This checkout session expired. Return to the trip to create a fresh checkout snapshot.",
+      ...withRecoveryFields(recoveryState),
     };
   }
 
   if (isCheckoutSessionTerminal(session.status)) {
+    const recoveryState = buildRecoveryState({
+      stage: "revalidation",
+      reasonCode: "REVALIDATION_FAILED",
+      metadata: {
+        checkoutSessionId: session.id,
+        checkoutStatus: session.status,
+        tripId: session.tripId,
+        tripHref: `/trips/${session.tripId}`,
+      },
+    });
+    logIfRecovery(recoveryState, {
+      event: "action_result",
+      ids: {
+        checkoutSessionId: session.id,
+      },
+    });
     return {
       ok: false,
       code: "REVALIDATION_FAILED",
@@ -400,6 +631,7 @@ export const runCheckoutRevalidation = async (
           }
         : emptyRevalidationCounts,
       message: "This checkout session can no longer be revalidated.",
+      ...withRecoveryFields(recoveryState),
     };
   }
 
@@ -427,9 +659,34 @@ export const runCheckoutRevalidation = async (
         readiness,
         revalidationStatus: refreshed.revalidationStatus,
         counts,
+        ...withRecoveryFields(null),
       };
     }
 
+    const recoveryState = buildRecoveryState({
+      stage: "revalidation",
+      reasonCode: refreshed.revalidationSummary?.unavailableCount
+        ? "INVENTORY_UNAVAILABLE"
+        : refreshed.revalidationSummary?.priceChangeCount
+          ? "PRICE_CHANGED"
+          : "REVALIDATION_FAILED",
+      metadata: {
+        checkoutSessionId: refreshed.id,
+        checkoutStatus: refreshed.status,
+        tripId: refreshed.tripId,
+        tripHref: `/trips/${refreshed.tripId}`,
+        blockingIssueCount: counts.blockingIssueCount,
+        priceChangeCount: counts.priceChangeCount,
+        unavailableCount: counts.unavailableCount,
+        failedCount: counts.failedCount,
+      },
+    });
+    logIfRecovery(recoveryState, {
+      event: "action_result",
+      ids: {
+        checkoutSessionId: refreshed.id,
+      },
+    });
     return {
       ok: false,
       code:
@@ -442,8 +699,28 @@ export const runCheckoutRevalidation = async (
       message: refreshed.revalidationSummary?.blockingIssueCount
         ? "One or more items changed before checkout could continue."
         : "Checkout could not be revalidated right now.",
+      ...withRecoveryFields(recoveryState),
     };
   } catch (error) {
+    const normalized = normalizeTransactionError(error, {
+      stage: "revalidation",
+      code: "REVALIDATION_FAILED",
+      safeUserMessage: "Checkout revalidation failed.",
+    });
+    const recoveryState = buildRecoveryState({
+      stage: normalized.stage,
+      reasonCode: normalized.code,
+      metadata: {
+        checkoutSessionId,
+        rawMessage: normalized.message,
+      },
+    });
+    logIfRecovery(recoveryState, {
+      event: "service_error",
+      ids: {
+        checkoutSessionId,
+      },
+    });
     return {
       ok: false,
       code: "REVALIDATION_FAILED",
@@ -454,6 +731,7 @@ export const runCheckoutRevalidation = async (
         error instanceof Error
           ? error.message
           : "Checkout revalidation failed.",
+      ...withRecoveryFields(recoveryState),
     };
   }
 };
@@ -487,6 +765,9 @@ export type CheckoutPaymentActionResult =
       provider: PaymentProvider | null;
       clientSecret: string | null;
       message: string;
+      recoveryState: RecoveryState | null;
+      reasonCode: RecoveryReasonCode | null;
+      nextRecommendedAction: RecoveryActionType | null;
     }
   | {
       ok: false;
@@ -503,9 +784,35 @@ export type CheckoutPaymentActionResult =
       provider: PaymentProvider | null;
       clientSecret: string | null;
       message: string;
+      recoveryState: RecoveryState | null;
+      reasonCode: RecoveryReasonCode | null;
+      nextRecommendedAction: RecoveryActionType | null;
     };
 
-const mapPaymentErrorResult = (error: unknown): CheckoutPaymentActionResult => {
+const mapPaymentErrorResult = (
+  error: unknown,
+  checkoutSessionId?: string,
+): CheckoutPaymentActionResult => {
+  const normalized = normalizeTransactionError(error, {
+    stage: "payment",
+    safeUserMessage: "Payment session creation failed.",
+  });
+  const recoveryState = buildRecoveryState({
+    stage: normalized.stage,
+    reasonCode: normalized.code,
+    metadata: {
+      checkoutSessionId: checkoutSessionId || null,
+      rawCode: String(normalized.details?.rawCode || ""),
+      rawMessage: normalized.message,
+    },
+  });
+  logIfRecovery(recoveryState, {
+    event: "service_error",
+    ids: {
+      checkoutSessionId: checkoutSessionId || null,
+    },
+  });
+
   if (error instanceof CheckoutPaymentSessionError) {
     return {
       ok: false,
@@ -515,6 +822,7 @@ const mapPaymentErrorResult = (error: unknown): CheckoutPaymentActionResult => {
       provider: null,
       clientSecret: null,
       message: error.message,
+      ...withRecoveryFields(recoveryState),
     };
   }
 
@@ -529,6 +837,7 @@ const mapPaymentErrorResult = (error: unknown): CheckoutPaymentActionResult => {
       error instanceof Error
         ? error.message
         : "Payment session creation failed.",
+    ...withRecoveryFields(recoveryState),
   };
 };
 
@@ -538,6 +847,17 @@ export const createCheckoutPaymentIntent = async (
   try {
     const paymentSession =
       await createOrResumeCheckoutPaymentSession(checkoutSessionId);
+    const recoveryState = fromPaymentState({
+      paymentSummary: await getCheckoutPaymentSummary(
+        (await getCheckoutSession(checkoutSessionId, {
+          includeTerminal: true,
+        }))!,
+        {
+          now: new Date(),
+        },
+      ),
+      checkoutSessionId,
+    });
 
     return {
       ok: true,
@@ -550,9 +870,10 @@ export const createCheckoutPaymentIntent = async (
         paymentSession.status === "requires_action"
           ? "Your payment session is ready for card details."
           : "Your payment session is ready to resume.",
+      ...withRecoveryFields(recoveryState),
     };
   } catch (error) {
-    return mapPaymentErrorResult(error);
+    return mapPaymentErrorResult(error, checkoutSessionId);
   }
 };
 
@@ -566,6 +887,13 @@ export const cancelCheckoutPayment = async (
     },
   );
   if (!activeSession) {
+    const recoveryState = buildRecoveryState({
+      stage: "payment",
+      reasonCode: "PAYMENT_FAILED",
+      metadata: {
+        checkoutSessionId,
+      },
+    });
     return {
       ok: false,
       code: "PAYMENT_SESSION_CANCELED",
@@ -574,6 +902,7 @@ export const cancelCheckoutPayment = async (
       provider: null,
       clientSecret: null,
       message: "There is no active payment session to cancel.",
+      ...withRecoveryFields(recoveryState),
     };
   }
 
@@ -590,6 +919,16 @@ export const cancelCheckoutPayment = async (
     provider: canceled?.provider || null,
     clientSecret: null,
     message: "Payment session canceled.",
+    ...withRecoveryFields(
+      buildRecoveryState({
+        stage: "payment",
+        reasonCode: "PAYMENT_FAILED",
+        metadata: {
+          checkoutSessionId,
+          paymentStatus: canceled?.status || null,
+        },
+      }),
+    ),
   };
 };
 
@@ -604,6 +943,13 @@ export const refreshCheckoutPaymentSession = async (
   );
 
   if (!activeSession) {
+    const recoveryState = buildRecoveryState({
+      stage: "payment",
+      reasonCode: "PAYMENT_FAILED",
+      metadata: {
+        checkoutSessionId,
+      },
+    });
     return {
       ok: false,
       code: "PAYMENT_SESSION_CANCELED",
@@ -612,6 +958,7 @@ export const refreshCheckoutPaymentSession = async (
       provider: null,
       clientSecret: null,
       message: "There is no active payment session to refresh.",
+      ...withRecoveryFields(recoveryState),
     };
   }
 
@@ -629,9 +976,22 @@ export const refreshCheckoutPaymentSession = async (
       clientSecret:
         refreshed?.providerClientSecret || activeSession.providerClientSecret,
       message: "Payment status refreshed.",
+      ...withRecoveryFields(
+        fromPaymentState({
+          paymentSummary: await getCheckoutPaymentSummary(
+            (await getCheckoutSession(checkoutSessionId, {
+              includeTerminal: true,
+            }))!,
+            {
+              now: new Date(),
+            },
+          ),
+          checkoutSessionId,
+        }),
+      ),
     };
   } catch (error) {
-    return mapPaymentErrorResult(error);
+    return mapPaymentErrorResult(error, checkoutSessionId);
   }
 };
 
@@ -644,6 +1004,9 @@ export type CheckoutBookingActionResult =
       redirectTo: string | null;
       message: string;
       eligibilityCode: BookingEligibilityCode;
+      recoveryState: RecoveryState | null;
+      reasonCode: RecoveryReasonCode | null;
+      nextRecommendedAction: RecoveryActionType | null;
     }
   | {
       ok: false;
@@ -656,6 +1019,9 @@ export type CheckoutBookingActionResult =
       redirectTo: string | null;
       message: string;
       eligibilityCode: BookingEligibilityCode;
+      recoveryState: RecoveryState | null;
+      reasonCode: RecoveryReasonCode | null;
+      nextRecommendedAction: RecoveryActionType | null;
     };
 
 const mapBookingSummaryToActionResult = (
@@ -670,6 +1036,7 @@ const mapBookingSummaryToActionResult = (
       redirectTo: null,
       message: "All checkout items were booked successfully.",
       eligibilityCode: bookingSummary.eligibilityCode,
+      ...withRecoveryFields(null),
     };
   }
 
@@ -677,6 +1044,10 @@ const mapBookingSummaryToActionResult = (
     bookingSummary.status === "partial" ||
     bookingSummary.status === "requires_manual_review"
   ) {
+    const recoveryState = fromBookingState({
+      bookingSummary,
+      checkoutSessionId: bookingSummary.checkoutSessionId,
+    });
     return {
       ok: true,
       code: "BOOKING_PARTIAL",
@@ -685,6 +1056,7 @@ const mapBookingSummaryToActionResult = (
       redirectTo: null,
       message: bookingSummary.statusDescription,
       eligibilityCode: bookingSummary.eligibilityCode,
+      ...withRecoveryFields(recoveryState),
     };
   }
 
@@ -700,9 +1072,14 @@ const mapBookingSummaryToActionResult = (
       redirectTo: null,
       message: bookingSummary.statusDescription,
       eligibilityCode: bookingSummary.eligibilityCode,
+      ...withRecoveryFields(null),
     };
   }
 
+  const recoveryState = fromBookingState({
+    bookingSummary,
+    checkoutSessionId: bookingSummary.checkoutSessionId,
+  });
   return {
     ok: false,
     code: "BOOKING_FAILED",
@@ -711,6 +1088,7 @@ const mapBookingSummaryToActionResult = (
     redirectTo: null,
     message: bookingSummary.statusDescription,
     eligibilityCode: bookingSummary.eligibilityCode,
+    ...withRecoveryFields(recoveryState),
   };
 };
 
@@ -723,6 +1101,16 @@ export const executeCheckoutBooking = async (
 
   if (!eligibility.ok) {
     if (eligibility.code === "BOOKING_ALREADY_IN_PROGRESS") {
+      const recoveryState = buildRecoveryState({
+        stage: "booking",
+        reasonCode: "BOOKING_FAILED",
+        metadata: {
+          checkoutSessionId,
+          bookingStatus:
+            eligibility.activeBookingRun?.summary?.overallStatus ||
+            "processing",
+        },
+      });
       return {
         ok: false,
         code: "BOOKING_ALREADY_IN_PROGRESS",
@@ -732,11 +1120,22 @@ export const executeCheckoutBooking = async (
         redirectTo: null,
         message: eligibility.message,
         eligibilityCode: eligibility.code,
+        ...withRecoveryFields(recoveryState),
       };
     }
 
     const summary = await getBookingSummary(checkoutSessionId, {
       now: new Date(),
+    });
+    const recoveryState = fromBookingState({
+      bookingSummary: summary,
+      checkoutSessionId,
+    });
+    logIfRecovery(recoveryState, {
+      event: "action_result",
+      ids: {
+        checkoutSessionId,
+      },
     });
 
     return {
@@ -750,6 +1149,7 @@ export const executeCheckoutBooking = async (
       redirectTo: null,
       message: eligibility.message,
       eligibilityCode: eligibility.code,
+      ...withRecoveryFields(recoveryState),
     };
   }
 
@@ -767,7 +1167,15 @@ export const executeCheckoutBooking = async (
   const bookingSummary = await getBookingSummary(checkoutSessionId, {
     now: new Date(),
   });
-  return mapBookingSummaryToActionResult(bookingSummary);
+  const result = mapBookingSummaryToActionResult(bookingSummary);
+  logIfRecovery(result.recoveryState, {
+    event: "action_result",
+    ids: {
+      checkoutSessionId,
+      bookingRunId: result.bookingRunId,
+    },
+  });
+  return result;
 };
 
 export const refreshBookingRun = async (
@@ -781,6 +1189,13 @@ export const refreshBookingRun = async (
   });
 
   if (!refreshed && !bookingSummary.run) {
+    const recoveryState = buildRecoveryState({
+      stage: "booking",
+      reasonCode: "CHECKOUT_NOT_READY",
+      metadata: {
+        checkoutSessionId,
+      },
+    });
     return {
       ok: false,
       code: "BOOKING_INELIGIBLE",
@@ -789,10 +1204,19 @@ export const refreshBookingRun = async (
       redirectTo: null,
       message: "There is no booking run to refresh yet.",
       eligibilityCode: bookingSummary.eligibilityCode,
+      ...withRecoveryFields(recoveryState),
     };
   }
 
-  return mapBookingSummaryToActionResult(bookingSummary);
+  const result = mapBookingSummaryToActionResult(bookingSummary);
+  logIfRecovery(result.recoveryState, {
+    event: "action_result",
+    ids: {
+      checkoutSessionId,
+      bookingRunId: result.bookingRunId,
+    },
+  });
+  return result;
 };
 
 export type CheckoutConfirmationActionResult =
@@ -804,6 +1228,9 @@ export type CheckoutConfirmationActionResult =
       status: BookingConfirmationStatus;
       redirectTo: string | null;
       message: string;
+      recoveryState: RecoveryState | null;
+      reasonCode: RecoveryReasonCode | null;
+      nextRecommendedAction: RecoveryActionType | null;
     }
   | {
       ok: false;
@@ -813,6 +1240,9 @@ export type CheckoutConfirmationActionResult =
       status: BookingConfirmationStatus | null;
       redirectTo: string | null;
       message: string;
+      recoveryState: RecoveryState | null;
+      reasonCode: RecoveryReasonCode | null;
+      nextRecommendedAction: RecoveryActionType | null;
     };
 
 const mapConfirmationResult = (input: {
@@ -822,6 +1252,9 @@ const mapConfirmationResult = (input: {
   created: boolean;
   message?: string;
 }): CheckoutConfirmationActionResult => {
+  const recoveryState = fromConfirmationState({
+    confirmation: input.confirmation,
+  });
   return {
     ok: true,
     code: input.created ? "CONFIRMATION_CREATED" : "CONFIRMATION_RESUMED",
@@ -834,6 +1267,7 @@ const mapConfirmationResult = (input: {
       (input.created
         ? "Booking confirmation created."
         : "Booking confirmation resumed."),
+    ...withRecoveryFields(recoveryState),
   };
 };
 
@@ -845,6 +1279,13 @@ export const createBookingConfirmationFromCheckout = async (
   });
 
   if (!bookingRun) {
+    const recoveryState = buildRecoveryState({
+      stage: "confirmation",
+      reasonCode: "CONFIRMATION_FAILED",
+      metadata: {
+        checkoutSessionId,
+      },
+    });
     return {
       ok: false,
       code: "CONFIRMATION_INELIGIBLE",
@@ -853,6 +1294,7 @@ export const createBookingConfirmationFromCheckout = async (
       status: null,
       redirectTo: null,
       message: "There is no booking run available for confirmation yet.",
+      ...withRecoveryFields(recoveryState),
     };
   }
 
@@ -870,6 +1312,14 @@ export const createBookingConfirmationFromCheckout = async (
     allowExisting: true,
   });
   if (!eligibility.ok) {
+    const recoveryState = buildRecoveryState({
+      stage: "confirmation",
+      reasonCode: "CONFIRMATION_FAILED",
+      metadata: {
+        checkoutSessionId,
+        bookingStatus: bookingRun.summary?.overallStatus || bookingRun.status,
+      },
+    });
     return {
       ok: false,
       code: "CONFIRMATION_INELIGIBLE",
@@ -878,6 +1328,7 @@ export const createBookingConfirmationFromCheckout = async (
       status: null,
       redirectTo: null,
       message: eligibility.message,
+      ...withRecoveryFields(recoveryState),
     };
   }
 
@@ -901,6 +1352,27 @@ export const createBookingConfirmationFromCheckout = async (
         : "Existing booking confirmation resumed.",
     });
   } catch (error) {
+    const normalized = normalizeTransactionError(error, {
+      stage: "confirmation",
+      code: "CONFIRMATION_FAILED",
+      safeUserMessage: "Booking confirmation could not be created.",
+    });
+    const recoveryState = buildRecoveryState({
+      stage: normalized.stage,
+      reasonCode: normalized.code,
+      metadata: {
+        checkoutSessionId,
+        bookingStatus: bookingRun.summary?.overallStatus || bookingRun.status,
+        rawMessage: normalized.message,
+      },
+    });
+    logIfRecovery(recoveryState, {
+      event: "service_error",
+      ids: {
+        checkoutSessionId,
+        bookingRunId: bookingRun.id,
+      },
+    });
     return {
       ok: false,
       code: "CONFIRMATION_FAILED",
@@ -912,6 +1384,7 @@ export const createBookingConfirmationFromCheckout = async (
         error instanceof Error
           ? error.message
           : "Booking confirmation could not be created.",
+      ...withRecoveryFields(recoveryState),
     };
   }
 };
@@ -928,6 +1401,13 @@ export const refreshBookingConfirmation = async (
     );
 
     if (!confirmation) {
+      const recoveryState = buildRecoveryState({
+        stage: "confirmation",
+        reasonCode: "CONFIRMATION_FAILED",
+        metadata: {
+          checkoutSessionId,
+        },
+      });
       return {
         ok: false,
         code: "CONFIRMATION_INELIGIBLE",
@@ -936,6 +1416,7 @@ export const refreshBookingConfirmation = async (
         status: null,
         redirectTo: null,
         message: "There is no confirmation-ready booking run to refresh yet.",
+        ...withRecoveryFields(recoveryState),
       };
     }
 
@@ -953,6 +1434,25 @@ export const refreshBookingConfirmation = async (
       message: "Booking confirmation refreshed from persisted state.",
     });
   } catch (error) {
+    const normalized = normalizeTransactionError(error, {
+      stage: "confirmation",
+      code: "CONFIRMATION_FAILED",
+      safeUserMessage: "Booking confirmation could not be refreshed.",
+    });
+    const recoveryState = buildRecoveryState({
+      stage: normalized.stage,
+      reasonCode: normalized.code,
+      metadata: {
+        checkoutSessionId,
+        rawMessage: normalized.message,
+      },
+    });
+    logIfRecovery(recoveryState, {
+      event: "service_error",
+      ids: {
+        checkoutSessionId,
+      },
+    });
     return {
       ok: false,
       code: "CONFIRMATION_FAILED",
@@ -964,6 +1464,7 @@ export const refreshBookingConfirmation = async (
         error instanceof Error
           ? error.message
           : "Booking confirmation could not be refreshed.",
+      ...withRecoveryFields(recoveryState),
     };
   }
 };
@@ -976,6 +1477,9 @@ export type CheckoutItineraryActionResult =
       itineraryRef: string;
       status: ItineraryStatus;
       message: string;
+      recoveryState: RecoveryState | null;
+      reasonCode: RecoveryReasonCode | null;
+      nextRecommendedAction: RecoveryActionType | null;
     }
   | {
       ok: false;
@@ -984,6 +1488,9 @@ export type CheckoutItineraryActionResult =
       itineraryRef: string | null;
       status: ItineraryStatus | null;
       message: string;
+      recoveryState: RecoveryState | null;
+      reasonCode: RecoveryReasonCode | null;
+      nextRecommendedAction: RecoveryActionType | null;
     };
 
 export const createItineraryFromConfirmation = async (input: {
@@ -1009,6 +1516,14 @@ export const createItineraryFromConfirmation = async (input: {
   }
 
   if (!confirmation) {
+    const recoveryState = buildRecoveryState({
+      stage: "itinerary",
+      reasonCode: "ITINERARY_CREATE_FAILED",
+      metadata: {
+        checkoutSessionId: input.checkoutSessionId || null,
+        confirmationRef: input.confirmationRef || null,
+      },
+    });
     return {
       ok: false,
       code: "ITINERARY_INELIGIBLE",
@@ -1017,6 +1532,7 @@ export const createItineraryFromConfirmation = async (input: {
       status: null,
       message:
         "Booking confirmation could not be found for itinerary creation.",
+      ...withRecoveryFields(recoveryState),
     };
   }
 
@@ -1029,6 +1545,7 @@ export const createItineraryFromConfirmation = async (input: {
       itineraryRef: existing.publicRef,
       status: existing.status,
       message: "Existing durable itinerary resumed.",
+      ...withRecoveryFields(null),
     };
   }
 
@@ -1037,6 +1554,18 @@ export const createItineraryFromConfirmation = async (input: {
     allowExisting: true,
   });
   if (!eligibility.ok) {
+    const recoveryState = buildRecoveryState({
+      stage: "itinerary",
+      reasonCode: "ITINERARY_CREATE_FAILED",
+      metadata: {
+        confirmationRef: confirmation.publicRef,
+        tripId: confirmation.tripId,
+        tripHref: `/trips/${confirmation.tripId}`,
+        hasConfirmedItems: confirmation.items.some(
+          (item) => item.status === "confirmed",
+        ),
+      },
+    });
     return {
       ok: false,
       code: "ITINERARY_INELIGIBLE",
@@ -1044,6 +1573,7 @@ export const createItineraryFromConfirmation = async (input: {
       itineraryRef: null,
       status: null,
       message: eligibility.message,
+      ...withRecoveryFields(recoveryState),
     };
   }
 
@@ -1064,8 +1594,33 @@ export const createItineraryFromConfirmation = async (input: {
       message: result.created
         ? "Durable itinerary created from the latest confirmation."
         : "Existing durable itinerary resumed.",
+      ...withRecoveryFields(null),
     };
   } catch (error) {
+    const normalized = normalizeTransactionError(error, {
+      stage: "itinerary",
+      code: "ITINERARY_CREATE_FAILED",
+      safeUserMessage: "Itinerary could not be created from this confirmation.",
+    });
+    const recoveryState = buildRecoveryState({
+      stage: normalized.stage,
+      reasonCode: normalized.code,
+      metadata: {
+        confirmationRef: confirmation.publicRef,
+        tripId: confirmation.tripId,
+        tripHref: `/trips/${confirmation.tripId}`,
+        rawMessage: normalized.message,
+        hasConfirmedItems: confirmation.items.some(
+          (item) => item.status === "confirmed",
+        ),
+      },
+    });
+    logIfRecovery(recoveryState, {
+      event: "service_error",
+      ids: {
+        confirmationRef: confirmation.publicRef,
+      },
+    });
     return {
       ok: false,
       code: "ITINERARY_CREATE_FAILED",
@@ -1076,6 +1631,7 @@ export const createItineraryFromConfirmation = async (input: {
         error instanceof Error
           ? error.message
           : "Itinerary could not be created from this confirmation.",
+      ...withRecoveryFields(recoveryState),
     };
   }
 };
