@@ -28,7 +28,7 @@ FROM deps as build
 
 # Copy the rest of the source files into the image.
 COPY . .
-
+RUN yarn install
 # Run the build script.
 RUN yarn run build
 
