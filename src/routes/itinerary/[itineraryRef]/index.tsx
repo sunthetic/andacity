@@ -1,11 +1,14 @@
 import { component$ } from "@builder.io/qwik";
 import {
   routeLoader$,
+  useLocation,
   type DocumentHead,
   type RequestHandler,
 } from "@builder.io/qwik-city";
+import { getItineraryPageModel } from "~/fns/itinerary/getItineraryPageModel";
 import { ItineraryAccessDenied } from "~/components/itinerary/ItineraryAccessDenied";
-import { ItineraryClaimNotice } from "~/components/itinerary/ItineraryClaimNotice";
+import { ItineraryLoading } from "~/components/itinerary/ItineraryLoading";
+import { ItineraryPageShell } from "~/components/itinerary/ItineraryPageShell";
 import { Page } from "~/components/site/Page";
 import { buildItineraryDetail } from "~/lib/itinerary/buildItineraryDetail";
 import { getItineraryByPublicRef } from "~/lib/itinerary/getItineraryByPublicRef";
@@ -19,6 +22,51 @@ import {
 } from "~/routes/itinerary/actions";
 
 const ITINERARY_REF_PATTERN = /^ITN-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/;
+
+type ItineraryClaimNotice = {
+  code: string;
+  message: string;
+  tone: "success" | "warning" | "error" | "info";
+};
+
+const readClaimNotice = (url: URL): ItineraryClaimNotice | null => {
+  const code = String(url.searchParams.get("claim_code") || "").trim();
+  const message = String(url.searchParams.get("claim_message") || "").trim();
+  const tone = String(url.searchParams.get("claim_tone") || "").trim();
+
+  if (!code || !message) return null;
+
+  return {
+    code,
+    message,
+    tone:
+      tone === "success" || tone === "warning" || tone === "error" || tone === "info"
+        ? tone
+        : "info",
+  };
+};
+
+const buildItineraryPageHref = (
+  pathname: string,
+  sourceUrl: URL,
+  options: {
+    claimNotice?: ItineraryClaimNotice | null;
+  } = {},
+) => {
+  const params = new URLSearchParams(sourceUrl.search);
+  params.delete("claim_code");
+  params.delete("claim_message");
+  params.delete("claim_tone");
+
+  if (options.claimNotice) {
+    params.set("claim_code", options.claimNotice.code);
+    params.set("claim_message", options.claimNotice.message);
+    params.set("claim_tone", options.claimNotice.tone);
+  }
+
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
+};
 
 export const onRequest: RequestHandler = ({ headers }) => {
   headers.set("x-robots-tag", "noindex, follow");
@@ -39,15 +87,29 @@ export const onPost: RequestHandler = async ({
   const intent = String(formData?.get("intent") || "").trim();
 
   if (intent === "claim-itinerary" && itineraryRef) {
-    await claimItineraryOwnership(itineraryRef, {
+    const result = await claimItineraryOwnership(itineraryRef, {
       cookie,
       request,
       sharedMap,
       url,
     });
+
+    throw redirect(
+      303,
+      buildItineraryPageHref(`/itinerary/${itineraryRef}`, url, {
+        claimNotice: {
+          code: result.reasonCode,
+          message: result.message,
+          tone: result.ok ? "success" : "error",
+        },
+      }),
+    );
   }
 
-  throw redirect(303, `/itinerary/${itineraryRef}`);
+  throw redirect(
+    303,
+    buildItineraryPageHref(`/itinerary/${itineraryRef}`, url),
+  );
 };
 
 export const useItineraryPage = routeLoader$(async ({
@@ -115,163 +177,100 @@ export const useItineraryPage = routeLoader$(async ({
       kind: "denied",
       itineraryRef,
       displayState,
-      hasCurrentUser: Boolean(context.ownerUserId),
     } as const;
   }
 
-  if (!access.isOwner) {
-    return {
-      kind: "claimable",
-      itineraryRef,
-      displayState,
-      hasCurrentUser: Boolean(context.ownerUserId),
-    } as const;
-  }
+  const detail = buildItineraryDetail(itinerary, {
+    access,
+    hasCurrentUser: Boolean(context.ownerUserId),
+  });
+  const model = getItineraryPageModel(detail, {
+    hasCurrentUser: Boolean(context.ownerUserId),
+    ownershipDisplayState: displayState,
+    claimNotice: readClaimNotice(url),
+    previewOnly: !access.isOwner,
+  });
 
   return {
     kind: "loaded",
-    detail: buildItineraryDetail(itinerary, {
-      access,
-      hasCurrentUser: Boolean(context.ownerUserId),
-    }),
+    model,
   } as const;
 });
 
 export default component$(() => {
   const data = useItineraryPage().value;
+  const location = useLocation();
+  const pendingRef = String(location.params.itineraryRef || "")
+    .trim()
+    .toUpperCase();
 
-  if (data.kind !== "loaded") {
+  if (location.isNavigating) {
+    return (
+      <Page
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "Itinerary" },
+          { label: pendingRef || "Loading" },
+        ]}
+      >
+        <ItineraryLoading />
+      </Page>
+    );
+  }
+
+  if (data.kind === "loaded") {
+    return (
+      <Page
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          ...(data.model.tripHref
+            ? [
+                {
+                  label: "Trips",
+                  href: "/trips",
+                },
+              ]
+            : []),
+          ...(data.model.tripHref
+            ? [
+                {
+                  label: "Trip",
+                  href: data.model.tripHref,
+                },
+              ]
+            : []),
+          { label: data.model.itineraryRef },
+        ]}
+      >
+        <ItineraryPageShell model={data.model} />
+      </Page>
+    );
+  }
+
+  if (data.kind === "denied") {
     return (
       <Page
         breadcrumbs={[{ label: "Home", href: "/" }, { label: "Itinerary" }]}
       >
-        {data.kind === "claimable" ? (
-          <ItineraryClaimNotice
-            displayState={data.displayState}
-            hasCurrentUser={data.hasCurrentUser}
-          />
-        ) : data.kind === "denied" ? (
-          <ItineraryAccessDenied message={data.displayState.message} />
-        ) : (
-          <section class="rounded-[var(--radius-xl)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 shadow-[var(--shadow-sm)]">
-            <p class="text-lg font-semibold text-[color:var(--color-text-strong)]">
-              Itinerary unavailable
-            </p>
-            <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-              {data.kind === "invalid_ref"
-                ? `The itinerary reference "${data.itineraryRef}" is not valid.`
-                : `Itinerary ${data.itineraryRef} could not be found.`}
-            </p>
-          </section>
-        )}
+        <ItineraryAccessDenied message={data.displayState.message} />
       </Page>
     );
   }
 
   return (
     <Page
-      breadcrumbs={[
-        { label: "Home", href: "/" },
-        { label: "Trips", href: "/trips" },
-        ...(data.detail.tripHref
-          ? [
-              {
-                label: data.detail.summary.publicRef,
-                href: data.detail.tripHref,
-              },
-            ]
-          : []),
-        { label: data.detail.publicRef },
-      ]}
+      breadcrumbs={[{ label: "Home", href: "/" }, { label: "Itinerary" }]}
     >
-      <div class="space-y-6">
-        <section class="rounded-[var(--radius-xl)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 shadow-[var(--shadow-sm)]">
-          <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--color-text-muted)]">
-            Durable itinerary
-          </p>
-          <h1 class="mt-2 text-3xl font-semibold text-[color:var(--color-text-strong)]">
-            {data.detail.summary.title}
-          </h1>
-          <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-            {data.detail.statusLabel} · {data.detail.statusDescription}
-          </p>
-          <div class="mt-5 flex flex-wrap gap-3">
-            {data.detail.tripHref ? (
-              <a
-                href={data.detail.tripHref}
-                class="rounded-lg bg-[color:var(--color-action)] px-4 py-2.5 text-sm font-medium text-white hover:opacity-90"
-              >
-                View trip
-              </a>
-            ) : null}
-            <span class="rounded-lg border border-[color:var(--color-border)] px-4 py-2.5 text-sm font-medium text-[color:var(--color-text-muted)]">
-              {data.detail.ownershipMode === "user"
-                ? "Account-owned itinerary"
-                : "Anonymous ownership bridge"}
-            </span>
-          </div>
-        </section>
-
-        <section class="rounded-[var(--radius-xl)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 shadow-[var(--shadow-sm)]">
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                Owned items
-              </p>
-              <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                This itinerary is now gated by ownership resolution rather than
-                by its public reference alone.
-              </p>
-            </div>
-            <span class="rounded-full border border-[color:var(--color-border)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--color-text-muted)]">
-              {data.detail.items.length} item
-              {data.detail.items.length === 1 ? "" : "s"}
-            </span>
-          </div>
-
-          <div class="mt-5 space-y-4">
-            {data.detail.items.map((item) => (
-              <article
-                key={item.id}
-                class="rounded-xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-muted,#f8fafc)] p-4"
-              >
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                      {item.display.title}
-                    </p>
-                    {item.display.subtitle ? (
-                      <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                        {item.display.subtitle}
-                      </p>
-                    ) : null}
-                  </div>
-                  <span class="rounded-full border border-[color:var(--color-border)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--color-text-muted)]">
-                    {item.display.statusLabel}
-                  </span>
-                </div>
-
-                <dl class="mt-4 grid gap-3 text-sm md:grid-cols-2">
-                  <div>
-                    <dt class="text-[color:var(--color-text-muted)]">Dates</dt>
-                    <dd class="font-medium text-[color:var(--color-text-strong)]">
-                      {item.display.dateLabel || "Unavailable"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt class="text-[color:var(--color-text-muted)]">
-                      Location
-                    </dt>
-                    <dd class="font-medium text-[color:var(--color-text-strong)]">
-                      {item.display.locationLabel || "Unavailable"}
-                    </dd>
-                  </div>
-                </dl>
-              </article>
-            ))}
-          </div>
-        </section>
-      </div>
+      <section class="rounded-[var(--radius-xl)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 shadow-[var(--shadow-sm)]">
+        <p class="text-lg font-semibold text-[color:var(--color-text-strong)]">
+          Itinerary unavailable
+        </p>
+        <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
+          {data.kind === "invalid_ref"
+            ? `The itinerary reference "${data.itineraryRef}" is not valid.`
+            : `Itinerary ${data.itineraryRef} could not be found.`}
+        </p>
+      </section>
     </Page>
   );
 });
@@ -282,11 +281,11 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
 
   if (data.kind === "loaded") {
     return {
-      title: `${data.detail.publicRef} | Itinerary | Andacity`,
+      title: `${data.model.itineraryRef} | Saved itinerary | Andacity`,
       meta: [
         {
           name: "description",
-          content: `View itinerary ${data.detail.publicRef} in the durable ownership layer.`,
+          content: `View saved itinerary ${data.model.itineraryRef} with ownership-aware access controls and persisted booking details.`,
         },
         { name: "robots", content: "noindex,follow,max-image-preview:large" },
       ],

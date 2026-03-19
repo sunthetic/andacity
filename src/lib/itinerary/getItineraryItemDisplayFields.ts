@@ -16,8 +16,18 @@ const toTitleCase = (value: string | null | undefined) => {
 };
 
 const getStatusDisplay = (
-  status: OwnedItineraryItem["status"],
+  item: OwnedItineraryItem,
 ): Pick<ItineraryItemDisplayFields, "statusLabel" | "statusTone"> => {
+  const sourceStatus = String(item.detailsJson?.sourceConfirmationStatus || "")
+    .trim()
+    .toLowerCase();
+
+  if (sourceStatus === "requires_manual_review") {
+    return { statusLabel: "Manual review", statusTone: "warning" };
+  }
+
+  const { status } = item;
+
   switch (status) {
     case "completed":
       return { statusLabel: "Completed", statusTone: "success" };
@@ -37,7 +47,7 @@ const getStatusDisplay = (
 export const getItineraryItemDisplayFields = (
   item: OwnedItineraryItem,
 ): ItineraryItemDisplayFields => {
-  const status = getStatusDisplay(item.status);
+  const status = getStatusDisplay(item);
 
   return {
     title: item.title,
@@ -51,4 +61,3 @@ export const getItineraryItemDisplayFields = (
     bookingReference: item.providerBookingReference,
   };
 };
-

@@ -389,7 +389,7 @@ test("creates human-safe itinerary references", () => {
   }
 });
 
-test("maps a partial confirmation into a durable itinerary payload with confirmed owned items only", () => {
+test("maps a partial confirmation into a durable itinerary payload with itemized booking states", () => {
   const mapped = mapConfirmationToItinerary({
     confirmation: buildConfirmation(),
     bookingRun: buildBookingRun(),
@@ -403,13 +403,15 @@ test("maps a partial confirmation into a durable itinerary payload with confirme
 
   assert.equal(mapped.itinerary.publicRef, "ITN-ABCDE-23456");
   assert.equal(mapped.itinerary.status, "partial");
-  assert.equal(mapped.items.length, 1);
+  assert.equal(mapped.items.length, 2);
   assert.equal(mapped.items[0]?.confirmationItemId, "cfi_hotel");
+  assert.equal(mapped.items[1]?.confirmationItemId, "cfi_flight");
+  assert.equal(mapped.items[1]?.status, "failed");
   assert.equal(mapped.items[0]?.canonicalEntityId, 801);
   assert.equal(mapped.items[0]?.canonicalBookableEntityId, 802);
   assert.equal(mapped.items[0]?.canonicalInventoryId, "hotel:ace-palm");
   assert.equal(mapped.items[0]?.providerConfirmationCode, "ACEPALM");
-  assert.equal(mapped.itinerary.summaryJson?.itemCount, 1);
+  assert.equal(mapped.itinerary.summaryJson?.itemCount, 2);
 });
 
 test("derives itinerary lifecycle status from owned item timing", () => {

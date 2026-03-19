@@ -69,7 +69,35 @@ export const getOwnedItineraryList = async (filters: {
           isClaimable: false,
           canAttachToUser: false,
           itemCount: Number(summaryFromJson.itemCount) || 0,
+          totalAmountCents:
+            typeof summaryFromJson.totalAmountCents === "number"
+              ? summaryFromJson.totalAmountCents
+              : null,
+          confirmedItemCount:
+            typeof summaryFromJson.confirmedItemCount === "number"
+              ? summaryFromJson.confirmedItemCount
+              : undefined,
+          pendingItemCount:
+            typeof summaryFromJson.pendingItemCount === "number"
+              ? summaryFromJson.pendingItemCount
+              : undefined,
+          failedItemCount:
+            typeof summaryFromJson.failedItemCount === "number"
+              ? summaryFromJson.failedItemCount
+              : undefined,
+          manualReviewItemCount:
+            typeof summaryFromJson.manualReviewItemCount === "number"
+              ? summaryFromJson.manualReviewItemCount
+              : undefined,
+          unresolvedItemCount:
+            typeof summaryFromJson.unresolvedItemCount === "number"
+              ? summaryFromJson.unresolvedItemCount
+              : undefined,
           title: String(summaryFromJson.title || "Booked itinerary"),
+          tripDescription:
+            typeof summaryFromJson.tripDescription === "string"
+              ? summaryFromJson.tripDescription
+              : null,
           locationSummary:
             typeof summaryFromJson.locationSummary === "string"
               ? summaryFromJson.locationSummary

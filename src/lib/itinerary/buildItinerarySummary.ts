@@ -29,6 +29,33 @@ const deriveRange = (items: OwnedItineraryItem[]) => {
   };
 };
 
+const readNumeric = (value: unknown) => {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const readItemCheckoutTotal = (item: OwnedItineraryItem) => {
+  const checkoutSnapshot =
+    item.detailsJson && typeof item.detailsJson.checkoutSnapshot === "object"
+      ? (item.detailsJson.checkoutSnapshot as Record<string, unknown>)
+      : null;
+  const pricing =
+    checkoutSnapshot && typeof checkoutSnapshot.pricing === "object"
+      ? (checkoutSnapshot.pricing as Record<string, unknown>)
+      : null;
+  const value = readNumeric(pricing?.totalAmountCents);
+
+  return value == null ? null : Math.round(value);
+};
+
+const readSourceConfirmationStatus = (item: OwnedItineraryItem) => {
+  const value = item.detailsJson?.sourceConfirmationStatus;
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return normalized || null;
+};
+
 export const buildItinerarySummary = (
   itinerary: Pick<
     OwnedItinerary,
@@ -53,6 +80,33 @@ export const buildItinerarySummary = (
 ): ItinerarySummary => {
   const display = getItineraryDisplayStatus(itinerary.status);
   const range = deriveRange(itinerary.items);
+  const totalAmountFromItems = itinerary.items.reduce((acc, item) => {
+    const next = readItemCheckoutTotal(item);
+    return next == null ? acc : acc + next;
+  }, 0);
+  const hasItemTotals = itinerary.items.some(
+    (item) => readItemCheckoutTotal(item) != null,
+  );
+  const confirmedItemCount = itinerary.items.filter(
+    (item) =>
+      item.status === "confirmed" ||
+      item.status === "in_progress" ||
+      item.status === "completed",
+  ).length;
+  const manualReviewItemCount = itinerary.items.filter(
+    (item) => readSourceConfirmationStatus(item) === "requires_manual_review",
+  ).length;
+  const pendingItemCount = itinerary.items.filter((item) => {
+    return (
+      item.status === "pending" &&
+      readSourceConfirmationStatus(item) !== "requires_manual_review"
+    );
+  }).length;
+  const failedItemCount = itinerary.items.filter(
+    (item) => item.status === "failed" || item.status === "canceled",
+  ).length;
+  const unresolvedItemCount =
+    pendingItemCount + failedItemCount + manualReviewItemCount;
   const locationSummary = compactParts(
     Array.from(
       new Set(
@@ -84,10 +138,17 @@ export const buildItinerarySummary = (
     isClaimable: Boolean(options.access?.isClaimable),
     canAttachToUser: Boolean(options.access?.isClaimable && options.hasCurrentUser),
     itemCount: itinerary.items.length,
+    totalAmountCents: hasItemTotals ? totalAmountFromItems : null,
+    confirmedItemCount,
+    pendingItemCount,
+    failedItemCount,
+    manualReviewItemCount,
+    unresolvedItemCount,
     title:
       itinerary.items.length === 1
         ? itinerary.items[0]?.title || "Booked itinerary"
         : `${itinerary.items.length} booked items`,
+    tripDescription: locationSummary,
     locationSummary,
     startAt: range.startAt,
     endAt: range.endAt,

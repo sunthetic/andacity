@@ -30,6 +30,9 @@ export const ConfirmationItineraryNotice = component$(
     }
 
     if (!props.notice) return null;
+    const isItineraryDestination = Boolean(
+      props.notice.href && props.notice.href.startsWith("/itinerary/"),
+    );
 
     return (
       <section
@@ -46,6 +49,12 @@ export const ConfirmationItineraryNotice = component$(
             <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
               {props.notice.message}
             </p>
+            {isItineraryDestination ? (
+              <p class="mt-2 text-xs text-[color:var(--color-text-muted)]">
+                Your itinerary is now the primary post-booking destination for
+                reopening confirmed details.
+              </p>
+            ) : null}
           </div>
 
           {props.notice.href ? (
@@ -53,7 +62,9 @@ export const ConfirmationItineraryNotice = component$(
               href={props.notice.href}
               class="rounded-lg bg-[color:var(--color-action)] px-3 py-2 text-sm font-medium text-white hover:opacity-90"
             >
-              {props.notice.label}
+              {isItineraryDestination
+                ? "Open saved itinerary"
+                : props.notice.label}
             </a>
           ) : (
             <span class="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm font-medium text-[color:var(--color-text-muted)]">

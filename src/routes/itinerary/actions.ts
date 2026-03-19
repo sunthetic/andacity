@@ -10,10 +10,13 @@ export const claimItineraryOwnership = async (
   itineraryRef: string,
   event: Pick<RequestEventBase, "cookie" | "request" | "sharedMap" | "url">,
 ) => {
+  const normalizedRef = String(itineraryRef || "")
+    .trim()
+    .toUpperCase();
   const context = getCurrentOwnershipContext(event);
   const result = await claimAnonymousItineraryOwnership({
-    itineraryRef,
-    claimToken: context.claimTokensByItineraryRef[itineraryRef] || null,
+    itineraryRef: normalizedRef,
+    claimToken: context.claimTokensByItineraryRef[normalizedRef] || null,
     ownerUserId: context.ownerUserId,
     ownerSessionId: context.ownerSessionId,
     source: "manual_claim",

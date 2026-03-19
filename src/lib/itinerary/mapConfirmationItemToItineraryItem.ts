@@ -71,6 +71,7 @@ export const mapConfirmationItemToItineraryItem = (input: {
     locationSummary: confirmationItem.locationSummary,
     detailsJson: {
       ...(confirmationItem.detailsJson || {}),
+      sourceConfirmationStatus: confirmationItem.status,
       tripItemId: checkoutItem?.tripItemId ?? null,
       sourceConfirmationItemId: confirmationItem.id,
       bookingItemExecutionId:
@@ -88,4 +89,3 @@ export const mapConfirmationItemToItineraryItem = (input: {
     updatedAt: timestamp,
   };
 };
-

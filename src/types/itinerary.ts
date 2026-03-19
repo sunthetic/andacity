@@ -98,7 +98,14 @@ export type ItinerarySummary = {
   isClaimable: boolean;
   canAttachToUser: boolean;
   itemCount: number;
+  totalAmountCents?: number | null;
+  confirmedItemCount?: number;
+  pendingItemCount?: number;
+  failedItemCount?: number;
+  manualReviewItemCount?: number;
+  unresolvedItemCount?: number;
   title: string;
+  tripDescription?: string | null;
   locationSummary: string | null;
   startAt: string | null;
   endAt: string | null;

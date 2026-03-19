@@ -23,10 +23,7 @@ export const mapConfirmationToItinerary = (
   const bookingItemsById = new Map(
     input.bookingRun.itemExecutions.map((item) => [item.id, item]),
   );
-  const confirmationItems = input.confirmation.items.filter(
-    (item) => item.status === "confirmed",
-  );
-  const items = confirmationItems.map((confirmationItem) =>
+  const items = input.confirmation.items.map((confirmationItem) =>
     mapConfirmationItemToItineraryItem({
       itineraryId,
       confirmationItem,
