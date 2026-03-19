@@ -8,6 +8,7 @@ import { getConfirmationDisplayStatus } from "~/lib/confirmation/getConfirmation
 import type {
   BookingConfirmation,
   BookingConfirmationItem,
+  BookingConfirmationSummary,
   ConfirmationItemStatus,
 } from "~/types/confirmation";
 
@@ -67,6 +68,13 @@ export type ConfirmationPageModel = {
     tone: ConfirmationUiTone;
     title: string;
     message: string;
+  } | null;
+  itineraryNotice: {
+    tone: ConfirmationUiTone;
+    title: string;
+    message: string;
+    href: string | null;
+    label: string;
   } | null;
   items: ConfirmationPageItemModel[];
   references: ConfirmationReferenceGroup[];
@@ -277,6 +285,32 @@ const buildNextStepsDescription = (status: BookingConfirmation["status"]) => {
   return "You can return to your trip to review what was saved, or start a new search while this confirmation stays available on reload.";
 };
 
+const buildItineraryNotice = (
+  summary: BookingConfirmationSummary,
+): ConfirmationPageModel["itineraryNotice"] => {
+  if (summary.hasItinerary && summary.itineraryRef) {
+    return {
+      tone: "success",
+      title: "Durable itinerary ownership is ready",
+      message:
+        summary.itineraryStatus === "partial"
+          ? "Confirmed items have been promoted into your long-lived itinerary record, while unresolved items remain outside the owned set."
+          : "This confirmation has been promoted into a long-lived itinerary record for future trip retrieval.",
+      href: `/itinerary/${summary.itineraryRef}`,
+      label: "Open itinerary",
+    };
+  }
+
+  return {
+    tone: "info",
+    title: "Itinerary ownership is still being prepared",
+    message:
+      "Your confirmation is saved. We’ll keep promoting confirmed items into a durable itinerary record as soon as ownership is available.",
+    href: null,
+    label: "Itinerary pending",
+  };
+};
+
 export const getConfirmationPageModel = (
   confirmation: BookingConfirmation,
 ): ConfirmationPageModel => {
@@ -354,6 +388,7 @@ export const getConfirmationPageModel = (
       failedCount: summary.failedItemCount,
       requiresManualReviewCount: summary.requiresManualReviewCount,
     }),
+    itineraryNotice: buildItineraryNotice(summary),
     items,
     references,
     nextSteps: {

@@ -1,5 +1,6 @@
 import { getConfirmationDisplayStatus } from "~/lib/confirmation/getConfirmationDisplayStatus";
 import { toNonNegativeInteger } from "~/lib/confirmation/shared";
+import type { ItineraryStatus } from "~/types/itinerary";
 import type {
   BookingConfirmation,
   BookingConfirmationItem,
@@ -18,6 +19,12 @@ export const buildBookingConfirmationSummary = (
   > & {
     items: BookingConfirmationItem[];
   },
+  options: {
+    itinerary?: {
+      publicRef: string;
+      status: ItineraryStatus;
+    } | null;
+  } = {},
 ): BookingConfirmationSummary => {
   const confirmedItems = confirmation.items.filter(
     (item) => item.status === "confirmed",
@@ -49,5 +56,8 @@ export const buildBookingConfirmationSummary = (
     currency: confirmation.currency,
     totalAmountCents: readTotalAmount(confirmation.totalsJson),
     confirmedAt: confirmation.confirmedAt,
+    hasItinerary: Boolean(options.itinerary),
+    itineraryRef: options.itinerary?.publicRef || null,
+    itineraryStatus: options.itinerary?.status || null,
   };
 };

@@ -1,6 +1,7 @@
 import type { BookingItemExecution, BookingRun } from "~/types/booking";
 import type { BookableVertical } from "~/types/bookable-entity";
 import type { CheckoutSession } from "~/types/checkout";
+import type { ItineraryStatus } from "~/types/itinerary";
 import type { CheckoutPaymentSession } from "~/types/payment";
 
 export const BOOKING_CONFIRMATION_STATUSES = [
@@ -61,6 +62,9 @@ export type BookingConfirmationSummary = {
   currency: string | null;
   totalAmountCents: number | null;
   confirmedAt: string | null;
+  hasItinerary: boolean;
+  itineraryRef: string | null;
+  itineraryStatus: ItineraryStatus | null;
 };
 
 export type BookingConfirmation = {

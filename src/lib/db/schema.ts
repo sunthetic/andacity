@@ -79,6 +79,23 @@ export const confirmationItemStatusEnum = dbEnum(
   'confirmation_item_status',
   ['confirmed', 'pending', 'failed', 'requires_manual_review'],
 )
+export const itineraryStatusEnum = dbEnum('itinerary_status', [
+  'active',
+  'partial',
+  'upcoming',
+  'in_progress',
+  'completed',
+  'canceled',
+  'archived',
+])
+export const itineraryItemStatusEnum = dbEnum('itinerary_item_status', [
+  'confirmed',
+  'pending',
+  'in_progress',
+  'completed',
+  'canceled',
+  'failed',
+])
 
 export const countries = dbTable(
   'countries',
@@ -1063,6 +1080,105 @@ export const bookingConfirmationItems = dbTable(
   }),
 )
 
+export const itineraries = dbTable(
+  'itineraries',
+  {
+    id: text('id').primaryKey(),
+    publicRef: varchar('public_ref', { length: 32 }).notNull(),
+    tripId: bigint('trip_id', { mode: 'number' }).references(() => trips.id, {
+      onDelete: 'restrict',
+    }),
+    checkoutSessionId: text('checkout_session_id')
+      .notNull()
+      .references(() => checkoutSessions.id, { onDelete: 'restrict' }),
+    paymentSessionId: text('payment_session_id')
+      .notNull()
+      .references(() => checkoutPaymentSessions.id, { onDelete: 'restrict' }),
+    bookingRunId: text('booking_run_id')
+      .notNull()
+      .references(() => bookingRuns.id, { onDelete: 'restrict' }),
+    confirmationId: text('confirmation_id')
+      .notNull()
+      .references(() => bookingConfirmations.id, { onDelete: 'restrict' }),
+    status: itineraryStatusEnum('status').notNull().default('active'),
+    currency: varchar('currency', { length: 3 }),
+    summaryJson: jsonb('summary_json')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    ownerUserId: text('owner_user_id'),
+    ownerSessionId: text('owner_session_id'),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    publicRefUq: uniqueIndex('itineraries_public_ref_uq').on(table.publicRef),
+    confirmationUq: uniqueIndex('itineraries_confirmation_id_uq').on(
+      table.confirmationId,
+    ),
+    tripIdx: index('itineraries_trip_idx').on(table.tripId),
+    checkoutIdx: index('itineraries_checkout_idx').on(table.checkoutSessionId),
+    paymentIdx: index('itineraries_payment_idx').on(table.paymentSessionId),
+    bookingRunIdx: index('itineraries_booking_run_idx').on(table.bookingRunId),
+    statusIdx: index('itineraries_status_idx').on(table.status),
+    ownerUserIdx: index('itineraries_owner_user_idx').on(table.ownerUserId),
+    ownerSessionIdx: index('itineraries_owner_session_idx').on(
+      table.ownerSessionId,
+    ),
+  }),
+)
+
+export const itineraryItems = dbTable(
+  'itinerary_items',
+  {
+    id: text('id').primaryKey(),
+    itineraryId: text('itinerary_id')
+      .notNull()
+      .references(() => itineraries.id, { onDelete: 'cascade' }),
+    confirmationItemId: text('confirmation_item_id')
+      .notNull()
+      .references(() => bookingConfirmationItems.id, { onDelete: 'restrict' }),
+    bookingItemExecutionId: text('booking_item_execution_id')
+      .notNull()
+      .references(() => bookingItemExecutions.id, { onDelete: 'restrict' }),
+    checkoutItemKey: text('checkout_item_key').notNull(),
+    vertical: tripItemTypeEnum('vertical').notNull(),
+    status: itineraryItemStatusEnum('status').notNull().default('confirmed'),
+    canonicalEntityId: bigint('canonical_entity_id', { mode: 'number' }),
+    canonicalBookableEntityId: bigint('canonical_bookable_entity_id', {
+      mode: 'number',
+    }),
+    canonicalInventoryId: text('canonical_inventory_id'),
+    provider: text('provider'),
+    providerBookingReference: text('provider_booking_reference'),
+    providerConfirmationCode: text('provider_confirmation_code'),
+    title: text('title').notNull(),
+    subtitle: text('subtitle'),
+    startAt: timestamp('start_at', { withTimezone: true }),
+    endAt: timestamp('end_at', { withTimezone: true }),
+    locationSummary: text('location_summary'),
+    detailsJson: jsonb('details_json').$type<Record<string, unknown>>(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    itineraryIdx: index('itinerary_items_itinerary_idx').on(table.itineraryId),
+    confirmationItemUq: uniqueIndex('itinerary_items_confirmation_item_id_uq').on(
+      table.confirmationItemId,
+    ),
+    bookingItemExecutionIdx: index(
+      'itinerary_items_booking_item_execution_idx',
+    ).on(table.bookingItemExecutionId),
+    checkoutItemKeyIdx: index('itinerary_items_checkout_item_key_idx').on(
+      table.checkoutItemKey,
+    ),
+    statusIdx: index('itinerary_items_status_idx').on(table.status),
+    canonicalInventoryIdx: index('itinerary_items_canonical_inventory_idx').on(
+      table.canonicalInventoryId,
+    ),
+  }),
+)
+
 export const countriesRelations = relations(countries, ({ many }) => ({
   regions: many(regions),
   cities: many(cities),
@@ -1293,6 +1409,7 @@ export const tripsRelations = relations(trips, ({ one, many }) => ({
   }),
   items: many(tripItems),
   checkoutSessions: many(checkoutSessions),
+  itineraries: many(itineraries),
 }))
 
 export const tripDatesRelations = relations(tripDates, ({ one }) => ({
@@ -1356,6 +1473,7 @@ export const checkoutSessionsRelations = relations(checkoutSessions, ({ one, man
   }),
   paymentSessions: many(checkoutPaymentSessions),
   bookingRuns: many(bookingRuns),
+  itineraries: many(itineraries),
 }))
 
 export const checkoutPaymentSessionsRelations = relations(
@@ -1366,6 +1484,7 @@ export const checkoutPaymentSessionsRelations = relations(
       references: [checkoutSessions.id],
     }),
     bookingRuns: many(bookingRuns),
+    itineraries: many(itineraries),
   }),
 )
 
@@ -1379,6 +1498,7 @@ export const bookingRunsRelations = relations(bookingRuns, ({ one, many }) => ({
     references: [checkoutPaymentSessions.id],
   }),
   itemExecutions: many(bookingItemExecutions),
+  itineraries: many(itineraries),
 }))
 
 export const bookingItemExecutionsRelations = relations(
@@ -1389,6 +1509,7 @@ export const bookingItemExecutionsRelations = relations(
       references: [bookingRuns.id],
     }),
     confirmationItems: many(bookingConfirmationItems),
+    itineraryItems: many(itineraryItems),
   }),
 )
 
@@ -1412,6 +1533,10 @@ export const bookingConfirmationsRelations = relations(
       references: [bookingRuns.id],
     }),
     items: many(bookingConfirmationItems),
+    itinerary: one(itineraries, {
+      fields: [bookingConfirmations.id],
+      references: [itineraries.confirmationId],
+    }),
   }),
 )
 
@@ -1424,6 +1549,48 @@ export const bookingConfirmationItemsRelations = relations(
     }),
     bookingItemExecution: one(bookingItemExecutions, {
       fields: [bookingConfirmationItems.bookingItemExecutionId],
+      references: [bookingItemExecutions.id],
+    }),
+  }),
+)
+
+export const itinerariesRelations = relations(itineraries, ({ one, many }) => ({
+  trip: one(trips, {
+    fields: [itineraries.tripId],
+    references: [trips.id],
+  }),
+  checkoutSession: one(checkoutSessions, {
+    fields: [itineraries.checkoutSessionId],
+    references: [checkoutSessions.id],
+  }),
+  paymentSession: one(checkoutPaymentSessions, {
+    fields: [itineraries.paymentSessionId],
+    references: [checkoutPaymentSessions.id],
+  }),
+  bookingRun: one(bookingRuns, {
+    fields: [itineraries.bookingRunId],
+    references: [bookingRuns.id],
+  }),
+  confirmation: one(bookingConfirmations, {
+    fields: [itineraries.confirmationId],
+    references: [bookingConfirmations.id],
+  }),
+  items: many(itineraryItems),
+}))
+
+export const itineraryItemsRelations = relations(
+  itineraryItems,
+  ({ one }) => ({
+    itinerary: one(itineraries, {
+      fields: [itineraryItems.itineraryId],
+      references: [itineraries.id],
+    }),
+    confirmationItem: one(bookingConfirmationItems, {
+      fields: [itineraryItems.confirmationItemId],
+      references: [bookingConfirmationItems.id],
+    }),
+    bookingItemExecution: one(bookingItemExecutions, {
+      fields: [itineraryItems.bookingItemExecutionId],
       references: [bookingItemExecutions.id],
     }),
   }),

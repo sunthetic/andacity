@@ -1,6 +1,4 @@
-import {
-  createOrResumeBookingRun,
-} from "~/lib/booking/createOrResumeBookingRun";
+import { createOrResumeBookingRun } from "~/lib/booking/createOrResumeBookingRun";
 import { executeBookingRun } from "~/lib/booking/executeBookingRun";
 import { getBookingEligibility } from "~/lib/booking/getBookingEligibility";
 import { getLatestBookingRunForCheckout } from "~/lib/booking/getBookingRun";
@@ -9,6 +7,7 @@ import { refreshBookingRunStatus } from "~/lib/booking/refreshBookingRunStatus";
 import { canCreateBookingConfirmation } from "~/lib/confirmation/canCreateBookingConfirmation";
 import { createOrResumeBookingConfirmation } from "~/lib/confirmation/createOrResumeBookingConfirmation";
 import { getBookingConfirmationForBookingRun } from "~/lib/confirmation/getBookingConfirmationForBookingRun";
+import { getBookingConfirmationByPublicRef } from "~/lib/confirmation/getBookingConfirmationByPublicRef";
 import { refreshBookingConfirmation as refreshBookingConfirmationState } from "~/lib/confirmation/refreshBookingConfirmation";
 import {
   createOrResumeCheckoutSession,
@@ -29,6 +28,9 @@ import { createOrResumeCheckoutPaymentSession } from "~/lib/payments/createOrRes
 import { CheckoutPaymentSessionError } from "~/lib/payments/createCheckoutPaymentSession";
 import { getActiveCheckoutPaymentSession } from "~/lib/payments/getActiveCheckoutPaymentSession";
 import { refreshCheckoutPaymentStatus } from "~/lib/payments/refreshCheckoutPaymentStatus";
+import { canCreateItineraryFromConfirmation } from "~/lib/itinerary/canCreateItineraryFromConfirmation";
+import { createOrResumeItineraryFromConfirmation } from "~/lib/itinerary/createOrResumeItineraryFromConfirmation";
+import { getItineraryForConfirmation } from "~/lib/itinerary/getItineraryForConfirmation";
 import { revalidateCheckoutSession } from "~/lib/checkout/revalidateCheckoutSession";
 import { parseTripIdParam } from "~/lib/queries/trips.server";
 import {
@@ -41,6 +43,7 @@ import type {
   BookingEligibilityCode,
 } from "~/types/booking";
 import type { BookingConfirmationStatus } from "~/types/confirmation";
+import type { ItineraryStatus } from "~/types/itinerary";
 import type {
   CheckoutEntryResult,
   CheckoutReadinessState,
@@ -882,6 +885,13 @@ export const createBookingConfirmationFromCheckout = async (
     const result = await createOrResumeBookingConfirmation(bookingRun.id, {
       now: new Date(),
     });
+    try {
+      await createOrResumeItineraryFromConfirmation(result.confirmation.id, {
+        now: new Date(),
+      });
+    } catch {
+      // Confirmation creation should still succeed even if itinerary promotion needs a retry.
+    }
 
     return mapConfirmationResult({
       confirmation: result.confirmation,
@@ -910,9 +920,12 @@ export const refreshBookingConfirmation = async (
   checkoutSessionId: string,
 ): Promise<CheckoutConfirmationActionResult> => {
   try {
-    const confirmation = await refreshBookingConfirmationState(checkoutSessionId, {
-      now: new Date(),
-    });
+    const confirmation = await refreshBookingConfirmationState(
+      checkoutSessionId,
+      {
+        now: new Date(),
+      },
+    );
 
     if (!confirmation) {
       return {
@@ -924,6 +937,14 @@ export const refreshBookingConfirmation = async (
         redirectTo: null,
         message: "There is no confirmation-ready booking run to refresh yet.",
       };
+    }
+
+    try {
+      await createOrResumeItineraryFromConfirmation(confirmation.id, {
+        now: new Date(),
+      });
+    } catch {
+      // Keep refresh resilient even when itinerary promotion is unavailable.
     }
 
     return mapConfirmationResult({
@@ -943,6 +964,118 @@ export const refreshBookingConfirmation = async (
         error instanceof Error
           ? error.message
           : "Booking confirmation could not be refreshed.",
+    };
+  }
+};
+
+export type CheckoutItineraryActionResult =
+  | {
+      ok: true;
+      code: "ITINERARY_CREATED" | "ITINERARY_RESUMED";
+      itineraryId: string;
+      itineraryRef: string;
+      status: ItineraryStatus;
+      message: string;
+    }
+  | {
+      ok: false;
+      code: "ITINERARY_INELIGIBLE" | "ITINERARY_CREATE_FAILED";
+      itineraryId: string | null;
+      itineraryRef: string | null;
+      status: ItineraryStatus | null;
+      message: string;
+    };
+
+export const createItineraryFromConfirmation = async (input: {
+  confirmationRef?: string | null;
+  checkoutSessionId?: string | null;
+}): Promise<CheckoutItineraryActionResult> => {
+  let confirmation = null;
+
+  if (input.confirmationRef) {
+    confirmation = await getBookingConfirmationByPublicRef(
+      input.confirmationRef,
+    );
+  } else if (input.checkoutSessionId) {
+    const bookingRun = await getLatestBookingRunForCheckout(
+      input.checkoutSessionId,
+      {
+        includeTerminal: true,
+      },
+    );
+    if (bookingRun) {
+      confirmation = await getBookingConfirmationForBookingRun(bookingRun.id);
+    }
+  }
+
+  if (!confirmation) {
+    return {
+      ok: false,
+      code: "ITINERARY_INELIGIBLE",
+      itineraryId: null,
+      itineraryRef: null,
+      status: null,
+      message:
+        "Booking confirmation could not be found for itinerary creation.",
+    };
+  }
+
+  const existing = await getItineraryForConfirmation(confirmation.id);
+  if (existing) {
+    return {
+      ok: true,
+      code: "ITINERARY_RESUMED",
+      itineraryId: existing.id,
+      itineraryRef: existing.publicRef,
+      status: existing.status,
+      message: "Existing durable itinerary resumed.",
+    };
+  }
+
+  const eligibility = await canCreateItineraryFromConfirmation({
+    confirmation,
+    allowExisting: true,
+  });
+  if (!eligibility.ok) {
+    return {
+      ok: false,
+      code: "ITINERARY_INELIGIBLE",
+      itineraryId: null,
+      itineraryRef: null,
+      status: null,
+      message: eligibility.message,
+    };
+  }
+
+  try {
+    const result = await createOrResumeItineraryFromConfirmation(
+      confirmation.id,
+      {
+        now: new Date(),
+      },
+    );
+
+    return {
+      ok: true,
+      code: result.created ? "ITINERARY_CREATED" : "ITINERARY_RESUMED",
+      itineraryId: result.itinerary.id,
+      itineraryRef: result.itinerary.publicRef,
+      status: result.itinerary.status,
+      message: result.created
+        ? "Durable itinerary created from the latest confirmation."
+        : "Existing durable itinerary resumed.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "ITINERARY_CREATE_FAILED",
+      itineraryId: null,
+      itineraryRef: null,
+      status: null,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Itinerary could not be created from this confirmation.",
     };
   }
 };

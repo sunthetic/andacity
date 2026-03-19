@@ -85,6 +85,13 @@
       "when": 1774152000000,
       "tag": "0011_booking_confirmations",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1774209600000,
+      "tag": "0012_itinerary_ownership",
+      "breakpoints": true
     }
   ]
 }

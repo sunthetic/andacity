@@ -3,8 +3,10 @@ import { getDb } from "~/lib/db/client.server";
 import {
   bookingConfirmationItems,
   bookingConfirmations,
+  itineraries,
 } from "~/lib/db/schema";
 import { withCheckoutSchemaGuard } from "~/lib/checkout/getCheckoutSession";
+import { buildBookingConfirmationSummary } from "~/lib/confirmation/buildBookingConfirmationSummary";
 import {
   isRecord,
   normalizeBookingConfirmationStatus,
@@ -15,6 +17,7 @@ import {
   toNullableText,
   toStringList,
 } from "~/lib/confirmation/shared";
+import { normalizeItineraryStatus } from "~/lib/itinerary/shared";
 import type {
   BookingConfirmation,
   BookingConfirmationItem,
@@ -50,6 +53,12 @@ const normalizeBookingConfirmationSummary = (
     currency: normalizeCurrencyCode(input.currency),
     totalAmountCents: toNonNegativeInteger(input.totalAmountCents),
     confirmedAt: normalizeTimestamp(input.confirmedAt as string | Date | null),
+    hasItinerary: Boolean(input.hasItinerary),
+    itineraryRef: toNullableText(input.itineraryRef),
+    itineraryStatus:
+      input.itineraryStatus == null
+        ? null
+        : normalizeItineraryStatus(input.itineraryStatus),
   };
 };
 
@@ -134,6 +143,26 @@ export const getBookingConfirmation = async (
     if (!row) return null;
 
     const items = await listBookingConfirmationItems(row.id);
-    return mapBookingConfirmationRow(row, items);
+    const [itineraryRow] = await db
+      .select({
+        publicRef: itineraries.publicRef,
+        status: itineraries.status,
+      })
+      .from(itineraries)
+      .where(eq(itineraries.confirmationId, row.id))
+      .limit(1);
+    const confirmation = mapBookingConfirmationRow(row, items);
+
+    return {
+      ...confirmation,
+      summaryJson: buildBookingConfirmationSummary(confirmation, {
+        itinerary: itineraryRow
+          ? {
+              publicRef: itineraryRow.publicRef,
+              status: normalizeItineraryStatus(itineraryRow.status),
+            }
+          : null,
+      }),
+    };
   });
 };

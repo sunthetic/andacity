@@ -9,8 +9,10 @@ import { ConfirmationLoading } from "~/components/confirmation/ConfirmationLoadi
 import { ConfirmationNotFound } from "~/components/confirmation/ConfirmationNotFound";
 import { ConfirmationPageShell } from "~/components/confirmation/ConfirmationPageShell";
 import { Page } from "~/components/site/Page";
+import { getBookingConfirmation } from "~/lib/confirmation/getBookingConfirmation";
 import { getBookingConfirmationByPublicRef } from "~/lib/confirmation/getBookingConfirmationByPublicRef";
 import { getConfirmationPageModel } from "~/lib/confirmation/getConfirmationPageModel";
+import { createOrResumeItineraryFromConfirmation } from "~/lib/itinerary/createOrResumeItineraryFromConfirmation";
 
 const CONFIRMATION_REF_PATTERN = /^CNF-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/;
 
@@ -62,9 +64,22 @@ export const useConfirmationPage = routeLoader$(async ({ params, status }) => {
     }
 
     try {
+      if (!confirmation.summaryJson?.hasItinerary) {
+        try {
+          await createOrResumeItineraryFromConfirmation(confirmation.id, {
+            now: new Date(),
+          });
+        } catch {
+          // Keep the confirmation page available even if itinerary promotion fails.
+        }
+      }
+
+      const hydratedConfirmation =
+        (await getBookingConfirmation(confirmation.id)) || confirmation;
+
       return {
         kind: "loaded",
-        model: getConfirmationPageModel(confirmation),
+        model: getConfirmationPageModel(hydratedConfirmation),
       } satisfies ConfirmationPageData;
     } catch {
       status(500);
