@@ -17,7 +17,7 @@ import {
 } from '~/types/checkout'
 
 export const CHECKOUT_SESSION_DEFAULT_TTL_MS = 30 * 60 * 1000
-const LATEST_CHECKOUT_MIGRATION = '0012_itinerary_ownership.sql'
+const LATEST_CHECKOUT_MIGRATION = '0013_itinerary_ownership_bridges.sql'
 const CHECKOUT_SCHEMA_IDENTIFIERS = [
   'checkout_sessions',
   'checkout_session_status',
@@ -50,9 +50,16 @@ const CHECKOUT_SCHEMA_IDENTIFIERS = [
   'itinerary_items',
   'itinerary_status',
   'itinerary_item_status',
+  'itinerary_ownerships',
+  'itinerary_ownership_mode',
+  'itinerary_ownership_source',
   'confirmation_id',
+  'ownership_mode',
   'owner_user_id',
   'owner_session_id',
+  'owner_claim_token_hash',
+  'source',
+  'claimed_at',
   'canonical_entity_id',
   'canonical_bookable_entity_id',
   'canonical_inventory_id',

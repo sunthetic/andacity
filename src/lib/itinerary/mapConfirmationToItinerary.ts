@@ -61,6 +61,7 @@ export const mapConfirmationToItinerary = (
     ownerSessionId: input.ownerSessionId ?? null,
     createdAt: timestamp,
     updatedAt: timestamp,
+    ownership: null,
     items,
   };
 
@@ -72,4 +73,3 @@ export const mapConfirmationToItinerary = (
     items,
   };
 };
-

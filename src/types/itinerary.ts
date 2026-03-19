@@ -2,6 +2,11 @@ import type { BookableVertical } from "~/types/bookable-entity";
 import type { BookingConfirmation } from "~/types/confirmation";
 import type { BookingRun } from "~/types/booking";
 import type { CheckoutSession } from "~/types/checkout";
+import type {
+  ItineraryAccessResult,
+  ItineraryOwnership,
+  OwnershipMode,
+} from "~/types/ownership";
 import type { CheckoutPaymentSession } from "~/types/payment";
 
 export const ITINERARY_STATUSES = [
@@ -67,6 +72,7 @@ export type OwnedItinerary = ItineraryOwnershipRef & {
   summaryJson: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
+  ownership: ItineraryOwnership | null;
   items: OwnedItineraryItem[];
 };
 
@@ -87,6 +93,10 @@ export type ItinerarySummary = {
   statusLabel: string;
   statusDescription: string;
   currency: string | null;
+  ownershipMode: OwnershipMode | null;
+  isOwnedByCurrentContext: boolean;
+  isClaimable: boolean;
+  canAttachToUser: boolean;
   itemCount: number;
   title: string;
   locationSummary: string | null;
@@ -119,6 +129,10 @@ export type ItineraryDetail = {
   statusLabel: string;
   statusDescription: string;
   currency: string | null;
+  ownershipMode: OwnershipMode | null;
+  isOwnedByCurrentContext: boolean;
+  isClaimable: boolean;
+  canAttachToUser: boolean;
   confirmationId: string;
   checkoutSessionId: string;
   paymentSessionId: string;
@@ -126,6 +140,7 @@ export type ItineraryDetail = {
   owner: ItineraryOwnershipRef;
   createdAt: string;
   updatedAt: string;
+  access: ItineraryAccessResult | null;
   summary: ItinerarySummary;
   items: Array<
     OwnedItineraryItem & {

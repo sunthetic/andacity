@@ -4,6 +4,7 @@ import type {
   OwnedItinerary,
   OwnedItineraryItem,
 } from "~/types/itinerary";
+import type { ItineraryAccessResult } from "~/types/ownership";
 
 const compactParts = (parts: Array<string | null | undefined>) => {
   const values = parts
@@ -41,9 +42,14 @@ export const buildItinerarySummary = (
     | "ownerSessionId"
     | "createdAt"
     | "updatedAt"
+    | "ownership"
   > & {
     items: OwnedItineraryItem[];
   },
+  options: {
+    access?: ItineraryAccessResult | null;
+    hasCurrentUser?: boolean;
+  } = {},
 ): ItinerarySummary => {
   const display = getItineraryDisplayStatus(itinerary.status);
   const range = deriveRange(itinerary.items);
@@ -56,6 +62,13 @@ export const buildItinerarySummary = (
       ),
     ).slice(0, 2),
   );
+  const ownershipMode =
+    itinerary.ownership?.ownershipMode ||
+    (itinerary.ownerUserId
+      ? "user"
+      : itinerary.ownerSessionId
+        ? "anonymous"
+        : null);
 
   return {
     itineraryId: itinerary.id,
@@ -66,6 +79,10 @@ export const buildItinerarySummary = (
     statusLabel: display.label,
     statusDescription: display.description,
     currency: itinerary.currency,
+    ownershipMode,
+    isOwnedByCurrentContext: Boolean(options.access?.isOwner),
+    isClaimable: Boolean(options.access?.isClaimable),
+    canAttachToUser: Boolean(options.access?.isClaimable && options.hasCurrentUser),
     itemCount: itinerary.items.length,
     title:
       itinerary.items.length === 1
@@ -80,4 +97,3 @@ export const buildItinerarySummary = (
     updatedAt: itinerary.updatedAt,
   };
 };
-

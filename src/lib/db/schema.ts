@@ -96,6 +96,19 @@ export const itineraryItemStatusEnum = dbEnum('itinerary_item_status', [
   'canceled',
   'failed',
 ])
+export const itineraryOwnershipModeEnum = dbEnum('itinerary_ownership_mode', [
+  'anonymous',
+  'user',
+])
+export const itineraryOwnershipSourceEnum = dbEnum(
+  'itinerary_ownership_source',
+  [
+    'checkout_session',
+    'confirmation_flow',
+    'manual_claim',
+    'auto_attach_on_signin',
+  ],
+)
 
 export const countries = dbTable(
   'countries',
@@ -1179,6 +1192,46 @@ export const itineraryItems = dbTable(
   }),
 )
 
+export const itineraryOwnerships = dbTable(
+  'itinerary_ownerships',
+  {
+    id: text('id').primaryKey(),
+    itineraryId: text('itinerary_id')
+      .notNull()
+      .references(() => itineraries.id, { onDelete: 'cascade' }),
+    ownershipMode: itineraryOwnershipModeEnum('ownership_mode')
+      .notNull()
+      .default('anonymous'),
+    ownerUserId: text('owner_user_id'),
+    ownerSessionId: text('owner_session_id'),
+    ownerClaimTokenHash: text('owner_claim_token_hash'),
+    source: itineraryOwnershipSourceEnum('source')
+      .notNull()
+      .default('confirmation_flow'),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    itineraryUq: uniqueIndex('itinerary_ownerships_itinerary_id_uq').on(
+      table.itineraryId,
+    ),
+    ownershipModeIdx: index('itinerary_ownerships_mode_idx').on(
+      table.ownershipMode,
+    ),
+    ownerUserIdx: index('itinerary_ownerships_owner_user_idx').on(
+      table.ownerUserId,
+    ),
+    ownerSessionIdx: index('itinerary_ownerships_owner_session_idx').on(
+      table.ownerSessionId,
+    ),
+    claimTokenHashIdx: index('itinerary_ownerships_claim_token_hash_idx').on(
+      table.ownerClaimTokenHash,
+    ),
+    sourceIdx: index('itinerary_ownerships_source_idx').on(table.source),
+  }),
+)
+
 export const countriesRelations = relations(countries, ({ many }) => ({
   regions: many(regions),
   cities: many(cities),
@@ -1575,6 +1628,10 @@ export const itinerariesRelations = relations(itineraries, ({ one, many }) => ({
     fields: [itineraries.confirmationId],
     references: [bookingConfirmations.id],
   }),
+  ownership: one(itineraryOwnerships, {
+    fields: [itineraries.id],
+    references: [itineraryOwnerships.itineraryId],
+  }),
   items: many(itineraryItems),
 }))
 
@@ -1592,6 +1649,16 @@ export const itineraryItemsRelations = relations(
     bookingItemExecution: one(bookingItemExecutions, {
       fields: [itineraryItems.bookingItemExecutionId],
       references: [bookingItemExecutions.id],
+    }),
+  }),
+)
+
+export const itineraryOwnershipsRelations = relations(
+  itineraryOwnerships,
+  ({ one }) => ({
+    itinerary: one(itineraries, {
+      fields: [itineraryOwnerships.itineraryId],
+      references: [itineraries.id],
     }),
   }),
 )

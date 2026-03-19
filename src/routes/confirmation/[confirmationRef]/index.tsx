@@ -13,7 +13,13 @@ import { getBookingConfirmation } from "~/lib/confirmation/getBookingConfirmatio
 import { getBookingConfirmationByPublicRef } from "~/lib/confirmation/getBookingConfirmationByPublicRef";
 import { getConfirmationPageModel } from "~/lib/confirmation/getConfirmationPageModel";
 import { createOrResumeItineraryFromConfirmation } from "~/lib/itinerary/createOrResumeItineraryFromConfirmation";
-import { createItineraryFromConfirmation } from "~/routes/checkout/actions";
+import {
+  getCurrentOwnershipContext,
+  persistOwnershipClaimToken,
+} from "~/lib/ownership/getCurrentOwnershipContext";
+import { getOwnershipDisplayState } from "~/lib/ownership/getOwnershipDisplayState";
+import { resolveItineraryAccess } from "~/lib/ownership/resolveItineraryAccess";
+import { attachAnonymousItinerariesToCurrentUser } from "~/routes/itinerary/actions";
 
 const CONFIRMATION_REF_PATTERN = /^CNF-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/;
 
@@ -40,7 +46,14 @@ export const onRequest: RequestHandler = ({ headers }) => {
   headers.set("x-robots-tag", "noindex, follow");
 };
 
-export const onPost: RequestHandler = async ({ params, request, redirect }) => {
+export const onPost: RequestHandler = async ({
+  params,
+  request,
+  redirect,
+  cookie,
+  sharedMap,
+  url,
+}) => {
   const confirmationRef = String(params.confirmationRef || "")
     .trim()
     .toUpperCase();
@@ -48,19 +61,57 @@ export const onPost: RequestHandler = async ({ params, request, redirect }) => {
   const intent = String(formData?.get("intent") || "").trim();
 
   if (intent === "create-itinerary" && confirmationRef) {
-    const result = await createItineraryFromConfirmation({
-      confirmationRef,
-    });
+    const confirmation = await getBookingConfirmationByPublicRef(confirmationRef);
+    const context = getCurrentOwnershipContext(
+      {
+        cookie,
+        request,
+        sharedMap,
+        url,
+      },
+      {
+        ensureAnonymousSession: true,
+      },
+    );
 
-    if (result.ok && result.itineraryRef) {
-      throw redirect(303, `/itinerary/${result.itineraryRef}`);
+    if (confirmation) {
+      const result = await createOrResumeItineraryFromConfirmation(
+        confirmation.id,
+        {
+          now: new Date(),
+          ownerUserId: context.ownerUserId,
+          ownerSessionId: context.ownerSessionId,
+        },
+      );
+
+      if (result.claimToken && result.itinerary.publicRef) {
+        persistOwnershipClaimToken(
+          {
+            cookie,
+            url,
+          },
+          result.itinerary.publicRef,
+          result.claimToken,
+        );
+      }
+
+      if (result.itinerary.publicRef) {
+        throw redirect(303, `/itinerary/${result.itinerary.publicRef}`);
+      }
     }
   }
 
   throw redirect(303, `/confirmation/${confirmationRef}`);
 };
 
-export const useConfirmationPage = routeLoader$(async ({ params, status }) => {
+export const useConfirmationPage = routeLoader$(async ({
+  params,
+  status,
+  cookie,
+  request,
+  sharedMap,
+  url,
+}) => {
   const confirmationRef = String(params.confirmationRef || "")
     .trim()
     .toUpperCase();
@@ -74,8 +125,7 @@ export const useConfirmationPage = routeLoader$(async ({ params, status }) => {
   }
 
   try {
-    const confirmation =
-      await getBookingConfirmationByPublicRef(confirmationRef);
+    const confirmation = await getBookingConfirmationByPublicRef(confirmationRef);
     if (!confirmation) {
       status(404);
       return {
@@ -85,25 +135,82 @@ export const useConfirmationPage = routeLoader$(async ({ params, status }) => {
     }
 
     try {
+      const ownershipContext = getCurrentOwnershipContext(
+        {
+          cookie,
+          request,
+          sharedMap,
+          url,
+        },
+        {
+          ensureAnonymousSession: true,
+        },
+      );
       let itineraryPromotionFailed = false;
+      let itineraryNotice: ReturnType<typeof getOwnershipDisplayState> | null =
+        null;
+
       if (!confirmation.summaryJson?.hasItinerary) {
         try {
-          await createOrResumeItineraryFromConfirmation(confirmation.id, {
-            now: new Date(),
-          });
+          const itineraryResult = await createOrResumeItineraryFromConfirmation(
+            confirmation.id,
+            {
+              now: new Date(),
+              ownerUserId: ownershipContext.ownerUserId,
+              ownerSessionId: ownershipContext.ownerSessionId,
+            },
+          );
+
+          if (itineraryResult.claimToken && itineraryResult.itinerary.publicRef) {
+            persistOwnershipClaimToken(
+              {
+                cookie,
+                url,
+              },
+              itineraryResult.itinerary.publicRef,
+              itineraryResult.claimToken,
+            );
+          }
         } catch {
           itineraryPromotionFailed = true;
           // Keep the confirmation page available even if itinerary promotion fails.
         }
       }
 
+      if (ownershipContext.ownerUserId) {
+        await attachAnonymousItinerariesToCurrentUser({
+          cookie,
+          request,
+          sharedMap,
+          url,
+        });
+      }
+
       const hydratedConfirmation =
         (await getBookingConfirmation(confirmation.id)) || confirmation;
+
+      if (hydratedConfirmation.summaryJson?.itineraryRef) {
+        const access = await resolveItineraryAccess(
+          hydratedConfirmation.summaryJson.itineraryRef,
+          getCurrentOwnershipContext({
+            cookie,
+            request,
+            sharedMap,
+            url,
+          }),
+        );
+
+        itineraryNotice = getOwnershipDisplayState(access, {
+          hasCurrentUser: Boolean(ownershipContext.ownerUserId),
+          surface: "confirmation",
+        });
+      }
 
       return {
         kind: "loaded",
         model: getConfirmationPageModel(hydratedConfirmation, {
           itineraryPromotionFailed,
+          itineraryNotice,
         }),
       } satisfies ConfirmationPageData;
     } catch {

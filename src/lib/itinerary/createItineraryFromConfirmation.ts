@@ -6,7 +6,9 @@ import { createItineraryPublicRef } from "~/lib/itinerary/createItineraryPublicR
 import { getItinerary } from "~/lib/itinerary/getItinerary";
 import { mapConfirmationToItinerary } from "~/lib/itinerary/mapConfirmationToItinerary";
 import { isUniqueViolationError } from "~/lib/itinerary/shared";
+import { createOrResumeItineraryOwnership } from "~/lib/ownership/createOrResumeItineraryOwnership";
 import type { CreateItineraryFromConfirmationInput } from "~/types/itinerary";
+import type { ItineraryOwnership } from "~/types/ownership";
 
 export const createItineraryFromConfirmation = async (
   input: CreateItineraryFromConfirmationInput,
@@ -26,6 +28,9 @@ export const createItineraryFromConfirmation = async (
     }
 
     try {
+      let ownership: ItineraryOwnership | null = null;
+      let claimToken: string | null = null;
+
       await withCheckoutSchemaGuard(async () => {
         const db = getDb();
         await db.transaction(async (tx) => {
@@ -71,6 +76,17 @@ export const createItineraryFromConfirmation = async (
               updatedAt: new Date(item.updatedAt),
             })),
           );
+
+          const ownershipResult = await createOrResumeItineraryOwnership({
+            itineraryId: mapped.itinerary.id,
+            ownerUserId: input.ownerUserId,
+            ownerSessionId: input.ownerSessionId,
+            source: "confirmation_flow",
+            now: mapped.itinerary.updatedAt,
+            db: tx,
+          });
+          ownership = ownershipResult.ownership;
+          claimToken = ownershipResult.claimToken;
         });
       });
 
@@ -80,8 +96,17 @@ export const createItineraryFromConfirmation = async (
           `Itinerary ${mapped.itinerary.id} could not be loaded after creation.`,
         );
       }
+      if (!ownership) {
+        throw new Error(
+          `Ownership for itinerary ${mapped.itinerary.id} could not be loaded after creation.`,
+        );
+      }
 
-      return itinerary;
+      return {
+        itinerary,
+        ownership,
+        claimToken,
+      };
     } catch (error) {
       if (isUniqueViolationError(error) && attempt + 1 < maxAttempts) {
         continue;
@@ -104,9 +129,14 @@ export const createItineraryFromConfirmation = async (
 
   if (existing) {
     const itinerary = await getItinerary(existing.id);
-    if (itinerary) return itinerary;
+    if (itinerary) {
+      return {
+        itinerary,
+        ownership: itinerary.ownership,
+        claimToken: null,
+      };
+    }
   }
 
   throw new Error("Itinerary could not be created.");
 };
-

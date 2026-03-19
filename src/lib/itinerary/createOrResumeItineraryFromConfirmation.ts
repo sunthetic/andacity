@@ -5,6 +5,7 @@ import { createItineraryFromConfirmation } from "~/lib/itinerary/createItinerary
 import { canCreateItineraryFromConfirmation } from "~/lib/itinerary/canCreateItineraryFromConfirmation";
 import { getItineraryForConfirmation } from "~/lib/itinerary/getItineraryForConfirmation";
 import { isUniqueViolationError } from "~/lib/itinerary/shared";
+import { createOrResumeItineraryOwnership } from "~/lib/ownership/createOrResumeItineraryOwnership";
 import { getCheckoutPaymentSession } from "~/lib/payments/getCheckoutPaymentSession";
 
 export const createOrResumeItineraryFromConfirmation = async (
@@ -22,6 +23,7 @@ export const createOrResumeItineraryFromConfirmation = async (
     getCheckoutSession?: typeof getCheckoutSession;
     getCheckoutPaymentSession?: typeof getCheckoutPaymentSession;
     createItineraryFromConfirmation?: typeof createItineraryFromConfirmation;
+    createOrResumeItineraryOwnership?: typeof createOrResumeItineraryOwnership;
   } = {},
 ) => {
   const getExistingItinerary =
@@ -35,12 +37,25 @@ export const createOrResumeItineraryFromConfirmation = async (
     deps.getCheckoutPaymentSession || getCheckoutPaymentSession;
   const createItinerary =
     deps.createItineraryFromConfirmation || createItineraryFromConfirmation;
+  const createOrResumeOwnership =
+    deps.createOrResumeItineraryOwnership || createOrResumeItineraryOwnership;
 
   const existing = await getExistingItinerary(confirmationId);
   if (existing) {
+    const ownershipResult = await createOrResumeOwnership({
+      itineraryId: existing.id,
+      ownerUserId: options.ownerUserId ?? null,
+      ownerSessionId: options.ownerSessionId ?? null,
+      source: "confirmation_flow",
+      now: options.now,
+    });
+    const hydrated = await getExistingItinerary(confirmationId);
+
     return {
-      itinerary: existing,
+      itinerary: hydrated || existing,
       created: false,
+      ownership: ownershipResult.ownership,
+      claimToken: ownershipResult.claimToken,
     };
   }
 
@@ -84,7 +99,7 @@ export const createOrResumeItineraryFromConfirmation = async (
   }
 
   try {
-    const itinerary = await createItinerary({
+    const created = await createItinerary({
       confirmation,
       bookingRun,
       checkoutSession,
@@ -95,16 +110,27 @@ export const createOrResumeItineraryFromConfirmation = async (
     });
 
     return {
-      itinerary,
+      itinerary: created.itinerary,
       created: true,
+      ownership: created.ownership,
+      claimToken: created.claimToken,
     };
   } catch (error) {
     if (isUniqueViolationError(error)) {
       const resumed = await getExistingItinerary(confirmationId);
       if (resumed) {
+        const ownershipResult = await createOrResumeOwnership({
+          itineraryId: resumed.id,
+          ownerUserId: options.ownerUserId ?? null,
+          ownerSessionId: options.ownerSessionId ?? null,
+          source: "confirmation_flow",
+          now: options.now,
+        });
         return {
           itinerary: resumed,
           created: false,
+          ownership: ownershipResult.ownership,
+          claimToken: ownershipResult.claimToken,
         };
       }
     }

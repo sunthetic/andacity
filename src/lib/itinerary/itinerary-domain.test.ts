@@ -458,6 +458,7 @@ test("resumes an existing itinerary instead of creating a duplicate", async () =
     ownerSessionId: null,
     createdAt: "2026-03-18T16:16:00.000Z",
     updatedAt: "2026-03-18T16:16:00.000Z",
+    ownership: null,
     items: [],
   };
 
@@ -468,10 +469,28 @@ test("resumes an existing itinerary instead of creating a duplicate", async () =
       getItineraryForConfirmation: async (confirmationId: string) => {
         return confirmationId === "cnf_test" ? existingItinerary : null;
       },
+      createOrResumeItineraryOwnership: async () => ({
+        ownership: buildOwnershipBridge(),
+        claimToken: null,
+        created: false,
+      }),
     },
   );
 
   assert.equal(result.created, false);
   assert.equal(result.itinerary.id, "itn_existing");
   assert.equal(result.itinerary.publicRef, "ITN-EXIST-12345");
+});
+
+const buildOwnershipBridge = () => ({
+  id: "ito_existing",
+  itineraryId: "itn_existing",
+  ownershipMode: "anonymous" as const,
+  ownerUserId: null,
+  ownerSessionId: null,
+  ownerClaimTokenHash: null,
+  source: "confirmation_flow" as const,
+  claimedAt: null,
+  createdAt: "2026-03-18T16:16:00.000Z",
+  updatedAt: "2026-03-18T16:16:00.000Z",
 });

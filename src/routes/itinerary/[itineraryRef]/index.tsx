@@ -4,9 +4,19 @@ import {
   type DocumentHead,
   type RequestHandler,
 } from "@builder.io/qwik-city";
+import { ItineraryAccessDenied } from "~/components/itinerary/ItineraryAccessDenied";
+import { ItineraryClaimNotice } from "~/components/itinerary/ItineraryClaimNotice";
 import { Page } from "~/components/site/Page";
-import { getItineraryByPublicRef } from "~/lib/itinerary/getItineraryByPublicRef";
 import { buildItineraryDetail } from "~/lib/itinerary/buildItineraryDetail";
+import { getItineraryByPublicRef } from "~/lib/itinerary/getItineraryByPublicRef";
+import { canAccessItinerary } from "~/lib/ownership/canAccessItinerary";
+import { getCurrentOwnershipContext } from "~/lib/ownership/getCurrentOwnershipContext";
+import { getOwnershipDisplayState } from "~/lib/ownership/getOwnershipDisplayState";
+import { resolveItineraryAccess } from "~/lib/ownership/resolveItineraryAccess";
+import {
+  attachAnonymousItinerariesToCurrentUser,
+  claimItineraryOwnership,
+} from "~/routes/itinerary/actions";
 
 const ITINERARY_REF_PATTERN = /^ITN-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/;
 
@@ -14,7 +24,40 @@ export const onRequest: RequestHandler = ({ headers }) => {
   headers.set("x-robots-tag", "noindex, follow");
 };
 
-export const useItineraryPage = routeLoader$(async ({ params, status }) => {
+export const onPost: RequestHandler = async ({
+  params,
+  request,
+  redirect,
+  cookie,
+  sharedMap,
+  url,
+}) => {
+  const itineraryRef = String(params.itineraryRef || "")
+    .trim()
+    .toUpperCase();
+  const formData = await request.formData().catch(() => null);
+  const intent = String(formData?.get("intent") || "").trim();
+
+  if (intent === "claim-itinerary" && itineraryRef) {
+    await claimItineraryOwnership(itineraryRef, {
+      cookie,
+      request,
+      sharedMap,
+      url,
+    });
+  }
+
+  throw redirect(303, `/itinerary/${itineraryRef}`);
+};
+
+export const useItineraryPage = routeLoader$(async ({
+  params,
+  status,
+  cookie,
+  request,
+  sharedMap,
+  url,
+}) => {
   const itineraryRef = String(params.itineraryRef || "")
     .trim()
     .toUpperCase();
@@ -27,6 +70,22 @@ export const useItineraryPage = routeLoader$(async ({ params, status }) => {
     } as const;
   }
 
+  const context = getCurrentOwnershipContext({
+    cookie,
+    request,
+    sharedMap,
+    url,
+  });
+
+  if (context.ownerUserId) {
+    await attachAnonymousItinerariesToCurrentUser({
+      cookie,
+      request,
+      sharedMap,
+      url,
+    });
+  }
+
   const itinerary = await getItineraryByPublicRef(itineraryRef);
   if (!itinerary) {
     status(404);
@@ -36,9 +95,45 @@ export const useItineraryPage = routeLoader$(async ({ params, status }) => {
     } as const;
   }
 
+  const access = await resolveItineraryAccess(
+    itineraryRef,
+    getCurrentOwnershipContext({
+      cookie,
+      request,
+      sharedMap,
+      url,
+    }),
+  );
+  const displayState = getOwnershipDisplayState(access, {
+    hasCurrentUser: Boolean(context.ownerUserId),
+    surface: "itinerary",
+  });
+
+  if (!canAccessItinerary(access)) {
+    status(403);
+    return {
+      kind: "denied",
+      itineraryRef,
+      displayState,
+      hasCurrentUser: Boolean(context.ownerUserId),
+    } as const;
+  }
+
+  if (!access.isOwner) {
+    return {
+      kind: "claimable",
+      itineraryRef,
+      displayState,
+      hasCurrentUser: Boolean(context.ownerUserId),
+    } as const;
+  }
+
   return {
     kind: "loaded",
-    detail: buildItineraryDetail(itinerary),
+    detail: buildItineraryDetail(itinerary, {
+      access,
+      hasCurrentUser: Boolean(context.ownerUserId),
+    }),
   } as const;
 });
 
@@ -50,16 +145,25 @@ export default component$(() => {
       <Page
         breadcrumbs={[{ label: "Home", href: "/" }, { label: "Itinerary" }]}
       >
-        <section class="rounded-[var(--radius-xl)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 shadow-[var(--shadow-sm)]">
-          <p class="text-lg font-semibold text-[color:var(--color-text-strong)]">
-            Itinerary unavailable
-          </p>
-          <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-            {data.kind === "invalid_ref"
-              ? `The itinerary reference "${data.itineraryRef}" is not valid.`
-              : `Itinerary ${data.itineraryRef} could not be found.`}
-          </p>
-        </section>
+        {data.kind === "claimable" ? (
+          <ItineraryClaimNotice
+            displayState={data.displayState}
+            hasCurrentUser={data.hasCurrentUser}
+          />
+        ) : data.kind === "denied" ? (
+          <ItineraryAccessDenied message={data.displayState.message} />
+        ) : (
+          <section class="rounded-[var(--radius-xl)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 shadow-[var(--shadow-sm)]">
+            <p class="text-lg font-semibold text-[color:var(--color-text-strong)]">
+              Itinerary unavailable
+            </p>
+            <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
+              {data.kind === "invalid_ref"
+                ? `The itinerary reference "${data.itineraryRef}" is not valid.`
+                : `Itinerary ${data.itineraryRef} could not be found.`}
+            </p>
+          </section>
+        )}
       </Page>
     );
   }
@@ -101,7 +205,9 @@ export default component$(() => {
               </a>
             ) : null}
             <span class="rounded-lg border border-[color:var(--color-border)] px-4 py-2.5 text-sm font-medium text-[color:var(--color-text-muted)]">
-              Ownership foundation ready
+              {data.detail.ownershipMode === "user"
+                ? "Account-owned itinerary"
+                : "Anonymous ownership bridge"}
             </span>
           </div>
         </section>
@@ -113,9 +219,8 @@ export default component$(() => {
                 Owned items
               </p>
               <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                This placeholder route proves itinerary ownership can now be
-                retrieved independently of transient checkout and confirmation
-                state.
+                This itinerary is now gated by ownership resolution rather than
+                by its public reference alone.
               </p>
             </div>
             <span class="rounded-full border border-[color:var(--color-border)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--color-text-muted)]">

@@ -8,6 +8,7 @@ import {
 import { formatConfirmationCurrency } from "~/lib/confirmation/formatConfirmationCurrency";
 import { getConfirmationDisplayStatus } from "~/lib/confirmation/getConfirmationDisplayStatus";
 import type { RecoveryState } from "~/types/recovery";
+import type { OwnershipDisplayState } from "~/types/ownership";
 import type {
   BookingConfirmation,
   BookingConfirmationItem,
@@ -320,6 +321,7 @@ export const getConfirmationPageModel = (
   confirmation: BookingConfirmation,
   options: {
     itineraryPromotionFailed?: boolean;
+    itineraryNotice?: OwnershipDisplayState | null;
   } = {},
 ): ConfirmationPageModel => {
   if (!confirmation.items.length) {
@@ -401,7 +403,7 @@ export const getConfirmationPageModel = (
       confirmation,
       tripHref,
     }),
-    itineraryNotice: buildItineraryNotice(summary),
+    itineraryNotice: options.itineraryNotice || buildItineraryNotice(summary),
     itineraryRecovery: fromItineraryState({
       hasItinerary: summary.hasItinerary,
       itineraryRef: summary.itineraryRef,

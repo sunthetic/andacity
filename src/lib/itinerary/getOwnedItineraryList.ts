@@ -1,9 +1,10 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "~/lib/db/client.server";
-import { itineraries } from "~/lib/db/schema";
+import { itineraries, itineraryOwnerships } from "~/lib/db/schema";
 import { withCheckoutSchemaGuard } from "~/lib/checkout/getCheckoutSession";
 import { buildItinerarySummary } from "~/lib/itinerary/buildItinerarySummary";
 import { mapItineraryRow } from "~/lib/itinerary/getItinerary";
+import { mapItineraryOwnershipRow } from "~/lib/ownership/getItineraryOwnership";
 import type { ItineraryStatus, ItinerarySummary } from "~/types/itinerary";
 
 export const getOwnedItineraryList = async (filters: {
@@ -16,11 +17,13 @@ export const getOwnedItineraryList = async (filters: {
     const predicates = [];
 
     if (filters.ownerUserId) {
-      predicates.push(eq(itineraries.ownerUserId, filters.ownerUserId));
+      predicates.push(eq(itineraryOwnerships.ownerUserId, filters.ownerUserId));
     }
 
     if (filters.ownerSessionId) {
-      predicates.push(eq(itineraries.ownerSessionId, filters.ownerSessionId));
+      predicates.push(
+        eq(itineraryOwnerships.ownerSessionId, filters.ownerSessionId),
+      );
     }
 
     if (filters.statuses?.length) {
@@ -28,13 +31,24 @@ export const getOwnedItineraryList = async (filters: {
     }
 
     const rows = await db
-      .select()
+      .select({
+        itinerary: itineraries,
+        ownership: itineraryOwnerships,
+      })
       .from(itineraries)
+      .leftJoin(
+        itineraryOwnerships,
+        eq(itineraryOwnerships.itineraryId, itineraries.id),
+      )
       .where(predicates.length ? and(...predicates) : undefined)
       .orderBy(desc(itineraries.updatedAt), desc(itineraries.createdAt));
 
     return rows.map((row) => {
-      const itinerary = mapItineraryRow(row, []);
+      const itinerary = mapItineraryRow(
+        row.itinerary,
+        [],
+        row.ownership ? mapItineraryOwnershipRow(row.ownership) : null,
+      );
       const summaryFromJson = itinerary.summaryJson;
 
       if (summaryFromJson) {
@@ -50,6 +64,10 @@ export const getOwnedItineraryList = async (filters: {
               "This itinerary is part of the durable owned-booking record.",
           ),
           currency: itinerary.currency,
+          ownershipMode: itinerary.ownership?.ownershipMode || null,
+          isOwnedByCurrentContext: false,
+          isClaimable: false,
+          canAttachToUser: false,
           itemCount: Number(summaryFromJson.itemCount) || 0,
           title: String(summaryFromJson.title || "Booked itinerary"),
           locationSummary:
@@ -75,4 +93,3 @@ export const getOwnedItineraryList = async (filters: {
     });
   });
 };
-

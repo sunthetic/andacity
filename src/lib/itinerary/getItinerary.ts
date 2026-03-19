@@ -5,6 +5,8 @@ import {
   itineraries,
 } from "~/lib/db/schema";
 import { withCheckoutSchemaGuard } from "~/lib/checkout/getCheckoutSession";
+import { getItineraryOwnershipByItineraryId } from "~/lib/ownership/getItineraryOwnershipByItineraryId";
+import type { ItineraryOwnership } from "~/types/ownership";
 import {
   isRecord,
   normalizeCurrencyCode,
@@ -60,6 +62,7 @@ export const mapItineraryItemRow = (
 export const mapItineraryRow = (
   row: ItineraryRow,
   items: OwnedItineraryItem[] = [],
+  ownership: ItineraryOwnership | null = null,
 ): OwnedItinerary => {
   return {
     id: row.id,
@@ -76,6 +79,7 @@ export const mapItineraryRow = (
     ownerSessionId: toNullableText(row.ownerSessionId),
     createdAt: normalizeTimestamp(row.createdAt) || new Date().toISOString(),
     updatedAt: normalizeTimestamp(row.updatedAt) || new Date().toISOString(),
+    ownership,
     items,
   };
 };
@@ -112,7 +116,7 @@ export const getItinerary = async (
     if (!row) return null;
 
     const items = await listItineraryItems(row.id);
-    return mapItineraryRow(row, items);
+    const ownership = await getItineraryOwnershipByItineraryId(row.id);
+    return mapItineraryRow(row, items, ownership);
   });
 };
-

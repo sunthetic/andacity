@@ -2,9 +2,16 @@ import { buildItinerarySummary } from "~/lib/itinerary/buildItinerarySummary";
 import { getItineraryDisplayStatus } from "~/lib/itinerary/getItineraryDisplayStatus";
 import { getItineraryItemDisplayFields } from "~/lib/itinerary/getItineraryItemDisplayFields";
 import type { ItineraryDetail, OwnedItinerary } from "~/types/itinerary";
+import type { ItineraryAccessResult } from "~/types/ownership";
 
-export const buildItineraryDetail = (itinerary: OwnedItinerary): ItineraryDetail => {
-  const summary = buildItinerarySummary(itinerary);
+export const buildItineraryDetail = (
+  itinerary: OwnedItinerary,
+  options: {
+    access?: ItineraryAccessResult | null;
+    hasCurrentUser?: boolean;
+  } = {},
+): ItineraryDetail => {
+  const summary = buildItinerarySummary(itinerary, options);
   const display = getItineraryDisplayStatus(itinerary.status);
 
   return {
@@ -16,6 +23,10 @@ export const buildItineraryDetail = (itinerary: OwnedItinerary): ItineraryDetail
     statusLabel: display.label,
     statusDescription: display.description,
     currency: itinerary.currency,
+    ownershipMode: summary.ownershipMode,
+    isOwnedByCurrentContext: summary.isOwnedByCurrentContext,
+    isClaimable: summary.isClaimable,
+    canAttachToUser: summary.canAttachToUser,
     confirmationId: itinerary.confirmationId,
     checkoutSessionId: itinerary.checkoutSessionId,
     paymentSessionId: itinerary.paymentSessionId,
@@ -26,6 +37,7 @@ export const buildItineraryDetail = (itinerary: OwnedItinerary): ItineraryDetail
     },
     createdAt: itinerary.createdAt,
     updatedAt: itinerary.updatedAt,
+    access: options.access || null,
     summary,
     items: itinerary.items.map((item) => ({
       ...item,
@@ -33,4 +45,3 @@ export const buildItineraryDetail = (itinerary: OwnedItinerary): ItineraryDetail
     })),
   };
 };
-
