@@ -36,7 +36,8 @@ export type ItineraryOwnershipRef = {
   ownerSessionId: string | null;
 };
 
-export const ITINERARY_REF_PATTERN = /^ITN-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/;
+export const ITINERARY_REF_PATTERN =
+  /^ITN-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/;
 
 export const normalizeItineraryRef = (value: unknown): string => {
   return String(value || "")
@@ -128,6 +129,9 @@ export type ItinerarySummary = {
   ownerSessionId: string | null;
   createdAt: string;
   updatedAt: string;
+  notificationSummary?: NotificationSummary | null;
+  hasNotificationIssue?: boolean;
+  hasRecoveryIssue?: boolean;
 };
 
 export type ItineraryItemDisplayFields = {

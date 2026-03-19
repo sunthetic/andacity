@@ -5,6 +5,7 @@ import type {
   OwnedItineraryItem,
 } from "~/types/itinerary";
 import type { ItineraryAccessResult } from "~/types/ownership";
+import type { NotificationSummary } from "~/types/notifications";
 
 const compactParts = (parts: Array<string | null | undefined>) => {
   const values = parts
@@ -56,6 +57,40 @@ const readSourceConfirmationStatus = (item: OwnedItineraryItem) => {
   return normalized || null;
 };
 
+export const hasItineraryNotificationIssue = (input: {
+  notificationSummary?: NotificationSummary | null;
+}) => {
+  const status = String(input.notificationSummary?.status || "")
+    .trim()
+    .toLowerCase();
+
+  return status === "failed" || status === "skipped" || status === "canceled";
+};
+
+export const hasItineraryRecoveryIssue = (
+  input: Pick<
+    ItinerarySummary,
+    | "status"
+    | "pendingItemCount"
+    | "failedItemCount"
+    | "manualReviewItemCount"
+    | "unresolvedItemCount"
+  >,
+) => {
+  const unresolvedItemCount = Number(input.unresolvedItemCount) || 0;
+  const pendingItemCount = Number(input.pendingItemCount) || 0;
+  const failedItemCount = Number(input.failedItemCount) || 0;
+  const manualReviewItemCount = Number(input.manualReviewItemCount) || 0;
+
+  return (
+    input.status === "partial" ||
+    unresolvedItemCount > 0 ||
+    pendingItemCount > 0 ||
+    failedItemCount > 0 ||
+    manualReviewItemCount > 0
+  );
+};
+
 export const buildItinerarySummary = (
   itinerary: Pick<
     OwnedItinerary,
@@ -70,6 +105,7 @@ export const buildItinerarySummary = (
     | "createdAt"
     | "updatedAt"
     | "ownership"
+    | "notificationSummary"
   > & {
     items: OwnedItineraryItem[];
   },
@@ -123,8 +159,8 @@ export const buildItinerarySummary = (
       : itinerary.ownerSessionId
         ? "anonymous"
         : null);
-
-  return {
+  const notificationSummary = itinerary.notificationSummary || null;
+  const summary: ItinerarySummary = {
     itineraryId: itinerary.id,
     publicRef: itinerary.publicRef,
     tripId: itinerary.tripId,
@@ -156,5 +192,14 @@ export const buildItinerarySummary = (
     ownerSessionId: itinerary.ownerSessionId,
     createdAt: itinerary.createdAt,
     updatedAt: itinerary.updatedAt,
+    notificationSummary,
+    hasNotificationIssue: hasItineraryNotificationIssue({
+      notificationSummary,
+    }),
+  };
+
+  return {
+    ...summary,
+    hasRecoveryIssue: hasItineraryRecoveryIssue(summary),
   };
 };

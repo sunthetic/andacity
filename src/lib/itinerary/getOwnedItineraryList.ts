@@ -2,7 +2,10 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "~/lib/db/client.server";
 import { itineraries, itineraryOwnerships } from "~/lib/db/schema";
 import { withCheckoutSchemaGuard } from "~/lib/checkout/getCheckoutSession";
-import { buildItinerarySummary } from "~/lib/itinerary/buildItinerarySummary";
+import {
+  buildItinerarySummary,
+  hasItineraryRecoveryIssue,
+} from "~/lib/itinerary/buildItinerarySummary";
 import { mapItineraryRow } from "~/lib/itinerary/getItinerary";
 import { mapItineraryOwnershipRow } from "~/lib/ownership/getItineraryOwnership";
 import type { ItineraryStatus, ItinerarySummary } from "~/types/itinerary";
@@ -52,7 +55,7 @@ export const getOwnedItineraryList = async (filters: {
       const summaryFromJson = itinerary.summaryJson;
 
       if (summaryFromJson) {
-        return {
+        const summary: ItinerarySummary = {
           itineraryId: itinerary.id,
           publicRef: itinerary.publicRef,
           tripId: itinerary.tripId,
@@ -114,6 +117,19 @@ export const getOwnedItineraryList = async (filters: {
           ownerSessionId: itinerary.ownerSessionId,
           createdAt: itinerary.createdAt,
           updatedAt: itinerary.updatedAt,
+          notificationSummary: null,
+          hasNotificationIssue:
+            typeof summaryFromJson.hasNotificationIssue === "boolean"
+              ? summaryFromJson.hasNotificationIssue
+              : false,
+        };
+
+        return {
+          ...summary,
+          hasRecoveryIssue:
+            typeof summaryFromJson.hasRecoveryIssue === "boolean"
+              ? summaryFromJson.hasRecoveryIssue
+              : hasItineraryRecoveryIssue(summary),
         };
       }
 

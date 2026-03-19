@@ -1,43 +1,50 @@
-import { component$ } from '@builder.io/qwik'
+import { component$ } from "@builder.io/qwik";
 
 const NAV = {
   primary: [
-    { label: 'Flights', href: '/flights' },
-    { label: 'Cars', href: '/car-rentals' },
-    { label: 'Trips', href: '/trips' },
-    { label: 'Explore', href: '/explore' },
+    { label: "Flights", href: "/flights" },
+    { label: "Cars", href: "/car-rentals" },
+    { label: "Trips", href: "/trips" },
+    { label: "Explore", href: "/explore" },
   ],
   hotels: {
     actions: [
-      { label: 'Search hotels', href: '/hotels', hint: 'Start a stay search' },
-      { label: 'Hotel cities', href: '/hotels/in', hint: 'Indexable guides' },
-      { label: 'Destinations', href: '/destinations', hint: 'Plan the broader trip' },
+      { label: "Search hotels", href: "/hotels", hint: "Start a stay search" },
+      { label: "Hotel cities", href: "/hotels/in", hint: "Indexable guides" },
+      {
+        label: "Destinations",
+        href: "/destinations",
+        hint: "Plan the broader trip",
+      },
     ],
     featured: [
-      { label: 'Miami', href: '/hotels/in/miami', hint: 'Beach + nightlife' },
-      { label: 'Las Vegas', href: '/hotels/in/las-vegas', hint: 'Resorts + shows' },
-      { label: 'New York', href: '/hotels/in/new-york', hint: 'City stays' },
-      { label: 'Orlando', href: '/hotels/in/orlando', hint: 'Theme parks' },
+      { label: "Miami", href: "/hotels/in/miami", hint: "Beach + nightlife" },
+      {
+        label: "Las Vegas",
+        href: "/hotels/in/las-vegas",
+        hint: "Resorts + shows",
+      },
+      { label: "New York", href: "/hotels/in/new-york", hint: "City stays" },
+      { label: "Orlando", href: "/hotels/in/orlando", hint: "Theme parks" },
     ],
   },
-  secondary: [
-    { label: 'Destinations', href: '/destinations' },
-  ],
-} as const
+  secondary: [{ label: "Destinations", href: "/destinations" }],
+} as const;
 
 const LINK_CLASS =
-  'rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-strong)] hover:bg-[color:var(--color-surface-1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)]'
+  "rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-strong)] hover:bg-[color:var(--color-surface-1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)]";
 
 const MOBILE_BUTTON_CLASS =
-  'list-none rounded-lg p-2 border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] text-[color:var(--color-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)] [&::-webkit-details-marker]:hidden'
+  "list-none rounded-lg p-2 border border-[color:var(--color-border)] bg-[color:var(--color-surface-1)] text-[color:var(--color-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)] [&::-webkit-details-marker]:hidden";
 
 const MOBILE_LINK_CLASS =
-  'block rounded-xl px-3 py-2 text-sm text-[color:var(--color-text-strong)] hover:bg-[color:var(--color-surface-1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)]'
+  "block rounded-xl px-3 py-2 text-sm text-[color:var(--color-text-strong)] hover:bg-[color:var(--color-surface-1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)]";
 
 const MOBILE_SUB_LINK_CLASS =
-  'block rounded-xl px-3 py-2 text-sm text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-strong)] hover:bg-[color:var(--color-surface-1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)]'
+  "block rounded-xl px-3 py-2 text-sm text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-strong)] hover:bg-[color:var(--color-surface-1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)]";
 
-const BRAND_LOGO_SRC = '/assets/logo/andacity-primary-color_mark-darkword_transparent.svg'
+const BRAND_LOGO_SRC =
+  "/assets/logo/andacity-primary-color_mark-darkword_transparent.svg";
 
 export const SiteHeader = component$(() => {
   return (
@@ -68,7 +75,10 @@ export const SiteHeader = component$(() => {
           </a>
 
           {/* Desktop nav */}
-          <nav class="hidden items-center gap-1 md:flex" aria-label="Primary navigation">
+          <nav
+            class="hidden items-center gap-1 md:flex"
+            aria-label="Primary navigation"
+          >
             {/* Hotels hover dropdown */}
             <div class="group relative">
               <a class={LINK_CLASS} href="/hotels" aria-haspopup="menu">
@@ -106,7 +116,11 @@ export const SiteHeader = component$(() => {
                         </a>
                       </div>
 
-                      <ul class="mt-2 grid gap-1" role="menu" aria-label="Hotels actions">
+                      <ul
+                        class="mt-2 grid gap-1"
+                        role="menu"
+                        aria-label="Hotels actions"
+                      >
                         {NAV.hotels.actions.map((l) => (
                           <li key={l.href} role="none">
                             <a
@@ -121,7 +135,9 @@ export const SiteHeader = component$(() => {
                                 <span class="text-sm font-medium text-[color:var(--color-text-strong)]">
                                   {l.label}
                                 </span>
-                                <span class="text-xs text-[color:var(--color-text-muted)]">{l.hint}</span>
+                                <span class="text-xs text-[color:var(--color-text-muted)]">
+                                  {l.hint}
+                                </span>
                               </span>
                             </a>
                           </li>
@@ -129,7 +145,10 @@ export const SiteHeader = component$(() => {
                       </ul>
 
                       <div class="mt-3">
-                        <a class="t-btn-primary w-full px-4 py-2 text-center text-sm" href="/hotels">
+                        <a
+                          class="t-btn-primary w-full px-4 py-2 text-center text-sm"
+                          href="/hotels"
+                        >
                           Search hotels
                         </a>
                       </div>
@@ -141,7 +160,11 @@ export const SiteHeader = component$(() => {
                         Featured destinations
                       </div>
 
-                      <ul class="mt-2 grid gap-1" role="menu" aria-label="Featured hotel destinations">
+                      <ul
+                        class="mt-2 grid gap-1"
+                        role="menu"
+                        aria-label="Featured hotel destinations"
+                      >
                         {NAV.hotels.featured.map((l) => (
                           <li key={l.href} role="none">
                             <a
@@ -156,7 +179,9 @@ export const SiteHeader = component$(() => {
                                 <span class="text-sm font-medium text-[color:var(--color-text-strong)]">
                                   {l.label}
                                 </span>
-                                <span class="text-xs text-[color:var(--color-text-muted)]">{l.hint}</span>
+                                <span class="text-xs text-[color:var(--color-text-muted)]">
+                                  {l.hint}
+                                </span>
                               </span>
                             </a>
                           </li>
@@ -168,7 +193,8 @@ export const SiteHeader = component$(() => {
                           City guides for search hubs
                         </div>
                         <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                          Indexable destination pages that support discovery and lead into live search.
+                          Indexable destination pages that support discovery and
+                          lead into live search.
                         </p>
                         <a
                           href="/hotels/in"
@@ -189,7 +215,10 @@ export const SiteHeader = component$(() => {
               </a>
             ))}
 
-            <span class="mx-1 h-5 w-px bg-[color:var(--color-border)]" aria-hidden="true" />
+            <span
+              class="mx-1 h-5 w-px bg-[color:var(--color-border)]"
+              aria-hidden="true"
+            />
 
             {NAV.secondary.map((l) => (
               <a key={l.href} class={LINK_CLASS} href={l.href}>
@@ -201,10 +230,13 @@ export const SiteHeader = component$(() => {
 
         {/* Right side actions */}
         <div class="hidden items-center gap-2 md:flex">
-          <a class="t-btn-ghost px-4 py-2 text-sm" href="/trips">
-            Trips
+          <a class="t-btn-ghost px-4 py-2 text-sm" href="/my-trips">
+            My Trips
           </a>
-          <a class="t-btn-primary px-4 py-2 text-sm" href="/#global-search-entry">
+          <a
+            class="t-btn-primary px-4 py-2 text-sm"
+            href="/#global-search-entry"
+          >
             Search
           </a>
         </div>
@@ -214,7 +246,12 @@ export const SiteHeader = component$(() => {
           <details class="group relative">
             <summary class={MOBILE_BUTTON_CLASS} aria-label="Open menu">
               <span class="sr-only">Menu</span>
-              <svg viewBox="0 0 24 24" class="size-5" fill="none" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                class="size-5"
+                fill="none"
+                aria-hidden="true"
+              >
                 <path
                   d="M4 7h16M4 12h16M4 17h16"
                   stroke="currentColor"
@@ -227,10 +264,17 @@ export const SiteHeader = component$(() => {
             <div class="absolute right-0 top-full mt-2 w-[92vw] max-w-sm rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-0)] p-2 shadow-[0_20px_45px_rgba(0,0,0,0.12),0_6px_14px_rgba(0,0,0,0.06)]">
               <div class="flex items-center justify-between gap-2 px-2 py-2">
                 <div>
-                  <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">Andacity</div>
-                  <div class="text-xs text-[color:var(--color-text-muted)]">Navigate</div>
+                  <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                    Andacity
+                  </div>
+                  <div class="text-xs text-[color:var(--color-text-muted)]">
+                    Navigate
+                  </div>
                 </div>
-                <a class="t-btn-primary px-3 py-1.5 text-sm" href="/#global-search-entry">
+                <a
+                  class="t-btn-primary px-3 py-1.5 text-sm"
+                  href="/#global-search-entry"
+                >
                   Search
                 </a>
               </div>
@@ -273,10 +317,16 @@ export const SiteHeader = component$(() => {
                 ))}
 
                 <div class="mt-2 grid gap-2 px-2 pb-2">
-                  <a class="t-btn-ghost px-4 py-2 text-center text-sm" href="/trips">
-                    Trips
+                  <a
+                    class="t-btn-ghost px-4 py-2 text-center text-sm"
+                    href="/my-trips"
+                  >
+                    My Trips
                   </a>
-                  <a class="t-btn-primary px-4 py-2 text-center text-sm" href="/#global-search-entry">
+                  <a
+                    class="t-btn-primary px-4 py-2 text-center text-sm"
+                    href="/#global-search-entry"
+                  >
                     Search
                   </a>
                 </div>
@@ -286,8 +336,8 @@ export const SiteHeader = component$(() => {
         </div>
       </div>
     </header>
-  )
-})
+  );
+});
 
 const IconBolt = () => (
   <svg viewBox="0 0 24 24" class="size-4" fill="none" aria-hidden="true">
@@ -298,7 +348,7 @@ const IconBolt = () => (
       stroke-linejoin="round"
     />
   </svg>
-)
+);
 
 const IconPin = () => (
   <svg viewBox="0 0 24 24" class="size-4" fill="none" aria-hidden="true">
@@ -314,4 +364,4 @@ const IconPin = () => (
       stroke-width="2"
     />
   </svg>
-)
+);
