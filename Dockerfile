@@ -13,8 +13,12 @@ WORKDIR /usr/src/app
 # Create a stage for installing production dependencies.
 FROM base as deps
 
-RUN npm install -g pnpm@latest
-
+# Download dependencies as a separate step to take advantage of Docker's caching.
+# Leverage a cache mount to /root/.yarn to speed up subsequent builds.
+RUN --mount=type=bind,source=package.json,target=package.json \
+    --mount=type=bind,source=yarn.lock,target=yarn.lock \
+    --mount=type=cache,target=/root/.yarn \
+    yarn install --frozen-lockfile
 
 ################################################################################
 # Create a stage for building the application.
@@ -22,9 +26,9 @@ FROM deps as build
 
 # Copy the rest of the source files into the image.
 COPY . .
-RUN pnpm install
+
 # Run the build script.
-RUN pnpm build
+RUN yarn run build
 
 ################################################################################
 # Create a new stage to run the application with minimal runtime dependencies
@@ -52,4 +56,4 @@ COPY --from=build /usr/src/app/server ./server
 EXPOSE 3000
 
 # Run the application.
-CMD pnpm serve
+CMD yarn serve
