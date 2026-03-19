@@ -1,6 +1,10 @@
 import type { BookableEntity, BookableVertical } from "~/types/bookable-entity";
 import type { BookingExecutionStatus } from "~/types/booking";
 import type {
+  BookingConfirmationPublicRef,
+  BookingConfirmationStatus,
+} from "~/types/confirmation";
+import type {
   TripDetails,
   TripItemAvailabilitySnapshot,
   TripItemType,
@@ -194,6 +198,9 @@ export type CheckoutSessionSummary = {
   bookingStatus: BookingExecutionStatus;
   activeBookingRunId: string | null;
   hasCompletedBooking: boolean;
+  hasConfirmation: boolean;
+  confirmationStatus: BookingConfirmationStatus | null;
+  confirmationPublicRef: BookingConfirmationPublicRef | null;
 };
 
 export type CheckoutEntrySuccessResult = {

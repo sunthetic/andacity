@@ -8,6 +8,7 @@ import { CheckoutShell } from "~/components/checkout/CheckoutShell";
 import { Page } from "~/components/site/Page";
 import { getBookingSummary } from "~/lib/booking/getBookingSummary";
 import { refreshBookingRunStatus } from "~/lib/booking/refreshBookingRunStatus";
+import { getBookingConfirmationForBookingRun } from "~/lib/confirmation/getBookingConfirmationForBookingRun";
 import { getCheckoutSessionSummary } from "~/lib/checkout/getCheckoutSessionSummary";
 import {
   getCheckoutSession,
@@ -19,11 +20,14 @@ import { refreshCheckoutPaymentStatus } from "~/lib/payments/refreshCheckoutPaym
 import { shouldCheckoutSessionRevalidate } from "~/lib/checkout/shouldCheckoutSessionRevalidate";
 import type { CheckoutSessionEntryMode } from "~/types/checkout";
 import type { CheckoutBookingSummary } from "~/types/booking";
+import type { BookingConfirmation } from "~/types/confirmation";
 import type { CheckoutPaymentSummary } from "~/types/payment";
 import {
   cancelCheckoutPayment,
+  createBookingConfirmationFromCheckout,
   createCheckoutPaymentIntent,
   executeCheckoutBooking,
+  refreshBookingConfirmation,
   refreshBookingRun,
   refreshCheckoutPaymentSession,
   runCheckoutRevalidation,
@@ -64,6 +68,20 @@ const readBookingNotice = (url: URL) => {
   } as const;
 };
 
+const readConfirmationNotice = (url: URL) => {
+  const code = String(url.searchParams.get("confirmation_code") || "").trim();
+  const message = String(url.searchParams.get("confirmation_message") || "").trim();
+  const tone = String(url.searchParams.get("confirmation_tone") || "").trim();
+  if (!code || !message) return null;
+
+  return {
+    code,
+    message,
+    tone:
+      tone === "success" || tone === "error" || tone === "info" ? tone : "info",
+  } as const;
+};
+
 const buildCheckoutPageHref = (
   pathname: string,
   sourceUrl: URL,
@@ -78,6 +96,11 @@ const buildCheckoutPageHref = (
       message: string;
       tone: "info" | "success" | "error";
     } | null;
+    confirmationNotice?: {
+      code: string;
+      message: string;
+      tone: "info" | "success" | "error";
+    } | null;
   } = {},
 ) => {
   const params = new URLSearchParams(sourceUrl.search);
@@ -87,6 +110,9 @@ const buildCheckoutPageHref = (
   params.delete("booking_code");
   params.delete("booking_message");
   params.delete("booking_tone");
+  params.delete("confirmation_code");
+  params.delete("confirmation_message");
+  params.delete("confirmation_tone");
 
   if (notices.paymentNotice) {
     params.set("payment_code", notices.paymentNotice.code);
@@ -98,6 +124,12 @@ const buildCheckoutPageHref = (
     params.set("booking_code", notices.bookingNotice.code);
     params.set("booking_message", notices.bookingNotice.message);
     params.set("booking_tone", notices.bookingNotice.tone);
+  }
+
+  if (notices.confirmationNotice) {
+    params.set("confirmation_code", notices.confirmationNotice.code);
+    params.set("confirmation_message", notices.confirmationNotice.message);
+    params.set("confirmation_tone", notices.confirmationNotice.tone);
   }
 
   const query = params.toString();
@@ -121,6 +153,12 @@ type CheckoutSessionRouteData =
       } | null;
       bookingSummary: CheckoutBookingSummary;
       bookingNotice: {
+        code: string;
+        message: string;
+        tone: "info" | "success" | "error";
+      } | null;
+      confirmation: BookingConfirmation | null;
+      confirmationNotice: {
         code: string;
         message: string;
         tone: "info" | "success" | "error";
@@ -230,6 +268,38 @@ export const onPost: RequestHandler = async ({
     );
   }
 
+  if (checkoutSessionId && intent === "create-confirmation") {
+    const result = await createBookingConfirmationFromCheckout(checkoutSessionId);
+    throw redirect(
+      303,
+      buildCheckoutPageHref(url.pathname, url, {
+        confirmationNotice: {
+          code: result.code,
+          message: result.message,
+          tone: result.ok
+            ? result.code === "CONFIRMATION_CREATED"
+              ? "success"
+              : "info"
+            : "error",
+        },
+      }),
+    );
+  }
+
+  if (checkoutSessionId && intent === "refresh-confirmation") {
+    const result = await refreshBookingConfirmation(checkoutSessionId);
+    throw redirect(
+      303,
+      buildCheckoutPageHref(url.pathname, url, {
+        confirmationNotice: {
+          code: result.code,
+          message: result.message,
+          tone: result.ok ? "info" : "error",
+        },
+      }),
+    );
+  }
+
   throw redirect(303, buildCheckoutPageHref(url.pathname, url));
 };
 
@@ -297,6 +367,9 @@ export const useCheckoutSessionPage = routeLoader$(
       const bookingSummary = await getBookingSummary(checkoutSessionId, {
         now: new Date(),
       });
+      const confirmation = bookingSummary.run
+        ? await getBookingConfirmationForBookingRun(bookingSummary.run.id)
+        : null;
 
       return {
         kind: "loaded",
@@ -306,6 +379,8 @@ export const useCheckoutSessionPage = routeLoader$(
         paymentNotice: readPaymentNotice(url),
         bookingSummary,
         bookingNotice: readBookingNotice(url),
+        confirmation,
+        confirmationNotice: readConfirmationNotice(url),
       } satisfies CheckoutSessionRouteData;
     } catch (error) {
       if (error instanceof CheckoutSessionError) {
@@ -340,6 +415,7 @@ export default component$(() => {
     const summary = getCheckoutSessionSummary(data.session, {
       entryMode: data.entryMode,
       bookingSummary: data.bookingSummary,
+      confirmation: data.confirmation,
     });
     return (
       <CheckoutShell
@@ -349,6 +425,8 @@ export default component$(() => {
         paymentNotice={data.paymentNotice}
         bookingSummary={data.bookingSummary}
         bookingNotice={data.bookingNotice}
+        confirmation={data.confirmation}
+        confirmationNotice={data.confirmationNotice}
       />
     );
   }
@@ -396,6 +474,7 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
     const summary = getCheckoutSessionSummary(data.session, {
       entryMode: data.entryMode,
       bookingSummary: data.bookingSummary,
+      confirmation: data.confirmation,
     });
     const title = `${summary.tripReference} checkout | Andacity`;
     return {

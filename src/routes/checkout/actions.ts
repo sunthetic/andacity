@@ -3,8 +3,13 @@ import {
 } from "~/lib/booking/createOrResumeBookingRun";
 import { executeBookingRun } from "~/lib/booking/executeBookingRun";
 import { getBookingEligibility } from "~/lib/booking/getBookingEligibility";
+import { getLatestBookingRunForCheckout } from "~/lib/booking/getBookingRun";
 import { getBookingSummary } from "~/lib/booking/getBookingSummary";
 import { refreshBookingRunStatus } from "~/lib/booking/refreshBookingRunStatus";
+import { canCreateBookingConfirmation } from "~/lib/confirmation/canCreateBookingConfirmation";
+import { createOrResumeBookingConfirmation } from "~/lib/confirmation/createOrResumeBookingConfirmation";
+import { getBookingConfirmationForBookingRun } from "~/lib/confirmation/getBookingConfirmationForBookingRun";
+import { refreshBookingConfirmation as refreshBookingConfirmationState } from "~/lib/confirmation/refreshBookingConfirmation";
 import {
   createOrResumeCheckoutSession,
   CheckoutSessionTransitionError,
@@ -35,6 +40,7 @@ import type {
   BookingExecutionStatus,
   BookingEligibilityCode,
 } from "~/types/booking";
+import type { BookingConfirmationStatus } from "~/types/confirmation";
 import type {
   CheckoutEntryResult,
   CheckoutReadinessState,
@@ -784,4 +790,159 @@ export const refreshBookingRun = async (
   }
 
   return mapBookingSummaryToActionResult(bookingSummary);
+};
+
+export type CheckoutConfirmationActionResult =
+  | {
+      ok: true;
+      code: "CONFIRMATION_CREATED" | "CONFIRMATION_RESUMED";
+      confirmationId: string;
+      confirmationPublicRef: string;
+      status: BookingConfirmationStatus;
+      redirectTo: string | null;
+      message: string;
+    }
+  | {
+      ok: false;
+      code: "CONFIRMATION_INELIGIBLE" | "CONFIRMATION_FAILED";
+      confirmationId: string | null;
+      confirmationPublicRef: string | null;
+      status: BookingConfirmationStatus | null;
+      redirectTo: string | null;
+      message: string;
+    };
+
+const mapConfirmationResult = (input: {
+  confirmation: NonNullable<
+    Awaited<ReturnType<typeof getBookingConfirmationForBookingRun>>
+  >;
+  created: boolean;
+  message?: string;
+}): CheckoutConfirmationActionResult => {
+  return {
+    ok: true,
+    code: input.created ? "CONFIRMATION_CREATED" : "CONFIRMATION_RESUMED",
+    confirmationId: input.confirmation.id,
+    confirmationPublicRef: input.confirmation.publicRef,
+    status: input.confirmation.status,
+    redirectTo: `/confirmation/${input.confirmation.publicRef}`,
+    message:
+      input.message ||
+      (input.created
+        ? "Booking confirmation created."
+        : "Booking confirmation resumed."),
+  };
+};
+
+export const createBookingConfirmationFromCheckout = async (
+  checkoutSessionId: string,
+): Promise<CheckoutConfirmationActionResult> => {
+  const bookingRun = await getLatestBookingRunForCheckout(checkoutSessionId, {
+    includeTerminal: true,
+  });
+
+  if (!bookingRun) {
+    return {
+      ok: false,
+      code: "CONFIRMATION_INELIGIBLE",
+      confirmationId: null,
+      confirmationPublicRef: null,
+      status: null,
+      redirectTo: null,
+      message: "There is no booking run available for confirmation yet.",
+    };
+  }
+
+  const existing = await getBookingConfirmationForBookingRun(bookingRun.id);
+  if (existing) {
+    return mapConfirmationResult({
+      confirmation: existing,
+      created: false,
+      message: "Existing booking confirmation resumed.",
+    });
+  }
+
+  const eligibility = await canCreateBookingConfirmation({
+    bookingRun,
+    allowExisting: true,
+  });
+  if (!eligibility.ok) {
+    return {
+      ok: false,
+      code: "CONFIRMATION_INELIGIBLE",
+      confirmationId: null,
+      confirmationPublicRef: null,
+      status: null,
+      redirectTo: null,
+      message: eligibility.message,
+    };
+  }
+
+  try {
+    const result = await createOrResumeBookingConfirmation(bookingRun.id, {
+      now: new Date(),
+    });
+
+    return mapConfirmationResult({
+      confirmation: result.confirmation,
+      created: result.created,
+      message: result.created
+        ? "Booking confirmation created from the latest booking run."
+        : "Existing booking confirmation resumed.",
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      code: "CONFIRMATION_FAILED",
+      confirmationId: null,
+      confirmationPublicRef: null,
+      status: null,
+      redirectTo: null,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Booking confirmation could not be created.",
+    };
+  }
+};
+
+export const refreshBookingConfirmation = async (
+  checkoutSessionId: string,
+): Promise<CheckoutConfirmationActionResult> => {
+  try {
+    const confirmation = await refreshBookingConfirmationState(checkoutSessionId, {
+      now: new Date(),
+    });
+
+    if (!confirmation) {
+      return {
+        ok: false,
+        code: "CONFIRMATION_INELIGIBLE",
+        confirmationId: null,
+        confirmationPublicRef: null,
+        status: null,
+        redirectTo: null,
+        message: "There is no confirmation-ready booking run to refresh yet.",
+      };
+    }
+
+    return mapConfirmationResult({
+      confirmation,
+      created: false,
+      message: "Booking confirmation refreshed from persisted state.",
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      code: "CONFIRMATION_FAILED",
+      confirmationId: null,
+      confirmationPublicRef: null,
+      status: null,
+      redirectTo: null,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Booking confirmation could not be refreshed.",
+    };
+  }
 };

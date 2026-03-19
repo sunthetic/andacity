@@ -1,6 +1,7 @@
 import { component$ } from "@builder.io/qwik";
 import { CheckoutActionBar } from "~/components/checkout/CheckoutActionBar";
 import { CheckoutBookingSection } from "~/components/checkout/booking/CheckoutBookingSection";
+import { CheckoutConfirmationSection } from "~/components/checkout/confirmation/CheckoutConfirmationSection";
 import { CheckoutPaymentSection } from "~/components/checkout/payment/CheckoutPaymentSection";
 import { Page } from "~/components/site/Page";
 import { CheckoutHeader } from "~/components/checkout/CheckoutHeader";
@@ -11,6 +12,7 @@ import { CheckoutSectionPlaceholder } from "~/components/checkout/CheckoutSectio
 import { CheckoutStatusNotice } from "~/components/checkout/CheckoutStatusNotice";
 import { CheckoutTotalsCard } from "~/components/checkout/CheckoutTotalsCard";
 import type { CheckoutBookingSummary } from "~/types/booking";
+import type { BookingConfirmation } from "~/types/confirmation";
 import type { CheckoutSession, CheckoutSessionSummary } from "~/types/checkout";
 import type { CheckoutPaymentSummary } from "~/types/payment";
 
@@ -30,6 +32,12 @@ export const CheckoutShell = component$(
       message: string;
       tone: "info" | "success" | "error";
     } | null;
+    confirmation: BookingConfirmation | null;
+    confirmationNotice?: {
+      code: string;
+      message: string;
+      tone: "info" | "success" | "error";
+    } | null;
   }) => {
     const {
       session,
@@ -38,6 +46,8 @@ export const CheckoutShell = component$(
       bookingSummary,
       paymentNotice,
       bookingNotice,
+      confirmation,
+      confirmationNotice,
     } = props;
 
     return (
@@ -95,14 +105,11 @@ export const CheckoutShell = component$(
                 bookingNotice={bookingNotice}
               />
 
-              <CheckoutSectionPlaceholder
-                title="Review & confirm"
-                description="Confirmation routing and post-booking ownership modeling land after the booking engine is in place."
-                statusLabel="Reserved"
-              >
-                Booking now runs server-side from the persisted checkout and
-                payment records. Final confirmation surfaces are still coming.
-              </CheckoutSectionPlaceholder>
+              <CheckoutConfirmationSection
+                confirmation={confirmation}
+                bookingSummary={bookingSummary}
+                confirmationNotice={confirmationNotice}
+              />
             </div>
 
             <div class="space-y-4">

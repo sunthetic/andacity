@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import type { BookingConfirmation } from "../../types/confirmation.ts";
 import type { CheckoutSession } from "../../types/checkout.ts";
 
 const summaryModule: typeof import("./getCheckoutSessionSummary.ts") =
@@ -117,4 +118,33 @@ test("marks a passed revalidation session as payment-ready", () => {
   assert.equal(summary.readinessState, "ready");
   assert.equal(summary.canProceed, true);
   assert.match(summary.lastRevalidatedLabel || "", /Last checked/i);
+});
+
+test("links checkout summaries to confirmation state when a confirmation exists", () => {
+  const confirmation: BookingConfirmation = {
+    id: "cnf_123",
+    publicRef: "CNF-ABCDE-12345",
+    tripId: 42,
+    checkoutSessionId: "cko_1234567890abcdef",
+    paymentSessionId: "pay_123",
+    bookingRunId: "brn_123",
+    status: "partial",
+    currency: "USD",
+    totalsJson: {
+      totalAmountCents: 25000,
+    },
+    summaryJson: null,
+    confirmedAt: "2026-03-16T09:16:00.000Z",
+    createdAt: "2026-03-16T09:16:00.000Z",
+    updatedAt: "2026-03-16T09:16:00.000Z",
+    items: [],
+  };
+
+  const summary = getCheckoutSessionSummary(buildSession(), {
+    confirmation,
+  });
+
+  assert.equal(summary.hasConfirmation, true);
+  assert.equal(summary.confirmationStatus, "partial");
+  assert.equal(summary.confirmationPublicRef, "CNF-ABCDE-12345");
 });

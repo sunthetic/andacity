@@ -3,6 +3,7 @@ import { getCheckoutReadinessState } from '~/lib/checkout/getCheckoutReadinessSt
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import { formatMoneyFromCents } from '~/lib/pricing/price-display'
 import type { CheckoutBookingSummary } from '~/types/booking'
+import type { BookingConfirmation } from '~/types/confirmation'
 import type {
   CheckoutSession,
   CheckoutSessionEntryMode,
@@ -117,6 +118,7 @@ export const getCheckoutSessionSummary = (
   options: {
     entryMode?: CheckoutSessionEntryMode | null
     bookingSummary?: CheckoutBookingSummary | null
+    confirmation?: BookingConfirmation | null
   } = {},
 ): CheckoutSessionSummary => {
   const readinessState = getCheckoutReadinessState(session)
@@ -158,5 +160,8 @@ export const getCheckoutSessionSummary = (
     bookingStatus: options.bookingSummary?.status || 'idle',
     activeBookingRunId: options.bookingSummary?.bookingRunId || null,
     hasCompletedBooking: options.bookingSummary?.hasCompletedBooking || false,
+    hasConfirmation: Boolean(options.confirmation),
+    confirmationStatus: options.confirmation?.status || null,
+    confirmationPublicRef: options.confirmation?.publicRef || null,
   }
 }

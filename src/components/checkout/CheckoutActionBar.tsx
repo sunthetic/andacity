@@ -12,6 +12,19 @@ const isRetryAllowed = (summary: CheckoutSessionSummary) => {
   );
 };
 
+const canPrepareConfirmation = (
+  summary: CheckoutSessionSummary,
+  bookingSummary: CheckoutBookingSummary,
+) => {
+  return (
+    !summary.hasConfirmation &&
+    Boolean(bookingSummary.run) &&
+    (bookingSummary.status === "succeeded" ||
+      bookingSummary.status === "partial" ||
+      bookingSummary.status === "requires_manual_review")
+  );
+};
+
 export const CheckoutActionBar = component$(
   (props: {
     summary: CheckoutSessionSummary;
@@ -30,12 +43,16 @@ export const CheckoutActionBar = component$(
           Next step
         </p>
         <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-          {!props.paymentSummary.checkoutReady
+          {props.summary.hasConfirmation
+            ? "Your durable confirmation record is ready to open."
+            : !props.paymentSummary.checkoutReady
             ? "Payment stays blocked until the latest pricing and availability check passes."
             : props.paymentSummary.status == null
               ? "Initialize a payment session from the current checkout totals."
               : props.bookingSummary.canExecute
                 ? "Payment is authorized. Complete booking to start the server-backed booking run."
+                : canPrepareConfirmation(props.summary, props.bookingSummary)
+                  ? "Booking is confirmation-ready. Create the durable confirmation record next."
                 : props.bookingSummary.isProcessing
                   ? "Booking is already running. Refresh the checkout page to review the latest item statuses."
                   : props.bookingSummary.hasCompletedBooking
@@ -44,7 +61,14 @@ export const CheckoutActionBar = component$(
         </p>
 
         <div class="mt-5 space-y-3">
-          {props.bookingSummary.canExecute ? (
+          {props.summary.hasConfirmation && props.summary.confirmationPublicRef ? (
+            <a
+              href={`/confirmation/${props.summary.confirmationPublicRef}`}
+              class="block w-full rounded-lg bg-[color:var(--color-action)] px-3 py-2 text-center text-sm font-medium text-white hover:opacity-90"
+            >
+              Open confirmation
+            </a>
+          ) : props.bookingSummary.canExecute ? (
             <form method="post" onSubmit$={onSubmit$}>
               <input type="hidden" name="intent" value="execute-booking" />
               <AsyncPendingButton
@@ -59,16 +83,20 @@ export const CheckoutActionBar = component$(
           ) : (
             <a
               href={
-                props.paymentSummary.checkoutReady &&
-                (props.paymentSummary.status === "authorized" ||
-                  props.paymentSummary.status === "succeeded" ||
-                  props.bookingSummary.run)
-                  ? "#checkout-booking"
+                canPrepareConfirmation(props.summary, props.bookingSummary)
+                  ? "#checkout-confirmation"
+                  : props.paymentSummary.checkoutReady &&
+                      (props.paymentSummary.status === "authorized" ||
+                        props.paymentSummary.status === "succeeded" ||
+                        props.bookingSummary.run)
+                    ? "#checkout-booking"
                   : "#checkout-payment"
               }
               class="block w-full rounded-lg bg-[color:var(--color-action)] px-3 py-2 text-center text-sm font-medium text-white hover:opacity-90"
             >
-              {props.paymentSummary.checkoutReady
+              {canPrepareConfirmation(props.summary, props.bookingSummary)
+                ? "Open confirmation section"
+                : props.paymentSummary.checkoutReady
                 ? props.paymentSummary.status == null
                   ? "Start payment"
                   : props.bookingSummary.run

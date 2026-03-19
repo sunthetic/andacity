@@ -17,7 +17,7 @@ import {
 } from '~/types/checkout'
 
 export const CHECKOUT_SESSION_DEFAULT_TTL_MS = 30 * 60 * 1000
-const LATEST_CHECKOUT_MIGRATION = '0010_checkout_booking_runs.sql'
+const LATEST_CHECKOUT_MIGRATION = '0011_booking_confirmations.sql'
 const CHECKOUT_SCHEMA_IDENTIFIERS = [
   'checkout_sessions',
   'checkout_session_status',
@@ -39,6 +39,13 @@ const CHECKOUT_SCHEMA_IDENTIFIERS = [
   'booking_item_execution_status',
   'execution_key',
   'summary_json',
+  'booking_confirmations',
+  'booking_confirmation_items',
+  'booking_confirmation_status',
+  'confirmation_item_status',
+  'public_ref',
+  'confirmed_at',
+  'details_json',
 ] as const
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
