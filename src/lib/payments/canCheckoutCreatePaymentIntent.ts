@@ -1,4 +1,5 @@
 import { getCheckoutReadinessState } from '~/lib/checkout/getCheckoutReadinessState'
+import { canCheckoutProceedWithTravelers } from '~/fns/travelers/canCheckoutProceedWithTravelers'
 import { isCheckoutSessionExpired } from '~/lib/checkout/isCheckoutSessionExpired'
 import { mapCheckoutToPaymentAmountSnapshot } from '~/lib/payments/mapCheckoutToPaymentAmountSnapshot'
 import type { CheckoutSession } from '~/types/checkout'
@@ -49,6 +50,25 @@ export const canCheckoutCreatePaymentIntent = (
       code: 'CHECKOUT_NOT_READY',
       message:
         'Payment can only begin after the latest checkout revalidation passes.',
+    }
+  }
+
+  const travelersReady =
+    typeof checkoutSession.hasCompleteTravelerDetails === 'boolean'
+      ? checkoutSession.hasCompleteTravelerDetails
+      : checkoutSession.travelerValidationSummary
+        ? canCheckoutProceedWithTravelers(checkoutSession.travelerValidationSummary)
+        : false
+  if (!travelersReady) {
+    const issueCount =
+      checkoutSession.travelerValidationSummary?.issueCount || 0
+    return {
+      ok: false,
+      code: 'CHECKOUT_NOT_READY',
+      message:
+        issueCount > 0
+          ? `Payment is blocked until traveler details are complete (${issueCount} issue${issueCount === 1 ? '' : 's'} remaining).`
+          : 'Payment is blocked until traveler details are complete.',
     }
   }
 

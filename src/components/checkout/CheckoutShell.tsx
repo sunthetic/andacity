@@ -3,18 +3,19 @@ import { CheckoutActionBar } from "~/components/checkout/CheckoutActionBar";
 import { CheckoutBookingSection } from "~/components/checkout/booking/CheckoutBookingSection";
 import { CheckoutConfirmationSection } from "~/components/checkout/confirmation/CheckoutConfirmationSection";
 import { CheckoutPaymentSection } from "~/components/checkout/payment/CheckoutPaymentSection";
+import { CheckoutTravelerSection } from "~/components/checkout/travelers/CheckoutTravelerSection";
 import { Page } from "~/components/site/Page";
 import { CheckoutHeader } from "~/components/checkout/CheckoutHeader";
 import { CheckoutItemList } from "~/components/checkout/CheckoutItemList";
 import { CheckoutRevalidationNotice } from "~/components/checkout/CheckoutRevalidationNotice";
 import { CheckoutRevalidationSummaryCard } from "~/components/checkout/CheckoutRevalidationSummaryCard";
-import { CheckoutSectionPlaceholder } from "~/components/checkout/CheckoutSectionPlaceholder";
 import { CheckoutStatusNotice } from "~/components/checkout/CheckoutStatusNotice";
 import { CheckoutTotalsCard } from "~/components/checkout/CheckoutTotalsCard";
 import type { CheckoutBookingSummary } from "~/types/booking";
 import type { BookingConfirmation } from "~/types/confirmation";
 import type { CheckoutSession, CheckoutSessionSummary } from "~/types/checkout";
 import type { CheckoutPaymentSummary } from "~/types/payment";
+import type { CheckoutTravelerPageModel } from "~/types/travelers";
 
 export const CheckoutShell = component$(
   (props: {
@@ -38,6 +39,12 @@ export const CheckoutShell = component$(
       message: string;
       tone: "info" | "success" | "error";
     } | null;
+    travelerPageModel: CheckoutTravelerPageModel;
+    travelerNotice?: {
+      code: string;
+      message: string;
+      tone: "info" | "success" | "error";
+    } | null;
   }) => {
     const {
       session,
@@ -48,6 +55,8 @@ export const CheckoutShell = component$(
       bookingNotice,
       confirmation,
       confirmationNotice,
+      travelerPageModel,
+      travelerNotice,
     } = props;
 
     return (
@@ -89,13 +98,10 @@ export const CheckoutShell = component$(
                 revalidationStatus={session.revalidationStatus}
               />
 
-              <CheckoutSectionPlaceholder
-                title="Traveler details"
-                description="Traveler collection starts in a later task once session handoff and validation rules are settled."
-                statusLabel="Coming later"
-              >
-                Placeholder only in v0.7.0 framework.
-              </CheckoutSectionPlaceholder>
+              <CheckoutTravelerSection
+                pageModel={travelerPageModel}
+                travelerNotice={travelerNotice}
+              />
 
               <CheckoutPaymentSection
                 paymentSummary={paymentSummary}

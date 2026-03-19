@@ -55,12 +55,16 @@ export const fromBookingState = (input: {
   if (
     !summary.canExecute &&
     (summary.eligibilityCode === "CHECKOUT_NOT_READY" ||
+      summary.eligibilityCode === "CHECKOUT_TRAVELERS_INCOMPLETE" ||
       summary.eligibilityCode === "PAYMENT_NOT_AUTHORIZED" ||
       summary.eligibilityCode === "PAYMENT_NOT_FOUND")
   ) {
     return buildRecoveryState({
       stage: "booking",
-      reasonCode: "CHECKOUT_NOT_READY",
+      reasonCode:
+        summary.eligibilityCode === "CHECKOUT_TRAVELERS_INCOMPLETE"
+          ? "CHECKOUT_TRAVELERS_INCOMPLETE"
+          : "CHECKOUT_NOT_READY",
       metadata,
     });
   }

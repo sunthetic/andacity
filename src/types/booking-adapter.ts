@@ -7,6 +7,7 @@ import type {
 } from "~/types/checkout";
 import type { ResolvedInventoryRecord } from "~/types/inventory";
 import type { CheckoutPaymentSession, PaymentProvider } from "~/types/payment";
+import type { MappedCheckoutTravelersForBooking } from "~/types/travelers";
 
 export const PROVIDER_BOOKING_STATUSES = [
   "pending",
@@ -52,7 +53,7 @@ export type ProviderBookingPaymentContext = {
   metadata: Record<string, unknown> | null;
 };
 
-export type ProviderTravelerContext = Record<string, unknown> | null;
+export type ProviderTravelerContext = MappedCheckoutTravelersForBooking | null;
 
 export type ProviderBookingResolvedInventorySummary = {
   inventoryId: string;

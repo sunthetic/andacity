@@ -5,6 +5,7 @@ import type {
   CheckoutItemRevalidationResult,
   CheckoutSession,
 } from "../../types/checkout.ts";
+import type { TravelerValidationSummary } from "../../types/travelers.ts";
 
 const summaryModule: typeof import("./buildCheckoutRevalidationSummary.ts") =
   await import(
@@ -27,6 +28,17 @@ const { buildCheckoutRevalidationSummary } = summaryModule;
 const { getCheckoutReadinessState } = readinessModule;
 const { canCheckoutProceedToPayment } = paymentModule;
 const { shouldCheckoutSessionRevalidate } = staleModule;
+
+const completeTravelerSummary: TravelerValidationSummary = {
+  status: "complete",
+  checkedAt: "2026-03-16T09:05:00.000Z",
+  hasBlockingIssues: false,
+  issueCount: 0,
+  missingTravelerCount: 0,
+  invalidTravelerCount: 0,
+  assignmentMismatchCount: 0,
+  issues: [],
+};
 
 const buildItemResult = (
   overrides: Partial<CheckoutItemRevalidationResult> = {},
@@ -103,6 +115,9 @@ const buildSession = (
   expiresAt: "2030-03-16T09:30:00.000Z",
   completedAt: null,
   abandonedAt: null,
+  travelerValidationStatus: "complete",
+  travelerValidationSummary: completeTravelerSummary,
+  hasCompleteTravelerDetails: true,
   ...overrides,
 });
 

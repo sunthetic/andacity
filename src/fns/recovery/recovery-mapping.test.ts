@@ -8,6 +8,7 @@ import type {
   CheckoutSessionSummary,
 } from "../../types/checkout.ts";
 import type { CheckoutPaymentSummary } from "../../types/payment.ts";
+import type { TravelerValidationSummary } from "../../types/travelers.ts";
 
 const checkoutModule: typeof import("./fromCheckoutState.ts") = await import(
   new URL("./fromCheckoutState.ts", import.meta.url).href
@@ -69,6 +70,9 @@ const buildCheckoutSummary = (
     readinessLabel: "Ready for payment",
     canProceed: true,
     blockingIssueCount: 0,
+    travelerValidationStatus: "complete",
+    travelerValidationSummary: null,
+    hasCompleteTravelerDetails: true,
     bookingStatus: "idle",
     activeBookingRunId: null,
     hasCompletedBooking: false,
@@ -77,6 +81,30 @@ const buildCheckoutSummary = (
     confirmationPublicRef: null,
     ...overrides,
   };
+};
+
+const incompleteTravelerSummary: TravelerValidationSummary = {
+  status: "incomplete",
+  checkedAt: "2026-03-18T10:00:00.000Z",
+  hasBlockingIssues: true,
+  issueCount: 1,
+  missingTravelerCount: 1,
+  invalidTravelerCount: 0,
+  assignmentMismatchCount: 0,
+  issues: [
+    {
+      id: "issue:1",
+      code: "MISSING_REQUIRED_FIELD",
+      message: "firstName is required",
+      severity: "error",
+      checkoutItemKey: null,
+      travelerProfileId: "trv_1",
+      assignmentId: null,
+      groupId: "group:1",
+      role: "primary_contact",
+      field: "firstName",
+    },
+  ],
 };
 
 const buildRevalidationSummary = (
@@ -223,6 +251,23 @@ test("maps checkout expiration into return-to-trip recovery", () => {
   assert.ok(recovery);
   assert.equal(recovery.reasonCode, "CHECKOUT_EXPIRED");
   assert.equal(recovery.actions[0]?.type, "return_to_trip");
+});
+
+test("maps incomplete traveler details into traveler-specific recovery", () => {
+  const recovery = fromCheckoutState({
+    summary: buildCheckoutSummary({
+      status: "ready",
+      readinessState: "ready",
+      canProceed: false,
+      travelerValidationStatus: "incomplete",
+      travelerValidationSummary: incompleteTravelerSummary,
+      hasCompleteTravelerDetails: false,
+    }),
+  });
+
+  assert.ok(recovery);
+  assert.equal(recovery.reasonCode, "CHECKOUT_TRAVELERS_INCOMPLETE");
+  assert.equal(recovery.actions[0]?.type, "complete_travelers");
 });
 
 test("maps price drift into revalidation recovery guidance", () => {

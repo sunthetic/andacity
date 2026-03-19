@@ -86,6 +86,8 @@ export const CheckoutActionBar = component$(
             ? activeRecovery.message
             : props.summary.hasConfirmation
               ? "Your durable confirmation record is ready to open."
+              : props.summary.hasCompleteTravelerDetails === false
+                ? "Complete traveler details and assignments before payment can begin."
               : !props.paymentSummary.checkoutReady
                 ? "Payment stays blocked until the latest pricing and availability check passes."
                 : props.paymentSummary.status == null
@@ -147,7 +149,9 @@ export const CheckoutActionBar = component$(
           ) : (
             <a
               href={
-                props.paymentSummary.checkoutReady &&
+                props.summary.hasCompleteTravelerDetails === false
+                  ? "#checkout-travelers"
+                  : props.paymentSummary.checkoutReady &&
                 (props.paymentSummary.status === "authorized" ||
                   props.paymentSummary.status === "succeeded" ||
                   props.bookingSummary.run)
@@ -157,7 +161,9 @@ export const CheckoutActionBar = component$(
               class="block w-full rounded-lg bg-[color:var(--color-action)] px-3 py-2 text-center text-sm font-medium text-white hover:opacity-90"
             >
               {props.paymentSummary.checkoutReady
-                ? props.paymentSummary.status == null
+                ? props.summary.hasCompleteTravelerDetails === false
+                  ? "Open traveler section"
+                  : props.paymentSummary.status == null
                   ? "Start payment"
                   : props.bookingSummary.run
                     ? "Open booking section"

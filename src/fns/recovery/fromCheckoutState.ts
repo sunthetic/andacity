@@ -43,6 +43,8 @@ export const fromCheckoutState = (input: {
     tripId: summary.tripId,
     tripHref: summary.tripHref,
     blockingIssueCount: summary.blockingIssueCount,
+    travelerValidationStatus: summary.travelerValidationStatus || null,
+    travelerIssueCount: summary.travelerValidationSummary?.issueCount || 0,
     ...input.metadata,
   };
 
@@ -54,10 +56,44 @@ export const fromCheckoutState = (input: {
     });
   }
 
-  if (summary.status === "blocked" || summary.readinessState === "blocked") {
+  if (
+    summary.hasCompleteTravelerDetails === false ||
+    summary.status === "blocked" ||
+    summary.readinessState === "blocked"
+  ) {
+    const travelerIssues = summary.travelerValidationSummary?.issues || [];
+    const hasTravelerAssignmentMismatch = travelerIssues.some(
+      (issue) =>
+        issue.code === "PASSENGER_COUNT_MISMATCH" ||
+        issue.code === "TRAVELER_ASSIGNMENT_MISSING" ||
+        issue.code === "MISSING_PRIMARY_GUEST" ||
+        issue.code === "MISSING_PRIMARY_DRIVER",
+    );
+    const hasTravelerInvalid = travelerIssues.some(
+      (issue) =>
+        issue.code === "INVALID_DATE_OF_BIRTH" ||
+        issue.code === "INVALID_EMAIL" ||
+        issue.code === "INVALID_PHONE" ||
+        issue.code === "DOCUMENT_EXPIRED" ||
+        issue.code === "DRIVER_AGE_INVALID",
+    );
+    const hasTravelerIncomplete = travelerIssues.some(
+      (issue) =>
+        issue.code === "MISSING_REQUIRED_FIELD" ||
+        issue.code === "DOCUMENT_REQUIRED",
+    );
+
     return buildRecoveryState({
       stage: "checkout",
-      reasonCode: "CHECKOUT_NOT_READY",
+      reasonCode:
+        summary.hasCompleteTravelerDetails === false && hasTravelerInvalid
+          ? "CHECKOUT_TRAVELERS_INVALID"
+          : summary.hasCompleteTravelerDetails === false &&
+              hasTravelerAssignmentMismatch
+            ? "TRAVELER_ASSIGNMENT_MISMATCH"
+            : summary.hasCompleteTravelerDetails === false && hasTravelerIncomplete
+              ? "CHECKOUT_TRAVELERS_INCOMPLETE"
+              : "CHECKOUT_NOT_READY",
       metadata,
     });
   }

@@ -97,6 +97,30 @@ export const getRecoveryDisplayCopy = (input: {
           "Checkout must pass the latest pricing and availability checks before payment or booking can continue.",
         isTerminal: false,
       };
+    case "CHECKOUT_TRAVELERS_INCOMPLETE":
+      return {
+        severity: "warning",
+        title: "Traveler details are still incomplete",
+        message:
+          "Complete and assign the required traveler details before payment or booking can continue.",
+        isTerminal: false,
+      };
+    case "CHECKOUT_TRAVELERS_INVALID":
+      return {
+        severity: "error",
+        title: "Traveler details need correction",
+        message:
+          "One or more traveler fields are invalid. Fix traveler details to continue safely.",
+        isTerminal: false,
+      };
+    case "TRAVELER_ASSIGNMENT_MISMATCH":
+      return {
+        severity: "warning",
+        title: "Traveler assignments need attention",
+        message:
+          "Traveler assignments do not match checkout item requirements yet.",
+        isTerminal: false,
+      };
     case "CHECKOUT_CREATE_FAILED":
       return {
         severity: "error",

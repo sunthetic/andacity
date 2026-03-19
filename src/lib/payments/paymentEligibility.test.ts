@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { CheckoutSession } from "../../types/checkout.ts";
+import type { TravelerValidationSummary } from "../../types/travelers.ts";
 
 const eligibilityModule: typeof import("./canCheckoutCreatePaymentIntent.ts") =
   await import(
@@ -9,6 +10,17 @@ const eligibilityModule: typeof import("./canCheckoutCreatePaymentIntent.ts") =
   );
 
 const { canCheckoutCreatePaymentIntent } = eligibilityModule;
+
+const completeTravelerSummary: TravelerValidationSummary = {
+  status: "complete",
+  checkedAt: "2026-03-17T12:00:00.000Z",
+  hasBlockingIssues: false,
+  issueCount: 0,
+  missingTravelerCount: 0,
+  invalidTravelerCount: 0,
+  assignmentMismatchCount: 0,
+  issues: [],
+};
 
 const buildSession = (
   overrides: Partial<CheckoutSession> = {},
@@ -50,6 +62,9 @@ const buildSession = (
   expiresAt: "2030-03-17T12:30:00.000Z",
   completedAt: null,
   abandonedAt: null,
+  travelerValidationStatus: "complete",
+  travelerValidationSummary: completeTravelerSummary,
+  hasCompleteTravelerDetails: true,
   ...overrides,
 });
 
@@ -79,4 +94,24 @@ test("blocks payment creation when revalidation has not passed", () => {
 
   assert.equal(result.ok, false);
   assert.equal(result.ok ? null : result.code, "CHECKOUT_NOT_READY");
+});
+
+test("blocks payment creation when traveler details are incomplete", () => {
+  const result = canCheckoutCreatePaymentIntent(
+    buildSession({
+      travelerValidationStatus: "incomplete",
+      travelerValidationSummary: {
+        ...completeTravelerSummary,
+        status: "incomplete",
+        hasBlockingIssues: true,
+        issueCount: 2,
+        missingTravelerCount: 2,
+      },
+      hasCompleteTravelerDetails: false,
+    }),
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.ok ? null : result.code, "CHECKOUT_NOT_READY");
+  assert.match(result.ok ? "" : result.message, /traveler/i);
 });

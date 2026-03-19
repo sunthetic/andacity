@@ -20,6 +20,15 @@ export const canRetryTransactionAction = (input: {
     }
   }
 
+  if (input.actionType === "complete_travelers") {
+    if (!metadata.checkoutSessionId) {
+      return false;
+    }
+    if (checkoutStatus === "expired" || checkoutStatus === "completed") {
+      return false;
+    }
+  }
+
   if (input.actionType === "resume_payment") {
     if (checkoutStatus === "expired" || metadata.checkoutReady === false) {
       return false;

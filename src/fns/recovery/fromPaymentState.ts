@@ -18,12 +18,21 @@ export const fromPaymentState = (input: {
   };
 
   if (!summary.checkoutReady) {
+    const blockedReason = String(summary.blockedReason || "").toLowerCase();
     return buildRecoveryState({
       stage: "payment",
       reasonCode:
-        summary.blockedReason &&
-        summary.blockedReason.toLowerCase().includes("expired")
+        blockedReason.includes("expired")
           ? "CHECKOUT_EXPIRED"
+          : blockedReason.includes("traveler") &&
+              blockedReason.includes("invalid")
+            ? "CHECKOUT_TRAVELERS_INVALID"
+            : blockedReason.includes("traveler") &&
+                (blockedReason.includes("assignment") ||
+                  blockedReason.includes("passenger"))
+              ? "TRAVELER_ASSIGNMENT_MISMATCH"
+              : blockedReason.includes("traveler")
+                ? "CHECKOUT_TRAVELERS_INCOMPLETE"
           : "CHECKOUT_NOT_READY",
       metadata,
     });

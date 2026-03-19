@@ -68,6 +68,11 @@ import { fromPaymentState } from "~/fns/recovery/fromPaymentState";
 import { getPrimaryRecoveryAction } from "~/fns/recovery/getPrimaryRecoveryAction";
 import { logRecoveryEvent } from "~/fns/recovery/logRecoveryEvent";
 import { normalizeTransactionError } from "~/fns/recovery/normalizeTransactionError";
+import { buildCheckoutTravelerCollection } from "~/fns/travelers/buildCheckoutTravelerCollection";
+import { deleteCheckoutTravelerProfile } from "~/fns/travelers/deleteCheckoutTravelerProfile";
+import { upsertCheckoutTravelerAssignment } from "~/fns/travelers/upsertCheckoutTravelerAssignment";
+import { upsertCheckoutTravelerProfile } from "~/fns/travelers/upsertCheckoutTravelerProfile";
+import { validateCheckoutTravelers } from "~/fns/travelers/validateCheckoutTravelers";
 
 type RecoveryResultFields = {
   recoveryState: RecoveryState | null;
@@ -734,6 +739,400 @@ export const runCheckoutRevalidation = async (
       ...withRecoveryFields(recoveryState),
     };
   }
+};
+
+export type CheckoutTravelerActionResult =
+  | {
+      ok: true;
+      code:
+        | "TRAVELER_SAVED"
+        | "TRAVELER_ASSIGNED"
+        | "TRAVELER_REMOVED"
+        | "TRAVELER_VALIDATION_PASSED";
+      message: string;
+      validationSummary: Awaited<
+        ReturnType<typeof buildCheckoutTravelerCollection>
+      >["validationSummary"] | null;
+      recoveryState: RecoveryState | null;
+      reasonCode: RecoveryReasonCode | null;
+      nextRecommendedAction: RecoveryActionType | null;
+    }
+  | {
+      ok: false;
+      code:
+        | "CHECKOUT_NOT_FOUND"
+        | "TRAVELER_VALIDATION_FAILED"
+        | "TRAVELER_SAVE_FAILED"
+        | "TRAVELER_ASSIGN_FAILED"
+        | "TRAVELER_REMOVE_FAILED";
+      message: string;
+      validationSummary: Awaited<
+        ReturnType<typeof buildCheckoutTravelerCollection>
+      >["validationSummary"] | null;
+      recoveryState: RecoveryState | null;
+      reasonCode: RecoveryReasonCode | null;
+      nextRecommendedAction: RecoveryActionType | null;
+    };
+
+const getCheckoutTravelerValidationSummary = async (checkoutSessionId: string) => {
+  const session = await getCheckoutSession(checkoutSessionId, {
+    includeTerminal: true,
+  });
+  if (!session) return null;
+  const collection = await buildCheckoutTravelerCollection({
+    checkoutSessionId: session.id,
+    checkoutItems: session.items,
+  });
+  return collection.validationSummary;
+};
+
+export const saveCheckoutTravelerProfile = async (input: {
+  checkoutSessionId: string;
+  profile: {
+    id?: string | null;
+    type?: string | null;
+    role?: string | null;
+    firstName?: string | null;
+    middleName?: string | null;
+    lastName?: string | null;
+    dateOfBirth?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    nationality?: string | null;
+    documentType?: string | null;
+    documentNumber?: string | null;
+    documentExpiryDate?: string | null;
+    issuingCountry?: string | null;
+    knownTravelerNumber?: string | null;
+    redressNumber?: string | null;
+    driverAge?: number | string | null;
+  };
+}): Promise<CheckoutTravelerActionResult> => {
+  const session = await getCheckoutSession(input.checkoutSessionId, {
+    includeTerminal: true,
+  });
+  if (!session) {
+    const recoveryState = buildRecoveryState({
+      stage: "checkout",
+      reasonCode: "CHECKOUT_NOT_FOUND",
+      metadata: {
+        checkoutSessionId: input.checkoutSessionId,
+      },
+    });
+    return {
+      ok: false,
+      code: "CHECKOUT_NOT_FOUND",
+      message: "Checkout session could not be found.",
+      validationSummary: null,
+      ...withRecoveryFields(recoveryState),
+    };
+  }
+
+  try {
+    await upsertCheckoutTravelerProfile({
+      checkoutSessionId: session.id,
+      ...input.profile,
+    });
+    const validationSummary = await getCheckoutTravelerValidationSummary(
+      session.id,
+    );
+
+    return {
+      ok: true,
+      code: "TRAVELER_SAVED",
+      message: "Traveler details saved.",
+      validationSummary,
+      ...withRecoveryFields(
+        validationSummary?.status === "complete"
+          ? null
+          : buildRecoveryState({
+              stage: "checkout",
+              reasonCode:
+                validationSummary?.status === "invalid"
+                  ? "CHECKOUT_TRAVELERS_INVALID"
+                  : "CHECKOUT_TRAVELERS_INCOMPLETE",
+              metadata: {
+                checkoutSessionId: session.id,
+                issueCount: validationSummary?.issueCount || 0,
+              },
+            }),
+      ),
+    };
+  } catch (error) {
+    const validationSummary = await getCheckoutTravelerValidationSummary(
+      session.id,
+    );
+    const recoveryState = buildRecoveryState({
+      stage: "checkout",
+      reasonCode: "CHECKOUT_TRAVELERS_INVALID",
+      metadata: {
+        checkoutSessionId: session.id,
+        rawMessage:
+          error instanceof Error
+            ? error.message
+            : "Traveler profile save failed.",
+      },
+    });
+    return {
+      ok: false,
+      code: "TRAVELER_SAVE_FAILED",
+      message:
+        error instanceof Error ? error.message : "Traveler profile save failed.",
+      validationSummary,
+      ...withRecoveryFields(recoveryState),
+    };
+  }
+};
+
+export const assignCheckoutTravelerToItem = async (input: {
+  checkoutSessionId: string;
+  assignment: {
+    id?: string | null;
+    checkoutItemKey?: string | null;
+    travelerProfileId: string;
+    role?: string | null;
+    isPrimary?: boolean | null;
+  };
+}): Promise<CheckoutTravelerActionResult> => {
+  const session = await getCheckoutSession(input.checkoutSessionId, {
+    includeTerminal: true,
+  });
+  if (!session) {
+    const recoveryState = buildRecoveryState({
+      stage: "checkout",
+      reasonCode: "CHECKOUT_NOT_FOUND",
+      metadata: {
+        checkoutSessionId: input.checkoutSessionId,
+      },
+    });
+    return {
+      ok: false,
+      code: "CHECKOUT_NOT_FOUND",
+      message: "Checkout session could not be found.",
+      validationSummary: null,
+      ...withRecoveryFields(recoveryState),
+    };
+  }
+
+  try {
+    await upsertCheckoutTravelerAssignment({
+      checkoutSessionId: session.id,
+      ...input.assignment,
+    });
+    const validationSummary = await getCheckoutTravelerValidationSummary(
+      session.id,
+    );
+    const reasonCode =
+      validationSummary?.status === "invalid"
+        ? "CHECKOUT_TRAVELERS_INVALID"
+        : validationSummary?.status === "incomplete"
+          ? "TRAVELER_ASSIGNMENT_MISMATCH"
+          : null;
+    return {
+      ok: true,
+      code: "TRAVELER_ASSIGNED",
+      message: "Traveler assignment saved.",
+      validationSummary,
+      ...withRecoveryFields(
+        reasonCode
+          ? buildRecoveryState({
+              stage: "checkout",
+              reasonCode,
+              metadata: {
+                checkoutSessionId: session.id,
+                issueCount: validationSummary?.issueCount || 0,
+              },
+            })
+          : null,
+      ),
+    };
+  } catch (error) {
+    const validationSummary = await getCheckoutTravelerValidationSummary(
+      session.id,
+    );
+    const recoveryState = buildRecoveryState({
+      stage: "checkout",
+      reasonCode: "TRAVELER_ASSIGNMENT_MISMATCH",
+      metadata: {
+        checkoutSessionId: session.id,
+        rawMessage:
+          error instanceof Error
+            ? error.message
+            : "Traveler assignment save failed.",
+      },
+    });
+    return {
+      ok: false,
+      code: "TRAVELER_ASSIGN_FAILED",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Traveler assignment save failed.",
+      validationSummary,
+      ...withRecoveryFields(recoveryState),
+    };
+  }
+};
+
+export const removeCheckoutTravelerProfile = async (input: {
+  checkoutSessionId: string;
+  travelerProfileId: string;
+}): Promise<CheckoutTravelerActionResult> => {
+  const session = await getCheckoutSession(input.checkoutSessionId, {
+    includeTerminal: true,
+  });
+  if (!session) {
+    const recoveryState = buildRecoveryState({
+      stage: "checkout",
+      reasonCode: "CHECKOUT_NOT_FOUND",
+      metadata: {
+        checkoutSessionId: input.checkoutSessionId,
+      },
+    });
+    return {
+      ok: false,
+      code: "CHECKOUT_NOT_FOUND",
+      message: "Checkout session could not be found.",
+      validationSummary: null,
+      ...withRecoveryFields(recoveryState),
+    };
+  }
+
+  try {
+    const removed = await deleteCheckoutTravelerProfile({
+      checkoutSessionId: session.id,
+      travelerProfileId: input.travelerProfileId,
+    });
+    const validationSummary = await getCheckoutTravelerValidationSummary(
+      session.id,
+    );
+    if (removed) {
+      return {
+        ok: true,
+        code: "TRAVELER_REMOVED",
+        message: "Traveler profile removed.",
+        validationSummary,
+        ...withRecoveryFields(
+          validationSummary?.status === "complete"
+            ? null
+            : buildRecoveryState({
+                stage: "checkout",
+                reasonCode: "CHECKOUT_TRAVELERS_INCOMPLETE",
+                metadata: {
+                  checkoutSessionId: session.id,
+                },
+              }),
+        ),
+      };
+    }
+
+    return {
+      ok: false,
+      code: "TRAVELER_REMOVE_FAILED",
+      message: "Traveler profile could not be removed.",
+      validationSummary,
+      ...withRecoveryFields(
+        buildRecoveryState({
+          stage: "checkout",
+          reasonCode: "CHECKOUT_TRAVELERS_INCOMPLETE",
+          metadata: {
+            checkoutSessionId: session.id,
+          },
+        }),
+      ),
+    };
+  } catch (error) {
+    const validationSummary = await getCheckoutTravelerValidationSummary(
+      session.id,
+    );
+    const recoveryState = buildRecoveryState({
+      stage: "checkout",
+      reasonCode: "CHECKOUT_TRAVELERS_INCOMPLETE",
+      metadata: {
+        checkoutSessionId: session.id,
+        rawMessage:
+          error instanceof Error
+            ? error.message
+            : "Traveler profile remove failed.",
+      },
+    });
+    return {
+      ok: false,
+      code: "TRAVELER_REMOVE_FAILED",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Traveler profile remove failed.",
+      validationSummary,
+      ...withRecoveryFields(recoveryState),
+    };
+  }
+};
+
+export const validateCheckoutTravelersAction = async (input: {
+  checkoutSessionId: string;
+}): Promise<CheckoutTravelerActionResult> => {
+  const session = await getCheckoutSession(input.checkoutSessionId, {
+    includeTerminal: true,
+  });
+  if (!session) {
+    const recoveryState = buildRecoveryState({
+      stage: "checkout",
+      reasonCode: "CHECKOUT_NOT_FOUND",
+      metadata: {
+        checkoutSessionId: input.checkoutSessionId,
+      },
+    });
+    return {
+      ok: false,
+      code: "CHECKOUT_NOT_FOUND",
+      message: "Checkout session could not be found.",
+      validationSummary: null,
+      ...withRecoveryFields(recoveryState),
+    };
+  }
+
+  const validated = await validateCheckoutTravelers({
+    checkoutSessionId: session.id,
+    checkoutItems: session.items,
+  });
+  const validationSummary = validated.validationSummary;
+  if (validationSummary.status === "complete") {
+    return {
+      ok: true,
+      code: "TRAVELER_VALIDATION_PASSED",
+      message: "Traveler details are complete.",
+      validationSummary,
+      ...withRecoveryFields(null),
+    };
+  }
+
+  const recoveryState = buildRecoveryState({
+    stage: "checkout",
+    reasonCode:
+      validationSummary.status === "invalid"
+        ? "CHECKOUT_TRAVELERS_INVALID"
+        : validationSummary.issues.some(
+              (issue) =>
+                issue.code === "PASSENGER_COUNT_MISMATCH" ||
+                issue.code === "TRAVELER_ASSIGNMENT_MISSING" ||
+                issue.code === "MISSING_PRIMARY_GUEST" ||
+                issue.code === "MISSING_PRIMARY_DRIVER",
+            )
+          ? "TRAVELER_ASSIGNMENT_MISMATCH"
+          : "CHECKOUT_TRAVELERS_INCOMPLETE",
+    metadata: {
+      checkoutSessionId: session.id,
+      issueCount: validationSummary.issueCount,
+    },
+  });
+  return {
+    ok: false,
+    code: "TRAVELER_VALIDATION_FAILED",
+    message: "Traveler details still need attention before checkout can proceed.",
+    validationSummary,
+    ...withRecoveryFields(recoveryState),
+  };
 };
 
 export const abandonCheckoutSession = async (

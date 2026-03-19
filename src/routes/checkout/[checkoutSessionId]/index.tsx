@@ -18,6 +18,8 @@ import { getActiveCheckoutPaymentSession } from "~/lib/payments/getActiveCheckou
 import { getCheckoutPaymentSummary } from "~/lib/payments/getCheckoutPaymentSummary";
 import { refreshCheckoutPaymentStatus } from "~/lib/payments/refreshCheckoutPaymentStatus";
 import { shouldCheckoutSessionRevalidate } from "~/lib/checkout/shouldCheckoutSessionRevalidate";
+import { getCheckoutTravelerPageModel } from "~/fns/travelers/getCheckoutTravelerPageModel";
+import { attachCheckoutTravelerState } from "~/fns/travelers/attachCheckoutTravelerState";
 import type { CheckoutSessionEntryMode } from "~/types/checkout";
 import type { CheckoutBookingSummary } from "~/types/booking";
 import type { BookingConfirmation } from "~/types/confirmation";
@@ -27,6 +29,10 @@ import {
   createBookingConfirmationFromCheckout,
   createCheckoutPaymentIntent,
   executeCheckoutBooking,
+  saveCheckoutTravelerProfile,
+  assignCheckoutTravelerToItem,
+  removeCheckoutTravelerProfile,
+  validateCheckoutTravelersAction,
   refreshBookingConfirmation,
   refreshBookingRun,
   refreshCheckoutPaymentSession,
@@ -84,6 +90,20 @@ const readConfirmationNotice = (url: URL) => {
   } as const;
 };
 
+const readTravelerNotice = (url: URL) => {
+  const code = String(url.searchParams.get("traveler_code") || "").trim();
+  const message = String(url.searchParams.get("traveler_message") || "").trim();
+  const tone = String(url.searchParams.get("traveler_tone") || "").trim();
+  if (!code || !message) return null;
+
+  return {
+    code,
+    message,
+    tone:
+      tone === "success" || tone === "error" || tone === "info" ? tone : "info",
+  } as const;
+};
+
 const buildCheckoutPageHref = (
   pathname: string,
   sourceUrl: URL,
@@ -103,6 +123,11 @@ const buildCheckoutPageHref = (
       message: string;
       tone: "info" | "success" | "error";
     } | null;
+    travelerNotice?: {
+      code: string;
+      message: string;
+      tone: "info" | "success" | "error";
+    } | null;
   } = {},
 ) => {
   const params = new URLSearchParams(sourceUrl.search);
@@ -115,6 +140,9 @@ const buildCheckoutPageHref = (
   params.delete("confirmation_code");
   params.delete("confirmation_message");
   params.delete("confirmation_tone");
+  params.delete("traveler_code");
+  params.delete("traveler_message");
+  params.delete("traveler_tone");
 
   if (notices.paymentNotice) {
     params.set("payment_code", notices.paymentNotice.code);
@@ -132,6 +160,12 @@ const buildCheckoutPageHref = (
     params.set("confirmation_code", notices.confirmationNotice.code);
     params.set("confirmation_message", notices.confirmationNotice.message);
     params.set("confirmation_tone", notices.confirmationNotice.tone);
+  }
+
+  if (notices.travelerNotice) {
+    params.set("traveler_code", notices.travelerNotice.code);
+    params.set("traveler_message", notices.travelerNotice.message);
+    params.set("traveler_tone", notices.travelerNotice.tone);
   }
 
   const query = params.toString();
@@ -161,6 +195,12 @@ type CheckoutSessionRouteData =
       } | null;
       confirmation: BookingConfirmation | null;
       confirmationNotice: {
+        code: string;
+        message: string;
+        tone: "info" | "success" | "error";
+      } | null;
+      travelerPageModel: Awaited<ReturnType<typeof getCheckoutTravelerPageModel>>;
+      travelerNotice: {
         code: string;
         message: string;
         tone: "info" | "success" | "error";
@@ -308,6 +348,108 @@ export const onPost: RequestHandler = async ({
     );
   }
 
+  if (checkoutSessionId && intent === "save-traveler-profile") {
+    const result = await saveCheckoutTravelerProfile({
+      checkoutSessionId,
+      profile: {
+        id: String(formData?.get("travelerProfileId") || "").trim() || null,
+        type: String(formData?.get("type") || "").trim() || null,
+        role: String(formData?.get("role") || "").trim() || null,
+        firstName: String(formData?.get("firstName") || "").trim() || null,
+        middleName: String(formData?.get("middleName") || "").trim() || null,
+        lastName: String(formData?.get("lastName") || "").trim() || null,
+        dateOfBirth:
+          String(formData?.get("dateOfBirth") || "").trim() || null,
+        email: String(formData?.get("email") || "").trim() || null,
+        phone: String(formData?.get("phone") || "").trim() || null,
+        nationality: String(formData?.get("nationality") || "").trim() || null,
+        documentType:
+          String(formData?.get("documentType") || "").trim() || null,
+        documentNumber:
+          String(formData?.get("documentNumber") || "").trim() || null,
+        documentExpiryDate:
+          String(formData?.get("documentExpiryDate") || "").trim() || null,
+        issuingCountry:
+          String(formData?.get("issuingCountry") || "").trim() || null,
+        knownTravelerNumber:
+          String(formData?.get("knownTravelerNumber") || "").trim() || null,
+        redressNumber:
+          String(formData?.get("redressNumber") || "").trim() || null,
+        driverAge: String(formData?.get("driverAge") || "").trim() || null,
+      },
+    });
+    throw redirect(
+      303,
+      buildCheckoutPageHref(url.pathname, url, {
+        travelerNotice: {
+          code: result.code,
+          message: result.message,
+          tone: result.ok ? "success" : "error",
+        },
+      }),
+    );
+  }
+
+  if (checkoutSessionId && intent === "assign-traveler") {
+    const result = await assignCheckoutTravelerToItem({
+      checkoutSessionId,
+      assignment: {
+        id: String(formData?.get("travelerAssignmentId") || "").trim() || null,
+        checkoutItemKey:
+          String(formData?.get("checkoutItemKey") || "").trim() || null,
+        travelerProfileId: String(formData?.get("travelerProfileId") || "").trim(),
+        role: String(formData?.get("role") || "").trim() || null,
+        isPrimary: (formData?.getAll("isPrimary") || []).some(
+          (value) => String(value || "").trim() === "true",
+        ),
+      },
+    });
+    throw redirect(
+      303,
+      buildCheckoutPageHref(url.pathname, url, {
+        travelerNotice: {
+          code: result.code,
+          message: result.message,
+          tone: result.ok ? "success" : "error",
+        },
+      }),
+    );
+  }
+
+  if (checkoutSessionId && intent === "remove-traveler-profile") {
+    const travelerProfileId = String(formData?.get("travelerProfileId") || "").trim();
+    const result = await removeCheckoutTravelerProfile({
+      checkoutSessionId,
+      travelerProfileId,
+    });
+    throw redirect(
+      303,
+      buildCheckoutPageHref(url.pathname, url, {
+        travelerNotice: {
+          code: result.code,
+          message: result.message,
+          tone: result.ok ? "success" : "error",
+        },
+      }),
+    );
+  }
+
+  if (checkoutSessionId && intent === "validate-travelers") {
+    const result = await validateCheckoutTravelersAction({
+      checkoutSessionId,
+    });
+    throw redirect(
+      303,
+      buildCheckoutPageHref(url.pathname, url, {
+        travelerNotice: {
+          code: result.code,
+          message: result.message,
+          tone: result.ok ? "success" : "error",
+        },
+      }),
+    );
+  }
+
   throw redirect(303, buildCheckoutPageHref(url.pathname, url));
 };
 
@@ -366,7 +508,8 @@ export const useCheckoutSessionPage = routeLoader$(
       if (refreshedSession) {
         session = refreshedSession;
       }
-      const paymentSummary = await getCheckoutPaymentSummary(session, {
+      const sessionWithTravelers = await attachCheckoutTravelerState(session);
+      const paymentSummary = await getCheckoutPaymentSummary(sessionWithTravelers, {
         now: new Date(),
       });
       await refreshBookingRunStatus(checkoutSessionId, {
@@ -378,10 +521,12 @@ export const useCheckoutSessionPage = routeLoader$(
       const confirmation = bookingSummary.run
         ? await getBookingConfirmationForBookingRun(bookingSummary.run.id)
         : null;
+      const travelerPageModel =
+        await getCheckoutTravelerPageModel(sessionWithTravelers);
 
       return {
         kind: "loaded",
-        session,
+        session: sessionWithTravelers,
         entryMode: readEntryMode(url.searchParams.get("entry")),
         paymentSummary,
         paymentNotice: readPaymentNotice(url),
@@ -389,6 +534,8 @@ export const useCheckoutSessionPage = routeLoader$(
         bookingNotice: readBookingNotice(url),
         confirmation,
         confirmationNotice: readConfirmationNotice(url),
+        travelerPageModel,
+        travelerNotice: readTravelerNotice(url),
       } satisfies CheckoutSessionRouteData;
     } catch (error) {
       if (error instanceof CheckoutSessionError) {
@@ -424,6 +571,8 @@ export default component$(() => {
       entryMode: data.entryMode,
       bookingSummary: data.bookingSummary,
       confirmation: data.confirmation,
+      travelerValidationSummary: data.travelerPageModel.validationSummary,
+      hasCompleteTravelerDetails: data.travelerPageModel.hasCompleteTravelerDetails,
     });
     return (
       <CheckoutShell
@@ -435,6 +584,8 @@ export default component$(() => {
         bookingNotice={data.bookingNotice}
         confirmation={data.confirmation}
         confirmationNotice={data.confirmationNotice}
+        travelerPageModel={data.travelerPageModel}
+        travelerNotice={data.travelerNotice}
       />
     );
   }
@@ -483,6 +634,8 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
       entryMode: data.entryMode,
       bookingSummary: data.bookingSummary,
       confirmation: data.confirmation,
+      travelerValidationSummary: data.travelerPageModel.validationSummary,
+      hasCompleteTravelerDetails: data.travelerPageModel.hasCompleteTravelerDetails,
     });
     const title = `${summary.tripReference} checkout | Andacity`;
     return {

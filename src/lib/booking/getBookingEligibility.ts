@@ -4,6 +4,8 @@ import { getLatestBookingRunForCheckout } from "~/lib/booking/getBookingRun";
 import { getCheckoutSession } from "~/lib/checkout/getCheckoutSession";
 import { getCheckoutReadinessState } from "~/lib/checkout/getCheckoutReadinessState";
 import { isCheckoutSessionExpired } from "~/lib/checkout/isCheckoutSessionExpired";
+import { attachCheckoutTravelerState } from "~/fns/travelers/attachCheckoutTravelerState";
+import { canCheckoutProceedWithTravelers } from "~/fns/travelers/canCheckoutProceedWithTravelers";
 import {
   getLatestCheckoutPaymentSessionRow,
   mapCheckoutPaymentSessionRow,
@@ -28,8 +30,11 @@ export const getBookingEligibility = async (
     now: options.now,
     includeTerminal: true,
   });
+  const checkoutWithTravelers = checkoutSession
+    ? await attachCheckoutTravelerState(checkoutSession)
+    : checkoutSession;
 
-  if (!checkoutSession) {
+  if (!checkoutWithTravelers) {
     return {
       ok: false,
       code: "CHECKOUT_NOT_FOUND",
@@ -42,12 +47,12 @@ export const getBookingEligibility = async (
     };
   }
 
-  if (isCheckoutSessionExpired(checkoutSession, options.now)) {
+  if (isCheckoutSessionExpired(checkoutWithTravelers, options.now)) {
     return {
       ok: false,
       code: "CHECKOUT_EXPIRED",
       message: "Checkout expired before booking could begin.",
-      checkoutSession,
+      checkoutSession: checkoutWithTravelers,
       paymentSession: null,
       executionKey: null,
       activeBookingRun: null,
@@ -56,15 +61,15 @@ export const getBookingEligibility = async (
   }
 
   if (
-    checkoutSession.status !== "ready" ||
-    getCheckoutReadinessState(checkoutSession, options) !== "ready"
+    checkoutWithTravelers.status !== "ready" ||
+    getCheckoutReadinessState(checkoutWithTravelers, options) !== "ready"
   ) {
     return {
       ok: false,
       code: "CHECKOUT_NOT_READY",
       message:
         "Booking can only begin after the latest checkout revalidation passes.",
-      checkoutSession,
+      checkoutSession: checkoutWithTravelers,
       paymentSession: null,
       executionKey: null,
       activeBookingRun: null,
@@ -72,10 +77,33 @@ export const getBookingEligibility = async (
     };
   }
 
-  const activeBookingRun = await getActiveBookingRunForCheckout(checkoutSession.id);
-  const latestBookingRun = await getLatestBookingRunForCheckout(checkoutSession.id, {
-    includeTerminal: true,
-  });
+  if (
+    !canCheckoutProceedWithTravelers(
+      checkoutWithTravelers.travelerValidationSummary || null,
+    )
+  ) {
+    return {
+      ok: false,
+      code: "CHECKOUT_TRAVELERS_INCOMPLETE",
+      message:
+        "Booking is blocked until required traveler details are complete and valid.",
+      checkoutSession: checkoutWithTravelers,
+      paymentSession: null,
+      executionKey: null,
+      activeBookingRun: null,
+      completedBookingRun: null,
+    };
+  }
+
+  const activeBookingRun = await getActiveBookingRunForCheckout(
+    checkoutWithTravelers.id,
+  );
+  const latestBookingRun = await getLatestBookingRunForCheckout(
+    checkoutWithTravelers.id,
+    {
+      includeTerminal: true,
+    },
+  );
   const completedBookingRun =
     latestBookingRun?.summary?.overallStatus === "succeeded" ||
     latestBookingRun?.status === "succeeded"
@@ -87,7 +115,7 @@ export const getBookingEligibility = async (
       ok: false,
       code: "BOOKING_ALREADY_COMPLETED",
       message: "This checkout already has a completed booking run.",
-      checkoutSession,
+      checkoutSession: checkoutWithTravelers,
       paymentSession: null,
       executionKey: null,
       activeBookingRun,
@@ -100,7 +128,7 @@ export const getBookingEligibility = async (
       ok: false,
       code: "BOOKING_ALREADY_IN_PROGRESS",
       message: "A booking run is already in progress for this checkout.",
-      checkoutSession,
+      checkoutSession: checkoutWithTravelers,
       paymentSession: null,
       executionKey: null,
       activeBookingRun,
@@ -109,7 +137,7 @@ export const getBookingEligibility = async (
   }
 
   const latestPaymentRow = await getLatestCheckoutPaymentSessionRow(
-    checkoutSession.id,
+    checkoutWithTravelers.id,
     {
       includeTerminal: true,
     },
@@ -123,7 +151,7 @@ export const getBookingEligibility = async (
       ok: false,
       code: "PAYMENT_NOT_FOUND",
       message: "No checkout payment session is available for booking.",
-      checkoutSession,
+      checkoutSession: checkoutWithTravelers,
       paymentSession: null,
       executionKey: null,
       activeBookingRun,
@@ -137,7 +165,7 @@ export const getBookingEligibility = async (
       code: "PAYMENT_NOT_AUTHORIZED",
       message:
         "Booking can only begin after payment is authorized or completed.",
-      checkoutSession,
+      checkoutSession: checkoutWithTravelers,
       paymentSession,
       executionKey: null,
       activeBookingRun,
@@ -145,13 +173,16 @@ export const getBookingEligibility = async (
     };
   }
 
-  const executionKey = getBookingExecutionKey(checkoutSession, paymentSession);
+  const executionKey = getBookingExecutionKey(
+    checkoutWithTravelers,
+    paymentSession,
+  );
 
   return {
     ok: true,
     code: "BOOKING_ELIGIBLE",
     message: "Checkout is eligible for booking execution.",
-    checkoutSession,
+    checkoutSession: checkoutWithTravelers,
     paymentSession,
     executionKey,
     activeBookingRun,

@@ -3,11 +3,23 @@ import test from "node:test";
 
 import type { BookingConfirmation } from "../../types/confirmation.ts";
 import type { CheckoutSession } from "../../types/checkout.ts";
+import type { TravelerValidationSummary } from "../../types/travelers.ts";
 
 const summaryModule: typeof import("./getCheckoutSessionSummary.ts") =
   await import(new URL("./getCheckoutSessionSummary.ts", import.meta.url).href);
 
 const { getCheckoutSessionSummary } = summaryModule;
+
+const completeTravelerSummary: TravelerValidationSummary = {
+  status: "complete",
+  checkedAt: "2026-03-16T09:16:00.000Z",
+  hasBlockingIssues: false,
+  issueCount: 0,
+  missingTravelerCount: 0,
+  invalidTravelerCount: 0,
+  assignmentMismatchCount: 0,
+  issues: [],
+};
 
 const buildSession = (
   overrides: Partial<CheckoutSession> = {},
@@ -63,6 +75,9 @@ const buildSession = (
     expiresAt: "2030-03-16T09:45:00.000Z",
     completedAt: null,
     abandonedAt: null,
+    travelerValidationStatus: "complete",
+    travelerValidationSummary: completeTravelerSummary,
+    hasCompleteTravelerDetails: true,
     ...overrides,
   };
 };

@@ -3,6 +3,7 @@ import { mapBookingAdapterError } from "~/lib/booking/mapBookingAdapterError";
 import { sanitizeBookingRequestSnapshot } from "~/lib/booking/sanitizeBookingRequestSnapshot";
 import { sanitizeBookingResponseSnapshot } from "~/lib/booking/sanitizeBookingResponseSnapshot";
 import { updateBookingItemExecution } from "~/lib/booking/getBookingRun";
+import { mapCheckoutTravelersForBooking } from "~/fns/travelers/mapCheckoutTravelersForBooking";
 import type { BookingItemExecution, BookingRun } from "~/types/booking";
 import type { CheckoutItemSnapshot, CheckoutSession } from "~/types/checkout";
 import type { CheckoutPaymentSession } from "~/types/payment";
@@ -56,6 +57,11 @@ export const executeBookingItem = async (input: {
   });
 
   try {
+    const travelerContext = await mapCheckoutTravelersForBooking({
+      checkoutSession: input.checkoutSession,
+      checkoutItemKey: input.bookingItemExecution.checkoutItemKey,
+    });
+
     const result = await createBooking({
       checkoutSessionId: input.checkoutSession.id,
       bookingRunId: input.bookingRun.id,
@@ -75,7 +81,7 @@ export const executeBookingItem = async (input: {
         bookableEntity: input.checkoutItem.inventory.bookableEntity,
         availability: input.checkoutItem.inventory.availability,
       },
-      travelerContext: null,
+      travelerContext,
       paymentContext: buildPaymentContext(input.paymentSession),
       idempotencyKey,
       currency:

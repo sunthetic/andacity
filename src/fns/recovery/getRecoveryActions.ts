@@ -22,6 +22,11 @@ const ACTION_COPY: Record<
     label: "Recheck availability",
     description: "Run checkout revalidation again before continuing.",
   },
+  complete_travelers: {
+    label: "Complete traveler details",
+    description:
+      "Open traveler details and finish required fields and assignments.",
+  },
   return_to_trip: {
     label: "Return to trip",
     description: "Go back to the saved trip and review the latest items.",
@@ -97,6 +102,11 @@ const actionHrefForType = (
         metadata.checkoutSessionId
         ? `/checkout/${metadata.checkoutSessionId}`
         : null;
+    case "complete_travelers":
+      return typeof metadata.checkoutSessionId === "string" &&
+        metadata.checkoutSessionId
+        ? `/checkout/${metadata.checkoutSessionId}#checkout-travelers`
+        : null;
     case "view_confirmation":
       return typeof metadata.confirmationHref === "string"
         ? metadata.confirmationHref
@@ -154,6 +164,10 @@ const actionPlanByReason = (
       return ["return_to_trip", "start_new_search"];
     case "CHECKOUT_NOT_READY":
       return ["revalidate", "return_to_trip"];
+    case "CHECKOUT_TRAVELERS_INCOMPLETE":
+    case "CHECKOUT_TRAVELERS_INVALID":
+    case "TRAVELER_ASSIGNMENT_MISMATCH":
+      return ["complete_travelers", "revalidate", "return_to_trip"];
     case "CHECKOUT_CREATE_FAILED":
     case "CHECKOUT_RESUME_FAILED":
       return ["resume_checkout", "return_to_trip"];

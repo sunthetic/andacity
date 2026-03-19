@@ -2,6 +2,7 @@ import { canCheckoutProceedToPayment } from '~/lib/checkout/canCheckoutProceedTo
 import { getCheckoutReadinessState } from '~/lib/checkout/getCheckoutReadinessState'
 import { buildInventoryFreshness } from '~/lib/inventory/freshness'
 import { formatMoneyFromCents } from '~/lib/pricing/price-display'
+import { canCheckoutProceedWithTravelers } from '~/fns/travelers/canCheckoutProceedWithTravelers'
 import type { CheckoutBookingSummary } from '~/types/booking'
 import type { BookingConfirmation } from '~/types/confirmation'
 import type {
@@ -9,6 +10,7 @@ import type {
   CheckoutSessionEntryMode,
   CheckoutSessionSummary,
 } from '~/types/checkout'
+import type { TravelerValidationSummary } from '~/types/travelers'
 
 const buildTripReference = (tripId: number) => {
   return `TRIP-${String(Math.max(0, tripId)).padStart(6, '0')}`
@@ -45,7 +47,10 @@ const toTitleCase = (value: string) => {
 }
 
 const describeStatus = (
-  session: CheckoutSession,
+  session: CheckoutSession & {
+    travelerValidationSummary?: TravelerValidationSummary | null
+    hasCompleteTravelerDetails?: boolean
+  },
   readinessState: CheckoutSessionSummary['readinessState'],
 ) => {
   const status = session.status
@@ -73,6 +78,9 @@ const describeStatus = (
   }
 
   if (status === 'ready') {
+    if (session.hasCompleteTravelerDetails === false) {
+      return 'Checkout inventory is verified, but required traveler details are still incomplete for payment and booking.'
+    }
     return readinessState === 'ready'
       ? 'We rechecked pricing and availability for your trip. This checkout snapshot is ready for payment.'
       : 'This checkout snapshot exists, but it still needs a successful revalidation pass before payment can continue.'
@@ -84,7 +92,10 @@ const describeStatus = (
 }
 
 const describeReadiness = (
-  session: CheckoutSession,
+  session: CheckoutSession & {
+    travelerValidationSummary?: TravelerValidationSummary | null
+    hasCompleteTravelerDetails?: boolean
+  },
   readinessState: CheckoutSessionSummary['readinessState'],
 ) => {
   const status = session.status
@@ -93,6 +104,7 @@ const describeReadiness = (
   if (session.revalidationStatus === 'pending') {
     return 'Verifying pricing and availability'
   }
+  if (session.hasCompleteTravelerDetails === false) return 'Complete traveler details'
   if (readinessState === 'ready') return 'Ready for payment'
   if (status === 'blocked') return 'Review inventory changes'
   if (status === 'completed') return 'Checkout complete'
@@ -119,8 +131,22 @@ export const getCheckoutSessionSummary = (
     entryMode?: CheckoutSessionEntryMode | null
     bookingSummary?: CheckoutBookingSummary | null
     confirmation?: BookingConfirmation | null
+    travelerValidationSummary?: TravelerValidationSummary | null
+    hasCompleteTravelerDetails?: boolean
   } = {},
 ): CheckoutSessionSummary => {
+  const travelerValidationSummary =
+    options.travelerValidationSummary ??
+    session.travelerValidationSummary ??
+    null
+  const hasCompleteTravelerDetails =
+    typeof options.hasCompleteTravelerDetails === 'boolean'
+      ? options.hasCompleteTravelerDetails
+      : typeof session.hasCompleteTravelerDetails === 'boolean'
+        ? session.hasCompleteTravelerDetails
+        : travelerValidationSummary
+          ? canCheckoutProceedWithTravelers(travelerValidationSummary)
+          : false
   const readinessState = getCheckoutReadinessState(session)
   const freshness = session.lastRevalidatedAt
     ? buildInventoryFreshness({
@@ -155,8 +181,15 @@ export const getCheckoutSessionSummary = (
       : null,
     canReturnToTrip: true,
     readinessLabel: describeReadiness(session, readinessState),
-    canProceed: canCheckoutProceedToPayment(session),
+    canProceed: canCheckoutProceedToPayment({
+      ...session,
+      travelerValidationSummary,
+      hasCompleteTravelerDetails,
+    }),
     blockingIssueCount: session.revalidationSummary?.blockingIssueCount || 0,
+    travelerValidationStatus: travelerValidationSummary?.status || 'idle',
+    travelerValidationSummary,
+    hasCompleteTravelerDetails,
     bookingStatus: options.bookingSummary?.status || 'idle',
     activeBookingRunId: options.bookingSummary?.bookingRunId || null,
     hasCompletedBooking: options.bookingSummary?.hasCompletedBooking || false,

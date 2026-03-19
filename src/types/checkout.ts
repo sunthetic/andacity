@@ -10,6 +10,10 @@ import type {
   RecoveryState,
 } from "~/types/recovery";
 import type {
+  TravelerValidationStatus,
+  TravelerValidationSummary,
+} from "~/types/travelers";
+import type {
   TripDetails,
   TripItemAvailabilitySnapshot,
   TripItemType,
@@ -172,6 +176,9 @@ export type CheckoutSession = {
   expiresAt: string;
   completedAt: string | null;
   abandonedAt: string | null;
+  travelerValidationStatus?: TravelerValidationStatus;
+  travelerValidationSummary?: TravelerValidationSummary | null;
+  hasCompleteTravelerDetails?: boolean;
 };
 
 export type CheckoutSessionSummary = {
@@ -200,6 +207,9 @@ export type CheckoutSessionSummary = {
   readinessLabel: string | null;
   canProceed: boolean;
   blockingIssueCount: number;
+  travelerValidationStatus?: TravelerValidationStatus;
+  travelerValidationSummary?: TravelerValidationSummary | null;
+  hasCompleteTravelerDetails?: boolean;
   bookingStatus: BookingExecutionStatus;
   activeBookingRunId: string | null;
   hasCompletedBooking: boolean;

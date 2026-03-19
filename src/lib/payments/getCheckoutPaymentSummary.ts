@@ -3,6 +3,7 @@ import { canCheckoutCreatePaymentIntent } from '~/lib/payments/canCheckoutCreate
 import { canPaymentSessionBeResumed } from '~/lib/payments/canPaymentSessionBeResumed'
 import { getActiveCheckoutPaymentSession } from '~/lib/payments/getActiveCheckoutPaymentSession'
 import { getCheckoutPaymentFingerprint } from '~/lib/payments/getCheckoutPaymentFingerprint'
+import { attachCheckoutTravelerState } from '~/fns/travelers/attachCheckoutTravelerState'
 import {
   getLatestCheckoutPaymentSessionRow,
   mapCheckoutPaymentSessionRow,
@@ -78,7 +79,8 @@ export const getCheckoutPaymentSummary = async (
     now?: Date | string | number
   } = {},
 ): Promise<CheckoutPaymentSummary> => {
-  const eligibility = canCheckoutCreatePaymentIntent(checkoutSession, options)
+  const checkoutWithTravelers = await attachCheckoutTravelerState(checkoutSession)
+  const eligibility = canCheckoutCreatePaymentIntent(checkoutWithTravelers, options)
   const latestRow = await getLatestCheckoutPaymentSessionRow(checkoutSession.id, {
     includeTerminal: true,
   })
@@ -86,8 +88,11 @@ export const getCheckoutPaymentSummary = async (
   const activeSession = await getActiveCheckoutPaymentSession(checkoutSession.id, options)
 
   const currentFingerprint =
-    eligibility.ok && checkoutSession
-      ? getCheckoutPaymentFingerprint(checkoutSession, eligibility.amountSnapshot)
+    eligibility.ok && checkoutWithTravelers
+      ? getCheckoutPaymentFingerprint(
+          checkoutWithTravelers,
+          eligibility.amountSnapshot,
+        )
       : null
   const fingerprintMatchesCheckout =
     latestSession && currentFingerprint

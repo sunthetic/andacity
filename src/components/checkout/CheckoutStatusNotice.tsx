@@ -49,6 +49,12 @@ export const CheckoutStatusNotice = component$(
             <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
               {summary.readinessLabel}
             </p>
+            {summary.hasCompleteTravelerDetails === false ? (
+              <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
+                Traveler details: complete required fields and assignments to
+                unblock payment.
+              </p>
+            ) : null}
             {paymentSummary.status ? (
               <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
                 Payment: {paymentSummary.statusDescription}

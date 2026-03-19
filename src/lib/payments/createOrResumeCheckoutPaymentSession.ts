@@ -1,4 +1,5 @@
 import { getCheckoutSession } from '~/lib/checkout/getCheckoutSession'
+import { attachCheckoutTravelerState } from '~/fns/travelers/attachCheckoutTravelerState'
 import { canCheckoutCreatePaymentIntent } from '~/lib/payments/canCheckoutCreatePaymentIntent'
 import { cancelCheckoutPaymentSession } from '~/lib/payments/cancelCheckoutPaymentSession'
 import { canPaymentSessionBeResumed } from '~/lib/payments/canPaymentSessionBeResumed'
@@ -23,7 +24,10 @@ export const createOrResumeCheckoutPaymentSession = async (
     now: normalizedNow,
     includeTerminal: true,
   })
-  const eligibility = canCheckoutCreatePaymentIntent(checkoutSession, {
+  const checkoutWithTravelers = checkoutSession
+    ? await attachCheckoutTravelerState(checkoutSession)
+    : checkoutSession
+  const eligibility = canCheckoutCreatePaymentIntent(checkoutWithTravelers, {
     now: normalizedNow,
   })
   if (!eligibility.ok) {
@@ -31,7 +35,7 @@ export const createOrResumeCheckoutPaymentSession = async (
   }
 
   const currentFingerprint = getCheckoutPaymentFingerprint(
-    checkoutSession!,
+    checkoutWithTravelers!,
     eligibility.amountSnapshot,
   )
   const activeSession = await getActiveCheckoutPaymentSession(checkoutSessionId, {

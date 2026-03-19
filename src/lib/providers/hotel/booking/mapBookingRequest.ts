@@ -42,6 +42,7 @@ export const mapHotelBookingRequest = (
       provider: input.paymentContext.provider,
       providerPaymentIntentId: input.paymentContext.providerPaymentIntentId,
     },
+    travelers: input.travelerContext,
     idempotencyKey: input.idempotencyKey,
     metadata: input.metadata || null,
   };

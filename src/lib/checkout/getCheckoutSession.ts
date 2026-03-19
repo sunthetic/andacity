@@ -17,7 +17,7 @@ import {
 } from '~/types/checkout'
 
 export const CHECKOUT_SESSION_DEFAULT_TTL_MS = 30 * 60 * 1000
-const LATEST_CHECKOUT_MIGRATION = '0013_itinerary_ownership_bridges.sql'
+const LATEST_CHECKOUT_MIGRATION = '0014_checkout_travelers.sql'
 const CHECKOUT_SCHEMA_IDENTIFIERS = [
   'checkout_sessions',
   'checkout_session_status',
@@ -63,6 +63,13 @@ const CHECKOUT_SCHEMA_IDENTIFIERS = [
   'canonical_entity_id',
   'canonical_bookable_entity_id',
   'canonical_inventory_id',
+  'checkout_traveler_profiles',
+  'checkout_traveler_assignments',
+  'traveler_type',
+  'traveler_role',
+  'traveler_document_type',
+  'driver_age',
+  'document_number',
 ] as const
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

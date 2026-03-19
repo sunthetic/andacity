@@ -25,6 +25,9 @@ export const RECOVERY_REASON_CODES = [
   "CHECKOUT_EXPIRED",
   "CHECKOUT_NOT_FOUND",
   "CHECKOUT_NOT_READY",
+  "CHECKOUT_TRAVELERS_INCOMPLETE",
+  "CHECKOUT_TRAVELERS_INVALID",
+  "TRAVELER_ASSIGNMENT_MISMATCH",
   "CHECKOUT_CREATE_FAILED",
   "CHECKOUT_RESUME_FAILED",
   "REVALIDATION_FAILED",
@@ -48,6 +51,7 @@ export type RecoveryReasonCode = (typeof RECOVERY_REASON_CODES)[number];
 export const RECOVERY_ACTION_TYPES = [
   "retry",
   "revalidate",
+  "complete_travelers",
   "return_to_trip",
   "resume_checkout",
   "resume_payment",
@@ -89,6 +93,8 @@ export type RecoveryMetadata = {
   failedCount?: number | null;
   manualReviewCount?: number | null;
   blockingIssueCount?: number | null;
+  travelerValidationStatus?: string | null;
+  travelerIssueCount?: number | null;
   rawCode?: string | null;
   rawMessage?: string | null;
   [key: string]: unknown;

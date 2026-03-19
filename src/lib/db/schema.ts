@@ -54,6 +54,18 @@ export const checkoutRevalidationStatusEnum = dbEnum(
   'checkout_revalidation_status',
   ['idle', 'pending', 'passed', 'failed'],
 )
+export const travelerTypeEnum = dbEnum('traveler_type', ['adult', 'child', 'infant'])
+export const travelerRoleEnum = dbEnum('traveler_role', [
+  'passenger',
+  'guest',
+  'driver',
+  'primary_contact',
+])
+export const travelerDocumentTypeEnum = dbEnum('traveler_document_type', [
+  'passport',
+  'drivers_license',
+  'national_id',
+])
 export const paymentProviderEnum = dbEnum('payment_provider', ['stripe'])
 export const checkoutPaymentSessionStatusEnum = dbEnum(
   'checkout_payment_session_status',
@@ -894,6 +906,87 @@ export const checkoutSessions = dbTable(
   }),
 )
 
+export const checkoutTravelerProfiles = dbTable(
+  'checkout_traveler_profiles',
+  {
+    id: text('id').primaryKey(),
+    checkoutSessionId: text('checkout_session_id')
+      .notNull()
+      .references(() => checkoutSessions.id, { onDelete: 'cascade' }),
+    type: travelerTypeEnum('type').notNull().default('adult'),
+    role: travelerRoleEnum('role').notNull().default('passenger'),
+    firstName: text('first_name').notNull(),
+    middleName: text('middle_name'),
+    lastName: text('last_name').notNull(),
+    dateOfBirth: date('date_of_birth'),
+    email: text('email'),
+    phone: text('phone'),
+    nationality: varchar('nationality', { length: 2 }),
+    documentType: travelerDocumentTypeEnum('document_type'),
+    documentNumber: text('document_number'),
+    documentExpiryDate: date('document_expiry_date'),
+    issuingCountry: varchar('issuing_country', { length: 2 }),
+    knownTravelerNumber: text('known_traveler_number'),
+    redressNumber: text('redress_number'),
+    driverAge: integer('driver_age'),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    checkoutIdx: index('checkout_traveler_profiles_checkout_idx').on(
+      table.checkoutSessionId,
+    ),
+    roleIdx: index('checkout_traveler_profiles_role_idx').on(table.role),
+    checkoutRoleIdx: index('checkout_traveler_profiles_checkout_role_idx').on(
+      table.checkoutSessionId,
+      table.role,
+    ),
+    emailIdx: index('checkout_traveler_profiles_email_idx').on(table.email),
+    documentIdx: index('checkout_traveler_profiles_document_idx').on(
+      table.documentType,
+      table.documentNumber,
+    ),
+  }),
+)
+
+export const checkoutTravelerAssignments = dbTable(
+  'checkout_traveler_assignments',
+  {
+    id: text('id').primaryKey(),
+    checkoutSessionId: text('checkout_session_id')
+      .notNull()
+      .references(() => checkoutSessions.id, { onDelete: 'cascade' }),
+    checkoutItemKey: text('checkout_item_key'),
+    travelerProfileId: text('traveler_profile_id')
+      .notNull()
+      .references(() => checkoutTravelerProfiles.id, { onDelete: 'cascade' }),
+    role: travelerRoleEnum('role').notNull().default('passenger'),
+    isPrimary: boolean('is_primary').notNull().default(false),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => ({
+    checkoutIdx: index('checkout_traveler_assignments_checkout_idx').on(
+      table.checkoutSessionId,
+    ),
+    profileIdx: index('checkout_traveler_assignments_profile_idx').on(
+      table.travelerProfileId,
+    ),
+    checkoutItemRoleIdx: index(
+      'checkout_traveler_assignments_checkout_item_role_idx',
+    ).on(table.checkoutSessionId, table.checkoutItemKey, table.role),
+    checkoutRolePrimaryIdx: index(
+      'checkout_traveler_assignments_checkout_role_primary_idx',
+    ).on(table.checkoutSessionId, table.role, table.isPrimary),
+    identityUq: uniqueIndex('checkout_traveler_assignments_identity_uq').on(
+      table.checkoutSessionId,
+      table.checkoutItemKey,
+      table.travelerProfileId,
+      table.role,
+    ),
+  }),
+)
+
 export const checkoutPaymentSessions = dbTable(
   'checkout_payment_sessions',
   {
@@ -1524,10 +1617,37 @@ export const checkoutSessionsRelations = relations(checkoutSessions, ({ one, man
     fields: [checkoutSessions.tripId],
     references: [trips.id],
   }),
+  travelerProfiles: many(checkoutTravelerProfiles),
+  travelerAssignments: many(checkoutTravelerAssignments),
   paymentSessions: many(checkoutPaymentSessions),
   bookingRuns: many(bookingRuns),
   itineraries: many(itineraries),
 }))
+
+export const checkoutTravelerProfilesRelations = relations(
+  checkoutTravelerProfiles,
+  ({ one, many }) => ({
+    checkoutSession: one(checkoutSessions, {
+      fields: [checkoutTravelerProfiles.checkoutSessionId],
+      references: [checkoutSessions.id],
+    }),
+    assignments: many(checkoutTravelerAssignments),
+  }),
+)
+
+export const checkoutTravelerAssignmentsRelations = relations(
+  checkoutTravelerAssignments,
+  ({ one }) => ({
+    checkoutSession: one(checkoutSessions, {
+      fields: [checkoutTravelerAssignments.checkoutSessionId],
+      references: [checkoutSessions.id],
+    }),
+    travelerProfile: one(checkoutTravelerProfiles, {
+      fields: [checkoutTravelerAssignments.travelerProfileId],
+      references: [checkoutTravelerProfiles.id],
+    }),
+  }),
+)
 
 export const checkoutPaymentSessionsRelations = relations(
   checkoutPaymentSessions,
