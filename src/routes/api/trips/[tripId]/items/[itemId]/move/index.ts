@@ -4,21 +4,11 @@ import {
   parseMoveTripItemInput,
   parseTripIdParam,
 } from "~/lib/queries/trips.server";
+import { sendApiServerError, sendJson } from "~/lib/server/api-response";
 import {
   moveTripItemToTrip,
   TripRepoError,
 } from "~/lib/repos/trips-repo.server";
-
-const sendJson = (
-  headers: Headers,
-  send: (status: number, body: string) => void,
-  status: number,
-  body: unknown,
-) => {
-  headers.set("content-type", "application/json; charset=utf-8");
-  headers.set("cache-control", "no-store");
-  send(status, JSON.stringify(body));
-};
 
 export const onPost: RequestHandler = async ({
   params,
@@ -30,20 +20,20 @@ export const onPost: RequestHandler = async ({
   const itemId = parseItemIdParam(params.itemId);
 
   if (!tripId || !itemId) {
-    sendJson(headers, send, 400, { error: "Invalid trip or item id." });
+    sendJson(headers, send, 400, { error: "Invalid trip or item id." }, { cacheControl: "no-store" });
     return;
   }
 
   const payload = await request.json().catch(() => ({}));
   const input = parseMoveTripItemInput(payload);
   if (!input) {
-    sendJson(headers, send, 400, { error: "Invalid move payload." });
+    sendJson(headers, send, 400, { error: "Invalid move payload." }, { cacheControl: "no-store" });
     return;
   }
 
   try {
     const result = await moveTripItemToTrip(tripId, itemId, input.targetTripId);
-    sendJson(headers, send, 200, result);
+    sendJson(headers, send, 200, result, { cacheControl: "no-store" });
   } catch (error) {
     if (error instanceof TripRepoError) {
       const status =
@@ -56,12 +46,13 @@ export const onPost: RequestHandler = async ({
       sendJson(headers, send, status, {
         error: error.message,
         code: error.code,
-      });
+      }, { cacheControl: "no-store" });
       return;
     }
 
-    const message =
-      error instanceof Error ? error.message : "Failed to move trip item.";
-    sendJson(headers, send, 500, { error: message });
+    sendApiServerError(headers, send, error, "Failed to move trip item.", {
+      label: "trip-item-move",
+      cacheControl: "no-store",
+    });
   }
 };

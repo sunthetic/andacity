@@ -1,16 +1,7 @@
 import type { RequestHandler } from '@builder.io/qwik-city'
 import { parseTripIdParam } from '~/lib/queries/trips.server'
 import { revalidateTrip, TripRepoError } from '~/lib/repos/trips-repo.server'
-
-const sendJson = (
-  headers: Headers,
-  send: (status: number, body: string) => void,
-  status: number,
-  body: unknown,
-) => {
-  headers.set('content-type', 'application/json; charset=utf-8')
-  send(status, JSON.stringify(body))
-}
+import { sendApiServerError, sendJson } from '~/lib/server/api-response'
 
 export const onPost: RequestHandler = async ({ params, headers, send }) => {
   const tripId = parseTripIdParam(params.tripId)
@@ -34,7 +25,8 @@ export const onPost: RequestHandler = async ({ params, headers, send }) => {
       return
     }
 
-    const message = error instanceof Error ? error.message : 'Failed to revalidate trip.'
-    sendJson(headers, send, 500, { error: message })
+    sendApiServerError(headers, send, error, 'Failed to revalidate trip.', {
+      label: 'trip-revalidate',
+    })
   }
 }

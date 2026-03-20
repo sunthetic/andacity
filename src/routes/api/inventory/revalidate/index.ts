@@ -3,16 +3,7 @@ import {
   revalidateInventoryFreshness,
   type InventoryRevalidationItemType,
 } from '~/lib/repos/inventory-revalidation-repo.server'
-
-const sendJson = (
-  headers: Headers,
-  send: (status: number, body: string) => void,
-  status: number,
-  body: unknown,
-) => {
-  headers.set('content-type', 'application/json; charset=utf-8')
-  send(status, JSON.stringify(body))
-}
+import { sendApiServerError, sendJson } from '~/lib/server/api-response'
 
 const parseItemType = (value: unknown): InventoryRevalidationItemType | null => {
   const itemType = String(value || '').trim().toLowerCase()
@@ -49,8 +40,12 @@ export const onPost: RequestHandler = async ({ request, headers, send }) => {
 
     sendJson(headers, send, 200, { result })
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Failed to revalidate inventory.'
-    sendJson(headers, send, 500, { error: message })
+    sendApiServerError(
+      headers,
+      send,
+      error,
+      'Failed to revalidate inventory.',
+      { label: 'inventory-revalidate' },
+    )
   }
 }

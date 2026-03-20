@@ -4,20 +4,11 @@ import {
   parseTripEditPreviewInput,
   parseTripIdParam,
 } from "~/lib/queries/trips.server";
+import { sendApiServerError, sendJson } from "~/lib/server/api-response";
 import {
   previewTripItemEdit,
   TripRepoError,
 } from "~/lib/repos/trips-repo.server";
-
-const sendJson = (
-  headers: Headers,
-  send: (status: number, body: string) => void,
-  status: number,
-  body: unknown,
-) => {
-  headers.set("content-type", "application/json; charset=utf-8");
-  send(status, JSON.stringify(body));
-};
 
 export const onPost: RequestHandler = async ({
   params,
@@ -60,8 +51,8 @@ export const onPost: RequestHandler = async ({
       return;
     }
 
-    const message =
-      error instanceof Error ? error.message : "Failed to preview trip edit.";
-    sendJson(headers, send, 500, { error: message });
+    sendApiServerError(headers, send, error, "Failed to preview trip edit.", {
+      label: "trip-item-preview",
+    });
   }
 };

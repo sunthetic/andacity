@@ -3,23 +3,13 @@ import {
   parseTripIdParam,
   parseUpdateTripInput,
 } from "~/lib/queries/trips.server";
+import { sendApiServerError, sendJson } from "~/lib/server/api-response";
 import {
   deleteTrip,
   getTripDetails,
   TripRepoError,
   updateTripMetadata,
 } from "~/lib/repos/trips-repo.server";
-
-const sendJson = (
-  headers: Headers,
-  send: (status: number, body: string) => void,
-  status: number,
-  body: unknown,
-) => {
-  headers.set("content-type", "application/json; charset=utf-8");
-  headers.set("cache-control", "no-store");
-  send(status, JSON.stringify(body));
-};
 
 export const onGet: RequestHandler = async ({
   params,
@@ -29,7 +19,7 @@ export const onGet: RequestHandler = async ({
 }) => {
   const tripId = parseTripIdParam(params.tripId);
   if (!tripId) {
-    sendJson(headers, send, 400, { error: "Invalid trip id." });
+    sendJson(headers, send, 400, { error: "Invalid trip id." }, { cacheControl: "no-store" });
     return;
   }
 
@@ -38,11 +28,11 @@ export const onGet: RequestHandler = async ({
   try {
     const trip = await getTripDetails(tripId, { revalidate: revalidateMode });
     if (!trip) {
-      sendJson(headers, send, 404, { error: "Trip not found." });
+      sendJson(headers, send, 404, { error: "Trip not found." }, { cacheControl: "no-store" });
       return;
     }
 
-    sendJson(headers, send, 200, { trip });
+    sendJson(headers, send, 200, { trip }, { cacheControl: "no-store" });
   } catch (error) {
     if (error instanceof TripRepoError) {
       const status =
@@ -55,13 +45,14 @@ export const onGet: RequestHandler = async ({
       sendJson(headers, send, status, {
         error: error.message,
         code: error.code,
-      });
+      }, { cacheControl: "no-store" });
       return;
     }
 
-    const message =
-      error instanceof Error ? error.message : "Failed to load trip.";
-    sendJson(headers, send, 500, { error: message });
+    sendApiServerError(headers, send, error, "Failed to load trip.", {
+      label: "trip-get",
+      cacheControl: "no-store",
+    });
   }
 };
 
@@ -73,7 +64,7 @@ export const onPatch: RequestHandler = async ({
 }) => {
   const tripId = parseTripIdParam(params.tripId);
   if (!tripId) {
-    sendJson(headers, send, 400, { error: "Invalid trip id." });
+    sendJson(headers, send, 400, { error: "Invalid trip id." }, { cacheControl: "no-store" });
     return;
   }
 
@@ -81,7 +72,7 @@ export const onPatch: RequestHandler = async ({
     const payload = await request.json().catch(() => ({}));
     const input = parseUpdateTripInput(payload);
     const trip = await updateTripMetadata(tripId, input);
-    sendJson(headers, send, 200, { trip });
+    sendJson(headers, send, 200, { trip }, { cacheControl: "no-store" });
   } catch (error) {
     if (error instanceof TripRepoError) {
       const status =
@@ -94,26 +85,27 @@ export const onPatch: RequestHandler = async ({
       sendJson(headers, send, status, {
         error: error.message,
         code: error.code,
-      });
+      }, { cacheControl: "no-store" });
       return;
     }
 
-    const message =
-      error instanceof Error ? error.message : "Failed to update trip.";
-    sendJson(headers, send, 500, { error: message });
+    sendApiServerError(headers, send, error, "Failed to update trip.", {
+      label: "trip-update",
+      cacheControl: "no-store",
+    });
   }
 };
 
 export const onDelete: RequestHandler = async ({ params, headers, send }) => {
   const tripId = parseTripIdParam(params.tripId);
   if (!tripId) {
-    sendJson(headers, send, 400, { error: "Invalid trip id." });
+    sendJson(headers, send, 400, { error: "Invalid trip id." }, { cacheControl: "no-store" });
     return;
   }
 
   try {
     await deleteTrip(tripId);
-    sendJson(headers, send, 200, { deletedTripId: tripId });
+    sendJson(headers, send, 200, { deletedTripId: tripId }, { cacheControl: "no-store" });
   } catch (error) {
     if (error instanceof TripRepoError) {
       const status =
@@ -126,12 +118,13 @@ export const onDelete: RequestHandler = async ({ params, headers, send }) => {
       sendJson(headers, send, status, {
         error: error.message,
         code: error.code,
-      });
+      }, { cacheControl: "no-store" });
       return;
     }
 
-    const message =
-      error instanceof Error ? error.message : "Failed to delete trip.";
-    sendJson(headers, send, 500, { error: message });
+    sendApiServerError(headers, send, error, "Failed to delete trip.", {
+      label: "trip-delete",
+      cacheControl: "no-store",
+    });
   }
 };

@@ -5,6 +5,7 @@ import {
   parseTripItemCandidateInput,
 } from "~/lib/queries/trips.server";
 import { addItemToTrip, TripRepoError } from "~/lib/repos/trips-repo.server";
+import { sendApiServerError, sendJson } from "~/lib/server/api-response";
 import {
   addBookableEntityToTrip,
   TripAssemblyError,
@@ -16,16 +17,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const parseOptionalBookingSessionId = (value: unknown) => {
   const text = String(value ?? "").trim();
   return text ? text : null;
-};
-
-const sendJson = (
-  headers: Headers,
-  send: (status: number, body: string) => void,
-  status: number,
-  body: unknown,
-) => {
-  headers.set("content-type", "application/json; charset=utf-8");
-  send(status, JSON.stringify(body));
 };
 
 export const onPost: RequestHandler = async ({
@@ -98,8 +89,8 @@ export const onPost: RequestHandler = async ({
       return;
     }
 
-    const message =
-      error instanceof Error ? error.message : "Failed to add item to trip.";
-    sendJson(headers, send, 500, { error: message });
+    sendApiServerError(headers, send, error, "Failed to add item to trip.", {
+      label: "trip-item-add",
+    });
   }
 };

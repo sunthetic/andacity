@@ -1,19 +1,9 @@
 import type { RequestHandler } from "@builder.io/qwik-city";
+import { sendApiServerError, sendJson } from "~/lib/server/api-response";
 import {
   discoverLocationsInDb,
   searchLocationsInDb,
 } from "~/lib/location/location-repo.server";
-
-const sendJson = (
-  headers: Headers,
-  send: (status: number, body: string) => void,
-  status: number,
-  body: unknown,
-) => {
-  headers.set("content-type", "application/json; charset=utf-8");
-  headers.set("cache-control", "no-store");
-  send(status, JSON.stringify(body));
-};
 
 export const onGet: RequestHandler = async ({ headers, send, url }) => {
   try {
@@ -41,22 +31,28 @@ export const onGet: RequestHandler = async ({ headers, send, url }) => {
         latitude,
         longitude,
       });
-      sendJson(headers, send, 200, { locations });
+      sendJson(headers, send, 200, { locations }, { cacheControl: "no-store" });
       return;
     }
 
     if (query.length < 2) {
-      sendJson(headers, send, 200, { locations: [] });
+      sendJson(headers, send, 200, { locations: [] }, { cacheControl: "no-store" });
       return;
     }
 
     const locations = await searchLocationsInDb(query, { limit });
-    sendJson(headers, send, 200, { locations });
+    sendJson(headers, send, 200, { locations }, { cacheControl: "no-store" });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Failed to search locations.";
-    sendJson(headers, send, 500, { error: message, locations: [] });
+    sendApiServerError(
+      headers,
+      send,
+      error,
+      "Failed to search locations.",
+      {
+        label: "locations-search",
+        body: { locations: [] },
+        cacheControl: "no-store",
+      },
+    );
   }
 };

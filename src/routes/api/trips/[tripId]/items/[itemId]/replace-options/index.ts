@@ -1,19 +1,10 @@
 import type { RequestHandler } from "@builder.io/qwik-city";
 import { parseItemIdParam, parseTripIdParam } from "~/lib/queries/trips.server";
+import { sendApiServerError, sendJson } from "~/lib/server/api-response";
 import {
   listTripItemReplacementOptions,
   TripRepoError,
 } from "~/lib/repos/trips-repo.server";
-
-const sendJson = (
-  headers: Headers,
-  send: (status: number, body: string) => void,
-  status: number,
-  body: unknown,
-) => {
-  headers.set("content-type", "application/json; charset=utf-8");
-  send(status, JSON.stringify(body));
-};
 
 export const onGet: RequestHandler = async ({ params, headers, send }) => {
   const tripId = parseTripIdParam(params.tripId);
@@ -42,10 +33,12 @@ export const onGet: RequestHandler = async ({ params, headers, send }) => {
       return;
     }
 
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Failed to load replacement options.";
-    sendJson(headers, send, 500, { error: message });
+    sendApiServerError(
+      headers,
+      send,
+      error,
+      "Failed to load replacement options.",
+      { label: "trip-item-replace-options" },
+    );
   }
 };

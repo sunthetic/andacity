@@ -4,21 +4,12 @@ import {
   parseTripIdParam,
   parseUpdateTripItemInput,
 } from "~/lib/queries/trips.server";
+import { sendApiServerError, sendJson } from "~/lib/server/api-response";
 import { TripRepoError, updateTripItem } from "~/lib/repos/trips-repo.server";
 import {
   removeItemFromTripAssembly,
   TripAssemblyError,
 } from "~/lib/trips/trip-assembly-engine";
-
-const sendJson = (
-  headers: Headers,
-  send: (status: number, body: string) => void,
-  status: number,
-  body: unknown,
-) => {
-  headers.set("content-type", "application/json; charset=utf-8");
-  send(status, JSON.stringify(body));
-};
 
 export const onDelete: RequestHandler = async ({ params, headers, send }) => {
   const tripId = parseTripIdParam(params.tripId);
@@ -59,9 +50,9 @@ export const onDelete: RequestHandler = async ({ params, headers, send }) => {
       return;
     }
 
-    const message =
-      error instanceof Error ? error.message : "Failed to remove trip item.";
-    sendJson(headers, send, 500, { error: message });
+    sendApiServerError(headers, send, error, "Failed to remove trip item.", {
+      label: "trip-item-delete",
+    });
   }
 };
 
@@ -106,8 +97,8 @@ export const onPatch: RequestHandler = async ({
       return;
     }
 
-    const message =
-      error instanceof Error ? error.message : "Failed to update trip item.";
-    sendJson(headers, send, 500, { error: message });
+    sendApiServerError(headers, send, error, "Failed to update trip item.", {
+      label: "trip-item-update",
+    });
   }
 };
