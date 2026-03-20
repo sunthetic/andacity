@@ -1,6 +1,7 @@
 ARG NODE_ENV="production"
 ARG NODE_VERSION="25"
 ARG APP_ORIGIN="http://localhost"
+ARG DATABASE_URL="postgresql://user:password@localhost:5432/mydb"
 
 ################################################################################
 # Use node image for base image for all stages.
@@ -44,7 +45,7 @@ ENV NODE_ENV ${NODE_ENV}
 
 # IMPORTANT: Set your actual domain for CSRF protection
 ENV ORIGIN ${APP_ORIGIN}
-ENV DATABASE_URL "postgresql://andacity:andacity@localhost:5432/andacity"
+ENV DATABASE_URL ${DATABASE_URL}
 
 # Run the application as a non-root user.
 USER node
