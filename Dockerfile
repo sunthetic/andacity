@@ -1,7 +1,6 @@
 ARG NODE_ENV="production"
 ARG NODE_VERSION="25"
 ARG APP_ORIGIN="http://localhost"
-ARG DATABASE_URL="postgresql://user:password@localhost:5432/mydb"
 
 ################################################################################
 # Use node image for base image for all stages.
@@ -40,12 +39,14 @@ RUN yarn run build.server
 # Create a new stage to run the application with minimal runtime dependencies
 FROM base as final
 
+ARG NODE_ENV
+ARG APP_ORIGIN
+
 # Use production node environment by default.
 ENV NODE_ENV ${NODE_ENV}
 
 # IMPORTANT: Set your actual domain for CSRF protection
 ENV ORIGIN ${APP_ORIGIN}
-ENV DATABASE_URL ${DATABASE_URL}
 
 # Run the application as a non-root user.
 USER node
