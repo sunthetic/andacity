@@ -44,7 +44,7 @@ ENV NODE_ENV ${NODE_ENV}
 
 # IMPORTANT: Set your actual domain for CSRF protection
 ENV ORIGIN ${APP_ORIGIN}
-ENV DATABASE_URL "postgresql://andacity:andacity@ec2-3-150-166-68.us-east-2.compute.amazonaws.com:5432/andacity"
+ENV DATABASE_URL "postgresql://andacity:andacity@localhost:5432/andacity"
 
 # Run the application as a non-root user.
 USER node
