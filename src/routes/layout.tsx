@@ -45,7 +45,7 @@ export const onRequest: RequestHandler = ({ url, headers }) => {
 export default component$(() => {
   return (
     <DecisioningProvider>
-      <div class="min-h-screen bg-[color:var(--color-bg)] text-[color:var(--color-text)]">
+      <div class="min-h-screen text-[color:var(--color-text)]">
 
         <SiteHeader />
 

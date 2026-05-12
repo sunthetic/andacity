@@ -94,7 +94,7 @@ export default component$(() => {
 
           <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <a
-              class="t-card block p-5 transition hover:-translate-y-px hover:bg-white"
+              class="t-card block p-5 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
               href="/flights"
             >
               <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-primary-50)] text-[color:var(--color-primary-600)]">
@@ -120,7 +120,7 @@ export default component$(() => {
             </a>
 
             <a
-              class="t-card block p-5 transition hover:-translate-y-px hover:bg-white"
+              class="t-card block p-5 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
               href="/hotels"
             >
               <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-secondary-50)] text-[color:var(--color-secondary-700)]">
@@ -146,7 +146,7 @@ export default component$(() => {
             </a>
 
             <a
-              class="t-card block p-5 transition hover:-translate-y-px hover:bg-white"
+              class="t-card block p-5 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
               href="/car-rentals"
             >
               <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-tertiary-50)] text-[color:var(--color-tertiary-700)]">
@@ -172,7 +172,7 @@ export default component$(() => {
             </a>
 
             <a
-              class="t-card block p-5 transition hover:-translate-y-px hover:bg-white"
+              class="t-card block p-5 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
               href="/explore"
             >
               <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-primary-50)] text-[color:var(--color-primary-700)]">
@@ -199,12 +199,12 @@ export default component$(() => {
           </div>
         </section>
 
-        <section class="mt-10 t-card p-6">
+        <section class="mt-10 rounded-[var(--radius-xl)] bg-[linear-gradient(135deg,var(--color-primary-50),var(--color-secondary-50)_52%,var(--color-tertiary-50))] p-6 shadow-[var(--shadow-lg)]">
           <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
             Why Andacity
           </h2>
           <div class="mt-4 grid gap-4 md:grid-cols-3">
-            <div>
+            <div class="rounded-2xl bg-white/48 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]">
               <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
                 Unified planning
               </div>
@@ -213,7 +213,7 @@ export default component$(() => {
                 your workflow.
               </p>
             </div>
-            <div>
+            <div class="rounded-2xl bg-white/48 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]">
               <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
                 Search + discovery
               </div>
@@ -222,7 +222,7 @@ export default component$(() => {
                 happen faster.
               </p>
             </div>
-            <div>
+            <div class="rounded-2xl bg-white/48 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]">
               <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
                 Clean surfaces
               </div>
@@ -251,7 +251,7 @@ export default component$(() => {
 
           <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <a
-              class="t-card block p-4 hover:bg-white"
+              class="t-card block p-4 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
               href="/destinations/miami"
             >
               <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
@@ -262,7 +262,7 @@ export default component$(() => {
               </div>
             </a>
             <a
-              class="t-card block p-4 hover:bg-white"
+              class="t-card block p-4 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
               href="/destinations/san-diego"
             >
               <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
@@ -273,7 +273,7 @@ export default component$(() => {
               </div>
             </a>
             <a
-              class="t-card block p-4 hover:bg-white"
+              class="t-card block p-4 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
               href="/hotels/in/new-york"
             >
               <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
@@ -284,7 +284,7 @@ export default component$(() => {
               </div>
             </a>
             <a
-              class="t-card block p-4 hover:bg-white"
+              class="t-card block p-4 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
               href="/car-rentals/in/orlando"
             >
               <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">

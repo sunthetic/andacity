@@ -21,7 +21,7 @@ export const ResultCardScaffold = component$(
       : undefined;
 
     return (
-      <article class="t-card overflow-hidden">
+      <article class="t-card overflow-hidden transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]">
         <div
           class={[
             "grid gap-0",
@@ -31,7 +31,7 @@ export const ResultCardScaffold = component$(
           ]}
         >
           {props.hasMedia ? (
-            <div class="border-b border-[color:var(--color-divider)] bg-[color:var(--color-neutral-50)] md:border-r md:border-b-0">
+            <div class="bg-[linear-gradient(145deg,var(--color-primary-50),var(--color-secondary-50))] md:shadow-[inset_-1px_0_0_var(--color-divider)]">
               <Slot name="media" />
             </div>
           ) : null}
@@ -61,7 +61,7 @@ export const ResultCardScaffold = component$(
               </div>
 
               {showAside ? (
-                <aside class="flex min-w-0 flex-col gap-4 md:border-l md:border-[color:var(--color-divider)] md:pl-4 xl:pl-5">
+                <aside class="flex min-w-0 flex-col gap-4 rounded-2xl bg-[color:rgba(255,255,255,0.58)] p-3 shadow-[inset_1px_0_0_var(--color-divider),inset_0_1px_0_rgba(255,255,255,0.7)] md:p-0 md:pl-4 xl:pl-5">
                   {props.hasSecondaryActions ? (
                     <div class="flex flex-wrap gap-2 md:justify-end">
                       <Slot name="secondary-actions" />
@@ -84,7 +84,7 @@ export const ResultCardScaffold = component$(
             </div>
 
             {props.hasTrust ? (
-              <div class="mt-4 border-t border-[color:var(--color-divider)] pt-4">
+              <div class="mt-4 rounded-2xl bg-[color:rgba(255,255,255,0.48)] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
                 <Slot name="trust" />
               </div>
             ) : null}
@@ -119,7 +119,7 @@ export const ResultFactGrid = component$((props: ResultFactGridProps) => {
         <div
           key={`${item.label}:${item.value}`}
           class={[
-            "rounded-xl border border-[color:var(--color-divider)] px-3 py-2.5",
+            "rounded-xl px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_6px_16px_rgba(15,23,42,0.04)]",
             surfaceClass,
           ]}
         >
@@ -166,7 +166,7 @@ export const ResultFactList = component$((props: ResultFactListProps) => {
       {items.map((item) => (
         <div
           key={`${item.label}:${item.value}:${item.detail || ""}`}
-          class="min-w-0 rounded-lg bg-[color:var(--color-neutral-50)] px-3 py-2.5"
+          class="min-w-0 rounded-lg bg-[linear-gradient(145deg,var(--color-surface-1),rgba(255,255,255,0.72))] px-3 py-2.5"
         >
           <dt class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             {item.label}
@@ -195,7 +195,7 @@ export const ResultReasonCallout = component$(
     if (!String(props.text || "").trim()) return null;
 
     return (
-      <div class="rounded-xl border border-[color:var(--color-primary-150)] bg-[color:var(--color-primary-25)] px-4 py-3">
+      <div class="rounded-xl bg-[linear-gradient(135deg,var(--color-primary-50),var(--color-secondary-50))] px-4 py-3 shadow-[inset_3px_0_0_var(--color-action),0_8px_22px_rgba(37,99,235,0.08)]">
         <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-action)]">
           {props.label || "Why this result"}
         </p>

@@ -127,12 +127,15 @@
    --color-text-on-hero-muted: rgba(255, 255, 255, 0.88);
 
    /* Lines */
-   --color-border: color-mix(in oklab, var(--color-neutral-300) 75%, #0000);
-   --color-border-strong: color-mix(in oklab, var(--color-neutral-400) 85%, #0000);
-   --color-divider: color-mix(in oklab, var(--color-neutral-200) 70%, #0000);
+   --color-border: color-mix(in oklab, var(--color-neutral-300) 48%, #0000);
+   --color-border-subtle: color-mix(in oklab, var(--color-primary-200) 36%, #0000);
+   --color-border-default: color-mix(in oklab, var(--color-primary-250) 46%, #0000);
+   --color-border-strong: color-mix(in oklab, var(--color-neutral-500) 64%, #0000);
+   --color-divider: color-mix(in oklab, var(--color-primary-150) 28%, #0000);
 
    /* Focus ring */
    --color-focus: var(--color-primary-500);
+   --color-ring: var(--color-focus);
    --ring-focus: 0 0 0 4px color-mix(in oklab, var(--color-primary-200) 70%, #0000);
 
    /* Primary action */
@@ -169,18 +172,20 @@
    ----------------------------------------- */
 
    /* Base surfaces */
-   --color-surface-0: var(--color-neutral-25);
+   --color-surface-0: color-mix(in oklab, var(--color-primary-25) 44%, var(--color-neutral-25) 56%);
    /* app background */
-   --color-surface-1: color-mix(in oklab, #fff 55%, var(--color-neutral-25) 45%);
-   --color-surface-2: var(--color-neutral-50);
+   --color-surface-1: color-mix(in oklab, #fff 60%, var(--color-primary-50) 25%, var(--color-secondary-50) 15%);
+   --color-surface-2: color-mix(in oklab, #fff 52%, var(--color-secondary-50) 24%, var(--color-neutral-50) 24%);
    /* soft panel */
-   --color-surface-3: color-mix(in oklab, #fff 78%, var(--color-neutral-50) 22%);
-   --color-surface-4: #ffffff;
+   --color-surface-3: color-mix(in oklab, #fff 78%, var(--color-primary-50) 14%, var(--color-neutral-50) 8%);
+   --color-surface-4: color-mix(in oklab, #fff 92%, var(--color-secondary-25) 8%);
    /* true white card */
-   --color-surface-5: color-mix(in oklab, #fff 92%, var(--color-neutral-75) 8%);
+   --color-surface-5: color-mix(in oklab, #fff 86%, var(--color-tertiary-50) 7%, var(--color-primary-50) 7%);
+   --color-surface-muted: var(--color-surface-2);
+   --color-surface-elevated: var(--color-surface-5);
 
    /* Named surfaces (use these directly in components when intent is clear) */
-   --color-surface-chrome: color-mix(in oklab, var(--color-surface-0) 82%, #fff 18%);
+   --color-surface-chrome: color-mix(in oklab, var(--color-surface-0) 76%, #fff 24%);
    /* sticky headers, toolbars */
    --color-surface-popover: var(--color-surface-3);
    /* dropdowns, menus, tooltips */
@@ -194,10 +199,10 @@
    --color-elevated: var(--color-surface-4);
 
    /* Optional: surface shadows (tuned for light UI) */
-   --shadow-surface-1: 0 1px 2px color-mix(in oklab, var(--color-neutral-900) 6%, #0000);
-   --shadow-surface-2: 0 6px 18px color-mix(in oklab, var(--color-neutral-900) 9%, #0000);
-   --shadow-surface-3: 0 14px 40px color-mix(in oklab, var(--color-neutral-900) 12%, #0000);
-   --shadow-surface-4: 0 24px 70px color-mix(in oklab, var(--color-neutral-900) 14%, #0000);
+   --shadow-surface-1: 0 1px 2px color-mix(in oklab, var(--color-primary-900) 6%, #0000), 0 10px 26px color-mix(in oklab, var(--color-primary-700) 5%, #0000);
+   --shadow-surface-2: 0 8px 22px color-mix(in oklab, var(--color-primary-900) 10%, #0000), 0 1px 0 rgba(255,255,255,0.8) inset;
+   --shadow-surface-3: 0 18px 46px color-mix(in oklab, var(--color-primary-900) 13%, #0000), 0 4px 14px color-mix(in oklab, var(--color-secondary-800) 7%, #0000);
+   --shadow-surface-4: 0 28px 80px color-mix(in oklab, var(--color-primary-950) 16%, #0000);
 
    /* -----------------------------------------
       Glass / frosted surface effects
@@ -240,9 +245,17 @@
      Elevation (clean, low-chrome shadows)
      Use sparingly; prefer border + subtle tint
   ----------------------------------------- */
-   --shadow-e1: 0 1px 2px color-mix(in oklab, var(--color-neutral-900) 8%, #0000);
-   --shadow-e2: 0 6px 18px color-mix(in oklab, var(--color-neutral-900) 10%, #0000);
-   --shadow-e3: 0 14px 40px color-mix(in oklab, var(--color-neutral-900) 14%, #0000);
+   --radius-lg: 12px;
+   --radius-xl: 16px;
+
+   --shadow-sm: var(--shadow-surface-1);
+   --shadow-md: var(--shadow-surface-2);
+   --shadow-lg: var(--shadow-surface-3);
+   --shadow-xl: 0 28px 74px color-mix(in oklab, var(--color-primary-950) 18%, #0000), 0 8px 22px color-mix(in oklab, var(--color-secondary-800) 8%, #0000);
+   --shadow-soft: var(--shadow-surface-2);
+   --shadow-e1: var(--shadow-surface-1);
+   --shadow-e2: var(--shadow-surface-2);
+   --shadow-e3: var(--shadow-surface-3);
 
    /* -----------------------------------------
      Easy gradients (apply to hero strips / CTAs)
@@ -253,7 +266,16 @@
 
    --grad-surface: linear-gradient(180deg,
          #FFFFFF,
-         color-mix(in oklab, var(--color-neutral-50) 75%, #fff 25%));
+         color-mix(in oklab, var(--color-primary-50) 24%, var(--color-secondary-50) 18%, #fff 58%));
+
+   --grad-card: linear-gradient(145deg,
+         rgba(255, 255, 255, 0.94) 0%,
+         color-mix(in oklab, var(--color-primary-25) 30%, #fff 70%) 54%,
+         color-mix(in oklab, var(--color-secondary-50) 25%, #fff 75%) 100%);
+
+   --grad-panel: linear-gradient(145deg,
+         color-mix(in oklab, var(--color-primary-50) 42%, #fff 58%),
+         color-mix(in oklab, var(--color-secondary-50) 32%, #fff 68%));
 
    --grad-deal: linear-gradient(135deg,
          var(--color-tertiary-50),

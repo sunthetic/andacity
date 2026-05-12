@@ -41,7 +41,7 @@ export const GlobalSearchEntry = component$((props: GlobalSearchEntryProps) => {
 
   return (
     <div id={props.id} class={["relative z-20", props.class]}>
-      <BookingSearchSurface class="border-white/40 bg-white/96 p-4 shadow-[var(--shadow-xl)] backdrop-blur md:p-5">
+      <BookingSearchSurface class="border-white/60 bg-white/88 p-4 shadow-[var(--shadow-xl)] backdrop-blur md:p-5">
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div class="max-w-2xl">
@@ -61,7 +61,7 @@ export const GlobalSearchEntry = component$((props: GlobalSearchEntryProps) => {
             <div
               role="tablist"
               aria-label={props.tabListLabel || "Search vertical"}
-              class="relative z-10 inline-flex w-full flex-wrap gap-2 rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-1 lg:w-auto lg:flex-nowrap"
+              class="relative z-10 inline-flex w-full flex-wrap gap-2 rounded-[var(--radius-xl)] bg-[color:rgba(11,18,32,0.06)] p-1 shadow-[inset_0_1px_2px_rgba(15,23,42,0.08)] lg:w-auto lg:flex-nowrap"
             >
               {SEARCH_VERTICAL_OPTIONS.map((option) => {
                 const isActive = option.value === activeVertical.value;
@@ -77,8 +77,8 @@ export const GlobalSearchEntry = component$((props: GlobalSearchEntryProps) => {
                     class={[
                       "flex-1 rounded-[var(--radius-lg)] px-4 py-2 text-sm font-semibold transition md:flex-none",
                       isActive
-                        ? "bg-[color:var(--color-action)] text-white shadow-[var(--shadow-sm)]"
-                        : "text-[color:var(--color-text-muted)] hover:bg-white hover:text-[color:var(--color-text-strong)]",
+                        ? "bg-[linear-gradient(135deg,var(--color-action),var(--color-secondary-600))] text-white shadow-[var(--shadow-md)]"
+                        : "text-[color:var(--color-text-muted)] hover:bg-white/78 hover:text-[color:var(--color-text-strong)]",
                     ]}
                     onClick$={() => {
                       activeVertical.value = option.value;
@@ -95,7 +95,7 @@ export const GlobalSearchEntry = component$((props: GlobalSearchEntryProps) => {
             id={`global-search-panel-${activeOption.value}`}
             role="tabpanel"
             aria-labelledby={`global-search-tab-${activeOption.value}`}
-            class="relative z-20 rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-elevated)] p-3 md:p-4"
+            class="relative z-20 rounded-[var(--radius-xl)] bg-white/72 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82),0_10px_28px_rgba(15,23,42,0.06)] md:p-4"
           >
             <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--color-text-muted)]">
               {activeOption.label} search

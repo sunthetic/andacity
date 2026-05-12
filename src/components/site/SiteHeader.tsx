@@ -49,7 +49,7 @@ const BRAND_LOGO_SRC =
 export const SiteHeader = component$(() => {
   return (
     <header
-      class="sticky top-0 z-40 border-b border-[color:var(--color-border)]"
+      class="sticky top-0 z-40 shadow-[0_10px_34px_rgba(15,23,42,0.08)]"
       style="
   background:
     var(--glass-highlight),
@@ -103,7 +103,7 @@ export const SiteHeader = component$(() => {
 
                   <div class="grid gap-2 p-2 sm:grid-cols-2">
                     {/* Left column: actions */}
-                    <div class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)]/60 p-3">
+                    <div class="rounded-xl bg-[linear-gradient(145deg,rgba(255,255,255,0.78),rgba(228,233,252,0.54))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
                       <div class="flex items-center justify-between gap-2">
                         <div class="text-xs font-semibold uppercase tracking-wide text-[color:var(--color-text-muted)]">
                           Hotels
@@ -155,7 +155,7 @@ export const SiteHeader = component$(() => {
                     </div>
 
                     {/* Right column: featured destinations */}
-                    <div class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)]/60 p-3">
+                    <div class="rounded-xl bg-[linear-gradient(145deg,rgba(255,255,255,0.78),rgba(224,245,241,0.56))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
                       <div class="text-xs font-semibold uppercase tracking-wide text-[color:var(--color-text-muted)]">
                         Featured destinations
                       </div>
@@ -188,7 +188,7 @@ export const SiteHeader = component$(() => {
                         ))}
                       </ul>
 
-                      <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-panel)] p-3">
+                      <div class="mt-3 rounded-xl bg-[linear-gradient(135deg,var(--color-primary-50),var(--color-tertiary-50))] p-3 shadow-[inset_3px_0_0_var(--color-price)]">
                         <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
                           City guides for search hubs
                         </div>
