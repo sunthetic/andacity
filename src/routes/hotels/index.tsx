@@ -85,7 +85,7 @@ export default component$(() => {
       title="Find stays that fit the trip, not just the city"
       description="Search hotels by destination, dates, and guests, or browse city hubs built for planning and discovery."
       heroImageUrl="/images/hero/hotels.svg"
-      heroOverlay="base"
+      heroOverlay="hotels"
       searchCard={
         <HotelSearchCard
           initialDestination={destinationLocation?.displayName || destination}

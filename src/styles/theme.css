@@ -111,10 +111,10 @@
   ----------------------------------------- */
 
    /* Background stack */
-   --color-bg: var(--color-neutral-25);
+   --color-bg: #F4F7FB;
    --color-surface: #FFFFFF;
-   --color-primary-surface: var(--color-primary-25);
-   --color-panel: var(--color-neutral-50);
+   --color-primary-surface: color-mix(in oklab, var(--color-primary-50) 62%, #fff 38%);
+   --color-panel: #EEF4F8;
    --color-elevated: #FFFFFF;
 
    /* Text */
@@ -139,18 +139,26 @@
    --ring-focus: 0 0 0 4px color-mix(in oklab, var(--color-primary-200) 70%, #0000);
 
    /* Primary action */
-   --color-action: var(--color-primary-500);
-   --color-action-hover: var(--color-primary-550);
-   --color-action-press: var(--color-primary-600);
-   --color-action-soft: var(--color-primary-50);
+   --color-action: #2563EB;
+   --color-action-hover: #1D4ED8;
+   --color-action-press: #173FAE;
+   --color-action-soft: #E4EDFF;
 
    /* Secondary action */
    --color-action-2: var(--color-neutral-900);
    --color-action-2-hover: var(--color-neutral-950);
 
    /* Pricing / deal emphasis */
-   --color-price: var(--color-tertiary-500);
-   --color-deal-soft: var(--color-tertiary-50);
+   --color-price: #B45309;
+   --color-deal-soft: #FEF3C7;
+   --color-highlight: #0F766E;
+   --color-highlight-soft: #CCFBF1;
+   --color-route: #0284C7;
+   --color-route-soft: #E0F2FE;
+   --color-fuchsia: #7C3AED;
+   --color-fuchsia-soft: #EDE9FE;
+   --color-lime: #4D7C0F;
+   --color-lime-soft: #ECFCCB;
 
    /* States */
    --color-success: var(--color-secondary-600);
@@ -172,15 +180,15 @@
    ----------------------------------------- */
 
    /* Base surfaces */
-   --color-surface-0: color-mix(in oklab, var(--color-primary-25) 44%, var(--color-neutral-25) 56%);
+   --color-surface-0: #F4F7FB;
    /* app background */
-   --color-surface-1: color-mix(in oklab, #fff 60%, var(--color-primary-50) 25%, var(--color-secondary-50) 15%);
-   --color-surface-2: color-mix(in oklab, #fff 52%, var(--color-secondary-50) 24%, var(--color-neutral-50) 24%);
+   --color-surface-1: #EEF4F8;
+   --color-surface-2: #F1F5F9;
    /* soft panel */
-   --color-surface-3: color-mix(in oklab, #fff 78%, var(--color-primary-50) 14%, var(--color-neutral-50) 8%);
-   --color-surface-4: color-mix(in oklab, #fff 92%, var(--color-secondary-25) 8%);
+   --color-surface-3: #F8FBFD;
+   --color-surface-4: #FFFFFF;
    /* true white card */
-   --color-surface-5: color-mix(in oklab, #fff 86%, var(--color-tertiary-50) 7%, var(--color-primary-50) 7%);
+   --color-surface-5: #FFFFFF;
    --color-surface-muted: var(--color-surface-2);
    --color-surface-elevated: var(--color-surface-5);
 
@@ -199,10 +207,10 @@
    --color-elevated: var(--color-surface-4);
 
    /* Optional: surface shadows (tuned for light UI) */
-   --shadow-surface-1: 0 1px 2px color-mix(in oklab, var(--color-primary-900) 6%, #0000), 0 10px 26px color-mix(in oklab, var(--color-primary-700) 5%, #0000);
-   --shadow-surface-2: 0 8px 22px color-mix(in oklab, var(--color-primary-900) 10%, #0000), 0 1px 0 rgba(255,255,255,0.8) inset;
-   --shadow-surface-3: 0 18px 46px color-mix(in oklab, var(--color-primary-900) 13%, #0000), 0 4px 14px color-mix(in oklab, var(--color-secondary-800) 7%, #0000);
-   --shadow-surface-4: 0 28px 80px color-mix(in oklab, var(--color-primary-950) 16%, #0000);
+   --shadow-surface-1: 0 1px 2px color-mix(in oklab, var(--color-primary-900) 7%, #0000), 0 10px 26px color-mix(in oklab, var(--color-route) 5%, #0000);
+   --shadow-surface-2: 0 8px 24px color-mix(in oklab, var(--color-primary-900) 10%, #0000), 0 1px 0 rgba(255,255,255,0.84) inset;
+   --shadow-surface-3: 0 18px 48px color-mix(in oklab, var(--color-primary-900) 14%, #0000), 0 5px 16px color-mix(in oklab, var(--color-route) 7%, #0000);
+   --shadow-surface-4: 0 28px 80px color-mix(in oklab, var(--color-primary-950) 18%, #0000);
 
    /* -----------------------------------------
       Glass / frosted surface effects
@@ -264,18 +272,33 @@
          color-mix(in oklab, var(--color-primary-500) 92%, #fff 8%),
          color-mix(in oklab, var(--color-secondary-500) 70%, #fff 30%));
 
+   --grad-primary-bold: linear-gradient(135deg,
+         #2563EB 0%,
+         #0284C7 56%,
+         #0F766E 100%);
+
+   --grad-primary-hover: linear-gradient(135deg,
+         #1D4ED8 0%,
+         #0369A1 56%,
+         #0F766E 100%);
+
+   --grad-signal: linear-gradient(135deg,
+         #D97706 0%,
+         #B45309 50%,
+         #0F766E 100%);
+
    --grad-surface: linear-gradient(180deg,
          #FFFFFF,
-         color-mix(in oklab, var(--color-primary-50) 24%, var(--color-secondary-50) 18%, #fff 58%));
+         #F4F7FB);
 
    --grad-card: linear-gradient(145deg,
-         rgba(255, 255, 255, 0.94) 0%,
-         color-mix(in oklab, var(--color-primary-25) 30%, #fff 70%) 54%,
-         color-mix(in oklab, var(--color-secondary-50) 25%, #fff 75%) 100%);
+         rgba(255, 255, 255, 0.98) 0%,
+         #F8FBFD 46%,
+         #F1F5F9 100%);
 
    --grad-panel: linear-gradient(145deg,
-         color-mix(in oklab, var(--color-primary-50) 42%, #fff 58%),
-         color-mix(in oklab, var(--color-secondary-50) 32%, #fff 68%));
+         #FFFFFF,
+         #EEF4F8);
 
    --grad-deal: linear-gradient(135deg,
          var(--color-tertiary-50),

@@ -96,7 +96,7 @@ export default component$(() => {
       title="Get the right car for where the trip takes you"
       description="Search pickup locations, dates, and vehicle types so your plans stay flexible on the ground."
       heroImageUrl="/images/hero/cars.svg"
-      heroOverlay="base"
+      heroOverlay="cars"
       searchCard={
         <CarRentalSearchCard
           variant="hero"

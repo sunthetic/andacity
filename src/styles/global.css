@@ -21,14 +21,17 @@
     background: var(--color-bg);
     color: var(--color-text);
     font-family: "Poppins", var(--system-font-family);
+    --booking-search-surface-bg: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(238,244,248,0.9));
+    --booking-search-field-bg: rgba(255,255,255,0.78);
+    --booking-search-field-bg-hover: rgba(255,255,255,0.92);
+    --booking-search-field-shadow: inset 0 1px 0 rgba(255,255,255,0.72), 0 6px 18px rgba(20,40,90,0.06);
   }
 
   body {
     min-height: 100vh;
     background:
-      linear-gradient(125deg, rgba(228, 233, 252, 0.82) 0%, rgba(238, 252, 250, 0.68) 38%, rgba(255, 248, 240, 0.72) 100%),
-      radial-gradient(78rem 34rem at 10% -8%, rgba(37, 99, 235, 0.16), transparent 62%),
-      radial-gradient(58rem 30rem at 96% 4%, rgba(20, 184, 166, 0.13), transparent 64%),
+      radial-gradient(70rem 32rem at 8% -10%, rgba(37, 99, 235, 0.08), transparent 66%),
+      radial-gradient(52rem 28rem at 100% 0%, rgba(15, 118, 110, 0.06), transparent 68%),
       var(--color-bg);
     background-attachment: fixed;
   }
@@ -58,28 +61,33 @@
 @layer components {
   .t-card {
     background: var(--grad-card);
-    border: 1px solid color-mix(in oklab, var(--color-border-subtle) 70%, transparent);
+    border: 1px solid color-mix(in oklab, var(--color-border-default) 86%, transparent);
     border-radius: 16px;
-    box-shadow: var(--shadow-e2);
+    box-shadow:
+      inset 0 3px 0 color-mix(in oklab, var(--color-route) 52%, transparent),
+      inset 0 -1px 0 color-mix(in oklab, var(--color-tertiary-200) 46%, transparent),
+      var(--shadow-e2);
   }
 
   .t-panel {
     background: var(--grad-panel);
-    border: 1px solid color-mix(in oklab, var(--color-border-subtle) 58%, transparent);
+    border: 1px solid color-mix(in oklab, var(--color-border-default) 76%, transparent);
     border-radius: 16px;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
   }
 
   .t-btn-primary {
-    background: linear-gradient(135deg, var(--color-action), var(--color-secondary-600));
+    background: var(--grad-primary-bold);
     color: var(--color-text-inverse);
     border-radius: 12px;
     padding: 10px 14px;
-    box-shadow: 0 10px 24px color-mix(in oklab, var(--color-primary-700) 22%, transparent);
+    box-shadow:
+      0 14px 30px color-mix(in oklab, var(--color-route) 24%, transparent),
+      0 4px 10px color-mix(in oklab, var(--color-primary-800) 16%, transparent);
   }
 
   .t-btn-primary:hover {
-    background: var(--color-action-hover);
+    background: var(--grad-primary-hover, var(--color-action-hover));
   }
 
   .t-btn-primary:active {
@@ -125,15 +133,15 @@
     padding: 4px 10px;
     border-radius: 999px;
     font-size: 12px;
-    border: 1px solid color-mix(in oklab, var(--color-border-default) 64%, transparent);
-    background: color-mix(in oklab, #fff 58%, var(--color-primary-50) 42%);
+    border: 1px solid color-mix(in oklab, var(--color-border-default) 84%, transparent);
+    background: linear-gradient(135deg, #fff, var(--color-action-soft));
     color: var(--color-text);
   }
 
   .t-badge--deal {
-    background: var(--color-deal-soft);
-    border-color: var(--color-tertiary-150);
-    color: var(--color-tertiary-700);
+    background: linear-gradient(135deg, var(--color-deal-soft), var(--color-highlight-soft));
+    border-color: color-mix(in oklab, var(--color-tertiary-300) 72%, transparent);
+    color: var(--color-tertiary-800);
   }
 
   .t-hero-overlay-soft {
@@ -161,6 +169,127 @@
       var(--hero-overlay-strong-mid) 52%,
       var(--hero-overlay-strong-bottom) 100%
     );
+  }
+
+  .t-hero-overlay-flights {
+    background:
+      linear-gradient(180deg, rgba(5, 12, 38, 0.72) 0%, rgba(10, 31, 92, 0.38) 48%, rgba(2, 9, 29, 0.82) 100%),
+      linear-gradient(118deg, rgba(37, 99, 235, 0.68) 0%, rgba(14, 165, 233, 0.45) 48%, rgba(3, 105, 161, 0.3) 100%),
+      radial-gradient(86% 64% at 82% 12%, rgba(224, 242, 254, 0.42) 0%, rgba(224, 242, 254, 0) 68%);
+  }
+
+  .t-hero-overlay-hotels {
+    background:
+      linear-gradient(180deg, rgba(34, 8, 36, 0.7) 0%, rgba(94, 25, 72, 0.32) 48%, rgba(23, 6, 30, 0.82) 100%),
+      linear-gradient(118deg, rgba(226, 61, 40, 0.58) 0%, rgba(245, 158, 11, 0.38) 46%, rgba(192, 38, 211, 0.3) 100%),
+      radial-gradient(84% 66% at 82% 10%, rgba(255, 241, 198, 0.56) 0%, rgba(255, 241, 198, 0) 66%);
+  }
+
+  .t-hero-overlay-cars {
+    background:
+      linear-gradient(180deg, rgba(4, 27, 28, 0.7) 0%, rgba(13, 75, 66, 0.34) 48%, rgba(3, 18, 22, 0.82) 100%),
+      linear-gradient(118deg, rgba(20, 184, 166, 0.58) 0%, rgba(101, 163, 13, 0.36) 44%, rgba(245, 158, 11, 0.34) 100%),
+      radial-gradient(86% 66% at 84% 12%, rgba(255, 237, 213, 0.48) 0%, rgba(255, 237, 213, 0) 68%);
+  }
+
+  .t-vertical-theme {
+    min-height: calc(100vh - var(--app-header-height));
+    background:
+      var(--vertical-page-glow, transparent),
+      var(--vertical-page-bg, transparent);
+  }
+
+  .t-vertical-theme-flights {
+    --color-action: #2563EB;
+    --color-action-hover: #1D4ED8;
+    --color-action-press: #173FAE;
+    --color-action-soft: #DBEAFE;
+    --color-route: #0284C7;
+    --color-route-soft: #E0F2FE;
+    --color-highlight: #0369A1;
+    --color-highlight-soft: #E0F2FE;
+    --color-price: #0E7490;
+    --color-deal-soft: #CFFAFE;
+    --color-border-default: color-mix(in oklab, #38BDF8 44%, transparent);
+    --color-border-subtle: color-mix(in oklab, #93C5FD 42%, transparent);
+    --color-surface-1: #EAF4FF;
+    --color-surface-2: #E8F7FF;
+    --color-surface-3: #F0F8FF;
+    --color-surface-muted: #E8F7FF;
+    --grad-primary-bold: linear-gradient(135deg, #1D4ED8 0%, #0284C7 58%, #0891B2 100%);
+    --grad-primary-hover: linear-gradient(135deg, #1E40AF 0%, #0369A1 58%, #0E7490 100%);
+    --grad-card: linear-gradient(145deg, rgba(255,255,255,0.97) 0%, #EDF6FF 48%, #E0F2FE 100%);
+    --grad-panel: linear-gradient(145deg, #F8FCFF 0%, #E0F2FE 100%);
+    --booking-search-surface-bg: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(219,234,254,0.9) 52%, rgba(224,242,254,0.88));
+    --booking-search-field-bg: rgba(255,255,255,0.8);
+    --booking-search-field-bg-hover: rgba(255,255,255,0.94);
+    --booking-search-field-shadow: inset 0 1px 0 rgba(255,255,255,0.78), 0 7px 18px rgba(2,132,199,0.11);
+    --vertical-page-bg: linear-gradient(180deg, rgba(239,246,255,0.9) 0%, rgba(224,242,254,0.54) 46%, rgba(255,255,255,0) 100%);
+    --vertical-page-glow: radial-gradient(64rem 28rem at 12% 0%, rgba(37,99,235,0.12), transparent 70%);
+    --shadow-e2: 0 10px 28px rgba(2, 132, 199, 0.13), 0 1px 0 rgba(255,255,255,0.86) inset;
+    --shadow-e3: 0 22px 54px rgba(29, 78, 216, 0.16), 0 6px 16px rgba(2, 132, 199, 0.1);
+  }
+
+  .t-vertical-theme-hotels {
+    --color-action: #C026D3;
+    --color-action-hover: #A21CAF;
+    --color-action-press: #86198F;
+    --color-action-soft: #FAE8FF;
+    --color-route: #E23D28;
+    --color-route-soft: #FFE1D8;
+    --color-highlight: #D97706;
+    --color-highlight-soft: #FEF3C7;
+    --color-price: #B45309;
+    --color-deal-soft: #FFF1C6;
+    --color-border-default: color-mix(in oklab, #F0ABFC 48%, transparent);
+    --color-border-subtle: color-mix(in oklab, #FDBA74 36%, transparent);
+    --color-surface-1: #FFF4EC;
+    --color-surface-2: #FFF1F2;
+    --color-surface-3: #FDF4FF;
+    --color-surface-muted: #FFF1F2;
+    --grad-primary-bold: linear-gradient(135deg, #7E22CE 0%, #C026D3 48%, #F97316 100%);
+    --grad-primary-hover: linear-gradient(135deg, #6B21A8 0%, #A21CAF 48%, #EA580C 100%);
+    --grad-card: linear-gradient(145deg, rgba(255,255,255,0.97) 0%, #FFF4EC 44%, #FDF4FF 100%);
+    --grad-panel: linear-gradient(145deg, #FFF7ED 0%, #FAE8FF 100%);
+    --booking-search-surface-bg: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(255,244,236,0.92) 50%, rgba(250,232,255,0.88));
+    --booking-search-field-bg: rgba(255,255,255,0.82);
+    --booking-search-field-bg-hover: rgba(255,255,255,0.95);
+    --booking-search-field-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 7px 18px rgba(192,38,211,0.1);
+    --vertical-page-bg: linear-gradient(180deg, rgba(255,247,237,0.9) 0%, rgba(253,244,255,0.58) 46%, rgba(255,255,255,0) 100%);
+    --vertical-page-glow: radial-gradient(62rem 28rem at 12% 0%, rgba(217,119,6,0.12), transparent 70%), radial-gradient(46rem 24rem at 96% 5%, rgba(192,38,211,0.12), transparent 70%);
+    --shadow-e2: 0 10px 28px rgba(192, 38, 211, 0.12), 0 1px 0 rgba(255,255,255,0.86) inset;
+    --shadow-e3: 0 22px 54px rgba(126, 34, 206, 0.15), 0 6px 16px rgba(249, 115, 22, 0.1);
+  }
+
+  .t-vertical-theme-cars {
+    --color-action: #0F766E;
+    --color-action-hover: #115E59;
+    --color-action-press: #134E4A;
+    --color-action-soft: #CCFBF1;
+    --color-route: #65A30D;
+    --color-route-soft: #ECFCCB;
+    --color-highlight: #D97706;
+    --color-highlight-soft: #FEF3C7;
+    --color-price: #B45309;
+    --color-deal-soft: #FDE68A;
+    --color-border-default: color-mix(in oklab, #2DD4BF 44%, transparent);
+    --color-border-subtle: color-mix(in oklab, #A3E635 34%, transparent);
+    --color-surface-1: #ECFDF5;
+    --color-surface-2: #F0FDF4;
+    --color-surface-3: #F7FEE7;
+    --color-surface-muted: #F0FDF4;
+    --grad-primary-bold: linear-gradient(135deg, #0F766E 0%, #65A30D 58%, #D97706 100%);
+    --grad-primary-hover: linear-gradient(135deg, #115E59 0%, #4D7C0F 58%, #B45309 100%);
+    --grad-card: linear-gradient(145deg, rgba(255,255,255,0.97) 0%, #ECFDF5 46%, #F7FEE7 100%);
+    --grad-panel: linear-gradient(145deg, #F0FDFA 0%, #ECFCCB 100%);
+    --booking-search-surface-bg: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(236,253,245,0.92) 50%, rgba(247,254,231,0.88));
+    --booking-search-field-bg: rgba(255,255,255,0.82);
+    --booking-search-field-bg-hover: rgba(255,255,255,0.95);
+    --booking-search-field-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 7px 18px rgba(15,118,110,0.11);
+    --vertical-page-bg: linear-gradient(180deg, rgba(240,253,250,0.88) 0%, rgba(236,252,203,0.5) 46%, rgba(255,255,255,0) 100%);
+    --vertical-page-glow: radial-gradient(62rem 28rem at 12% 0%, rgba(15,118,110,0.13), transparent 70%), radial-gradient(44rem 22rem at 94% 4%, rgba(217,119,6,0.11), transparent 70%);
+    --shadow-e2: 0 10px 28px rgba(15, 118, 110, 0.13), 0 1px 0 rgba(255,255,255,0.86) inset;
+    --shadow-e3: 0 22px 54px rgba(15, 118, 110, 0.16), 0 6px 16px rgba(101, 163, 13, 0.1);
   }
 
   .t-hero-overlay-explore-default {

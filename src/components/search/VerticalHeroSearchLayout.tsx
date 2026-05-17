@@ -4,8 +4,10 @@ import { Breadcrumbs } from "~/components/navigation/Breadcrumbs";
 
 export const VerticalHeroSearchLayout = component$(
   (props: VerticalHeroSearchLayoutProps) => {
+    const verticalThemeClass = getVerticalThemeClass(props.heroOverlay);
+
     return (
-      <>
+      <div class={verticalThemeClass}>
         {props.breadcrumbs?.length ? (
           <div class="border-b border-[color:var(--color-border)]">
             <div class="mx-auto max-w-6xl px-4 py-3.5">
@@ -62,10 +64,19 @@ export const VerticalHeroSearchLayout = component$(
         <main class="relative z-0 mx-auto max-w-6xl px-4 pt-10 pb-10 md:pb-12.5 lg:pb-16">
           <Slot />
         </main>
-      </>
+      </div>
     );
   },
 );
+
+const getVerticalThemeClass = (
+  overlay: VerticalHeroSearchLayoutProps["heroOverlay"],
+) => {
+  if (overlay === "flights") return "t-vertical-theme t-vertical-theme-flights";
+  if (overlay === "hotels") return "t-vertical-theme t-vertical-theme-hotels";
+  if (overlay === "cars") return "t-vertical-theme t-vertical-theme-cars";
+  return "";
+};
 
 type VerticalHeroSearchLayoutProps = {
   breadcrumbs?: BreadcrumbItem[];
@@ -73,7 +84,7 @@ type VerticalHeroSearchLayoutProps = {
   title: string;
   description: string;
   heroImageUrl: string;
-  heroOverlay?: "soft" | "base" | "strong";
+  heroOverlay?: "soft" | "base" | "strong" | "flights" | "hotels" | "cars";
   searchCard: JSXOutput;
   helperLinks?: HelperLink[];
 };

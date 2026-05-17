@@ -106,7 +106,7 @@ export default component$(() => {
       title="Find smarter flights with flexible planning"
       description="Search routes, compare schedules, and plan around your dates and preferences with less friction."
       heroImageUrl="/images/hero/flights.svg"
-      heroOverlay="base"
+      heroOverlay="flights"
       searchCard={
         <FlightsSearchCard
           initialItineraryType={itineraryType}
