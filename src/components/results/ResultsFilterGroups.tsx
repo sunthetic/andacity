@@ -10,7 +10,7 @@ export const ResultsFilterGroups = component$(
       <div class="grid gap-5">
         {props.groups.map((group) => (
           <section key={group.title}>
-            <h4 class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+            <h4 class="inline-flex rounded-full bg-[color:var(--color-route-soft)] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-route)]">
               {group.title}
             </h4>
             <div class="mt-2 flex flex-wrap gap-2">
@@ -32,10 +32,10 @@ export const ResultsFilterGroups = component$(
                   aria-disabled={props.disabled || undefined}
                   tabIndex={props.disabled ? -1 : undefined}
                   class={[
-                    "rounded-full border px-3 py-1 text-xs font-medium transition",
+                    "rounded-full px-3 py-1 text-xs font-semibold shadow-[var(--shadow-sm)] transition",
                     option.active
-                      ? "border-[color:var(--color-action)] bg-[color:var(--color-primary-50)] text-[color:var(--color-action)]"
-                      : "border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] text-[color:var(--color-text)] hover:bg-white",
+                      ? "bg-[linear-gradient(135deg,var(--color-action),var(--color-route))] text-white"
+                      : "bg-white/72 text-[color:var(--color-text)] hover:bg-[color:var(--color-highlight-soft)] hover:text-[color:var(--color-highlight)]",
                     props.disabled
                       ? "pointer-events-none cursor-not-allowed opacity-60"
                       : null,

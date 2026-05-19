@@ -21,11 +21,11 @@ export const ResultsControlBar = component$((props: ResultsControlBarProps) => {
       class={["sticky z-20", props.class]}
       style={{ top: "var(--sticky-top-offset)" }}
     >
-      <div class="rounded-[var(--radius-xl)] bg-[linear-gradient(135deg,rgba(255,255,255,0.9),rgba(228,233,252,0.72),rgba(224,245,241,0.68))] shadow-[var(--shadow-lg)] backdrop-blur">
+      <div class="rounded-[var(--radius-xl)] bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(211,218,249,0.82),rgba(207,236,231,0.78),rgba(252,228,209,0.72))] shadow-[var(--shadow-lg)] backdrop-blur">
         <div class="flex flex-col gap-3 p-3 md:p-4">
           <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div class="flex flex-wrap items-center gap-2 text-sm font-medium text-[color:var(--color-text)]">
-              <span>{props.resultCountLabel}</span>
+              <span class="rounded-full bg-[color:var(--color-route)] px-3 py-1.5 text-white shadow-[0_8px_18px_rgba(29,78,216,0.2)]">{props.resultCountLabel}</span>
               {props.busy ? (
                 <AsyncInlineSpinner compact={true} label="Updating" />
               ) : null}

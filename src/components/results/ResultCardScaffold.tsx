@@ -61,7 +61,7 @@ export const ResultCardScaffold = component$(
               </div>
 
               {showAside ? (
-                <aside class="flex min-w-0 flex-col gap-4 rounded-2xl bg-[color:rgba(255,255,255,0.58)] p-3 shadow-[inset_1px_0_0_var(--color-divider),inset_0_1px_0_rgba(255,255,255,0.7)] md:p-0 md:pl-4 xl:pl-5">
+                <aside class="flex min-w-0 flex-col gap-4 rounded-2xl bg-[linear-gradient(145deg,rgba(255,255,255,0.78),rgba(253,240,226,0.72))] p-3 shadow-[inset_3px_0_0_var(--color-price),inset_0_1px_0_rgba(255,255,255,0.7)] md:p-3 xl:p-4">
                   {props.hasSecondaryActions ? (
                     <div class="flex flex-wrap gap-2 md:justify-end">
                       <Slot name="secondary-actions" />
@@ -166,7 +166,7 @@ export const ResultFactList = component$((props: ResultFactListProps) => {
       {items.map((item) => (
         <div
           key={`${item.label}:${item.value}:${item.detail || ""}`}
-          class="min-w-0 rounded-lg bg-[linear-gradient(145deg,var(--color-surface-1),rgba(255,255,255,0.72))] px-3 py-2.5"
+          class="min-w-0 rounded-lg bg-[linear-gradient(145deg,var(--color-surface-1),rgba(255,255,255,0.72))] px-3 py-2.5 shadow-[inset_3px_0_0_color-mix(in_oklab,var(--color-secondary-500)_54%,transparent)]"
         >
           <dt class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             {item.label}
@@ -260,11 +260,11 @@ export const ResultPricePanel = component$((props: ResultPricePanelProps) => {
       : props.display.totalLabel;
 
   return (
-    <div class={alignClass}>
-      <div class="text-2xl font-semibold leading-none text-[color:var(--color-text-strong)]">
+      <div class={["rounded-2xl bg-[linear-gradient(135deg,var(--color-tertiary-50),var(--color-highlight-soft))] px-3 py-3 shadow-[0_10px_24px_rgba(245,158,11,0.12),inset_0_1px_0_rgba(255,255,255,0.72)]", alignClass]}>
+      <div class="text-3xl font-semibold leading-none text-[color:var(--color-tertiary-800)]">
         {formatMoney(props.display.baseAmount, props.currency)}
         {props.display.baseQualifier ? (
-          <span class="ml-1 text-sm font-normal text-[color:var(--color-text-muted)]">
+          <span class="ml-1 text-sm font-normal text-[color:var(--color-tertiary-700)]">
             {formatPriceQualifier(props.display.baseQualifier)}
           </span>
         ) : null}

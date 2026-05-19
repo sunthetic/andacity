@@ -62,6 +62,7 @@ function createDb(config: DbRuntimeConfig) {
   pool = new Pool({
     connectionString,
     max,
+    ssl: { rejectUnauthorized: false },
   })
 
   return drizzle(pool, {

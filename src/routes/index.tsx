@@ -6,7 +6,7 @@ import { GlobalSearchEntry } from "~/components/search-entry/GlobalSearchEntry";
 export default component$(() => {
   return (
     <>
-      <section class="relative overflow-hidden">
+      <section class="relative z-20 overflow-visible">
         <HeroBackground imageUrl="/images/hero/home.svg" overlay="strong">
           <div class="mx-auto max-w-6xl px-4 py-12 md:py-16 lg:py-20">
             <div class="mx-auto max-w-4xl text-center">
@@ -78,11 +78,11 @@ export default component$(() => {
         </HeroBackground>
       </section>
 
-      <main class="mx-auto max-w-6xl px-4 pt-10 pb-10 md:pb-12.5 lg:pb-16">
+      <main class="relative z-0 mx-auto max-w-6xl px-4 pt-10 pb-10 md:pb-12.5 lg:pb-16">
         <section id="verticals">
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+              <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-route)]">
                 Start from any part of the trip
               </h2>
               <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
@@ -94,7 +94,7 @@ export default component$(() => {
 
           <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <a
-              class="t-card block p-5 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
+              class="block rounded-[var(--radius-xl)] bg-[linear-gradient(145deg,#fff,var(--color-route-soft))] p-5 shadow-[inset_0_3px_0_var(--color-route),var(--shadow-md)] transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
               href="/flights"
             >
               <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-primary-50)] text-[color:var(--color-primary-600)]">
@@ -120,7 +120,7 @@ export default component$(() => {
             </a>
 
             <a
-              class="t-card block p-5 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
+              class="block rounded-[var(--radius-xl)] bg-[linear-gradient(145deg,#fff,var(--color-secondary-50))] p-5 shadow-[inset_0_3px_0_var(--color-secondary-500),var(--shadow-md)] transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
               href="/hotels"
             >
               <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-secondary-50)] text-[color:var(--color-secondary-700)]">
@@ -146,7 +146,7 @@ export default component$(() => {
             </a>
 
             <a
-              class="t-card block p-5 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
+              class="block rounded-[var(--radius-xl)] bg-[linear-gradient(145deg,#fff,var(--color-tertiary-50))] p-5 shadow-[inset_0_3px_0_var(--color-price),var(--shadow-md)] transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
               href="/car-rentals"
             >
               <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-tertiary-50)] text-[color:var(--color-tertiary-700)]">
@@ -172,7 +172,7 @@ export default component$(() => {
             </a>
 
             <a
-              class="t-card block p-5 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
+              class="block rounded-[var(--radius-xl)] bg-[linear-gradient(145deg,#fff,var(--color-highlight-soft))] p-5 shadow-[inset_0_3px_0_var(--color-highlight),var(--shadow-md)] transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
               href="/explore"
             >
               <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-primary-50)] text-[color:var(--color-primary-700)]">
@@ -200,7 +200,7 @@ export default component$(() => {
         </section>
 
         <section class="mt-10 rounded-[var(--radius-xl)] bg-[linear-gradient(135deg,var(--color-primary-50),var(--color-secondary-50)_52%,var(--color-tertiary-50))] p-6 shadow-[var(--shadow-lg)]">
-          <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+          <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-primary-700)]">
             Why Andacity
           </h2>
           <div class="mt-4 grid gap-4 md:grid-cols-3">
@@ -236,7 +236,7 @@ export default component$(() => {
         <section class="mt-10">
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+              <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-highlight)]">
                 Popular destinations
               </h2>
               <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
