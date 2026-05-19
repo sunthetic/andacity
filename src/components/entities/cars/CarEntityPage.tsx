@@ -37,10 +37,10 @@ export const CarEntityPage = component$((props: CarEntityPageProps) => {
 
   return (
     <Page breadcrumbs={model.breadcrumbs}>
-      <div class="mx-auto max-w-5xl">
+      <div class="t-detail-theme t-detail-theme-cars mx-auto max-w-5xl">
         <section
           class={[
-            "mt-4 rounded-[32px] border px-6 py-7 shadow-[var(--shadow-soft)]",
+            "mt-4 overflow-hidden rounded-[32px] border px-6 py-7 shadow-[var(--shadow-soft)]",
             headerToneClass(model.header.tone),
           ]}
         >
@@ -53,6 +53,43 @@ export const CarEntityPage = component$((props: CarEntityPageProps) => {
           <p class="mt-3 max-w-[78ch] text-sm leading-6 text-[color:var(--color-text-muted)] lg:text-base">
             {model.header.description}
           </p>
+          {model.summary ? (
+            <div class="mt-6 grid gap-3 rounded-[28px] border border-[color:var(--color-border-default)] bg-[image:var(--detail-route-bg)] p-4 shadow-[var(--shadow-e2)] md:grid-cols-3">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+                  Vehicle
+                </p>
+                <p class="mt-1 text-xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+                  {model.summary.vehicleName}
+                </p>
+                <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                  {model.summary.categoryLabel}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+                  Pickup
+                </p>
+                <p class="mt-1 text-xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+                  {model.summary.pickupLocationLabel}
+                </p>
+                <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                  {model.summary.pickupDateTimeLabel}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+                  Rental window
+                </p>
+                <p class="mt-1 text-xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+                  {model.summary.rentalLengthLabel || "Length pending"}
+                </p>
+                <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                  {model.summary.ratePlanLabel || model.summary.dropoffDateTimeLabel}
+                </p>
+              </div>
+            </div>
+          ) : null}
           <EntitySearchFlowLinks
             searchHref={getBookableEntitySearchHref("car")}
           />

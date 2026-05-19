@@ -8,7 +8,7 @@ import type { BookableEntity } from "~/types/bookable-entity";
 
 export const CarPriceSummary = component$((props: CarPriceSummaryProps) => {
   return (
-    <aside class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+    <aside class="rounded-[28px] border border-[color:var(--color-border-default)] bg-[image:var(--detail-card-bg)] px-6 py-6 shadow-[var(--shadow-soft)]">
       <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--color-action)]">
         Price summary
       </p>
@@ -16,11 +16,11 @@ export const CarPriceSummary = component$((props: CarPriceSummaryProps) => {
         Rental pricing
       </h2>
 
-      <div class="mt-6 rounded-[24px] bg-[color:var(--color-surface-muted)] px-5 py-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+      <div class="mt-6 rounded-[24px] border border-[color:var(--color-border-default)] bg-[image:var(--detail-price-bg)] px-5 py-5 shadow-[var(--shadow-e2)]">
+        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-action)]">
           Total price
         </p>
-        <p class="mt-2 text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+        <p class="mt-2 text-4xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
           {props.price.totalPriceLabel}
         </p>
         {props.price.dailyPriceLabel ? (

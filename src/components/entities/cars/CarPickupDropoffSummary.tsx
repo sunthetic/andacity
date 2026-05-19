@@ -3,7 +3,7 @@ import type { CarPickupDropoffSummaryModel } from "~/types/car-entity-page";
 
 const LocationCard = component$((props: LocationCardProps) => {
   return (
-    <div class="rounded-[24px] bg-[color:var(--color-surface-muted)] px-5 py-5">
+    <div class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-white/82 px-5 py-5 shadow-[var(--shadow-sm)]">
       <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
         {props.label}
       </p>
@@ -30,7 +30,7 @@ const LocationCard = component$((props: LocationCardProps) => {
 export const CarPickupDropoffSummary = component$(
   (props: CarPickupDropoffSummaryProps) => {
     return (
-      <section class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+      <section class="rounded-[28px] border border-[color:var(--color-border-default)] bg-[image:var(--detail-card-bg)] px-6 py-6 shadow-[var(--shadow-soft)]">
         <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--color-action)]">
           Rental window
         </p>
@@ -46,6 +46,7 @@ export const CarPickupDropoffSummary = component$(
             addressLabel={props.summary.pickupAddressLabel}
             dateTimeLabel={props.summary.pickupDateTimeLabel}
           />
+          <div class="mx-auto hidden h-10 w-px bg-[linear-gradient(180deg,var(--color-action),var(--color-route))] md:block" aria-hidden="true" />
           <LocationCard
             label="Dropoff"
             locationLabel={props.summary.dropoffLocationLabel}
@@ -56,7 +57,7 @@ export const CarPickupDropoffSummary = component$(
         </div>
 
         {props.summary.rentalLengthLabel ? (
-          <div class="mt-6 rounded-[24px] border border-[color:var(--color-border)] px-5 py-5">
+          <div class="mt-6 rounded-[24px] border border-[color:var(--color-border-default)] bg-[image:var(--detail-price-bg)] px-5 py-5 shadow-[var(--shadow-sm)]">
             <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Rental length
             </p>

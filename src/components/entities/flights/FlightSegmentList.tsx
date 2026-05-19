@@ -4,7 +4,7 @@ import type { FlightEntitySegmentModel } from "~/types/flight-entity-page";
 
 export const FlightSegmentList = component$((props: FlightSegmentListProps) => {
   return (
-    <section class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+    <section class="rounded-[28px] border border-[color:var(--color-border-default)] bg-[image:var(--detail-card-bg)] px-6 py-6 shadow-[var(--shadow-soft)]">
       <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--color-action)]">

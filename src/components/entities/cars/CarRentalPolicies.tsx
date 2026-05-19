@@ -3,7 +3,7 @@ import type { CarRentalPoliciesModel } from "~/types/car-entity-page";
 
 export const CarRentalPolicies = component$((props: CarRentalPoliciesProps) => {
   return (
-    <section class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+    <section class="rounded-[28px] border border-[color:var(--color-border-default)] bg-[image:var(--detail-card-bg)] px-6 py-6 shadow-[var(--shadow-soft)]">
       <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--color-action)]">
         Policies
       </p>

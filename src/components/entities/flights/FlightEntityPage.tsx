@@ -36,10 +36,10 @@ export const FlightEntityPage = component$((props: FlightEntityPageProps) => {
 
   return (
     <Page breadcrumbs={model.breadcrumbs}>
-      <div class="mx-auto max-w-5xl">
+      <div class="t-detail-theme t-detail-theme-flights mx-auto max-w-5xl">
         <section
           class={[
-            "mt-4 rounded-[32px] border px-6 py-7 shadow-[var(--shadow-soft)]",
+            "mt-4 overflow-hidden rounded-[32px] border px-6 py-7 shadow-[var(--shadow-soft)]",
             headerToneClass(model.header.tone),
           ]}
         >
@@ -52,6 +52,43 @@ export const FlightEntityPage = component$((props: FlightEntityPageProps) => {
           <p class="mt-3 max-w-[78ch] text-sm leading-6 text-[color:var(--color-text-muted)] lg:text-base">
             {model.header.description}
           </p>
+          {model.summary ? (
+            <div class="mt-6 grid gap-3 rounded-[28px] border border-[color:var(--color-border-default)] bg-[image:var(--detail-route-bg)] p-4 shadow-[var(--shadow-e2)] lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+              <div class="min-w-0">
+                <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+                  Depart
+                </p>
+                <p class="mt-1 truncate whitespace-nowrap text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+                  {model.summary.departureTimeLabel}
+                </p>
+                <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                  {model.summary.departureAirportLabel}
+                </p>
+              </div>
+
+              <div class="flex items-center gap-3 text-[color:var(--color-action)] lg:min-w-52">
+                <span class="h-3 w-3 rounded-full bg-[color:var(--color-action)] shadow-[0_0_0_5px_var(--color-action-soft)]" />
+                <span class="h-px flex-1 bg-[linear-gradient(90deg,var(--color-action),var(--color-route))]" />
+                <span class="rounded-full border border-[color:var(--color-border-default)] bg-white/88 px-3 py-1 text-xs font-semibold text-[color:var(--color-action)] shadow-[var(--shadow-sm)]">
+                  {model.summary.durationLabel}
+                </span>
+                <span class="h-px flex-1 bg-[linear-gradient(90deg,var(--color-route),var(--color-action))]" />
+                <span class="h-3 w-3 rounded-full bg-[color:var(--color-route)] shadow-[0_0_0_5px_var(--color-route-soft)]" />
+              </div>
+
+              <div class="min-w-0 lg:text-right">
+                <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+                  Arrive
+                </p>
+                <p class="mt-1 truncate whitespace-nowrap text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+                  {model.summary.arrivalTimeLabel}
+                </p>
+                <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                  {model.summary.arrivalAirportLabel}
+                </p>
+              </div>
+            </div>
+          ) : null}
           <EntitySearchFlowLinks
             searchHref={getBookableEntitySearchHref("flight")}
           />

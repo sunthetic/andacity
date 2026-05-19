@@ -5,7 +5,7 @@ export const FlightSegmentCard = component$((props: FlightSegmentCardProps) => {
   const segment = props.segment;
 
   return (
-    <article class="rounded-[24px] border border-[color:var(--color-border)] bg-white px-5 py-5 shadow-[var(--shadow-soft)]">
+    <article class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-white/84 px-5 py-5 shadow-[var(--shadow-soft)]">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
@@ -29,7 +29,7 @@ export const FlightSegmentCard = component$((props: FlightSegmentCardProps) => {
         </div>
       </div>
 
-      <div class="mt-5 grid gap-4 md:grid-cols-[1fr,1fr]">
+      <div class="mt-5 grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
         <div class="rounded-2xl bg-[color:var(--color-surface-muted)] px-4 py-4">
           <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             Departure
@@ -40,6 +40,12 @@ export const FlightSegmentCard = component$((props: FlightSegmentCardProps) => {
           <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
             {segment.departureTimeLabel}
           </p>
+        </div>
+
+        <div class="hidden min-w-20 items-center gap-2 text-[color:var(--color-action)] md:flex">
+          <span class="h-2.5 w-2.5 rounded-full bg-[color:var(--color-action)]" />
+          <span class="h-px flex-1 bg-[linear-gradient(90deg,var(--color-action),var(--color-route))]" />
+          <span class="h-2.5 w-2.5 rounded-full bg-[color:var(--color-route)]" />
         </div>
 
         <div class="rounded-2xl bg-[color:var(--color-surface-muted)] px-4 py-4">

@@ -3,7 +3,7 @@ import type { CarVehicleSpecsModel } from "~/types/car-entity-page";
 
 export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
   return (
-    <section class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+    <section class="rounded-[28px] border border-[color:var(--color-border-default)] bg-[image:var(--detail-card-bg)] px-6 py-6 shadow-[var(--shadow-soft)]">
       <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--color-action)]">
         Vehicle details
       </p>
@@ -11,8 +11,8 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
         Specs and rental setup
       </h2>
 
-      <dl class="mt-5 grid gap-4 sm:grid-cols-2">
-        <div>
+      <dl class="mt-5 grid gap-3 sm:grid-cols-2">
+        <div class="rounded-2xl bg-white/72 px-4 py-3">
           <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             Category
           </dt>
@@ -21,7 +21,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
           </dd>
         </div>
 
-        <div>
+        <div class="rounded-2xl bg-white/72 px-4 py-3">
           <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             Transmission
           </dt>
@@ -30,7 +30,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
           </dd>
         </div>
 
-        <div>
+        <div class="rounded-2xl bg-white/72 px-4 py-3">
           <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             Passenger capacity
           </dt>
@@ -39,7 +39,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
           </dd>
         </div>
 
-        <div>
+        <div class="rounded-2xl bg-white/72 px-4 py-3">
           <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             Baggage
           </dt>
@@ -49,7 +49,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
         </div>
 
         {props.specs.doorCountLabel ? (
-          <div>
+          <div class="rounded-2xl bg-white/72 px-4 py-3">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Doors
             </dt>
@@ -60,7 +60,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
         ) : null}
 
         {props.specs.airConditioningLabel ? (
-          <div>
+          <div class="rounded-2xl bg-white/72 px-4 py-3">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Climate
             </dt>
@@ -71,7 +71,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
         ) : null}
 
         {props.specs.fuelPolicyLabel ? (
-          <div>
+          <div class="rounded-2xl bg-white/72 px-4 py-3">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Fuel policy
             </dt>
@@ -82,7 +82,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
         ) : null}
 
         {props.specs.mileagePolicyLabel ? (
-          <div>
+          <div class="rounded-2xl bg-white/72 px-4 py-3">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Mileage policy
             </dt>
@@ -93,7 +93,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
         ) : null}
 
         {props.specs.ratePlanLabel ? (
-          <div class="sm:col-span-2">
+          <div class="rounded-2xl bg-white/72 px-4 py-3 sm:col-span-2">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Rate plan
             </dt>

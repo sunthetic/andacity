@@ -21,7 +21,7 @@ export const CarEntitySummary = component$((props: CarEntitySummaryProps) => {
       : `Pickup ${props.summary.pickupLocationLabel} · Drop-off ${props.summary.dropoffLocationLabel}`;
 
   return (
-    <section class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+    <section class="rounded-[28px] border border-[color:var(--color-border-default)] bg-[image:var(--detail-card-bg)] px-6 py-6 shadow-[var(--shadow-soft)]">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--color-action)]">
@@ -60,25 +60,36 @@ export const CarEntitySummary = component$((props: CarEntitySummaryProps) => {
         ) : null}
       </div>
 
-      <div class="mt-6 grid gap-4 lg:grid-cols-[1.1fr,1fr]">
+      <div class="mt-6 grid gap-4 lg:grid-cols-[1.18fr,1fr]">
         {props.summary.imageUrl ? (
-          <div class="overflow-hidden rounded-[24px] bg-[color:var(--color-surface-muted)]">
+          <div class="relative overflow-hidden rounded-[28px] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-muted)] shadow-[var(--shadow-e2)]">
             <img
-              class="h-64 w-full object-cover"
+              class="h-72 w-full object-cover"
               src={props.summary.imageUrl}
               alt={props.summary.vehicleName}
               width={960}
               height={720}
             />
+            <div class="absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,transparent,rgba(3,18,22,0.82))] px-5 pb-5 pt-16 text-white">
+              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-white/76">
+                {props.summary.categoryLabel}
+              </p>
+              <p class="mt-1 text-2xl font-semibold tracking-tight">
+                {props.summary.vehicleName}
+              </p>
+            </div>
           </div>
         ) : (
-          <div class="flex min-h-64 items-center justify-center rounded-[24px] bg-[linear-gradient(135deg,rgba(217,119,6,0.12),rgba(14,116,144,0.05))] px-6 text-center text-sm text-[color:var(--color-text-muted)]">
-            Vehicle imagery is unavailable for this rental.
+          <div class="relative flex min-h-72 items-center justify-center overflow-hidden rounded-[28px] border border-[color:var(--color-border-default)] bg-[image:var(--detail-vehicle-placeholder-bg)] px-6 text-center shadow-[var(--shadow-e2)]">
+            <div class="absolute bottom-10 h-16 w-64 rounded-t-[4rem] border-2 border-[color:var(--color-route)] bg-white/34 shadow-[0_28px_0_-12px_var(--color-action)]" />
+            <div class="relative rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium text-[color:var(--color-text)] shadow-[var(--shadow-sm)]">
+              Vehicle imagery is unavailable for this rental.
+            </div>
           </div>
         )}
 
         <div class="grid gap-4 sm:grid-cols-2">
-          <div class="rounded-[24px] bg-[color:var(--color-surface-muted)] px-5 py-5">
+          <div class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-white/82 px-5 py-5 shadow-[var(--shadow-sm)]">
             <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Pickup
             </p>
@@ -90,7 +101,7 @@ export const CarEntitySummary = component$((props: CarEntitySummaryProps) => {
             </p>
           </div>
 
-          <div class="rounded-[24px] bg-[color:var(--color-surface-muted)] px-5 py-5">
+          <div class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-white/82 px-5 py-5 shadow-[var(--shadow-sm)]">
             <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Dropoff
             </p>
@@ -102,7 +113,7 @@ export const CarEntitySummary = component$((props: CarEntitySummaryProps) => {
             </p>
           </div>
 
-          <div class="rounded-[24px] bg-[color:var(--color-surface-muted)] px-5 py-5">
+          <div class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-white/82 px-5 py-5 shadow-[var(--shadow-sm)]">
             <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Vehicle
             </p>
@@ -114,7 +125,7 @@ export const CarEntitySummary = component$((props: CarEntitySummaryProps) => {
             </p>
           </div>
 
-          <div class="rounded-[24px] bg-[color:var(--color-surface-muted)] px-5 py-5">
+          <div class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-[image:var(--detail-price-bg)] px-5 py-5 shadow-[var(--shadow-sm)]">
             <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Rental details
             </p>
@@ -137,13 +148,13 @@ export const CarEntitySummary = component$((props: CarEntitySummaryProps) => {
       {props.status ? (
         <>
           <div class="mt-6 grid gap-4 md:grid-cols-2">
-            <div class="rounded-[24px] border border-[color:var(--color-border)] px-4 py-4">
+            <div class="rounded-[24px] border border-[color:var(--color-border-default)] bg-white/72 px-4 py-4">
               <AvailabilityConfidence
                 confidence={props.status.availability}
                 compact={false}
               />
             </div>
-            <div class="rounded-[24px] border border-[color:var(--color-border)] px-4 py-4">
+            <div class="rounded-[24px] border border-[color:var(--color-border-default)] bg-white/72 px-4 py-4">
               <InventoryFreshness
                 freshness={props.status.freshness}
                 compact={false}
