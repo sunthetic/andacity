@@ -2,10 +2,8 @@ import { component$ } from "@builder.io/qwik";
 import { routeLoader$ } from "@builder.io/qwik-city";
 import type { DocumentHead } from "@builder.io/qwik-city";
 import type { RequestHandler } from "@builder.io/qwik-city";
-import { useLocation } from "@builder.io/qwik-city";
 import { VerticalHeroSearchLayout } from "~/components/search/VerticalHeroSearchLayout";
 import { HotelSearchCard } from "~/components/hotels/search/HotelSearchCard";
-import { CityIndexList } from "~/components/hotels/CityIndexList";
 
 export { useHotelIndexData } from "~/routes/hotels/hotel.data";
 
@@ -14,8 +12,6 @@ export const onGet: RequestHandler = async ({ cacheControl }) => {
 };
 
 export default component$(() => {
-  const loc = useLocation();
-
   return (
     <VerticalHeroSearchLayout
       eyebrow="Hotels"
@@ -101,10 +97,6 @@ export default component$(() => {
         </div>
       </section>
 
-      {/* CMS city index below fold */}
-      <div class="mt-10">
-        <CityIndexList currentPath={loc.url.pathname} />
-      </div>
     </VerticalHeroSearchLayout>
   );
 });
