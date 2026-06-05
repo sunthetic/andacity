@@ -20,10 +20,8 @@ export const useHotelsIndexPage = routeLoader$(async () => {
 });
 
 export const onGet: RequestHandler = async ({ url, redirect }) => {
-  const isSearchSubmit =
-    String(url.searchParams.get("search") || "").trim() === "1";
+  const isSearchSubmit = String(url.searchParams.get("search") || "").trim() === "1";
   if (!isSearchSubmit) return;
-
   const destination = validateLocationSelection({
     selection: url.searchParams.get("destinationLocation"),
     rawValue: url.searchParams.get("destination"),
@@ -31,59 +29,37 @@ export const onGet: RequestHandler = async ({ url, redirect }) => {
     fieldLabel: "destination",
     allowedKinds: ["city", "airport"],
   });
-
   if (!destination.location) return;
-
   const checkIn = String(url.searchParams.get("checkIn") || "").trim();
   const checkOut = String(url.searchParams.get("checkOut") || "").trim();
   const guests = String(url.searchParams.get("guests") || "").trim();
-
-  throw redirect(
-    302,
-    buildCanonicalHotelSearchHref({
-      destinationLocation: destination.location,
-      checkIn,
-      checkOut,
-      guests,
-    }),
-  );
+  throw redirect(302, buildCanonicalHotelSearchHref({ destinationLocation: destination.location, checkIn, checkOut, guests }));
 };
 
 export const useHotelsSearchState = routeLoader$(async ({ url }) => {
-  const selection = parseLocationSelection(
-    url.searchParams.get("destinationLocation"),
-  );
-  const destinationLocation =
-    selection ||
-    (await resolveLocationFromUrlValues({
-      locationId: url.searchParams.get("destinationLocationId"),
-      text: url.searchParams.get("destination"),
-    }));
-
-  return {
-    destinationLocation,
-  };
+  const selection = parseLocationSelection(url.searchParams.get("destinationLocation"));
+  const destinationLocation = selection || (await resolveLocationFromUrlValues({
+    locationId: url.searchParams.get("destinationLocationId"),
+    text: url.searchParams.get("destination"),
+  }));
+  return { destinationLocation };
 });
 
 export default component$(() => {
   const { items } = useHotelsIndexPage().value;
   const { destinationLocation } = useHotelsSearchState().value;
   const location = useLocation();
-  const destination = String(
-    location.url.searchParams.get("destination") || "",
-  ).trim();
+  const destination = String(location.url.searchParams.get("destination") || "").trim();
   const checkIn = String(location.url.searchParams.get("checkIn") || "").trim();
-  const checkOut = String(
-    location.url.searchParams.get("checkOut") || "",
-  ).trim();
+  const checkOut = String(location.url.searchParams.get("checkOut") || "").trim();
   const guests = String(location.url.searchParams.get("guests") || "").trim();
 
   return (
     <VerticalHeroSearchLayout
       breadcrumbs={[{ label: "Home", href: "/" }, { label: "Hotels" }]}
       eyebrow="Hotels"
-      title="Find stays that fit the trip, not just the city"
-      description="Search hotels by destination, dates, and guests, or browse city hubs built for planning and discovery."
+      title="Find stays that fit the trip"
+      description="Search by destination, dates, and guests, or browse by city."
       heroImageUrl="/images/hero/hotels.svg"
       heroOverlay="hotels"
       searchCard={
@@ -101,81 +77,50 @@ export default component$(() => {
         { label: "Las Vegas", href: "/hotels/in/las-vegas" },
       ]}
     >
-      <section class="mx-auto max-w-4xl">
-        <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-          Plan stays with less friction
-        </h2>
+      {/* Info strip */}
+      <div class="mb-6 rounded-xl border border-[rgba(15,23,42,0.10)] bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+        <h2 class="text-base font-semibold text-[#0F172A]">Plan stays with less friction</h2>
+        <p class="mt-1 text-sm text-[#475569]">Combine destination-first search with city-based discovery.</p>
+      </div>
 
-        <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)] md:text-base">
-          Combine destination-first search with city-based discovery for a
-          cleaner way to book accommodations.
-        </p>
-      </section>
-
-      <section class="mt-10">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-              Browse hotel cities
-            </h2>
-
-            <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-              Indexable city pages that support discovery, planning, and
-              internal linking across the Hotels vertical.
-            </p>
-          </div>
-
-          <a
-            class="t-btn-primary px-5 text-center"
-            href="/search/hotels/anywhere/1"
-          >
-            Search hotels
-          </a>
+      {/* City grid */}
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <div class="flex items-center gap-3">
+          <h2 class="text-sm font-semibold uppercase tracking-wide text-[#475569]">Hotel cities</h2>
+          <div class="w-16 border-t border-[rgba(15,23,42,0.08)]" />
         </div>
+        <a class="t-btn-primary px-3 py-1.5 text-sm" href="/search/hotels/anywhere/1">Search hotels</a>
+      </div>
 
-        {items.length ? (
-          <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((city) => (
-              <a
-                key={city.slug}
-                href={`/hotels/in/${city.slug}`}
-                class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-4 shadow-[var(--shadow-sm)] transition hover:-translate-y-px hover:shadow-[var(--shadow-md)]"
-              >
-                <div class="text-base font-medium text-[color:var(--color-text-strong)]">
-                  {city.city}
-                </div>
-
-                <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                  Browse hotels in {city.city}
-                </div>
-              </a>
-            ))}
-          </div>
-        ) : (
-          <div class="mt-6">
-            <SearchEmptyState
-              title="No hotel cities are available right now"
-              description="Try searching hotels directly while city pages are refreshed."
-              primaryAction={{ label: "Search hotels again", href: "/hotels" }}
-              secondaryAction={{
-                label: "Browse hotel cities",
-                href: "/hotels/in",
-              }}
-            />
-          </div>
-        )}
-      </section>
+      {items.length ? (
+        <div class="overflow-hidden rounded-xl border border-[rgba(15,23,42,0.10)] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+          {items.map((city, i) => (
+            <a
+              key={city.slug}
+              href={`/hotels/in/${city.slug}`}
+              class={`group flex items-center justify-between px-5 py-3.5 hover:bg-[#F8FAFC] ${i < items.length - 1 ? "border-b border-[rgba(15,23,42,0.08)]" : ""}`}
+            >
+              <div>
+                <span class="text-sm font-semibold text-[#0F172A]">{city.city}</span>
+                <span class="ml-2 text-xs text-[#64748B]">Browse hotels</span>
+              </div>
+              <span class="text-sm text-[#94A3B8] transition group-hover:translate-x-0.5 group-hover:text-[#F59E0B]">→</span>
+            </a>
+          ))}
+        </div>
+      ) : (
+        <SearchEmptyState
+          title="No hotel cities are available right now"
+          description="Try searching hotels directly while city pages are refreshed."
+          primaryAction={{ label: "Search hotels again", href: "/hotels" }}
+          secondaryAction={{ label: "Browse hotel cities", href: "/hotels/in" }}
+        />
+      )}
     </VerticalHeroSearchLayout>
   );
 });
 
 export const head: DocumentHead = {
   title: "Hotels | Andacity",
-  meta: [
-    {
-      name: "description",
-      content:
-        "Search hotels by destination, dates, and guests, or browse Andacity city pages for hotel discovery.",
-    },
-  ],
+  meta: [{ name: "description", content: "Search hotels by destination, dates, and guests, or browse Andacity city pages for hotel discovery." }],
 };
