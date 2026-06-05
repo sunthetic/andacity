@@ -9,47 +9,64 @@ export const VerticalHeroSearchLayout = component$(
     return (
       <div class={verticalThemeClass}>
         {props.breadcrumbs?.length ? (
-          <div class="border-b border-[color:var(--color-border)]">
-            <div class="mx-auto max-w-6xl px-4 py-3.5">
+          <div class="border-b-2 border-[#0A0A08] bg-[#F8F8F5]">
+            <div class="mx-auto max-w-6xl px-4 py-2.5">
               <Breadcrumbs items={props.breadcrumbs} />
             </div>
           </div>
         ) : null}
 
         <section class="relative z-20 overflow-visible">
-          <HeroBackground
-            imageUrl={props.heroImageUrl}
-            overlay={props.heroOverlay}
-          >
-            <div class="mx-auto max-w-6xl px-4 py-10 md:py-14 lg:py-18">
-              <div class="mx-auto max-w-4xl text-center">
-                <p class="text-sm font-medium text-[color:var(--color-text-on-hero-muted)]">
-                  {props.eyebrow}
-                </p>
+          <HeroBackground imageUrl={props.heroImageUrl} overlay={props.heroOverlay}>
+            <div class="mx-auto max-w-6xl px-4 py-10 md:py-14 lg:py-16">
+              {/* Left-aligned bold layout */}
+              <div class="max-w-2xl">
+                {/* Eyebrow stamp */}
+                <div
+                  class="mb-4 inline-block border-2 border-white px-3 py-1"
+                  style="background: var(--color-action, #0050FF)"
+                >
+                  <span class="text-xs font-black uppercase tracking-widest text-white">
+                    {props.eyebrow}
+                  </span>
+                </div>
 
-                <h1 class="mt-2 text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-on-hero)] md:text-5xl">
+                <h1
+                  class="text-4xl font-black uppercase text-white md:text-5xl lg:text-6xl"
+                  style="letter-spacing: -0.03em; line-height: 1.0; text-shadow: 2px 2px 0 rgba(0,0,0,0.4)"
+                >
                   {props.title}
                 </h1>
 
-                <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-on-hero-muted)] md:text-base">
+                {/* Bold underline */}
+                <div
+                  class="mt-4 h-1 w-16"
+                  style="background: var(--color-action, #0050FF)"
+                />
+
+                <p class="mt-4 max-w-lg text-sm font-semibold uppercase tracking-wide text-white/80">
                   {props.description}
                 </p>
               </div>
 
-              <div class="mt-6 mx-auto max-w-5xl text-left">
+              {/* Search card */}
+              <div class="mt-8 max-w-5xl text-left">
                 {props.searchCard}
               </div>
 
+              {/* Helper links */}
               {props.helperLinks?.length ? (
-                <div class="mt-4 mx-auto max-w-5xl">
-                  <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm text-[color:var(--color-text-on-hero-muted)]">
-                    <span>Popular:</span>
+                <div class="mt-4 max-w-5xl">
+                  <div class="flex flex-wrap items-center gap-x-2 gap-y-2">
+                    <span class="text-xs font-black uppercase tracking-widest text-white/60">
+                      Popular:
+                    </span>
 
                     {props.helperLinks.map((link) => (
                       <a
                         key={link.href}
                         href={link.href}
-                        class="transition-colors hover:text-[color:var(--color-text-on-hero)]"
+                        class="border border-white/40 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white/80 transition hover:border-[#AAFF00] hover:text-[#AAFF00]"
                       >
                         {link.label}
                       </a>
@@ -61,8 +78,11 @@ export const VerticalHeroSearchLayout = component$(
           </HeroBackground>
         </section>
 
-        <main class="relative z-0 mx-auto max-w-6xl px-4 pt-10 pb-10 md:pb-12.5 lg:pb-16">
-          <Slot />
+        {/* Below-fold content — bordered top */}
+        <main class="relative z-0 border-t-2 border-[#0A0A08] bg-[#F8F8F5]">
+          <div class="mx-auto max-w-6xl px-4 pt-10 pb-10 md:pb-12 lg:pb-16">
+            <Slot />
+          </div>
         </main>
       </div>
     );

@@ -101,53 +101,65 @@ export default component$(() => {
         { label: "Las Vegas", href: "/hotels/in/las-vegas" },
       ]}
     >
-      <section class="mx-auto max-w-4xl">
-        <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-          Plan stays with less friction
-        </h2>
-
-        <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)] md:text-base">
-          Combine destination-first search with city-based discovery for a
-          cleaner way to book accommodations.
-        </p>
+      {/* Intro strip */}
+      <section
+        class="border-2 border-[#0A0A08] bg-white"
+        style="box-shadow: 3px 3px 0 #0A0A08; border-left: 4px solid #FF3B30"
+      >
+        <div class="px-5 py-4">
+          <h2
+            class="text-xl font-black uppercase text-[#050502]"
+            style="letter-spacing: -0.02em"
+          >
+            Plan stays with less friction
+          </h2>
+          <p class="mt-2 text-sm text-[#4A4A3E]">
+            Combine destination-first search with city-based discovery for a
+            cleaner way to book accommodations.
+          </p>
+        </div>
       </section>
 
-      <section class="mt-10">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+      <section class="mt-8">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-4">
+            <h2
+              class="text-2xl font-black uppercase text-[#050502] md:text-3xl"
+              style="letter-spacing: -0.03em"
+            >
               Browse hotel cities
             </h2>
-
-            <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-              Indexable city pages that support discovery, planning, and
-              internal linking across the Hotels vertical.
-            </p>
+            <div class="h-1 w-16 bg-[#FF3B30]" />
           </div>
 
           <a
-            class="t-btn-primary px-5 text-center"
+            class="t-btn-primary px-5 py-2.5 text-sm"
             href="/search/hotels/anywhere/1"
           >
-            Search hotels
+            Search hotels →
           </a>
         </div>
 
         {items.length ? (
-          <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((city) => (
               <a
                 key={city.slug}
                 href={`/hotels/in/${city.slug}`}
-                class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-4 shadow-[var(--shadow-sm)] transition hover:-translate-y-px hover:shadow-[var(--shadow-md)]"
+                class="group flex items-center justify-between border-2 border-[#0A0A08] bg-white p-4 transition hover:bg-[#FF3B30] hover:text-white"
+                style="box-shadow: 3px 3px 0 #0A0A08"
               >
-                <div class="text-base font-medium text-[color:var(--color-text-strong)]">
-                  {city.city}
+                <div>
+                  <div class="font-black uppercase tracking-tight text-[#050502] group-hover:text-white">
+                    {city.city}
+                  </div>
+                  <div class="mt-0.5 text-xs font-medium text-[#787870] group-hover:text-white/80">
+                    Browse hotels
+                  </div>
                 </div>
-
-                <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                  Browse hotels in {city.city}
-                </div>
+                <span class="text-lg font-black text-[#0A0A08] transition group-hover:translate-x-1 group-hover:text-white">
+                  →
+                </span>
               </a>
             ))}
           </div>
