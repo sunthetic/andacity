@@ -16,12 +16,6 @@ export default component$(() => {
           style="background: radial-gradient(48% 56% at 80% 8%, rgba(200,56,96,0.28) 0%, transparent 70%), radial-gradient(36% 42% at 16% 88%, rgba(245,200,66,0.14) 0%, transparent 65%), radial-gradient(32% 38% at 92% 80%, rgba(91,31,175,0.20) 0%, transparent 65%)"
         />
 
-        {/* Soft noise texture */}
-        <div
-          class="pointer-events-none absolute inset-0 opacity-[0.03]"
-          style="background-image: url('data:image/svg+xml,<svg viewBox=\"0 0 200 200\" xmlns=\"http://www.w3.org/2000/svg\"><filter id=\"n\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.9\" numOctaves=\"4\"/></filter><rect width=\"200\" height=\"200\" filter=\"url(%23n)\" opacity=\"1\"/></svg>'); background-size: 200px"
-        />
-
         <div class="relative mx-auto max-w-6xl px-4 py-16 md:py-24">
           <div class="grid gap-12 lg:grid-cols-[1fr_460px] lg:items-center">
             {/* Left — luxurious headline */}
