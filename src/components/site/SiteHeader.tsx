@@ -77,7 +77,7 @@ export const SiteHeader = component$(() => {
                               role="menuitem"
                               class="group/item flex items-start gap-2 rounded-xl px-2 py-2 hover:bg-white/10 transition"
                             >
-                              <span class="mt-0.5" style="color: rgba(240,232,216,0.40)"><IconBolt /></span>
+                              <span class="mt-0.5" style="color: rgba(240,232,216,0.40)"><svg viewBox="0 0 24 24" class="size-4" fill="none" aria-hidden="true"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></svg></span>
                               <span class="flex flex-col">
                                 <span class="text-sm font-medium" style="color: #FFF8F0">{l.label}</span>
                                 <span class="text-xs" style="color: rgba(240,232,216,0.50)">{l.hint}</span>
@@ -104,7 +104,7 @@ export const SiteHeader = component$(() => {
                               role="menuitem"
                               class="flex items-start gap-2 rounded-xl px-2 py-2 hover:bg-white/10 transition"
                             >
-                              <span class="mt-0.5" style="color: rgba(240,232,216,0.40)"><IconPin /></span>
+                              <span class="mt-0.5" style="color: rgba(240,232,216,0.40)"><svg viewBox="0 0 24 24" class="size-4" fill="none" aria-hidden="true"><path d="M12 22s7-5.2 7-12a7 7 0 1 0-14 0c0 6.8 7 12 7 12Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /><path d="M12 11.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" stroke="currentColor" stroke-width="2" /></svg></span>
                               <span class="flex flex-col">
                                 <span class="text-sm font-medium" style="color: #FFF8F0">{l.label}</span>
                                 <span class="text-xs" style="color: rgba(240,232,216,0.50)">{l.hint}</span>
@@ -202,15 +202,3 @@ export const SiteHeader = component$(() => {
   );
 });
 
-const IconBolt = () => (
-  <svg viewBox="0 0 24 24" class="size-4" fill="none" aria-hidden="true">
-    <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
-  </svg>
-);
-
-const IconPin = () => (
-  <svg viewBox="0 0 24 24" class="size-4" fill="none" aria-hidden="true">
-    <path d="M12 22s7-5.2 7-12a7 7 0 1 0-14 0c0 6.8 7 12 7 12Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
-    <path d="M12 11.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" stroke="currentColor" stroke-width="2" />
-  </svg>
-);
