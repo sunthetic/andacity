@@ -1,11 +1,8 @@
 import { component$ } from "@builder.io/qwik";
-import { routeLoader$ } from "@builder.io/qwik-city";
 import type { DocumentHead } from "@builder.io/qwik-city";
 import type { RequestHandler } from "@builder.io/qwik-city";
 import { VerticalHeroSearchLayout } from "~/components/search/VerticalHeroSearchLayout";
 import { HotelSearchCard } from "~/components/hotels/search/HotelSearchCard";
-
-export { useHotelIndexData } from "~/routes/hotels/hotel.data";
 
 export const onGet: RequestHandler = async ({ cacheControl }) => {
   cacheControl({ maxAge: 60 * 10, staleWhileRevalidate: 60 * 60 });
