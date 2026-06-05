@@ -4,7 +4,7 @@ import type { DocumentHead } from "@builder.io/qwik-city";
 import type { RequestHandler } from "@builder.io/qwik-city";
 import { useLocation } from "@builder.io/qwik-city";
 import { VerticalHeroSearchLayout } from "~/components/search/VerticalHeroSearchLayout";
-import { HotelSearchCard } from "~/components/search/hotel/HotelSearchCard";
+import { HotelSearchCard } from "~/components/hotels/search/HotelSearchCard";
 import { CityIndexList } from "~/components/hotels/CityIndexList";
 
 export { useHotelIndexData } from "~/routes/hotels/hotel.data";
