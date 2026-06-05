@@ -23,12 +23,6 @@ export default component$(() => {
           style="background: radial-gradient(46% 52% at 4% 0%, rgba(196,97,74,0.22) 0%, transparent 65%), radial-gradient(30% 36% at 72% 90%, rgba(212,151,58,0.10) 0%, transparent 60%), radial-gradient(24% 30% at 96% 18%, rgba(93,138,110,0.08) 0%, transparent 60%)"
         />
 
-        {/* Subtle paper texture */}
-        <div
-          class="pointer-events-none absolute inset-0 opacity-[0.025]"
-          style="background-image: url('data:image/svg+xml,<svg viewBox=\"0 0 200 200\" xmlns=\"http://www.w3.org/2000/svg\"><filter id=\"n\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.75\" numOctaves=\"4\"/></filter><rect width=\"200\" height=\"200\" filter=\"url(%23n)\" opacity=\"1\"/></svg>'); background-size: 160px"
-        />
-
         <div class="relative mx-auto max-w-6xl px-4 py-12 md:py-20">
           {/* TERRA-style editorial split */}
           <div class="grid gap-8 lg:grid-cols-[1fr_440px] lg:items-stretch">
