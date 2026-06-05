@@ -13,8 +13,19 @@ export const MyTripsPageShell = component$(
     const { model } = props;
 
     return (
-      <div class="space-y-6">
-        <MyTripsHeader header={model.header} />
+      <div class="space-y-5">
+        {/* Header — editorial treatment */}
+        <div
+          class="rounded-xl p-6 md:p-8"
+          style="background: linear-gradient(145deg, #F7F1E8, #EDE0CC); border: 1px solid rgba(122,88,67,0.20); border-top: 3px solid #C4614A; box-shadow: var(--shadow-md)"
+        >
+          <div
+            class="mb-4 h-0.5 w-10"
+            style="background: linear-gradient(90deg, #C4614A, #D4973A)"
+          />
+          <MyTripsHeader header={model.header} />
+        </div>
+
         <MyTripsOwnershipNotice notice={model.ownershipNotice} />
 
         {model.resumeBanner ? (
@@ -28,10 +39,13 @@ export const MyTripsPageShell = component$(
         ) : null}
 
         {model.accountTools ? (
-          <section class="rounded-[var(--radius-xl)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5 shadow-[var(--shadow-sm)]">
+          <section
+            class="rounded-xl p-5"
+            style="background: var(--color-surface); border: 1px solid var(--color-border); border-left: 3px solid #D4973A; box-shadow: var(--shadow-sm)"
+          >
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+                <p class="text-sm font-bold text-[color:var(--color-text-strong)]">
                   {model.accountTools.label}
                 </p>
                 <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
@@ -40,7 +54,7 @@ export const MyTripsPageShell = component$(
               </div>
               <a
                 href={model.accountTools.href}
-                class="rounded-lg border border-[color:var(--color-border)] px-4 py-2 text-sm font-medium text-[color:var(--color-text-strong)] hover:border-[color:var(--color-text-strong)]"
+                class="rounded-lg border border-[color:var(--color-border)] px-4 py-2 text-sm font-semibold text-[color:var(--color-text-strong)] transition hover:border-[color:var(--color-action)] hover:text-[color:var(--color-action)]"
               >
                 Open travelers
               </a>
@@ -50,7 +64,10 @@ export const MyTripsPageShell = component$(
 
         <MyTripsStatusSummary summary={model.statusSummary} />
 
-        <section class="rounded-[var(--radius-xl)] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5 shadow-[var(--shadow-sm)]">
+        <section
+          class="rounded-xl p-5"
+          style="background: var(--color-surface); border: 1px solid var(--color-border); box-shadow: var(--shadow-sm)"
+        >
           <MyTripsFilterBar filterBar={model.filterBar} />
 
           <div class="mt-6">

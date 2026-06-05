@@ -10,58 +10,61 @@ export const VerticalHeroSearchLayout = component$(
       <div class={verticalThemeClass}>
         {props.breadcrumbs?.length ? (
           <div class="border-b border-[color:var(--color-border)]">
-            <div class="mx-auto max-w-6xl px-4 py-3.5">
+            <div class="mx-auto max-w-6xl px-4 py-3">
               <Breadcrumbs items={props.breadcrumbs} />
             </div>
           </div>
         ) : null}
 
         <section class="relative z-20 overflow-visible">
-          <HeroBackground
-            imageUrl={props.heroImageUrl}
-            overlay={props.heroOverlay}
-          >
-            <div class="mx-auto max-w-6xl px-4 py-10 md:py-14 lg:py-18">
-              <div class="mx-auto max-w-4xl text-center">
-                <p class="text-sm font-medium text-[color:var(--color-text-on-hero-muted)]">
+          <HeroBackground imageUrl={props.heroImageUrl} overlay={props.heroOverlay}>
+            <div class="mx-auto max-w-6xl px-4 py-12 md:py-18 lg:py-22">
+              {/* Left-aligned editorial hero text */}
+              <div class="max-w-lg">
+                <div
+                  class="mb-4 inline-block border border-[rgba(212,151,58,0.40)] px-3 py-1 text-xs font-bold uppercase tracking-[0.12em]"
+                  style="color: rgba(250,240,225,0.80); background: rgba(212,151,58,0.10); border-radius: 2px"
+                >
                   {props.eyebrow}
-                </p>
-
-                <h1 class="mt-2 text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-on-hero)] md:text-5xl">
+                </div>
+                <h1 class="text-4xl font-bold tracking-tight text-[color:var(--color-text-on-hero)] md:text-5xl">
                   {props.title}
                 </h1>
-
-                <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-on-hero-muted)] md:text-base">
+                <div
+                  class="mt-3 h-0.5 w-12"
+                  style="background: linear-gradient(90deg, #C4614A, #D4973A)"
+                />
+                <p class="mt-4 text-sm leading-6 text-[color:var(--color-text-on-hero-muted)] md:text-base md:leading-7">
                   {props.description}
                 </p>
               </div>
 
-              <div class="mt-6 mx-auto max-w-5xl text-left">
+              <div class="mt-8 max-w-5xl">
                 {props.searchCard}
               </div>
 
               {props.helperLinks?.length ? (
-                <div class="mt-4 mx-auto max-w-5xl">
-                  <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm text-[color:var(--color-text-on-hero-muted)]">
-                    <span>Popular:</span>
-
-                    {props.helperLinks.map((link) => (
-                      <a
-                        key={link.href}
-                        href={link.href}
-                        class="transition-colors hover:text-[color:var(--color-text-on-hero)]"
-                      >
-                        {link.label}
-                      </a>
-                    ))}
-                  </div>
+                <div class="mt-5 flex flex-wrap items-center gap-2">
+                  <span class="text-xs font-bold uppercase tracking-wide text-[rgba(250,240,225,0.50)]">
+                    Popular
+                  </span>
+                  {props.helperLinks.map((link) => (
+                    <a
+                      key={link.href}
+                      href={link.href}
+                      class="rounded border border-[rgba(250,240,225,0.20)] bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[color:var(--color-text-on-hero-muted)] backdrop-blur-sm transition hover:border-[rgba(212,151,58,0.40)] hover:bg-[rgba(212,151,58,0.12)] hover:text-[color:var(--color-text-on-hero)]"
+                      style="border-radius: 3px"
+                    >
+                      {link.label}
+                    </a>
+                  ))}
                 </div>
               ) : null}
             </div>
           </HeroBackground>
         </section>
 
-        <main class="relative z-0 mx-auto max-w-6xl px-4 pt-10 pb-10 md:pb-12.5 lg:pb-16">
+        <main class="relative z-0 mx-auto max-w-6xl px-4 pt-10 pb-16">
           <Slot />
         </main>
       </div>

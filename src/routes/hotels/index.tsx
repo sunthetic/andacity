@@ -60,30 +60,24 @@ export const useHotelsSearchState = routeLoader$(async ({ url }) => {
       text: url.searchParams.get("destination"),
     }));
 
-  return {
-    destinationLocation,
-  };
+  return { destinationLocation };
 });
 
 export default component$(() => {
   const { items } = useHotelsIndexPage().value;
   const { destinationLocation } = useHotelsSearchState().value;
   const location = useLocation();
-  const destination = String(
-    location.url.searchParams.get("destination") || "",
-  ).trim();
+  const destination = String(location.url.searchParams.get("destination") || "").trim();
   const checkIn = String(location.url.searchParams.get("checkIn") || "").trim();
-  const checkOut = String(
-    location.url.searchParams.get("checkOut") || "",
-  ).trim();
+  const checkOut = String(location.url.searchParams.get("checkOut") || "").trim();
   const guests = String(location.url.searchParams.get("guests") || "").trim();
 
   return (
     <VerticalHeroSearchLayout
       breadcrumbs={[{ label: "Home", href: "/" }, { label: "Hotels" }]}
       eyebrow="Hotels"
-      title="Find stays that fit the trip, not just the city"
-      description="Search hotels by destination, dates, and guests, or browse city hubs built for planning and discovery."
+      title="Find stays that fit the trip"
+      description="Search by destination, dates, and guests — or browse city guides built for planning and discovery."
       heroImageUrl="/images/hero/hotels.svg"
       heroOverlay="hotels"
       searchCard={
@@ -101,50 +95,34 @@ export default component$(() => {
         { label: "Las Vegas", href: "/hotels/in/las-vegas" },
       ]}
     >
-      <section class="mx-auto max-w-4xl">
-        <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-          Plan stays with less friction
-        </h2>
-
-        <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)] md:text-base">
-          Combine destination-first search with city-based discovery for a
-          cleaner way to book accommodations.
-        </p>
-      </section>
-
-      <section class="mt-10">
-        <div class="flex flex-wrap items-end justify-between gap-3">
+      <section>
+        <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+            <div class="mb-2 h-0.5 w-8" style="background: #9B4A8A" />
+            <h2 class="text-2xl font-bold tracking-tight text-[color:var(--color-text-strong)]">
               Browse hotel cities
             </h2>
-
-            <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-              Indexable city pages that support discovery, planning, and
-              internal linking across the Hotels vertical.
+            <p class="mt-2 max-w-[60ch] text-sm text-[color:var(--color-text-muted)]">
+              City-level pages with hotel inventory, neighborhood context, and lead-in to live search.
             </p>
           </div>
-
-          <a
-            class="t-btn-primary px-5 text-center"
-            href="/search/hotels/anywhere/1"
-          >
-            Search hotels
+          <a class="t-btn-primary px-5 py-2.5 text-sm" href="/search/hotels/anywhere/1">
+            Search all hotels
           </a>
         </div>
 
         {items.length ? (
-          <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((city) => (
               <a
                 key={city.slug}
                 href={`/hotels/in/${city.slug}`}
-                class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-4 shadow-[var(--shadow-sm)] transition hover:-translate-y-px hover:shadow-[var(--shadow-md)]"
+                class="group block rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
+                style="box-shadow: var(--shadow-sm); border-top: 2px solid rgba(155,74,138,0.40)"
               >
-                <div class="text-base font-medium text-[color:var(--color-text-strong)]">
+                <div class="text-base font-bold text-[color:var(--color-text-strong)] group-hover:text-[color:var(--color-action)] transition">
                   {city.city}
                 </div>
-
                 <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
                   Browse hotels in {city.city}
                 </div>
@@ -152,15 +130,12 @@ export default component$(() => {
             ))}
           </div>
         ) : (
-          <div class="mt-6">
+          <div class="mt-4">
             <SearchEmptyState
-              title="No hotel cities are available right now"
-              description="Try searching hotels directly while city pages are refreshed."
-              primaryAction={{ label: "Search hotels again", href: "/hotels" }}
-              secondaryAction={{
-                label: "Browse hotel cities",
-                href: "/hotels/in",
-              }}
+              title="No hotel cities available right now"
+              description="Try searching hotels directly while city pages refresh."
+              primaryAction={{ label: "Search hotels", href: "/hotels" }}
+              secondaryAction={{ label: "Browse city guides", href: "/hotels/in" }}
             />
           </div>
         )}
