@@ -10,46 +10,40 @@ export const VerticalHeroSearchLayout = component$(
       <div class={verticalThemeClass}>
         {props.breadcrumbs?.length ? (
           <div class="border-b border-[color:var(--color-border)]">
-            <div class="mx-auto max-w-6xl px-4 py-3.5">
+            <div class="mx-auto max-w-6xl px-4 py-3">
               <Breadcrumbs items={props.breadcrumbs} />
             </div>
           </div>
         ) : null}
 
         <section class="relative z-20 overflow-visible">
-          <HeroBackground
-            imageUrl={props.heroImageUrl}
-            overlay={props.heroOverlay}
-          >
-            <div class="mx-auto max-w-6xl px-4 py-10 md:py-14 lg:py-18">
-              <div class="mx-auto max-w-4xl text-center">
-                <p class="text-sm font-medium text-[color:var(--color-text-on-hero-muted)]">
+          <HeroBackground imageUrl={props.heroImageUrl} overlay={props.heroOverlay}>
+            <div class="mx-auto max-w-6xl px-4 py-12 md:py-18 lg:py-22">
+              <div class="max-w-xl">
+                <p class="text-xs font-semibold uppercase tracking-widest text-[color:var(--color-text-on-hero-muted)]">
                   {props.eyebrow}
                 </p>
-
-                <h1 class="mt-2 text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-on-hero)] md:text-5xl">
+                <h1 class="mt-3 text-4xl font-bold tracking-tight text-[color:var(--color-text-on-hero)] md:text-5xl lg:text-6xl">
                   {props.title}
                 </h1>
-
-                <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-on-hero-muted)] md:text-base">
+                <p class="mt-4 text-sm leading-6 text-[color:var(--color-text-on-hero-muted)] md:text-base md:leading-7">
                   {props.description}
                 </p>
               </div>
 
-              <div class="mt-6 mx-auto max-w-5xl text-left">
+              <div class="mt-8 max-w-5xl">
                 {props.searchCard}
               </div>
 
               {props.helperLinks?.length ? (
-                <div class="mt-4 mx-auto max-w-5xl">
-                  <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm text-[color:var(--color-text-on-hero-muted)]">
-                    <span>Popular:</span>
-
+                <div class="mt-5">
+                  <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-[color:var(--color-text-on-hero-muted)]">
+                    <span class="text-xs font-semibold uppercase tracking-wide opacity-60">Popular</span>
                     {props.helperLinks.map((link) => (
                       <a
                         key={link.href}
                         href={link.href}
-                        class="transition-colors hover:text-[color:var(--color-text-on-hero)]"
+                        class="rounded-full border border-[rgba(255,255,255,0.18)] bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[color:var(--color-text-on-hero-muted)] backdrop-blur-sm transition hover:bg-[rgba(255,255,255,0.14)] hover:text-[color:var(--color-text-on-hero)]"
                       >
                         {link.label}
                       </a>
@@ -61,7 +55,7 @@ export const VerticalHeroSearchLayout = component$(
           </HeroBackground>
         </section>
 
-        <main class="relative z-0 mx-auto max-w-6xl px-4 pt-10 pb-10 md:pb-12.5 lg:pb-16">
+        <main class="relative z-0 mx-auto max-w-6xl px-4 pt-10 pb-16">
           <Slot />
         </main>
       </div>

@@ -1,317 +1,286 @@
-/* Trip Booking UI — Tailwind v4 CSS-first theme */
+/* MIDNIGHT ATLAS — Dark Immersive Luxury Theme */
 
 @theme {
-   /* -----------------------------------------
-     Color ramps (23 shades each)
-     Indices: 25,50,75,100,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,925,950,975
+  /* -----------------------------------------
+     Color ramps — kept for Tailwind utility compatibility
   ----------------------------------------- */
 
-   /* Primary — “Sky Route Blue” (actions, links, focus) */
-   --color-primary-25: #F2F5FE;
-   --color-primary-50: #E4E9FC;
-   --color-primary-75: #DBE1FA;
-   --color-primary-100: #D3DAF9;
-   --color-primary-150: #C3CCF7;
-   --color-primary-200: #B3BFF5;
-   --color-primary-250: #A5B3F2;
-   --color-primary-300: #95A5F0;
-   --color-primary-350: #8798EE;
-   --color-primary-400: #7589EB;
-   --color-primary-450: #6578E8;
-   --color-primary-500: #2563EB;
-   --color-primary-550: #2059D6;
-   --color-primary-600: #1B4FBE;
-   --color-primary-650: #1846A8;
-   --color-primary-700: #143C91;
-   --color-primary-750: #11337B;
-   --color-primary-800: #0E2B66;
-   --color-primary-850: #0C2455;
-   --color-primary-900: #0A1E46;
-   --color-primary-925: #081A3E;
-   --color-primary-950: #071637;
-   --color-primary-975: #061231;
+  /* Primary — Electric Blue */
+  --color-primary-25: #F0F6FF;
+  --color-primary-50: #D8EAFF;
+  --color-primary-75: #B8D5FF;
+  --color-primary-100: #98BFFF;
+  --color-primary-150: #7AABFF;
+  --color-primary-200: #5E98FF;
+  --color-primary-250: #4B91FA;
+  --color-primary-300: #3B7EEF;
+  --color-primary-350: #2F6DE0;
+  --color-primary-400: #255DD0;
+  --color-primary-450: #1E4FBD;
+  --color-primary-500: #1844A9;
+  --color-primary-550: #133A93;
+  --color-primary-600: #0F317D;
+  --color-primary-650: #0C2969;
+  --color-primary-700: #0A2258;
+  --color-primary-750: #081C49;
+  --color-primary-800: #06163C;
+  --color-primary-850: #051130;
+  --color-primary-900: #040D26;
+  --color-primary-925: #030A1F;
+  --color-primary-950: #020819;
+  --color-primary-975: #020614;
 
-   /* Secondary — “Sea Glass Teal” (success-ish accents, supportive highlights) */
-   --color-secondary-25: #EEFCFA;
-   --color-secondary-50: #E0F5F1;
-   --color-secondary-75: #D7F0EC;
-   --color-secondary-100: #CFECE7;
-   --color-secondary-150: #BFE4DD;
-   --color-secondary-200: #B1DED5;
-   --color-secondary-250: #A3D7CD;
-   --color-secondary-300: #95D1C4;
-   --color-secondary-350: #88CABE;
-   --color-secondary-400: #77C1B5;
-   --color-secondary-450: #67B8AB;
-   --color-secondary-500: #14B8A6;
-   --color-secondary-550: #12A796;
-   --color-secondary-600: #109586;
-   --color-secondary-650: #0E8678;
-   --color-secondary-700: #0C776A;
-   --color-secondary-750: #0A695D;
-   --color-secondary-800: #095C52;
-   --color-secondary-850: #084F47;
-   --color-secondary-900: #07433E;
-   --color-secondary-925: #063C38;
-   --color-secondary-950: #053533;
-   --color-secondary-975: #042E2D;
+  /* Secondary — Violet */
+  --color-secondary-25: #F5F0FF;
+  --color-secondary-50: #EDE3FF;
+  --color-secondary-75: #E0D1FF;
+  --color-secondary-100: #D2BFFF;
+  --color-secondary-150: #C2AAFF;
+  --color-secondary-200: #B296FF;
+  --color-secondary-250: #A280FF;
+  --color-secondary-300: #9470F5;
+  --color-secondary-350: #8860EA;
+  --color-secondary-400: #7C50DE;
+  --color-secondary-450: #7040D2;
+  --color-secondary-500: #6432C4;
+  --color-secondary-550: #5928B0;
+  --color-secondary-600: #4E209C;
+  --color-secondary-650: #441888;
+  --color-secondary-700: #3A1374;
+  --color-secondary-750: #300F62;
+  --color-secondary-800: #270C52;
+  --color-secondary-850: #1F0A44;
+  --color-secondary-900: #180838;
+  --color-secondary-925: #130630;
+  --color-secondary-950: #0F0528;
+  --color-secondary-975: #0C0421;
 
-   /* Tertiary — “Sun Ticket Amber” (price emphasis, deals, urgency that isn’t red) */
-   --color-tertiary-25: #FFF8F0;
-   --color-tertiary-50: #FDF0E2;
-   --color-tertiary-75: #FDEAD9;
-   --color-tertiary-100: #FCE4D1;
-   --color-tertiary-150: #FBD9BE;
-   --color-tertiary-200: #FACFAB;
-   --color-tertiary-250: #F9C69A;
-   --color-tertiary-300: #F8BC86;
-   --color-tertiary-350: #F7B375;
-   --color-tertiary-400: #F6A85E;
-   --color-tertiary-450: #F59F47;
-   --color-tertiary-500: #F59E0B;
-   --color-tertiary-550: #DE900A;
-   --color-tertiary-600: #C78209;
-   --color-tertiary-650: #B17608;
-   --color-tertiary-700: #9B6907;
-   --color-tertiary-750: #855C06;
-   --color-tertiary-800: #715105;
-   --color-tertiary-850: #5F4504;
-   --color-tertiary-900: #503B04;
-   --color-tertiary-925: #463404;
-   --color-tertiary-950: #3D2D03;
-   --color-tertiary-975: #342703;
+  /* Tertiary — Amber Gold */
+  --color-tertiary-25: #FFFBEF;
+  --color-tertiary-50: #FFF6D6;
+  --color-tertiary-75: #FFF0BC;
+  --color-tertiary-100: #FFE9A0;
+  --color-tertiary-150: #FFE080;
+  --color-tertiary-200: #FFD85F;
+  --color-tertiary-250: #FFCF40;
+  --color-tertiary-300: #FFC520;
+  --color-tertiary-350: #FFBC00;
+  --color-tertiary-400: #F5B100;
+  --color-tertiary-450: #EAA400;
+  --color-tertiary-500: #DE9600;
+  --color-tertiary-550: #C98800;
+  --color-tertiary-600: #B47A00;
+  --color-tertiary-650: #9E6C00;
+  --color-tertiary-700: #895F00;
+  --color-tertiary-750: #745100;
+  --color-tertiary-800: #5E4200;
+  --color-tertiary-850: #4A3400;
+  --color-tertiary-900: #372700;
+  --color-tertiary-925: #2C2000;
+  --color-tertiary-950: #221900;
+  --color-tertiary-975: #181200;
 
-   /* Neutral — “Clean Slate” (dominant palette for cleanliness) */
-   --color-neutral-25: #FAFAFB;
-   --color-neutral-50: #EEEFF1;
-   --color-neutral-75: #E6E7EA;
-   --color-neutral-100: #DFE1E5;
-   --color-neutral-150: #D2D5DC;
-   --color-neutral-200: #C6CAD3;
-   --color-neutral-250: #BBC0CB;
-   --color-neutral-300: #B0B6C2;
-   --color-neutral-350: #A4ACBA;
-   --color-neutral-400: #959EAE;
-   --color-neutral-450: #8892A5;
-   --color-neutral-500: #64748B;
-   --color-neutral-550: #5B6A7F;
-   --color-neutral-600: #515F73;
-   --color-neutral-650: #49566A;
-   --color-neutral-700: #404D60;
-   --color-neutral-750: #384556;
-   --color-neutral-800: #303C4C;
-   --color-neutral-850: #293443;
-   --color-neutral-900: #232D3B;
-   --color-neutral-925: #1F2835;
-   --color-neutral-950: #1B232F;
-   --color-neutral-975: #171E2A;
+  /* Neutral — Dark Slate */
+  --color-neutral-25: #F4F7FF;
+  --color-neutral-50: #E8EEFF;
+  --color-neutral-75: #D8E2FF;
+  --color-neutral-100: #C6D3F5;
+  --color-neutral-150: #B2C0E8;
+  --color-neutral-200: #9DADD8;
+  --color-neutral-250: #8A9CC8;
+  --color-neutral-300: #7B8DB5;
+  --color-neutral-350: #6D7EA0;
+  --color-neutral-400: #5E6F8C;
+  --color-neutral-450: #50607A;
+  --color-neutral-500: #3E4F6A;
+  --color-neutral-550: #364259;
+  --color-neutral-600: #2E3749;
+  --color-neutral-650: #272D3C;
+  --color-neutral-700: #202530;
+  --color-neutral-750: #1A1E28;
+  --color-neutral-800: #141821;
+  --color-neutral-850: #0F131A;
+  --color-neutral-900: #0B0E14;
+  --color-neutral-925: #090B10;
+  --color-neutral-950: #07090D;
+  --color-neutral-975: #04060A;
 
-   /* -----------------------------------------
-     Semantic tokens (use these everywhere)
+  /* -----------------------------------------
+     Semantic tokens (dark mode)
   ----------------------------------------- */
 
-   /* Background stack */
-   --color-bg: #F4F7FB;
-   --color-surface: #FFFFFF;
-   --color-primary-surface: color-mix(in oklab, var(--color-primary-50) 62%, #fff 38%);
-   --color-panel: #EEF4F8;
-   --color-elevated: #FFFFFF;
+  /* Surface scale */
+  --color-surface-0: #080E1F;
+  --color-surface-1: #0D1529;
+  --color-surface-2: #111B33;
+  --color-surface-3: #162040;
+  --color-surface-4: #1C2849;
+  --color-surface-5: #233055;
+  --color-surface-muted: #111B33;
+  --color-surface-elevated: #1C2849;
 
-   /* Text */
-   --color-text: var(--color-neutral-900);
-   --color-text-strong: #0B1220;
-   --color-text-muted: var(--color-neutral-600);
-   --color-text-subtle: var(--color-neutral-500);
-   --color-text-inverse: #FFFFFF;
-   --color-text-on-hero: #FFFFFF;
-   --color-text-on-hero-muted: rgba(255, 255, 255, 0.88);
+  /* Background */
+  --color-bg: #080E1F;
+  --color-surface: #1C2849;
+  --color-panel: #111B33;
+  --color-elevated: #1C2849;
+  --color-primary-surface: rgba(75, 145, 250, 0.08);
 
-   /* Lines */
-   --color-border: color-mix(in oklab, var(--color-neutral-300) 48%, #0000);
-   --color-border-subtle: color-mix(in oklab, var(--color-primary-200) 36%, #0000);
-   --color-border-default: color-mix(in oklab, var(--color-primary-250) 46%, #0000);
-   --color-border-strong: color-mix(in oklab, var(--color-neutral-500) 64%, #0000);
-   --color-divider: color-mix(in oklab, var(--color-primary-150) 28%, #0000);
+  /* Named surfaces */
+  --color-surface-chrome: rgba(8, 14, 31, 0.88);
+  --color-surface-popover: #162040;
+  --color-surface-modal: #1C2849;
 
-   /* Focus ring */
-   --color-focus: var(--color-primary-500);
-   --color-ring: var(--color-focus);
-   --ring-focus: 0 0 0 4px color-mix(in oklab, var(--color-primary-200) 70%, #0000);
+  /* Text */
+  --color-text: #C8D8F5;
+  --color-text-strong: #F0F6FF;
+  --color-text-muted: #7B8DB5;
+  --color-text-subtle: #4A5779;
+  --color-text-inverse: #080E1F;
+  --color-text-on-hero: #F4F8FF;
+  --color-text-on-hero-muted: rgba(210, 228, 255, 0.80);
 
-   /* Primary action */
-   --color-action: #2563EB;
-   --color-action-hover: #1D4ED8;
-   --color-action-press: #173FAE;
-   --color-action-soft: #E4EDFF;
+  /* Borders */
+  --color-border: rgba(90, 120, 190, 0.18);
+  --color-border-subtle: rgba(90, 120, 190, 0.10);
+  --color-border-default: rgba(90, 120, 190, 0.22);
+  --color-border-strong: rgba(90, 120, 190, 0.40);
+  --color-divider: rgba(90, 120, 190, 0.10);
 
-   /* Secondary action */
-   --color-action-2: var(--color-neutral-900);
-   --color-action-2-hover: var(--color-neutral-950);
+  /* Focus */
+  --color-focus: #4B91FA;
+  --color-ring: #4B91FA;
+  --ring-focus: 0 0 0 3px rgba(75, 145, 250, 0.28);
 
-   /* Pricing / deal emphasis */
-   --color-price: #B45309;
-   --color-deal-soft: #FEF3C7;
-   --color-highlight: #0F766E;
-   --color-highlight-soft: #CCFBF1;
-   --color-route: #0284C7;
-   --color-route-soft: #E0F2FE;
-   --color-fuchsia: #7C3AED;
-   --color-fuchsia-soft: #EDE9FE;
-   --color-lime: #4D7C0F;
-   --color-lime-soft: #ECFCCB;
+  /* Primary action */
+  --color-action: #4B91FA;
+  --color-action-hover: #3A7DEF;
+  --color-action-press: #2B68D5;
+  --color-action-soft: rgba(75, 145, 250, 0.14);
 
-   /* States */
-   --color-success: var(--color-secondary-600);
-   --color-success-soft: var(--color-secondary-50);
-   --color-warning: var(--color-tertiary-600);
-   --color-warning-soft: var(--color-tertiary-50);
-   --color-danger: #DC2626;
-   --color-danger-soft: #FEF2F2;
+  /* Secondary action */
+  --color-action-2: #F0F6FF;
+  --color-action-2-hover: #FFFFFF;
 
-   /* -----------------------------------------
-      Surface scale (light mode)
-      Purpose: multiple "lift" steps for cards, panels, popovers, sticky chrome.
-      0 = app background base
-      1 = subtle raised region (page sections)
-      2 = standard card / panel
-      3 = popover / dropdown / menu
-      4 = high emphasis (modals / dialogs)
-      5 = max lift (spotlight / callouts)
-   ----------------------------------------- */
+  /* Accent colors */
+  --color-price: #FFB800;
+  --color-deal-soft: rgba(255, 184, 0, 0.12);
+  --color-highlight: #9E7EFF;
+  --color-highlight-soft: rgba(158, 126, 255, 0.12);
+  --color-route: #4B91FA;
+  --color-route-soft: rgba(75, 145, 250, 0.12);
+  --color-fuchsia: #E040FB;
+  --color-fuchsia-soft: rgba(224, 64, 251, 0.12);
+  --color-lime: #A8FF3E;
+  --color-lime-soft: rgba(168, 255, 62, 0.10);
 
-   /* Base surfaces */
-   --color-surface-0: #F4F7FB;
-   /* app background */
-   --color-surface-1: #EEF4F8;
-   --color-surface-2: #F1F5F9;
-   /* soft panel */
-   --color-surface-3: #F8FBFD;
-   --color-surface-4: #FFFFFF;
-   /* true white card */
-   --color-surface-5: #FFFFFF;
-   --color-surface-muted: var(--color-surface-2);
-   --color-surface-elevated: var(--color-surface-5);
+  /* States */
+  --color-success: #34D399;
+  --color-success-soft: rgba(52, 211, 153, 0.12);
+  --color-warning: #FFB800;
+  --color-warning-soft: rgba(255, 184, 0, 0.12);
+  --color-danger: #FC4F5A;
+  --color-danger-soft: rgba(252, 79, 90, 0.12);
 
-   /* Named surfaces (use these directly in components when intent is clear) */
-   --color-surface-chrome: color-mix(in oklab, var(--color-surface-0) 76%, #fff 24%);
-   /* sticky headers, toolbars */
-   --color-surface-popover: var(--color-surface-3);
-   /* dropdowns, menus, tooltips */
-   --color-surface-modal: var(--color-surface-4);
-   /* dialogs */
+  /* Surface shadows */
+  --shadow-surface-1:
+    0 1px 3px rgba(0, 0, 0, 0.4),
+    0 8px 20px rgba(0, 8, 40, 0.3);
+  --shadow-surface-2:
+    0 4px 16px rgba(0, 0, 0, 0.5),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 18px 40px rgba(0, 8, 60, 0.35);
+  --shadow-surface-3:
+    0 12px 40px rgba(0, 0, 0, 0.6),
+    0 4px 16px rgba(4, 0, 50, 0.4),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  --shadow-surface-4: 0 24px 72px rgba(0, 0, 0, 0.8);
 
-   /* Back-compat / mapping (so existing tokens still work) */
-   --color-bg: var(--color-surface-0);
-   --color-panel: var(--color-surface-2);
-   --color-surface: var(--color-surface-4);
-   --color-elevated: var(--color-surface-4);
-
-   /* Optional: surface shadows (tuned for light UI) */
-   --shadow-surface-1: 0 1px 2px color-mix(in oklab, var(--color-primary-900) 7%, #0000), 0 10px 26px color-mix(in oklab, var(--color-route) 5%, #0000);
-   --shadow-surface-2: 0 8px 24px color-mix(in oklab, var(--color-primary-900) 10%, #0000), 0 1px 0 rgba(255,255,255,0.84) inset;
-   --shadow-surface-3: 0 18px 48px color-mix(in oklab, var(--color-primary-900) 14%, #0000), 0 5px 16px color-mix(in oklab, var(--color-route) 7%, #0000);
-   --shadow-surface-4: 0 28px 80px color-mix(in oklab, var(--color-primary-950) 18%, #0000);
-
-   /* -----------------------------------------
-      Glass / frosted surface effects
-      Use for sticky chrome, dropdowns, popovers
-   ----------------------------------------- */
-
-   /* Backdrop blur amounts */
-   --blur-glass-sm: blur(6px);
-   --blur-glass-md: blur(10px);
-   --blur-glass-lg: blur(16px);
-
-   /* Glass surface overlays (alpha surfaces) */
-   --color-glass-weak: color-mix(in oklab, #fff 62%, transparent);
-   --color-glass-medium: color-mix(in oklab, #fff 74%, transparent);
-   --color-glass-strong: color-mix(in oklab, #fff 82%, transparent);
-
-   /* Composite glass surfaces (recommended presets) */
-   --surface-glass-chrome: var(--color-glass-medium);
-   --surface-glass-popover: var(--color-glass-strong);
-
-   /* Optional highlight edge for glass */
-   --border-glass: color-mix(in oklab, #fff 60%, var(--color-border));
-
-/* -----------------------------------------
-     Glass panel tokens
+  /* -----------------------------------------
+     Glass / frosted
   ----------------------------------------- */
+  --blur-glass-sm: blur(8px);
+  --blur-glass-md: blur(14px);
+  --blur-glass-lg: blur(20px);
 
-   --glass-bg-popover: color-mix(in oklab, #fff 88%, transparent);
-   --glass-bg-chrome: color-mix(in oklab, #fff 82%, transparent);
+  --color-glass-weak: rgba(14, 22, 48, 0.62);
+  --color-glass-medium: rgba(10, 16, 36, 0.78);
+  --color-glass-strong: rgba(8, 14, 31, 0.88);
 
-   --glass-blur-sm: blur(8px);
-   --glass-blur-md: blur(12px);
+  --surface-glass-chrome: rgba(8, 14, 31, 0.82);
+  --surface-glass-popover: rgba(16, 24, 50, 0.92);
 
-   --glass-highlight:
-      linear-gradient(to bottom,
-         color-mix(in oklab, #fff 65%, transparent),
-         transparent);
+  --border-glass: rgba(90, 130, 220, 0.22);
 
-   /* -----------------------------------------
-     Elevation (clean, low-chrome shadows)
-     Use sparingly; prefer border + subtle tint
+  --glass-bg-popover: rgba(16, 24, 52, 0.92);
+  --glass-bg-chrome: rgba(8, 14, 31, 0.84);
+  --glass-blur-sm: blur(10px);
+  --glass-blur-md: blur(16px);
+  --glass-highlight:
+    linear-gradient(to bottom,
+       rgba(255, 255, 255, 0.04),
+       transparent);
+
+  /* -----------------------------------------
+     Elevation
   ----------------------------------------- */
-   --radius-lg: 12px;
-   --radius-xl: 16px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
 
-   --shadow-sm: var(--shadow-surface-1);
-   --shadow-md: var(--shadow-surface-2);
-   --shadow-lg: var(--shadow-surface-3);
-   --shadow-xl: 0 28px 74px color-mix(in oklab, var(--color-primary-950) 18%, #0000), 0 8px 22px color-mix(in oklab, var(--color-secondary-800) 8%, #0000);
-   --shadow-soft: var(--shadow-surface-2);
-   --shadow-e1: var(--shadow-surface-1);
-   --shadow-e2: var(--shadow-surface-2);
-   --shadow-e3: var(--shadow-surface-3);
+  --shadow-sm: var(--shadow-surface-1);
+  --shadow-md: var(--shadow-surface-2);
+  --shadow-lg: var(--shadow-surface-3);
+  --shadow-xl:
+    0 24px 72px rgba(0, 0, 0, 0.7),
+    0 8px 24px rgba(75, 145, 250, 0.12);
+  --shadow-soft: var(--shadow-surface-2);
+  --shadow-e1: var(--shadow-surface-1);
+  --shadow-e2: var(--shadow-surface-2);
+  --shadow-e3: var(--shadow-surface-3);
 
-   /* -----------------------------------------
-     Easy gradients (apply to hero strips / CTAs)
+  /* -----------------------------------------
+     Gradients
   ----------------------------------------- */
-   --grad-primary: linear-gradient(135deg,
-         color-mix(in oklab, var(--color-primary-500) 92%, #fff 8%),
-         color-mix(in oklab, var(--color-secondary-500) 70%, #fff 30%));
+  --grad-primary: linear-gradient(135deg, #4B91FA 0%, #9E7EFF 100%);
 
-   --grad-primary-bold: linear-gradient(135deg,
-         #2563EB 0%,
-         #0284C7 56%,
-         #0F766E 100%);
+  --grad-primary-bold: linear-gradient(135deg,
+    #4B91FA 0%,
+    #7B6AFF 50%,
+    #9E7EFF 100%);
 
-   --grad-primary-hover: linear-gradient(135deg,
-         #1D4ED8 0%,
-         #0369A1 56%,
-         #0F766E 100%);
+  --grad-primary-hover: linear-gradient(135deg,
+    #3A7DEF 0%,
+    #6A59EF 50%,
+    #8E6EEF 100%);
 
-   --grad-signal: linear-gradient(135deg,
-         #D97706 0%,
-         #B45309 50%,
-         #0F766E 100%);
+  --grad-signal: linear-gradient(135deg,
+    #FFB800 0%,
+    #FF8C00 50%,
+    #9E7EFF 100%);
 
-   --grad-surface: linear-gradient(180deg,
-         #FFFFFF,
-         #F4F7FB);
+  --grad-surface: linear-gradient(180deg, #111B33, #080E1F);
 
-   --grad-card: linear-gradient(145deg,
-         rgba(255, 255, 255, 0.98) 0%,
-         #F8FBFD 46%,
-         #F1F5F9 100%);
+  --grad-card: linear-gradient(145deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(75, 145, 250, 0.05) 50%,
+    rgba(90, 120, 190, 0.08) 100%);
 
-   --grad-panel: linear-gradient(145deg,
-         #FFFFFF,
-         #EEF4F8);
+  --grad-panel: linear-gradient(145deg,
+    rgba(255, 255, 255, 0.03),
+    rgba(75, 145, 250, 0.04));
 
-   --grad-deal: linear-gradient(135deg,
-         var(--color-tertiary-50),
-         color-mix(in oklab, var(--color-tertiary-200) 55%, #fff 45%));
+  --grad-deal: linear-gradient(135deg,
+    rgba(255, 184, 0, 0.10),
+    rgba(158, 126, 255, 0.08));
 
-   /* Hero background overlay scale */
-   --hero-overlay-soft-top: rgba(5, 15, 30, 0.50);
-   --hero-overlay-soft-mid: rgba(6, 19, 36, 0.32);
-   --hero-overlay-soft-bottom: rgba(4, 11, 24, 0.58);
-   --hero-overlay-base-top: rgba(5, 15, 30, 0.64);
-   --hero-overlay-base-mid: rgba(6, 19, 36, 0.44);
-   --hero-overlay-base-bottom: rgba(4, 11, 24, 0.70);
-   --hero-overlay-strong-top: rgba(5, 15, 30, 0.78);
-   --hero-overlay-strong-mid: rgba(6, 19, 36, 0.58);
-   --hero-overlay-strong-bottom: rgba(4, 11, 24, 0.82);
+  /* Hero overlay scale */
+  --hero-overlay-soft-top: rgba(5, 8, 22, 0.45);
+  --hero-overlay-soft-mid: rgba(6, 10, 28, 0.28);
+  --hero-overlay-soft-bottom: rgba(4, 6, 18, 0.55);
+  --hero-overlay-base-top: rgba(5, 8, 22, 0.60);
+  --hero-overlay-base-mid: rgba(6, 10, 28, 0.40);
+  --hero-overlay-base-bottom: rgba(4, 6, 18, 0.68);
+  --hero-overlay-strong-top: rgba(5, 8, 22, 0.76);
+  --hero-overlay-strong-mid: rgba(6, 10, 28, 0.54);
+  --hero-overlay-strong-bottom: rgba(4, 6, 18, 0.82);
 }
