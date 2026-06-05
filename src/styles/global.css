@@ -17,21 +17,22 @@
       'Open Sans',
       'Helvetica Neue',
       sans-serif;
-    color-scheme: light;
+    color-scheme: dark;
     background: var(--color-bg);
     color: var(--color-text);
     font-family: "Poppins", var(--system-font-family);
-    --booking-search-surface-bg: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(238,244,248,0.9));
-    --booking-search-field-bg: rgba(255,255,255,0.78);
-    --booking-search-field-bg-hover: rgba(255,255,255,0.92);
-    --booking-search-field-shadow: inset 0 1px 0 rgba(255,255,255,0.72), 0 6px 18px rgba(20,40,90,0.06);
+    --booking-search-surface-bg: rgba(255,255,255,0.08);
+    --booking-search-field-bg: rgba(255,255,255,0.06);
+    --booking-search-field-bg-hover: rgba(255,255,255,0.10);
+    --booking-search-field-shadow: 0 4px 16px rgba(22,1,32,0.40);
   }
 
   body {
     min-height: 100vh;
     background:
-      radial-gradient(70rem 32rem at 8% -10%, rgba(37, 99, 235, 0.08), transparent 66%),
-      radial-gradient(52rem 28rem at 100% 0%, rgba(15, 118, 110, 0.06), transparent 68%),
+      radial-gradient(60rem 40rem at 15% -10%, rgba(91,31,175,0.30), transparent 65%),
+      radial-gradient(44rem 32rem at 88% 5%, rgba(200,56,96,0.18), transparent 65%),
+      radial-gradient(36rem 28rem at 50% 90%, rgba(245,200,66,0.08), transparent 65%),
       var(--color-bg);
     background-attachment: fixed;
   }
@@ -42,7 +43,8 @@
   }
 
   ::selection {
-    background: var(--color-primary-100);
+    background: rgba(245, 200, 66, 0.28);
+    color: #FFF8F0;
   }
 
   h1,
@@ -52,369 +54,257 @@
   }
 
   h1 {
-    letter-spacing: -0.02em !important;
-    line-height: 1.14583 !important;
+    letter-spacing: -0.025em !important;
+    line-height: 1.10 !important;
+    font-weight: 700 !important;
+  }
+
+  h2 {
+    letter-spacing: -0.02em;
+    font-weight: 600;
   }
 }
 
-/* “Recipes” — optional but recommended */
 @layer components {
+  /* Card — warm dark glass, gold top glow, rose border */
   .t-card {
-    background: var(--grad-card);
-    border: 1px solid color-mix(in oklab, var(--color-border-default) 86%, transparent);
-    border-radius: 16px;
+    background: linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+    border: 1px solid rgba(200,160,255,0.16);
+    border-radius: var(--radius-xl);
     box-shadow:
-      inset 0 3px 0 color-mix(in oklab, var(--color-route) 52%, transparent),
-      inset 0 -1px 0 color-mix(in oklab, var(--color-tertiary-200) 46%, transparent),
-      var(--shadow-e2);
+      inset 0 1px 0 rgba(245,200,66,0.12),
+      0 8px 32px rgba(22,1,32,0.50);
+    transition: transform 200ms ease, box-shadow 200ms ease;
+  }
+
+  .t-card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      inset 0 1px 0 rgba(245,200,66,0.18),
+      0 0 0 1px rgba(232,114,138,0.22),
+      0 12px 48px rgba(22,1,32,0.60);
   }
 
   .t-panel {
-    background: var(--grad-panel);
-    border: 1px solid color-mix(in oklab, var(--color-border-default) 76%, transparent);
-    border-radius: 16px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(200,160,255,0.10);
+    border-radius: var(--radius-xl);
   }
 
+  /* Primary button — rose gradient with gold glow */
   .t-btn-primary {
-    background: var(--grad-primary-bold);
-    color: var(--color-text-inverse);
-    border-radius: 12px;
-    padding: 10px 14px;
-    box-shadow:
-      0 14px 30px color-mix(in oklab, var(--color-route) 24%, transparent),
-      0 4px 10px color-mix(in oklab, var(--color-primary-800) 16%, transparent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #D45A72, #E8728A);
+    color: #FFF8F0;
+    border-radius: 999px;
+    padding: 11px 22px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    letter-spacing: -0.01em;
+    box-shadow: 0 4px 20px rgba(232,114,138,0.38), inset 0 1px 0 rgba(255,255,255,0.20);
+    transition: filter 150ms ease, transform 150ms ease, box-shadow 150ms ease;
   }
 
   .t-btn-primary:hover {
-    background: var(--grad-primary-hover, var(--color-action-hover));
+    filter: brightness(1.10);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 28px rgba(232,114,138,0.48), inset 0 1px 0 rgba(255,255,255,0.22);
   }
 
   .t-btn-primary:active {
-    background: var(--color-action-press);
+    transform: translateY(0);
+    filter: brightness(0.95);
   }
 
   .t-btn-primary:focus-visible {
-    box-shadow: var(--ring-focus);
+    outline: 2px solid rgba(245,200,66,0.70);
+    outline-offset: 3px;
   }
 
+  /* Ghost button — warm glass with rose border */
   .t-btn-ghost {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 12px;
-    border: 1px solid color-mix(in oklab, var(--color-border-default) 72%, transparent);
-    background: color-mix(in oklab, #fff 66%, var(--color-primary-50) 34%);
-    color: var(--color-text-strong);
-    box-shadow: var(--shadow-surface-1);
-    transition:
-      background-color 150ms ease,
-      box-shadow 150ms ease,
-      transform 150ms ease;
+    border-radius: 999px;
+    border: 1px solid rgba(200,160,255,0.28);
+    background: rgba(255,255,255,0.06);
+    color: #F0E8D8;
+    font-weight: 600;
+    font-size: 0.875rem;
+    letter-spacing: -0.01em;
+    backdrop-filter: blur(8px);
+    transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
   }
 
   .t-btn-ghost:hover {
-    background: color-mix(in oklab, #fff 72%, var(--color-secondary-50) 28%);
-    box-shadow: var(--shadow-surface-2);
+    background: rgba(255,255,255,0.10);
+    border-color: rgba(232,114,138,0.40);
+    transform: translateY(-1px);
   }
 
   .t-btn-ghost:active {
-    transform: translateY(1px);
+    transform: translateY(0);
   }
 
   .t-btn-ghost:focus-visible {
-    box-shadow: var(--ring-focus);
+    outline: 2px solid rgba(245,200,66,0.60);
+    outline-offset: 3px;
   }
 
+  /* Badge */
   .t-badge {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
+    gap: 5px;
+    padding: 3px 10px;
     border-radius: 999px;
-    font-size: 12px;
-    border: 1px solid color-mix(in oklab, var(--color-border-default) 84%, transparent);
-    background: linear-gradient(135deg, #fff, var(--color-action-soft));
-    color: var(--color-text);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    border: 1px solid rgba(200,160,255,0.20);
+    background: rgba(255,255,255,0.06);
+    color: rgba(240,232,216,0.80);
   }
 
   .t-badge--deal {
-    background: linear-gradient(135deg, var(--color-deal-soft), var(--color-highlight-soft));
-    border-color: color-mix(in oklab, var(--color-tertiary-300) 72%, transparent);
-    color: var(--color-tertiary-800);
+    background: rgba(245,200,66,0.14);
+    border-color: rgba(245,200,66,0.30);
+    color: #F5C842;
   }
 
+  /* Hero overlays */
   .t-hero-overlay-soft {
-    background: linear-gradient(
-      180deg,
+    background: linear-gradient(180deg,
       var(--hero-overlay-soft-top) 0%,
       var(--hero-overlay-soft-mid) 52%,
-      var(--hero-overlay-soft-bottom) 100%
-    );
+      var(--hero-overlay-soft-bottom) 100%);
   }
 
   .t-hero-overlay-base {
-    background: linear-gradient(
-      180deg,
+    background: linear-gradient(180deg,
       var(--hero-overlay-base-top) 0%,
       var(--hero-overlay-base-mid) 52%,
-      var(--hero-overlay-base-bottom) 100%
-    );
+      var(--hero-overlay-base-bottom) 100%);
   }
 
   .t-hero-overlay-strong {
-    background: linear-gradient(
-      180deg,
+    background: linear-gradient(180deg,
       var(--hero-overlay-strong-top) 0%,
       var(--hero-overlay-strong-mid) 52%,
-      var(--hero-overlay-strong-bottom) 100%
-    );
+      var(--hero-overlay-strong-bottom) 100%);
   }
 
   .t-hero-overlay-flights {
     background:
-      linear-gradient(180deg, rgba(5, 12, 38, 0.72) 0%, rgba(10, 31, 92, 0.38) 48%, rgba(2, 9, 29, 0.82) 100%),
-      linear-gradient(118deg, rgba(37, 99, 235, 0.68) 0%, rgba(14, 165, 233, 0.45) 48%, rgba(3, 105, 161, 0.3) 100%),
-      radial-gradient(86% 64% at 82% 12%, rgba(224, 242, 254, 0.42) 0%, rgba(224, 242, 254, 0) 68%);
+      linear-gradient(180deg, rgba(22,1,32,0.72) 0%, rgba(22,1,32,0.40) 50%, rgba(22,1,32,0.80) 100%),
+      linear-gradient(120deg, rgba(92,112,255,0.32) 0%, rgba(22,1,32,0.18) 60%, transparent 100%);
   }
 
   .t-hero-overlay-hotels {
     background:
-      linear-gradient(180deg, rgba(34, 8, 36, 0.7) 0%, rgba(94, 25, 72, 0.32) 48%, rgba(23, 6, 30, 0.82) 100%),
-      linear-gradient(118deg, rgba(226, 61, 40, 0.58) 0%, rgba(245, 158, 11, 0.38) 46%, rgba(192, 38, 211, 0.3) 100%),
-      radial-gradient(84% 66% at 82% 10%, rgba(255, 241, 198, 0.56) 0%, rgba(255, 241, 198, 0) 66%);
+      linear-gradient(180deg, rgba(22,1,32,0.72) 0%, rgba(22,1,32,0.40) 50%, rgba(22,1,32,0.80) 100%),
+      linear-gradient(120deg, rgba(232,114,138,0.36) 0%, rgba(22,1,32,0.18) 60%, transparent 100%);
   }
 
   .t-hero-overlay-cars {
     background:
-      linear-gradient(180deg, rgba(4, 27, 28, 0.7) 0%, rgba(13, 75, 66, 0.34) 48%, rgba(3, 18, 22, 0.82) 100%),
-      linear-gradient(118deg, rgba(20, 184, 166, 0.58) 0%, rgba(101, 163, 13, 0.36) 44%, rgba(245, 158, 11, 0.34) 100%),
-      radial-gradient(86% 66% at 84% 12%, rgba(255, 237, 213, 0.48) 0%, rgba(255, 237, 213, 0) 68%);
+      linear-gradient(180deg, rgba(22,1,32,0.72) 0%, rgba(22,1,32,0.40) 50%, rgba(22,1,32,0.80) 100%),
+      linear-gradient(120deg, rgba(245,200,66,0.28) 0%, rgba(22,1,32,0.18) 60%, transparent 100%);
   }
 
+  /* Vertical themes */
   .t-vertical-theme {
     min-height: calc(100vh - var(--app-header-height));
-    background:
-      var(--vertical-page-glow, transparent),
-      var(--vertical-page-bg, transparent);
+    background: var(--color-bg);
   }
 
   .t-vertical-theme-flights {
-    --color-action: #2563EB;
-    --color-action-hover: #1D4ED8;
-    --color-action-press: #173FAE;
-    --color-action-soft: #DBEAFE;
-    --color-route: #0284C7;
-    --color-route-soft: #E0F2FE;
-    --color-highlight: #0369A1;
-    --color-highlight-soft: #E0F2FE;
-    --color-price: #0E7490;
-    --color-deal-soft: #CFFAFE;
-    --color-border-default: color-mix(in oklab, #38BDF8 44%, transparent);
-    --color-border-subtle: color-mix(in oklab, #93C5FD 42%, transparent);
-    --color-surface-1: #EAF4FF;
-    --color-surface-2: #E8F7FF;
-    --color-surface-3: #F0F8FF;
-    --color-surface-muted: #E8F7FF;
-    --grad-primary-bold: linear-gradient(135deg, #1D4ED8 0%, #0284C7 58%, #0891B2 100%);
-    --grad-primary-hover: linear-gradient(135deg, #1E40AF 0%, #0369A1 58%, #0E7490 100%);
-    --grad-card: linear-gradient(145deg, rgba(255,255,255,0.97) 0%, #EDF6FF 48%, #E0F2FE 100%);
-    --grad-panel: linear-gradient(145deg, #F8FCFF 0%, #E0F2FE 100%);
-    --booking-search-surface-bg: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(219,234,254,0.9) 52%, rgba(224,242,254,0.88));
-    --booking-search-field-bg: rgba(255,255,255,0.8);
-    --booking-search-field-bg-hover: rgba(255,255,255,0.94);
-    --booking-search-field-shadow: inset 0 1px 0 rgba(255,255,255,0.78), 0 7px 18px rgba(2,132,199,0.11);
-    --vertical-page-bg: linear-gradient(180deg, rgba(239,246,255,0.9) 0%, rgba(224,242,254,0.54) 46%, rgba(255,255,255,0) 100%);
-    --vertical-page-glow: radial-gradient(64rem 28rem at 12% 0%, rgba(37,99,235,0.12), transparent 70%);
-    --shadow-e2: 0 10px 28px rgba(2, 132, 199, 0.13), 0 1px 0 rgba(255,255,255,0.86) inset;
-    --shadow-e3: 0 22px 54px rgba(29, 78, 216, 0.16), 0 6px 16px rgba(2, 132, 199, 0.1);
+    --color-action: #9080FF;
+    --color-action-hover: #7860F0;
+    --color-action-soft: rgba(144,128,255,0.12);
+    --color-surface-1: rgba(144,128,255,0.08);
+    --color-surface-2: rgba(144,128,255,0.12);
+    --grad-card: linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+    --booking-search-surface-bg: rgba(255,255,255,0.08);
+    --booking-search-field-bg: rgba(144,128,255,0.10);
+    --booking-search-field-bg-hover: rgba(144,128,255,0.16);
+    --shadow-e2: var(--shadow-surface-2);
+    --shadow-e3: var(--shadow-surface-3);
   }
 
   .t-vertical-theme-hotels {
-    --color-action: #C026D3;
-    --color-action-hover: #A21CAF;
-    --color-action-press: #86198F;
-    --color-action-soft: #FAE8FF;
-    --color-route: #E23D28;
-    --color-route-soft: #FFE1D8;
-    --color-highlight: #D97706;
-    --color-highlight-soft: #FEF3C7;
-    --color-price: #B45309;
-    --color-deal-soft: #FFF1C6;
-    --color-border-default: color-mix(in oklab, #F0ABFC 48%, transparent);
-    --color-border-subtle: color-mix(in oklab, #FDBA74 36%, transparent);
-    --color-surface-1: #FFF4EC;
-    --color-surface-2: #FFF1F2;
-    --color-surface-3: #FDF4FF;
-    --color-surface-muted: #FFF1F2;
-    --grad-primary-bold: linear-gradient(135deg, #7E22CE 0%, #C026D3 48%, #F97316 100%);
-    --grad-primary-hover: linear-gradient(135deg, #6B21A8 0%, #A21CAF 48%, #EA580C 100%);
-    --grad-card: linear-gradient(145deg, rgba(255,255,255,0.97) 0%, #FFF4EC 44%, #FDF4FF 100%);
-    --grad-panel: linear-gradient(145deg, #FFF7ED 0%, #FAE8FF 100%);
-    --booking-search-surface-bg: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(255,244,236,0.92) 50%, rgba(250,232,255,0.88));
-    --booking-search-field-bg: rgba(255,255,255,0.82);
-    --booking-search-field-bg-hover: rgba(255,255,255,0.95);
-    --booking-search-field-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 7px 18px rgba(192,38,211,0.1);
-    --vertical-page-bg: linear-gradient(180deg, rgba(255,247,237,0.9) 0%, rgba(253,244,255,0.58) 46%, rgba(255,255,255,0) 100%);
-    --vertical-page-glow: radial-gradient(62rem 28rem at 12% 0%, rgba(217,119,6,0.12), transparent 70%), radial-gradient(46rem 24rem at 96% 5%, rgba(192,38,211,0.12), transparent 70%);
-    --shadow-e2: 0 10px 28px rgba(192, 38, 211, 0.12), 0 1px 0 rgba(255,255,255,0.86) inset;
-    --shadow-e3: 0 22px 54px rgba(126, 34, 206, 0.15), 0 6px 16px rgba(249, 115, 22, 0.1);
+    --color-action: #E8728A;
+    --color-action-hover: #D45A72;
+    --color-action-soft: rgba(232,114,138,0.12);
+    --color-surface-1: rgba(232,114,138,0.08);
+    --color-surface-2: rgba(232,114,138,0.12);
+    --grad-card: linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+    --booking-search-surface-bg: rgba(255,255,255,0.08);
+    --booking-search-field-bg: rgba(232,114,138,0.10);
+    --booking-search-field-bg-hover: rgba(232,114,138,0.16);
+    --shadow-e2: var(--shadow-surface-2);
+    --shadow-e3: var(--shadow-surface-3);
   }
 
   .t-vertical-theme-cars {
-    --color-action: #0F766E;
-    --color-action-hover: #115E59;
-    --color-action-press: #134E4A;
-    --color-action-soft: #CCFBF1;
-    --color-route: #65A30D;
-    --color-route-soft: #ECFCCB;
-    --color-highlight: #D97706;
-    --color-highlight-soft: #FEF3C7;
-    --color-price: #B45309;
-    --color-deal-soft: #FDE68A;
-    --color-border-default: color-mix(in oklab, #2DD4BF 44%, transparent);
-    --color-border-subtle: color-mix(in oklab, #A3E635 34%, transparent);
-    --color-surface-1: #ECFDF5;
-    --color-surface-2: #F0FDF4;
-    --color-surface-3: #F7FEE7;
-    --color-surface-muted: #F0FDF4;
-    --grad-primary-bold: linear-gradient(135deg, #0F766E 0%, #65A30D 58%, #D97706 100%);
-    --grad-primary-hover: linear-gradient(135deg, #115E59 0%, #4D7C0F 58%, #B45309 100%);
-    --grad-card: linear-gradient(145deg, rgba(255,255,255,0.97) 0%, #ECFDF5 46%, #F7FEE7 100%);
-    --grad-panel: linear-gradient(145deg, #F0FDFA 0%, #ECFCCB 100%);
-    --booking-search-surface-bg: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(236,253,245,0.92) 50%, rgba(247,254,231,0.88));
-    --booking-search-field-bg: rgba(255,255,255,0.82);
-    --booking-search-field-bg-hover: rgba(255,255,255,0.95);
-    --booking-search-field-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 7px 18px rgba(15,118,110,0.11);
-    --vertical-page-bg: linear-gradient(180deg, rgba(240,253,250,0.88) 0%, rgba(236,252,203,0.5) 46%, rgba(255,255,255,0) 100%);
-    --vertical-page-glow: radial-gradient(62rem 28rem at 12% 0%, rgba(15,118,110,0.13), transparent 70%), radial-gradient(44rem 22rem at 94% 4%, rgba(217,119,6,0.11), transparent 70%);
-    --shadow-e2: 0 10px 28px rgba(15, 118, 110, 0.13), 0 1px 0 rgba(255,255,255,0.86) inset;
-    --shadow-e3: 0 22px 54px rgba(15, 118, 110, 0.16), 0 6px 16px rgba(101, 163, 13, 0.1);
+    --color-action: #F5C842;
+    --color-action-hover: #E0A010;
+    --color-action-soft: rgba(245,200,66,0.12);
+    --color-surface-1: rgba(245,200,66,0.08);
+    --color-surface-2: rgba(245,200,66,0.12);
+    --grad-card: linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+    --booking-search-surface-bg: rgba(255,255,255,0.08);
+    --booking-search-field-bg: rgba(245,200,66,0.10);
+    --booking-search-field-bg-hover: rgba(245,200,66,0.16);
+    --shadow-e2: var(--shadow-surface-2);
+    --shadow-e3: var(--shadow-surface-3);
   }
 
   .t-detail-theme {
-    --detail-card-bg: linear-gradient(145deg, rgba(255,255,255,0.98), var(--color-surface-1));
-    --detail-route-bg: linear-gradient(135deg, rgba(255,255,255,0.96), var(--color-action-soft));
-    --detail-price-bg: linear-gradient(135deg, rgba(255,255,255,0.96), var(--color-deal-soft));
-    --detail-vehicle-placeholder-bg: linear-gradient(135deg, var(--color-action-soft), var(--color-route-soft));
+    --detail-card-bg: rgba(255,255,255,0.07);
+    --detail-route-bg: rgba(255,255,255,0.05);
+    --detail-price-bg: rgba(245,200,66,0.10);
+    --detail-vehicle-placeholder-bg: rgba(255,255,255,0.06);
   }
 
   .t-detail-theme-flights {
-    --color-action: #2563EB;
-    --color-action-hover: #1D4ED8;
-    --color-action-press: #173FAE;
-    --color-action-soft: #DBEAFE;
-    --color-route: #0284C7;
-    --color-route-soft: #E0F2FE;
-    --color-highlight: #0369A1;
-    --color-highlight-soft: #E0F2FE;
-    --color-price: #0E7490;
-    --color-deal-soft: #CFFAFE;
-    --color-border-default: color-mix(in oklab, #38BDF8 44%, transparent);
-    --color-border-subtle: color-mix(in oklab, #93C5FD 42%, transparent);
-    --color-surface-1: #EAF4FF;
-    --color-surface-2: #E8F7FF;
-    --color-surface-3: #F0F8FF;
-    --color-surface-muted: #E8F7FF;
-    --detail-card-bg: linear-gradient(145deg, rgba(255,255,255,0.98) 0%, #EDF6FF 54%, #E0F2FE 100%);
-    --detail-route-bg: linear-gradient(135deg, rgba(255,255,255,0.96), rgba(219,234,254,0.92) 46%, rgba(224,242,254,0.9));
-    --detail-price-bg: linear-gradient(135deg, rgba(255,255,255,0.97), rgba(207,250,254,0.92));
-    --shadow-e2: 0 10px 28px rgba(2, 132, 199, 0.13), 0 1px 0 rgba(255,255,255,0.86) inset;
-    --shadow-e3: 0 22px 54px rgba(29, 78, 216, 0.16), 0 6px 16px rgba(2, 132, 199, 0.1);
+    --color-action: #9080FF;
+    --color-action-soft: rgba(144,128,255,0.12);
+    --color-route: #9080FF;
+    --color-route-soft: rgba(144,128,255,0.12);
+    --color-price: #F5C842;
+    --color-deal-soft: rgba(245,200,66,0.12);
+    --color-surface-1: rgba(144,128,255,0.08);
+    --color-surface-2: rgba(144,128,255,0.12);
+    --shadow-e2: var(--shadow-surface-2);
+    --shadow-e3: var(--shadow-surface-3);
   }
 
   .t-detail-theme-cars {
-    --color-action: #0F766E;
-    --color-action-hover: #115E59;
-    --color-action-press: #134E4A;
-    --color-action-soft: #CCFBF1;
-    --color-route: #65A30D;
-    --color-route-soft: #ECFCCB;
-    --color-highlight: #D97706;
-    --color-highlight-soft: #FEF3C7;
-    --color-price: #B45309;
-    --color-deal-soft: #FDE68A;
-    --color-border-default: color-mix(in oklab, #2DD4BF 44%, transparent);
-    --color-border-subtle: color-mix(in oklab, #A3E635 34%, transparent);
-    --color-surface-1: #ECFDF5;
-    --color-surface-2: #F0FDF4;
-    --color-surface-3: #F7FEE7;
-    --color-surface-muted: #F0FDF4;
-    --detail-card-bg: linear-gradient(145deg, rgba(255,255,255,0.98) 0%, #ECFDF5 52%, #F7FEE7 100%);
-    --detail-route-bg: linear-gradient(135deg, rgba(255,255,255,0.96), rgba(204,251,241,0.9) 46%, rgba(236,252,203,0.88));
-    --detail-price-bg: linear-gradient(135deg, rgba(255,255,255,0.97), rgba(253,230,138,0.9));
-    --detail-vehicle-placeholder-bg: linear-gradient(135deg, rgba(204,251,241,0.92), rgba(236,252,203,0.86), rgba(254,243,199,0.7));
-    --shadow-e2: 0 10px 28px rgba(15, 118, 110, 0.13), 0 1px 0 rgba(255,255,255,0.86) inset;
-    --shadow-e3: 0 22px 54px rgba(15, 118, 110, 0.16), 0 6px 16px rgba(101, 163, 13, 0.1);
+    --color-action: #F5C842;
+    --color-action-soft: rgba(245,200,66,0.12);
+    --color-route: #9080FF;
+    --color-route-soft: rgba(144,128,255,0.12);
+    --color-price: #F5C842;
+    --color-deal-soft: rgba(245,200,66,0.12);
+    --color-surface-1: rgba(245,200,66,0.08);
+    --color-surface-2: rgba(245,200,66,0.12);
+    --shadow-e2: var(--shadow-surface-2);
+    --shadow-e3: var(--shadow-surface-3);
   }
 
-  .t-hero-overlay-explore-default {
-    background:
-      linear-gradient(180deg, rgba(6, 18, 34, 0.78) 0%, rgba(11, 39, 63, 0.42) 50%, rgba(4, 13, 27, 0.84) 100%),
-      linear-gradient(118deg, rgba(23, 124, 186, 0.56) 0%, rgba(40, 90, 164, 0.28) 46%, rgba(9, 24, 48, 0.12) 100%),
-      radial-gradient(90% 72% at 84% 14%, rgba(161, 208, 255, 0.3) 0%, rgba(161, 208, 255, 0) 64%);
-  }
-
-  .t-hero-overlay-explore-guided {
-    background:
-      linear-gradient(180deg, rgba(7, 17, 29, 0.8) 0%, rgba(17, 35, 50, 0.5) 50%, rgba(5, 13, 23, 0.86) 100%),
-      linear-gradient(116deg, rgba(119, 144, 168, 0.3) 0%, rgba(82, 119, 158, 0.2) 46%, rgba(16, 31, 52, 0.1) 100%),
-      radial-gradient(88% 68% at 84% 14%, rgba(230, 201, 156, 0.24) 0%, rgba(230, 201, 156, 0) 64%);
-  }
-
-  .t-hero-overlay-explore-beach {
-    background:
-      linear-gradient(180deg, rgba(22, 8, 4, 0.76) 0%, rgba(122, 52, 15, 0.2) 50%, rgba(15, 6, 3, 0.84) 100%),
-      linear-gradient(118deg, rgba(245, 161, 67, 0.64) 0%, rgba(205, 105, 40, 0.36) 46%, rgba(34, 143, 168, 0.2) 100%),
-      radial-gradient(92% 72% at 84% 14%, rgba(255, 214, 137, 0.62) 0%, rgba(255, 214, 137, 0) 64%);
-  }
-
-  .t-hero-overlay-explore-mountains {
-    background:
-      linear-gradient(180deg, rgba(5, 12, 31, 0.82) 0%, rgba(9, 23, 45, 0.5) 52%, rgba(3, 9, 25, 0.88) 100%),
-      linear-gradient(116deg, rgba(48, 126, 210, 0.48) 0%, rgba(46, 88, 176, 0.28) 48%, rgba(11, 22, 48, 0.12) 100%),
-      radial-gradient(92% 72% at 84% 16%, rgba(176, 219, 255, 0.34) 0%, rgba(176, 219, 255, 0) 64%);
-  }
-
-  .t-hero-overlay-explore-weekend-cities {
-    background:
-      linear-gradient(180deg, rgba(8, 21, 35, 0.66) 0%, rgba(24, 57, 82, 0.24) 52%, rgba(6, 18, 32, 0.74) 100%),
-      linear-gradient(120deg, rgba(88, 150, 211, 0.4) 0%, rgba(71, 114, 183, 0.24) 47%, rgba(26, 49, 79, 0.12) 100%),
-      radial-gradient(88% 68% at 86% 14%, rgba(194, 228, 255, 0.4) 0%, rgba(194, 228, 255, 0) 64%);
-  }
-
-  .t-hero-overlay-explore-warm-weather {
-    background:
-      linear-gradient(180deg, rgba(42, 22, 12, 0.62) 0%, rgba(120, 74, 40, 0.34) 50%, rgba(48, 24, 12, 0.68) 100%),
-      linear-gradient(118deg, rgba(220, 162, 98, 0.38) 0%, rgba(176, 120, 70, 0.24) 46%, rgba(126, 111, 97, 0.12) 100%),
-      radial-gradient(92% 72% at 84% 14%, rgba(240, 206, 151, 0.32) 0%, rgba(240, 206, 151, 0) 64%);
-  }
-
-  .t-hero-overlay-explore-luxury {
-    background:
-      linear-gradient(180deg, rgba(14, 8, 31, 0.87) 0%, rgba(39, 18, 67, 0.62) 52%, rgba(9, 6, 25, 0.92) 100%),
-      linear-gradient(120deg, rgba(139, 99, 214, 0.42) 0%, rgba(108, 74, 184, 0.28) 44%, rgba(34, 22, 62, 0.14) 100%),
-      radial-gradient(88% 68% at 84% 14%, rgba(218, 174, 255, 0.36) 0%, rgba(218, 174, 255, 0) 64%);
-  }
-
-  .t-hero-overlay-explore-budget {
-    background:
-      linear-gradient(180deg, rgba(7, 18, 29, 0.78) 0%, rgba(15, 45, 61, 0.18) 48%, rgba(5, 13, 22, 0.88) 100%),
-      linear-gradient(118deg, rgba(132, 211, 234, 0.44) 0%, rgba(87, 156, 198, 0.24) 46%, rgba(15, 31, 52, 0.1) 100%),
-      radial-gradient(90% 72% at 86% 14%, rgba(255, 249, 224, 0.48) 0%, rgba(255, 249, 224, 0) 64%);
-  }
-
-  .t-hero-overlay-explore-family {
-    background:
-      linear-gradient(180deg, rgba(7, 18, 30, 0.62) 0%, rgba(19, 50, 59, 0.3) 50%, rgba(5, 14, 24, 0.72) 100%),
-      linear-gradient(118deg, rgba(103, 204, 184, 0.38) 0%, rgba(88, 156, 177, 0.2) 48%, rgba(14, 30, 47, 0.1) 100%),
-      radial-gradient(92% 72% at 84% 14%, rgba(255, 198, 151, 0.36) 0%, rgba(255, 198, 151, 0) 64%);
-  }
-
-  .t-hero-overlay-explore-solo {
-    background:
-      linear-gradient(180deg, rgba(4, 11, 28, 0.84) 0%, rgba(8, 20, 39, 0.56) 52%, rgba(3, 9, 23, 0.9) 100%),
-      linear-gradient(118deg, rgba(54, 112, 197, 0.42) 0%, rgba(53, 86, 172, 0.26) 46%, rgba(11, 21, 46, 0.12) 100%),
-      radial-gradient(90% 70% at 84% 14%, rgba(175, 201, 236, 0.3) 0%, rgba(175, 201, 236, 0) 64%);
-  }
+  /* Explore overlays */
+  .t-hero-overlay-explore-default { background: rgba(22,1,32,0.74); }
+  .t-hero-overlay-explore-guided { background: rgba(22,1,32,0.78); }
+  .t-hero-overlay-explore-beach { background: linear-gradient(180deg, rgba(22,1,32,0.66) 0%, rgba(22,1,32,0.32) 50%, rgba(22,1,32,0.74) 100%); }
+  .t-hero-overlay-explore-mountains { background: rgba(22,1,32,0.82); }
+  .t-hero-overlay-explore-weekend-cities { background: rgba(22,1,32,0.70); }
+  .t-hero-overlay-explore-warm-weather { background: linear-gradient(180deg, rgba(22,1,32,0.62) 0%, rgba(22,1,32,0.26) 50%, rgba(22,1,32,0.70) 100%); }
+  .t-hero-overlay-explore-luxury { background: rgba(22,1,32,0.86); }
+  .t-hero-overlay-explore-budget { background: rgba(22,1,32,0.76); }
+  .t-hero-overlay-explore-family { background: rgba(22,1,32,0.68); }
+  .t-hero-overlay-explore-solo { background: rgba(22,1,32,0.84); }
 }

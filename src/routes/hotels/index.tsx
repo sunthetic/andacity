@@ -3,179 +3,132 @@ import { routeLoader$ } from "@builder.io/qwik-city";
 import type { DocumentHead } from "@builder.io/qwik-city";
 import type { RequestHandler } from "@builder.io/qwik-city";
 import { useLocation } from "@builder.io/qwik-city";
-import { HotelSearchCard } from "~/components/hotels/search/HotelSearchCard";
 import { VerticalHeroSearchLayout } from "~/components/search/VerticalHeroSearchLayout";
-import { SearchEmptyState } from "~/components/search/SearchEmptyState";
-import { loadHotelCitiesFromDb } from "~/lib/queries/hotels-pages.server";
-import { buildCanonicalHotelSearchHref } from "~/lib/search/entry-routes";
-import { resolveLocationFromUrlValues } from "~/lib/location/location-repo.server";
-import {
-  parseLocationSelection,
-  validateLocationSelection,
-} from "~/lib/location/validateLocationSelection";
+import { HotelSearchCard } from "~/components/search/hotel/HotelSearchCard";
+import { CityIndexList } from "~/components/hotels/CityIndexList";
 
-export const useHotelsIndexPage = routeLoader$(async () => {
-  const items = await loadHotelCitiesFromDb();
-  return { items };
-});
+export { useHotelIndexData } from "~/routes/hotels/hotel.data";
 
-export const onGet: RequestHandler = async ({ url, redirect }) => {
-  const isSearchSubmit =
-    String(url.searchParams.get("search") || "").trim() === "1";
-  if (!isSearchSubmit) return;
-
-  const destination = validateLocationSelection({
-    selection: url.searchParams.get("destinationLocation"),
-    rawValue: url.searchParams.get("destination"),
-    required: true,
-    fieldLabel: "destination",
-    allowedKinds: ["city", "airport"],
-  });
-
-  if (!destination.location) return;
-
-  const checkIn = String(url.searchParams.get("checkIn") || "").trim();
-  const checkOut = String(url.searchParams.get("checkOut") || "").trim();
-  const guests = String(url.searchParams.get("guests") || "").trim();
-
-  throw redirect(
-    302,
-    buildCanonicalHotelSearchHref({
-      destinationLocation: destination.location,
-      checkIn,
-      checkOut,
-      guests,
-    }),
-  );
+export const onGet: RequestHandler = async ({ cacheControl }) => {
+  cacheControl({ maxAge: 60 * 10, staleWhileRevalidate: 60 * 60 });
 };
 
-export const useHotelsSearchState = routeLoader$(async ({ url }) => {
-  const selection = parseLocationSelection(
-    url.searchParams.get("destinationLocation"),
-  );
-  const destinationLocation =
-    selection ||
-    (await resolveLocationFromUrlValues({
-      locationId: url.searchParams.get("destinationLocationId"),
-      text: url.searchParams.get("destination"),
-    }));
-
-  return {
-    destinationLocation,
-  };
-});
-
 export default component$(() => {
-  const { items } = useHotelsIndexPage().value;
-  const { destinationLocation } = useHotelsSearchState().value;
-  const location = useLocation();
-  const destination = String(
-    location.url.searchParams.get("destination") || "",
-  ).trim();
-  const checkIn = String(location.url.searchParams.get("checkIn") || "").trim();
-  const checkOut = String(
-    location.url.searchParams.get("checkOut") || "",
-  ).trim();
-  const guests = String(location.url.searchParams.get("guests") || "").trim();
+  const loc = useLocation();
 
   return (
     <VerticalHeroSearchLayout
-      breadcrumbs={[{ label: "Home", href: "/" }, { label: "Hotels" }]}
       eyebrow="Hotels"
-      title="Find stays that fit the trip, not just the city"
-      description="Search hotels by destination, dates, and guests, or browse city hubs built for planning and discovery."
-      heroImageUrl="/images/hero/hotels.svg"
+      title="Find your perfect stay"
+      description="Compare prices across thousands of properties, from boutique guesthouses to iconic five-star resorts."
+      heroImageUrl="/assets/hero/hotels.jpg"
       heroOverlay="hotels"
-      searchCard={
-        <HotelSearchCard
-          initialDestination={destinationLocation?.displayName || destination}
-          initialDestinationLocation={destinationLocation}
-          initialCheckIn={checkIn}
-          initialCheckOut={checkOut}
-          initialGuests={guests}
-        />
-      }
+      searchCard={<HotelSearchCard compact={false} />}
       helperLinks={[
-        { label: "Miami", href: "/hotels/in/miami" },
-        { label: "New York", href: "/hotels/in/new-york" },
+        { label: "Miami Beach", href: "/hotels/in/miami" },
+        { label: "New York City", href: "/hotels/in/new-york" },
         { label: "Las Vegas", href: "/hotels/in/las-vegas" },
+        { label: "Orlando", href: "/hotels/in/orlando" },
+        { label: "Los Angeles", href: "/hotels/in/los-angeles" },
       ]}
     >
-      <section class="mx-auto max-w-4xl">
-        <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-          Plan stays with less friction
-        </h2>
+      {/* Intro row */}
+      <div class="mb-10 overflow-hidden rounded-2xl" style="border: 1px solid rgba(200,160,255,0.14)">
+        <div class="grid sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x" style="divide-color: rgba(200,160,255,0.10); background: rgba(255,255,255,0.05)">
+          {[
+            { icon: "✦", label: "All property types", note: "Hotels, motels, resorts, suites" },
+            { icon: "◈", label: "Instant confirmation", note: "Know your booking is secured" },
+            { icon: "⊕", label: "Flexible cancellation", note: "Many properties offer free cancel" },
+          ].map((item) => (
+            <div key={item.label} class="flex items-start gap-3 px-6 py-5">
+              <span class="mt-0.5 text-base" style="color: #E8728A">{item.icon}</span>
+              <span class="flex flex-col">
+                <span class="text-sm font-semibold" style="color: #FFF8F0">{item.label}</span>
+                <span class="text-xs" style="color: rgba(240,232,216,0.55)">{item.note}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
 
-        <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)] md:text-base">
-          Combine destination-first search with city-based discovery for a
-          cleaner way to book accommodations.
-        </p>
-      </section>
-
-      <section class="mt-10">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-              Browse hotel cities
-            </h2>
-
-            <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-              Indexable city pages that support discovery, planning, and
-              internal linking across the Hotels vertical.
-            </p>
-          </div>
-
+      {/* City index */}
+      <section>
+        <div class="mb-6 flex items-center justify-between">
+          <h2 class="text-2xl font-bold" style="color: #FFF8F0; letter-spacing: -0.02em">
+            Browse by city
+          </h2>
           <a
-            class="t-btn-primary px-5 text-center"
-            href="/search/hotels/anywhere/1"
+            href="/hotels/in"
+            class="text-sm font-semibold transition"
+            style="color: #E8728A"
           >
-            Search hotels
+            All cities →
           </a>
         </div>
 
-        {items.length ? (
-          <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((city) => (
-              <a
-                key={city.slug}
-                href={`/hotels/in/${city.slug}`}
-                class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-4 shadow-[var(--shadow-sm)] transition hover:-translate-y-px hover:shadow-[var(--shadow-md)]"
-              >
-                <div class="text-base font-medium text-[color:var(--color-text-strong)]">
-                  {city.city}
-                </div>
-
-                <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                  Browse hotels in {city.city}
-                </div>
-              </a>
-            ))}
-          </div>
-        ) : (
-          <div class="mt-6">
-            <SearchEmptyState
-              title="No hotel cities are available right now"
-              description="Try searching hotels directly while city pages are refreshed."
-              primaryAction={{ label: "Search hotels again", href: "/hotels" }}
-              secondaryAction={{
-                label: "Browse hotel cities",
-                href: "/hotels/in",
-              }}
-            />
-          </div>
-        )}
+        <div class="overflow-hidden rounded-2xl" style="border: 1px solid rgba(200,160,255,0.14)">
+          {[
+            { city: "Miami", state: "FL", tag: "Beach resorts", tagColor: "#E8728A" },
+            { city: "New York", state: "NY", tag: "City hotels", tagColor: "#9080FF" },
+            { city: "Las Vegas", state: "NV", tag: "Resort stays", tagColor: "#F5C842" },
+            { city: "Orlando", state: "FL", tag: "Theme park stays", tagColor: "#E8728A" },
+            { city: "Los Angeles", state: "CA", tag: "Coastal", tagColor: "#9080FF" },
+            { city: "Chicago", state: "IL", tag: "Downtown", tagColor: "#F5C842" },
+            { city: "San Diego", state: "CA", tag: "Beachside", tagColor: "#E8728A" },
+            { city: "Nashville", state: "TN", tag: "Music & culture", tagColor: "#9080FF" },
+          ].map((row, i, arr) => (
+            <a
+              key={row.city}
+              href={`/hotels/in/${row.city.toLowerCase().replace(/ /g, "-")}`}
+              class="group flex items-center justify-between px-5 py-4 transition hover:bg-white/06"
+              style={i < arr.length - 1 ? "border-bottom: 1px solid rgba(200,160,255,0.08)" : ""}
+            >
+              <div class="flex items-center gap-3">
+                <span class="text-base font-semibold" style="color: #FFF8F0">{row.city}</span>
+                <span class="text-xs" style="color: rgba(240,232,216,0.40)">{row.state}</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <span
+                  class="hidden rounded-full px-3 py-0.5 text-xs font-medium sm:inline-block"
+                  style={`border: 1px solid ${row.tagColor}28; color: ${row.tagColor}; background: ${row.tagColor}10`}
+                >
+                  {row.tag}
+                </span>
+                <span class="text-sm font-semibold transition group-hover:translate-x-0.5" style="color: #E8728A">→</span>
+              </div>
+            </a>
+          ))}
+        </div>
       </section>
+
+      {/* CMS city index below fold */}
+      <div class="mt-10">
+        <CityIndexList currentPath={loc.url.pathname} />
+      </div>
     </VerticalHeroSearchLayout>
   );
 });
 
-export const head: DocumentHead = {
-  title: "Hotels | Andacity",
-  meta: [
-    {
-      name: "description",
-      content:
-        "Search hotels by destination, dates, and guests, or browse Andacity city pages for hotel discovery.",
-    },
-  ],
+export const head: DocumentHead = ({ url }) => {
+  const title = "Hotel Search | Andacity";
+  const description =
+    "Search hotels and find the perfect stay for your trip. Browse thousands of properties with instant confirmation and flexible cancellation.";
+  const canonicalHref = new URL("/hotels", url.origin).href;
+  const ogImage = new URL("/og/hotels.png", url.origin).href;
+  return {
+    title,
+    meta: [
+      { name: "description", content: description },
+      { property: "og:type", content: "website" },
+      { property: "og:title", content: title },
+      { property: "og:description", content: description },
+      { property: "og:url", content: canonicalHref },
+      { property: "og:image", content: ogImage },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: title },
+      { name: "twitter:description", content: description },
+      { name: "twitter:image", content: ogImage },
+    ],
+    links: [{ rel: "canonical", href: canonicalHref }],
+  };
 };
