@@ -9,47 +9,51 @@ export const VerticalHeroSearchLayout = component$(
     return (
       <div class={verticalThemeClass}>
         {props.breadcrumbs?.length ? (
-          <div class="border-b border-[color:var(--color-border)]">
-            <div class="mx-auto max-w-6xl px-4 py-3.5">
+          <div style="border-bottom: 1px solid rgba(196,97,74,0.12); background: rgba(13,6,0,0.70); backdrop-filter: blur(12px)">
+            <div class="mx-auto max-w-6xl px-4 py-3">
               <Breadcrumbs items={props.breadcrumbs} />
             </div>
           </div>
         ) : null}
 
         <section class="relative z-20 overflow-visible">
-          <HeroBackground
-            imageUrl={props.heroImageUrl}
-            overlay={props.heroOverlay}
-          >
-            <div class="mx-auto max-w-6xl px-4 py-10 md:py-14 lg:py-18">
-              <div class="mx-auto max-w-4xl text-center">
-                <p class="text-sm font-medium text-[color:var(--color-text-on-hero-muted)]">
+          <HeroBackground imageUrl={props.heroImageUrl} overlay={props.heroOverlay}>
+            <div class="mx-auto max-w-6xl px-4 py-12 md:py-16 lg:py-20">
+              {/* Editorial stamp badge (TERRA-style, dark ATLAS palette) */}
+              <div class="mb-5 inline-flex items-center gap-2">
+                <span
+                  class="rounded px-3 py-1 text-xs font-bold uppercase tracking-widest"
+                  style="border: 1.5px solid rgba(212,151,58,0.40); color: #D4973A; background: rgba(212,151,58,0.08); letter-spacing: 0.10em"
+                >
                   {props.eyebrow}
-                </p>
-
-                <h1 class="mt-2 text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-on-hero)] md:text-5xl">
-                  {props.title}
-                </h1>
-
-                <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-on-hero-muted)] md:text-base">
-                  {props.description}
-                </p>
+                </span>
               </div>
 
-              <div class="mt-6 mx-auto max-w-5xl text-left">
+              <h1
+                class="max-w-2xl text-4xl font-bold md:text-5xl lg:text-6xl"
+                style="color: #FBF4EA; letter-spacing: -0.025em; line-height: 1.08; text-shadow: 0 4px 24px rgba(13,6,0,0.40)"
+              >
+                {props.title}
+              </h1>
+
+              <p class="mt-4 max-w-lg text-base" style="color: rgba(239,230,214,0.65); line-height: 1.65">
+                {props.description}
+              </p>
+
+              <div class="mt-8 max-w-5xl">
                 {props.searchCard}
               </div>
 
               {props.helperLinks?.length ? (
-                <div class="mt-4 mx-auto max-w-5xl">
-                  <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm text-[color:var(--color-text-on-hero-muted)]">
-                    <span>Popular:</span>
-
+                <div class="mt-4 max-w-5xl">
+                  <div class="flex flex-wrap items-center gap-x-2 gap-y-2">
+                    <span class="text-xs font-bold uppercase tracking-wider" style="color: rgba(239,230,214,0.40); letter-spacing: 0.08em">Popular:</span>
                     {props.helperLinks.map((link) => (
                       <a
                         key={link.href}
                         href={link.href}
-                        class="transition-colors hover:text-[color:var(--color-text-on-hero)]"
+                        class="rounded px-3 py-1 text-xs font-medium transition hover:bg-white/08"
+                        style="border: 1px solid rgba(196,97,74,0.24); color: rgba(239,230,214,0.70)"
                       >
                         {link.label}
                       </a>
@@ -61,17 +65,17 @@ export const VerticalHeroSearchLayout = component$(
           </HeroBackground>
         </section>
 
-        <main class="relative z-0 mx-auto max-w-6xl px-4 pt-10 pb-10 md:pb-12.5 lg:pb-16">
-          <Slot />
+        <main class="relative z-0" style="background: var(--color-bg)">
+          <div class="mx-auto max-w-6xl px-4 pt-10 pb-10 md:pb-12 lg:pb-16">
+            <Slot />
+          </div>
         </main>
       </div>
     );
   },
 );
 
-const getVerticalThemeClass = (
-  overlay: VerticalHeroSearchLayoutProps["heroOverlay"],
-) => {
+const getVerticalThemeClass = (overlay: VerticalHeroSearchLayoutProps["heroOverlay"]) => {
   if (overlay === "flights") return "t-vertical-theme t-vertical-theme-flights";
   if (overlay === "hotels") return "t-vertical-theme t-vertical-theme-hotels";
   if (overlay === "cars") return "t-vertical-theme t-vertical-theme-cars";
@@ -89,12 +93,5 @@ type VerticalHeroSearchLayoutProps = {
   helperLinks?: HelperLink[];
 };
 
-type BreadcrumbItem = {
-  label: string;
-  href?: string;
-};
-
-type HelperLink = {
-  label: string;
-  href: string;
-};
+type BreadcrumbItem = { label: string; href?: string };
+type HelperLink = { label: string; href: string };

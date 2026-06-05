@@ -6,294 +6,270 @@ import { GlobalSearchEntry } from "~/components/search-entry/GlobalSearchEntry";
 export default component$(() => {
   return (
     <>
-      <section class="relative z-20 overflow-visible">
-        <HeroBackground imageUrl="/images/hero/home.svg" overlay="strong">
-          <div class="mx-auto max-w-6xl px-4 py-12 md:py-16 lg:py-20">
-            <div class="mx-auto max-w-4xl text-center">
-              <p class="text-sm font-medium text-[color:var(--color-text-on-hero-muted)]">
-                Andacity Travel Platform
-              </p>
-              <h1 class="mt-2 text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-on-hero)] md:text-5xl">
-                Plan the whole trip in one place
+      {/* ── HERO — Editorial Split (TERRA layout × ATLAS dark depth) ─── */}
+      <section
+        class="relative overflow-hidden"
+        style="min-height: 580px"
+      >
+        {/* Deep dark warm background */}
+        <div
+          class="absolute inset-0"
+          style="background: linear-gradient(130deg, #080300 0%, #120700 32%, #1C0E04 54%, #0D0600 100%)"
+        />
+
+        {/* Terracotta + amber glow nodes */}
+        <div
+          class="pointer-events-none absolute inset-0"
+          style="background: radial-gradient(46% 52% at 4% 0%, rgba(196,97,74,0.22) 0%, transparent 65%), radial-gradient(30% 36% at 72% 90%, rgba(212,151,58,0.10) 0%, transparent 60%), radial-gradient(24% 30% at 96% 18%, rgba(93,138,110,0.08) 0%, transparent 60%)"
+        />
+
+        {/* Subtle paper texture */}
+        <div
+          class="pointer-events-none absolute inset-0 opacity-[0.025]"
+          style="background-image: url('data:image/svg+xml,<svg viewBox=\"0 0 200 200\" xmlns=\"http://www.w3.org/2000/svg\"><filter id=\"n\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.75\" numOctaves=\"4\"/></filter><rect width=\"200\" height=\"200\" filter=\"url(%23n)\" opacity=\"1\"/></svg>'); background-size: 160px"
+        />
+
+        <div class="relative mx-auto max-w-6xl px-4 py-12 md:py-20">
+          {/* TERRA-style editorial split */}
+          <div class="grid gap-8 lg:grid-cols-[1fr_440px] lg:items-stretch">
+
+            {/* Left — editorial dark column */}
+            <div
+              class="flex flex-col justify-center rounded-2xl p-8 md:p-10"
+              style="background: rgba(255,255,255,0.04); border: 1px solid rgba(196,97,74,0.16); backdrop-filter: blur(8px)"
+            >
+              {/* Stamp badge (from TERRA) */}
+              <div class="mb-6 inline-flex w-fit items-center gap-2">
+                <span
+                  class="rounded px-2.5 py-1 text-xs font-bold uppercase tracking-widest"
+                  style="border: 1.5px solid rgba(212,151,58,0.45); color: #D4973A; background: rgba(212,151,58,0.08); letter-spacing: 0.10em"
+                >
+                  Now available
+                </span>
+              </div>
+
+              <h1
+                class="text-4xl font-bold md:text-5xl lg:text-6xl"
+                style="color: #FBF4EA; line-height: 1.08; letter-spacing: -0.025em"
+              >
+                Journey further,
+                <br />
+                <span style="color: #C4614A">plan smarter.</span>
               </h1>
-              <p class="mt-3 text-sm text-[color:var(--color-text-on-hero-muted)] md:text-base">
-                Search flights, stays, and car rentals together, or explore new
-                destinations when you don't know where to start.
+
+              <p
+                class="mt-5 max-w-sm text-base"
+                style="color: rgba(239,230,214,0.65); line-height: 1.65"
+              >
+                Flights, hotels, and car rentals — all in one dark, thoughtful
+                workspace built for travelers who know what they want.
               </p>
-              <p class="mt-2 text-sm text-[color:var(--color-text-on-hero-muted)] md:text-base">
-                One platform. Less friction. Better trips.
-              </p>
+
+              {/* Editorial navigation links (from TERRA) */}
+              <div class="mt-8 grid grid-cols-3 gap-2">
+                {[
+                  { label: "Flights", href: "/flights", color: "#C4614A" },
+                  { label: "Hotels", href: "/hotels", color: "#5D8A6E" },
+                  { label: "Cars", href: "/car-rentals", color: "#D4973A" },
+                ].map((v) => (
+                  <a
+                    key={v.href}
+                    href={v.href}
+                    class="flex flex-col items-center gap-1.5 rounded-xl py-3 text-center transition hover:bg-white/06"
+                    style={`border: 1px solid ${v.color}28; background: ${v.color}08`}
+                  >
+                    <span class="text-xs font-bold uppercase tracking-wider" style={`color: ${v.color}`}>
+                      {v.label}
+                    </span>
+                  </a>
+                ))}
+              </div>
+
+              <div class="mt-6">
+                <a class="t-btn-primary px-6 py-3" href="/explore">
+                  Start exploring →
+                </a>
+              </div>
             </div>
 
-            <div class="mt-8">
+            {/* Right — search card (ATLAS glassmorphism) */}
+            <div
+              class="flex flex-col rounded-2xl p-6 md:p-8"
+              style="background: rgba(255,255,255,0.07); border: 1px solid rgba(196,97,74,0.22); backdrop-filter: blur(20px); box-shadow: 0 24px 64px rgba(13,6,0,0.58), inset 0 1px 0 rgba(212,151,58,0.10)"
+            >
+              <div class="mb-4 border-b pb-3" style="border-color: rgba(196,97,74,0.14)">
+                <span class="text-sm font-bold uppercase tracking-wide" style="color: rgba(239,230,214,0.55)">
+                  Where are you going?
+                </span>
+              </div>
+
               <GlobalSearchEntry
                 id="global-search-entry"
-                class="mx-auto max-w-5xl text-left"
-                eyebrow="Global Search"
-                title="Start with flights, hotels, or cars from one entry point"
-                description="Every form routes into the existing canonical search flow, so shared links, results pages, and trip assembly all stay aligned."
+                class="text-left"
+                eyebrow="Search"
+                title="Find your trip"
+                description="Flights, hotels, cars"
               />
             </div>
-
-            <div class="relative z-0 mt-6 mx-auto max-w-4xl text-center">
-              <div class="flex flex-wrap items-center justify-center gap-3">
-                <a class="t-btn-primary px-5 text-center" href="/hotels">
-                  Browse hotel hubs
-                </a>
-                <a
-                  class="rounded-xl border border-white/35 bg-white/10 px-5 py-2.5 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/20"
-                  href="#verticals"
-                >
-                  Choose a travel mode
-                </a>
-              </div>
-              <div class="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm">
-                <a
-                  class="rounded-full border border-white/30 bg-white/8 px-3 py-1.5 text-white/90"
-                  href="/flights"
-                >
-                  Flights
-                </a>
-                <a
-                  class="rounded-full border border-white/30 bg-white/8 px-3 py-1.5 text-white/90"
-                  href="/hotels"
-                >
-                  Hotels
-                </a>
-                <a
-                  class="rounded-full border border-white/30 bg-white/8 px-3 py-1.5 text-white/90"
-                  href="/car-rentals"
-                >
-                  Car Rentals
-                </a>
-                <a
-                  class="rounded-full border border-white/30 bg-white/8 px-3 py-1.5 text-white/90"
-                  href="/explore"
-                >
-                  Explore
-                </a>
-              </div>
-            </div>
           </div>
-        </HeroBackground>
+        </div>
+
+        {/* Gradient fade */}
+        <div
+          class="pointer-events-none absolute bottom-0 left-0 right-0 h-20"
+          style="background: linear-gradient(180deg, transparent, #0D0600)"
+        />
       </section>
 
-      <main class="relative z-0 mx-auto max-w-6xl px-4 pt-10 pb-10 md:pb-12.5 lg:pb-16">
-        <section id="verticals">
-          <div class="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-route)]">
-                Start from any part of the trip
-              </h2>
-              <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-                Every entry point is first-class: book transport, lock in stays,
-                reserve wheels, or explore places before choosing.
-              </p>
-            </div>
+      {/* ── MAIN ───────────────────────────────────── */}
+      <main class="mx-auto max-w-6xl px-4 py-12">
+
+        {/* Travel sections — editorial grid with terracotta/sage/amber accents */}
+        <section>
+          <div class="mb-2 flex items-center gap-3">
+            <span class="h-px flex-1" style="background: rgba(196,97,74,0.18)" />
+            <span class="text-xs font-bold uppercase tracking-widest" style="color: rgba(239,230,214,0.40)">Plan</span>
+            <span class="h-px flex-1" style="background: rgba(196,97,74,0.18)" />
           </div>
-
-          <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <a
-              class="block rounded-[var(--radius-xl)] bg-[linear-gradient(145deg,#fff,var(--color-route-soft))] p-5 shadow-[inset_0_3px_0_var(--color-route),var(--shadow-md)] transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
-              href="/flights"
-            >
-              <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-primary-50)] text-[color:var(--color-primary-600)]">
-                <svg
-                  viewBox="0 0 24 24"
-                  class="h-5 w-5"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path d="M2 16.5v-2l8-1.5V6a1 1 0 0 1 2 0v6.5l8 2v2l-8-1v4l2 1v1.5L11 22l-3 0.5V21l2-1v-4z" />
-                </svg>
-              </div>
-              <div class="mt-3 text-base font-semibold text-[color:var(--color-text-strong)]">
-                Flights
-              </div>
-              <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                Compare routes and traveler preferences with a focused search
-                flow.
-              </div>
-              <div class="mt-4 text-sm text-[color:var(--color-action)]">
-                Search flights →
-              </div>
-            </a>
-
-            <a
-              class="block rounded-[var(--radius-xl)] bg-[linear-gradient(145deg,#fff,var(--color-secondary-50))] p-5 shadow-[inset_0_3px_0_var(--color-secondary-500),var(--shadow-md)] transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
-              href="/hotels"
-            >
-              <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-secondary-50)] text-[color:var(--color-secondary-700)]">
-                <svg
-                  viewBox="0 0 24 24"
-                  class="h-5 w-5"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path d="M3 21v-9a2 2 0 0 1 2-2h2V6a3 3 0 0 1 6 0v4h6a2 2 0 0 1 2 2v9h-2v-3H5v3H3zm10-11V6a1 1 0 1 0-2 0v4h2z" />
-                </svg>
-              </div>
-              <div class="mt-3 text-base font-semibold text-[color:var(--color-text-strong)]">
-                Hotels
-              </div>
-              <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                Search stays by destination, dates, and guests, or browse city
-                hubs.
-              </div>
-              <div class="mt-4 text-sm text-[color:var(--color-action)]">
-                Search hotels →
-              </div>
-            </a>
-
-            <a
-              class="block rounded-[var(--radius-xl)] bg-[linear-gradient(145deg,#fff,var(--color-tertiary-50))] p-5 shadow-[inset_0_3px_0_var(--color-price),var(--shadow-md)] transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
-              href="/car-rentals"
-            >
-              <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-tertiary-50)] text-[color:var(--color-tertiary-700)]">
-                <svg
-                  viewBox="0 0 24 24"
-                  class="h-5 w-5"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path d="M4 14l1.2-4.2A3 3 0 0 1 8.1 7.5h7.8a3 3 0 0 1 2.9 2.3L20 14v5h-2v-1H6v1H4v-5zm2.3-1h11.4l-.8-2.6a1 1 0 0 0-1-.7H8.1a1 1 0 0 0-1 .7L6.3 13zM8 17a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm8 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" />
-                </svg>
-              </div>
-              <div class="mt-3 text-base font-semibold text-[color:var(--color-text-strong)]">
-                Car Rentals
-              </div>
-              <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                Find pickup-friendly rentals with city-by-city availability and
-                policies.
-              </div>
-              <div class="mt-4 text-sm text-[color:var(--color-action)]">
-                Search car rentals →
-              </div>
-            </a>
-
-            <a
-              class="block rounded-[var(--radius-xl)] bg-[linear-gradient(145deg,#fff,var(--color-highlight-soft))] p-5 shadow-[inset_0_3px_0_var(--color-highlight),var(--shadow-md)] transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
-              href="/explore"
-            >
-              <div class="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-primary-50)] text-[color:var(--color-primary-700)]">
-                <svg
-                  viewBox="0 0 24 24"
-                  class="h-5 w-5"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z" />
-                </svg>
-              </div>
-              <div class="mt-3 text-base font-semibold text-[color:var(--color-text-strong)]">
-                Explore destinations
-              </div>
-              <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                Discover places to go by season, mood, or budget when you're not
-                starting with a fixed plan.
-              </div>
-              <div class="mt-4 text-sm text-[color:var(--color-action)]">
-                Start exploring →
-              </div>
-            </a>
-          </div>
-        </section>
-
-        <section class="mt-10 rounded-[var(--radius-xl)] bg-[linear-gradient(135deg,var(--color-primary-50),var(--color-secondary-50)_52%,var(--color-tertiary-50))] p-6 shadow-[var(--shadow-lg)]">
-          <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-primary-700)]">
-            Why Andacity
+          <h2
+            class="mb-6 mt-3 text-2xl font-bold md:text-3xl"
+            style="color: #FBF4EA; letter-spacing: -0.02em"
+          >
+            Every part of your trip
           </h2>
-          <div class="mt-4 grid gap-4 md:grid-cols-3">
-            <div class="rounded-2xl bg-white/48 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]">
-              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                Unified planning
-              </div>
-              <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                Move from flights to stays to transportation without restarting
-                your workflow.
-              </p>
-            </div>
-            <div class="rounded-2xl bg-white/48 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]">
-              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                Search + discovery
-              </div>
-              <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                Pair direct booking flows with destination context so decisions
-                happen faster.
-              </p>
-            </div>
-            <div class="rounded-2xl bg-white/48 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]">
-              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                Clean surfaces
-              </div>
-              <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                Consistent, readable UI patterns across every travel vertical.
-              </p>
+
+          <div class="grid gap-4 sm:grid-cols-3">
+            {[
+              {
+                label: "Flights",
+                href: "/flights",
+                desc: "Compare routes and book the right fare.",
+                accent: "#C4614A",
+                pill: "Flights",
+              },
+              {
+                label: "Hotels",
+                href: "/hotels",
+                desc: "Browse properties that fit your stay.",
+                accent: "#5D8A6E",
+                pill: "Hotels",
+              },
+              {
+                label: "Car Rentals",
+                href: "/car-rentals",
+                desc: "Pick up freedom at your destination.",
+                accent: "#D4973A",
+                pill: "Cars",
+              },
+            ].map((v) => (
+              <a
+                key={v.href}
+                href={v.href}
+                class="group block rounded-2xl p-6 transition"
+                style="background: rgba(255,255,255,0.05); border: 1px solid rgba(196,97,74,0.14); box-shadow: 0 4px 20px rgba(13,6,0,0.36)"
+              >
+                {/* Stamp pill */}
+                <span
+                  class="mb-4 inline-block rounded px-2 py-0.5 text-xs font-bold uppercase tracking-widest"
+                  style={`border: 1.5px solid ${v.accent}38; color: ${v.accent}; background: ${v.accent}10; letter-spacing: 0.08em`}
+                >
+                  {v.pill}
+                </span>
+                <div class="mb-2 text-lg font-semibold" style="color: #FBF4EA; letter-spacing: -0.02em">
+                  {v.label}
+                </div>
+                <p class="text-sm" style="color: rgba(239,230,214,0.58); line-height: 1.65">
+                  {v.desc}
+                </p>
+                <div
+                  class="mt-5 text-sm font-semibold transition group-hover:translate-x-0.5"
+                  style={`color: ${v.accent}`}
+                >
+                  Search →
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
+
+        {/* Why Andacity — editorial dark strip with column layout from TERRA */}
+        <section class="mt-14">
+          <div class="overflow-hidden rounded-2xl" style="border: 1px solid rgba(196,97,74,0.16)">
+            <div class="grid sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x"
+              style="divide-color: rgba(196,97,74,0.10); background: rgba(255,255,255,0.04)"
+            >
+              {[
+                {
+                  label: "One platform",
+                  note: "Flights, hotels, and cars handled without switching tools.",
+                  accent: "#C4614A",
+                  tag: "Core",
+                },
+                {
+                  label: "Live pricing",
+                  note: "Up-to-date fares and availability across all verticals.",
+                  accent: "#5D8A6E",
+                  tag: "Data",
+                },
+                {
+                  label: "Your trip, one view",
+                  note: "Every booking assembled into a single shareable plan.",
+                  accent: "#D4973A",
+                  tag: "Trips",
+                },
+              ].map((item) => (
+                <div key={item.label} class="px-7 py-6">
+                  <div class="mb-3">
+                    <span
+                      class="rounded px-2 py-0.5 text-xs font-bold uppercase tracking-widest"
+                      style={`border: 1.5px solid ${item.accent}38; color: ${item.accent}; background: ${item.accent}10; letter-spacing: 0.08em`}
+                    >
+                      {item.tag}
+                    </span>
+                  </div>
+                  <div class="text-base font-semibold" style="color: #FBF4EA; letter-spacing: -0.01em">
+                    {item.label}
+                  </div>
+                  <p class="mt-1.5 text-sm" style="color: rgba(239,230,214,0.55); line-height: 1.65">
+                    {item.note}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
-        <section class="mt-10">
-          <div class="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-highlight)]">
-                Popular destinations
-              </h2>
-              <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-                Start with city guides, then branch into flights, hotels, and
-                rentals.
-              </p>
-            </div>
-            <a class="t-btn-primary px-5 text-center" href="/destinations">
-              Browse all destinations
-            </a>
+        {/* Destinations */}
+        <section class="mt-14">
+          <div class="mb-6 flex items-center justify-between">
+            <h2 class="text-2xl font-bold" style="color: #FBF4EA; letter-spacing: -0.02em">
+              Popular destinations
+            </h2>
+            <a class="t-btn-ghost px-5 py-2.5 text-sm" href="/destinations">All →</a>
           </div>
 
-          <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <a
-              class="t-card block p-4 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
-              href="/destinations/miami"
-            >
-              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                Miami
-              </div>
-              <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                Beach stays and nonstop routes
-              </div>
-            </a>
-            <a
-              class="t-card block p-4 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
-              href="/destinations/san-diego"
-            >
-              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                San Diego
-              </div>
-              <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                Coastal neighborhoods and easy drives
-              </div>
-            </a>
-            <a
-              class="t-card block p-4 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
-              href="/hotels/in/new-york"
-            >
-              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                New York
-              </div>
-              <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                Dense hotel inventory and city transit
-              </div>
-            </a>
-            <a
-              class="t-card block p-4 transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]"
-              href="/car-rentals/in/orlando"
-            >
-              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                Orlando
-              </div>
-              <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                Rental-friendly planning for park trips
-              </div>
-            </a>
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { city: "Miami", type: "Beach hotels", color: "#C4614A" },
+              { city: "New York", type: "City stays", color: "#5D8A6E" },
+              { city: "Los Angeles", type: "Coastal trips", color: "#D4973A" },
+              { city: "Las Vegas", type: "Resort stays", color: "#C4614A" },
+            ].map((d) => (
+              <a
+                key={d.city}
+                href={`/destinations/${d.city.toLowerCase().replace(" ", "-")}`}
+                class="group rounded-2xl p-5 transition"
+                style="background: rgba(255,255,255,0.05); border: 1px solid rgba(196,97,74,0.14)"
+              >
+                <div class="mb-1 text-xs font-bold uppercase tracking-widest" style={`color: ${d.color}; letter-spacing: 0.08em`}>
+                  {d.type}
+                </div>
+                <div class="text-base font-semibold" style="color: #FBF4EA">{d.city}</div>
+                <div class="mt-3 text-sm font-semibold transition group-hover:translate-x-0.5" style={`color: ${d.color}`}>
+                  Explore →
+                </div>
+              </a>
+            ))}
           </div>
         </section>
       </main>
@@ -307,18 +283,15 @@ export const head: DocumentHead = ({ url }) => {
     "Plan the whole trip in one place with Andacity: search flights, hotels, car rentals, and explore destinations.";
   const canonicalHref = new URL("/", url.origin).href;
   const ogImage = new URL("/og/home.png", url.origin).href;
-
   return {
     title,
     meta: [
       { name: "description", content: description },
-
       { property: "og:type", content: "website" },
       { property: "og:title", content: title },
       { property: "og:description", content: description },
       { property: "og:url", content: canonicalHref },
       { property: "og:image", content: ogImage },
-
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: title },
       { name: "twitter:description", content: description },
