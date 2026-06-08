@@ -19,14 +19,14 @@ export const FlightFareSummary = component$((props: FlightFareSummaryProps) => {
           </h2>
         </div>
         {props.fare.currencyCode ? (
-          <p class="rounded-full border border-[color:var(--color-border-default)] bg-white/80 px-3 py-1 text-xs font-semibold text-[color:var(--color-text-muted)] shadow-[var(--shadow-sm)]">
+          <p class="rounded-full border border-[color:var(--color-border-default)] bg-[color:var(--color-surface)] px-3 py-1 text-xs font-semibold text-[color:var(--color-text-muted)] shadow-[var(--shadow-sm)]">
             {props.fare.currencyCode}
           </p>
         ) : null}
       </div>
 
       <dl class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-        <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-white/72 px-3 py-3 shadow-[var(--shadow-sm)]">
+        <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] px-3 py-3 shadow-[var(--shadow-sm)]">
           <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             Cabin class
           </dt>
@@ -36,7 +36,7 @@ export const FlightFareSummary = component$((props: FlightFareSummaryProps) => {
         </div>
 
         {props.fare.fareCodeLabel ? (
-          <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-white/72 px-3 py-3 shadow-[var(--shadow-sm)]">
+          <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] px-3 py-3 shadow-[var(--shadow-sm)]">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Fare code
             </dt>
@@ -46,7 +46,7 @@ export const FlightFareSummary = component$((props: FlightFareSummaryProps) => {
           </div>
         ) : null}
 
-        <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-white/72 px-3 py-3 shadow-[var(--shadow-sm)]">
+        <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] px-3 py-3 shadow-[var(--shadow-sm)]">
           <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             Refundability
           </dt>
@@ -56,7 +56,7 @@ export const FlightFareSummary = component$((props: FlightFareSummaryProps) => {
         </div>
 
         {props.fare.changeabilityLabel ? (
-          <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-white/72 px-3 py-3 shadow-[var(--shadow-sm)]">
+          <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] px-3 py-3 shadow-[var(--shadow-sm)]">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Change policy
             </dt>
@@ -66,7 +66,7 @@ export const FlightFareSummary = component$((props: FlightFareSummaryProps) => {
           </div>
         ) : null}
 
-        <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-white/72 px-3 py-3 shadow-[var(--shadow-sm)]">
+        <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] px-3 py-3 shadow-[var(--shadow-sm)]">
           <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             Baggage
           </dt>
@@ -76,7 +76,7 @@ export const FlightFareSummary = component$((props: FlightFareSummaryProps) => {
         </div>
 
         {props.fare.seatsRemainingLabel ? (
-          <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-white/72 px-3 py-3 shadow-[var(--shadow-sm)]">
+          <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] px-3 py-3 shadow-[var(--shadow-sm)]">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Seat inventory
             </dt>

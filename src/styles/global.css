@@ -15,54 +15,15 @@
     --booking-search-field-bg: var(--color-panel);
     --booking-search-field-bg-hover: var(--color-surface-2);
     --booking-search-field-shadow: var(--shadow-surface-1);
-    --btn-primary-shadow: 0 4px 16px rgba(37, 99, 235, 0.28);
-    --btn-primary-shadow-hover: 0 6px 24px rgba(37, 99, 235, 0.36);
-    --btn-ghost-border: rgba(37, 99, 235, 0.28);
-    --btn-ghost-hover-bg: rgba(37, 99, 235, 0.06);
-    --btn-ghost-hover-border: rgba(37, 99, 235, 0.48);
-    --badge-bg: rgba(37, 99, 235, 0.08);
-    --badge-border: rgba(37, 99, 235, 0.20);
-    --badge-color: #1D4ED8;
-    --badge-deal-bg: rgba(249, 115, 22, 0.10);
-    --badge-deal-border: rgba(249, 115, 22, 0.28);
-    --badge-deal-color: #C2560A;
-    --selection-bg: rgba(37, 99, 235, 0.18);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --btn-primary-shadow: 0 4px 16px rgba(96, 165, 250, 0.24);
-      --btn-primary-shadow-hover: 0 6px 24px rgba(96, 165, 250, 0.32);
-      --btn-ghost-border: rgba(96, 165, 250, 0.28);
-      --btn-ghost-hover-bg: rgba(96, 165, 250, 0.08);
-      --btn-ghost-hover-border: rgba(96, 165, 250, 0.48);
-      --badge-bg: rgba(96, 165, 250, 0.10);
-      --badge-border: rgba(96, 165, 250, 0.22);
-      --badge-color: #93C5FD;
-      --badge-deal-bg: rgba(253, 186, 116, 0.10);
-      --badge-deal-border: rgba(253, 186, 116, 0.28);
-      --badge-deal-color: #FDBA74;
-      --selection-bg: rgba(96, 165, 250, 0.22);
-    }
   }
 
   body {
     min-height: 100vh;
     background:
-      radial-gradient(60rem 28rem at 5% -5%, rgba(37, 99, 235, 0.06), transparent 65%),
-      radial-gradient(46rem 22rem at 96% 2%, rgba(249, 115, 22, 0.05), transparent 65%),
+      radial-gradient(60rem 28rem at 5% -5%, var(--body-grad-x), transparent 65%),
+      radial-gradient(46rem 22rem at 96% 2%, var(--body-grad-y), transparent 65%),
       var(--color-bg);
     background-attachment: fixed;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    body {
-      background:
-        radial-gradient(60rem 28rem at 5% -5%, rgba(59, 130, 246, 0.12), transparent 65%),
-        radial-gradient(46rem 22rem at 96% 2%, rgba(253, 186, 116, 0.08), transparent 65%),
-        var(--color-bg);
-      background-attachment: fixed;
-    }
   }
 
   html {

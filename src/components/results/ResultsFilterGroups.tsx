@@ -35,7 +35,7 @@ export const ResultsFilterGroups = component$(
                     "rounded-full px-3 py-1 text-xs font-semibold shadow-[var(--shadow-sm)] transition",
                     option.active
                       ? "bg-[linear-gradient(135deg,var(--color-action),var(--color-route))] text-white"
-                      : "bg-white/72 text-[color:var(--color-text)] hover:bg-[color:var(--color-highlight-soft)] hover:text-[color:var(--color-highlight)]",
+                      : "bg-[color:var(--color-surface-1)] text-[color:var(--color-text)] hover:bg-[color:var(--color-highlight-soft)] hover:text-[color:var(--color-highlight)]",
                     props.disabled
                       ? "pointer-events-none cursor-not-allowed opacity-60"
                       : null,

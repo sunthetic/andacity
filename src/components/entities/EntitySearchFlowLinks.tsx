@@ -13,13 +13,13 @@ export const EntitySearchFlowLinks = component$(
     return (
       <section class="mt-4 flex flex-wrap items-center gap-3">
         <a
-          class="inline-flex min-h-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-white/90 px-5 text-sm font-semibold text-[color:var(--color-text-strong)] transition hover:border-[color:var(--color-action)] hover:text-[color:var(--color-action)]"
+          class="inline-flex min-h-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-5 text-sm font-semibold text-[color:var(--color-text-strong)] transition hover:border-[color:var(--color-action)] hover:text-[color:var(--color-action)]"
           href={backHref}
         >
           {backLabel}
         </a>
         <a
-          class="inline-flex min-h-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-white/70 px-5 text-sm font-semibold text-[color:var(--color-action)] transition hover:border-[color:var(--color-action)]"
+          class="inline-flex min-h-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-5 text-sm font-semibold text-[color:var(--color-action)] transition hover:border-[color:var(--color-action)]"
           href={modifyHref}
         >
           Modify search

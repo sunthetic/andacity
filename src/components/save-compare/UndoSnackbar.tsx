@@ -11,7 +11,7 @@ export const UndoSnackbar = component$((props: UndoSnackbarProps) => {
           <button
             type="button"
             onClick$={props.onUndo$}
-            class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[color:#111827]"
+            class="rounded-full bg-[color:var(--color-surface)] px-3 py-1 text-xs font-semibold text-[color:#111827]"
           >
             Undo
           </button>

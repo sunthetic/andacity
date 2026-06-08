@@ -25,7 +25,7 @@ export const CarResultsErrorState = component$((props: CarResultsErrorStateProps
           ) : null}
         </div>
 
-        <span class="t-badge bg-white/80">{props.model.statusLabel}</span>
+        <span class="t-badge bg-[color:var(--color-surface)]">{props.model.statusLabel}</span>
       </div>
 
       <div class="mt-5 flex flex-wrap gap-3">

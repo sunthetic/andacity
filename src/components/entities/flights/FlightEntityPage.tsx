@@ -13,14 +13,14 @@ import type { CanonicalLocation } from "~/types/location";
 
 const headerToneClass = (tone: "neutral" | "warning" | "critical") => {
   if (tone === "critical") {
-    return "border-[color:rgba(185,28,28,0.14)] bg-[linear-gradient(135deg,rgba(185,28,28,0.06),rgba(255,255,255,0.96))]";
+    return "border-[color:var(--color-danger)] border-opacity-20 bg-[color:var(--color-danger-soft)]";
   }
 
   if (tone === "warning") {
-    return "border-[color:rgba(180,83,9,0.16)] bg-[linear-gradient(135deg,rgba(245,158,11,0.08),rgba(255,255,255,0.96))]";
+    return "border-[color:var(--color-warning)] border-opacity-20 bg-[color:var(--color-warning-soft)]";
   }
 
-  return "border-[color:var(--color-border)] bg-[linear-gradient(135deg,rgba(14,116,144,0.08),rgba(255,255,255,0.96))]";
+  return "border-[color:var(--color-border)] bg-[color:var(--color-primary-surface)]";
 };
 
 export const FlightEntityPage = component$((props: FlightEntityPageProps) => {
@@ -69,7 +69,7 @@ export const FlightEntityPage = component$((props: FlightEntityPageProps) => {
               <div class="flex items-center gap-3 text-[color:var(--color-action)] lg:min-w-52">
                 <span class="h-3 w-3 rounded-full bg-[color:var(--color-action)] shadow-[0_0_0_5px_var(--color-action-soft)]" />
                 <span class="h-px flex-1 bg-[linear-gradient(90deg,var(--color-action),var(--color-route))]" />
-                <span class="rounded-full border border-[color:var(--color-border-default)] bg-white/88 px-3 py-1 text-xs font-semibold text-[color:var(--color-action)] shadow-[var(--shadow-sm)]">
+                <span class="rounded-full border border-[color:var(--color-border-default)] bg-[color:var(--color-surface)] px-3 py-1 text-xs font-semibold text-[color:var(--color-action)] shadow-[var(--shadow-sm)]">
                   {model.summary.durationLabel}
                 </span>
                 <span class="h-px flex-1 bg-[linear-gradient(90deg,var(--color-route),var(--color-action))]" />

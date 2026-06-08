@@ -1,10 +1,10 @@
 import { Slot, component$ } from "@builder.io/qwik";
 
 export const BOOKING_SEARCH_SURFACE_CLASS =
-  "rounded-[var(--radius-xl)] border border-white/55 bg-[image:var(--booking-search-surface-bg)] p-3 shadow-[var(--shadow-lg)] backdrop-blur md:p-4";
+  "rounded-[var(--radius-xl)] border border-[color:var(--color-border-default)] bg-[color:var(--booking-search-surface-bg)] p-3 shadow-[var(--shadow-lg)] backdrop-blur md:p-4";
 
 export const BOOKING_SEARCH_FIELD_CLASS =
-  "flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-white/55 bg-[color:var(--booking-search-field-bg)] px-3 text-left shadow-[var(--booking-search-field-shadow)] transition-colors hover:bg-[color:var(--booking-search-field-bg-hover)]";
+  "flex min-h-[3.25rem] flex-col justify-center rounded-[var(--radius-lg)] border border-[color:var(--color-border-subtle)] bg-[color:var(--booking-search-field-bg)] px-3 text-left shadow-[var(--booking-search-field-shadow)] transition-colors hover:bg-[color:var(--booking-search-field-bg-hover)]";
 
 export const BOOKING_SEARCH_LABEL_CLASS =
   "text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]";

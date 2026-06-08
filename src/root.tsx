@@ -18,6 +18,8 @@ export default component$(() => {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="format-detection" content="telephone=no" />
         <meta name="theme-color" content="#2563EB" />
+        {/* Apply stored theme before first paint to prevent flash */}
+        <script dangerouslySetInnerHTML="(function(){try{var t=localStorage.getItem('andacity-theme');if(t&&t!=='b1')document.documentElement.dataset.theme=t;}catch(e){}})();" />
         <RouterHead />
         <PageView />
       </head>

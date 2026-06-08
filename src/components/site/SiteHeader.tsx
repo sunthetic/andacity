@@ -1,4 +1,5 @@
 import { component$ } from "@builder.io/qwik";
+import { ThemeSwitcher } from "~/components/site/ThemeSwitcher";
 
 const NAV = {
   primary: [
@@ -103,7 +104,7 @@ export const SiteHeader = component$(() => {
 
                   <div class="grid gap-2 p-2 sm:grid-cols-2">
                     {/* Left column: actions */}
-                    <div class="rounded-xl bg-[linear-gradient(145deg,rgba(255,255,255,0.78),rgba(228,233,252,0.54))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                    <div class="rounded-xl bg-[color:var(--color-surface-1)] p-3 shadow-[inset_0_1px_0_var(--color-border-subtle)]">
                       <div class="flex items-center justify-between gap-2">
                         <div class="text-xs font-semibold uppercase tracking-wide text-[color:var(--color-text-muted)]">
                           Hotels
@@ -155,7 +156,7 @@ export const SiteHeader = component$(() => {
                     </div>
 
                     {/* Right column: featured destinations */}
-                    <div class="rounded-xl bg-[linear-gradient(145deg,rgba(255,255,255,0.78),rgba(224,245,241,0.56))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+                    <div class="rounded-xl bg-[color:var(--color-surface-1)] p-3 shadow-[inset_0_1px_0_var(--color-border-subtle)]">
                       <div class="text-xs font-semibold uppercase tracking-wide text-[color:var(--color-text-muted)]">
                         Featured destinations
                       </div>
@@ -188,7 +189,7 @@ export const SiteHeader = component$(() => {
                         ))}
                       </ul>
 
-                      <div class="mt-3 rounded-xl bg-[linear-gradient(135deg,var(--color-primary-50),var(--color-tertiary-50))] p-3 shadow-[inset_3px_0_0_var(--color-price)]">
+                      <div class="mt-3 rounded-xl bg-[color:var(--color-primary-surface)] p-3 shadow-[inset_3px_0_0_var(--color-price)]">
                         <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
                           City guides for search hubs
                         </div>
@@ -230,6 +231,7 @@ export const SiteHeader = component$(() => {
 
         {/* Right side actions */}
         <div class="hidden items-center gap-2 md:flex">
+          <ThemeSwitcher />
           <a class="t-btn-ghost px-4 py-2 text-sm" href="/my-trips">
             My Trips
           </a>
@@ -271,12 +273,15 @@ export const SiteHeader = component$(() => {
                     Navigate
                   </div>
                 </div>
-                <a
-                  class="t-btn-primary px-3 py-1.5 text-sm"
-                  href="/#global-search-entry"
-                >
-                  Search
-                </a>
+                <div class="flex items-center gap-2">
+                  <ThemeSwitcher />
+                  <a
+                    class="t-btn-primary px-3 py-1.5 text-sm"
+                    href="/#global-search-entry"
+                  >
+                    Search
+                  </a>
+                </div>
               </div>
 
               <div class="mt-1 border-t border-[color:var(--color-border)] pt-2">

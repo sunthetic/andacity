@@ -3,7 +3,7 @@ import type { HotelOfferSummaryModel } from "~/types/hotel-entity-page";
 
 export const HotelOfferSummary = component$((props: HotelOfferSummaryProps) => {
   return (
-    <section class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+    <section class="rounded-[28px] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-6 py-6 shadow-[var(--shadow-soft)]">
       <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--color-action)]">
         Offer details
       </p>
@@ -95,7 +95,7 @@ export const HotelOfferSummary = component$((props: HotelOfferSummaryProps) => {
             props.offer.includedFeatures.map((feature) => (
               <span
                 key={feature}
-                class="rounded-full border border-[color:rgba(8,145,178,0.18)] bg-white px-3 py-1 text-xs font-medium text-[color:var(--color-text)]"
+                class="rounded-full border border-[color:rgba(8,145,178,0.18)] bg-[color:var(--color-surface)] px-3 py-1 text-xs font-medium text-[color:var(--color-text)]"
               >
                 {feature}
               </span>

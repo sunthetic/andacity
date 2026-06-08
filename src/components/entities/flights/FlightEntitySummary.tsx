@@ -40,7 +40,7 @@ export const FlightEntitySummary = component$(
         </div>
 
         <dl class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-white/70 px-4 py-3 shadow-[var(--shadow-sm)]">
+          <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] px-4 py-3 shadow-[var(--shadow-sm)]">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Carrier
             </dt>
@@ -50,7 +50,7 @@ export const FlightEntitySummary = component$(
           </div>
 
           {props.summary.flightNumberLabel ? (
-            <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-white/70 px-4 py-3 shadow-[var(--shadow-sm)]">
+            <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] px-4 py-3 shadow-[var(--shadow-sm)]">
               <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
                 Flight number
               </dt>
@@ -60,7 +60,7 @@ export const FlightEntitySummary = component$(
             </div>
           ) : null}
 
-          <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-white/70 px-4 py-3 shadow-[var(--shadow-sm)]">
+          <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] px-4 py-3 shadow-[var(--shadow-sm)]">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Stops
             </dt>
@@ -70,7 +70,7 @@ export const FlightEntitySummary = component$(
           </div>
 
           {props.summary.itineraryTypeLabel ? (
-            <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-white/70 px-4 py-3 shadow-[var(--shadow-sm)]">
+            <div class="rounded-2xl border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] px-4 py-3 shadow-[var(--shadow-sm)]">
               <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
                 Itinerary type
               </dt>

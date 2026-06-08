@@ -55,7 +55,7 @@ export const DetailTrustPanel = component$((props: DetailTrustPanelProps) => {
 
       <div class={["grid gap-3", compact ? undefined : "md:grid-cols-2"]}>
         {props.freshness ? (
-          <div class="rounded-xl border border-[color:var(--color-divider)] bg-white/70 px-3 py-3">
+          <div class="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-1)] px-3 py-3">
             <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Freshness
             </p>
@@ -70,7 +70,7 @@ export const DetailTrustPanel = component$((props: DetailTrustPanelProps) => {
         ) : null}
 
         {props.confidence ? (
-          <div class="rounded-xl border border-[color:var(--color-divider)] bg-white/70 px-3 py-3">
+          <div class="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-1)] px-3 py-3">
             <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Availability
             </p>
@@ -91,7 +91,7 @@ export const DetailTrustPanel = component$((props: DetailTrustPanelProps) => {
           {rows.map((row) => (
             <div
               key={`${row.label}:${row.value}:${row.detail || ""}`}
-              class="rounded-xl border border-[color:var(--color-divider)] bg-white/70 px-3 py-3"
+              class="rounded-xl border border-[color:var(--color-divider)] bg-[color:var(--color-surface-1)] px-3 py-3"
             >
               <dt class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
                 {row.label}

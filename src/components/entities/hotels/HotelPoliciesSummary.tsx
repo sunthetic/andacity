@@ -4,7 +4,7 @@ import type { HotelPoliciesSummaryModel } from "~/types/hotel-entity-page";
 export const HotelPoliciesSummary = component$(
   (props: HotelPoliciesSummaryProps) => {
     return (
-      <section class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+      <section class="rounded-[28px] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-6 py-6 shadow-[var(--shadow-soft)]">
         <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--color-action)]">
           Policies
         </p>

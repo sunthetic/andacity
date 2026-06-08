@@ -61,7 +61,7 @@ export const ResultCardScaffold = component$(
               </div>
 
               {showAside ? (
-                <aside class="flex min-w-0 flex-col gap-4 rounded-2xl bg-[linear-gradient(145deg,rgba(255,255,255,0.78),rgba(253,240,226,0.72))] p-3 shadow-[inset_3px_0_0_var(--color-price),inset_0_1px_0_rgba(255,255,255,0.7)] md:p-3 xl:p-4">
+                <aside class="flex min-w-0 flex-col gap-4 rounded-2xl bg-[color:var(--color-deal-soft)] p-3 shadow-[inset_3px_0_0_var(--color-price)] md:p-3 xl:p-4">
                   {props.hasSecondaryActions ? (
                     <div class="flex flex-wrap gap-2 md:justify-end">
                       <Slot name="secondary-actions" />
@@ -84,7 +84,7 @@ export const ResultCardScaffold = component$(
             </div>
 
             {props.hasTrust ? (
-              <div class="mt-4 rounded-2xl bg-[color:rgba(255,255,255,0.48)] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+              <div class="mt-4 rounded-2xl bg-[color:var(--color-surface-1)] px-3 py-3">
                 <Slot name="trust" />
               </div>
             ) : null}
@@ -119,7 +119,7 @@ export const ResultFactGrid = component$((props: ResultFactGridProps) => {
         <div
           key={`${item.label}:${item.value}`}
           class={[
-            "rounded-xl px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_6px_16px_rgba(15,23,42,0.04)]",
+            "rounded-xl px-3 py-2.5 shadow-[var(--shadow-sm)]",
             surfaceClass,
           ]}
         >
@@ -166,7 +166,7 @@ export const ResultFactList = component$((props: ResultFactListProps) => {
       {items.map((item) => (
         <div
           key={`${item.label}:${item.value}:${item.detail || ""}`}
-          class="min-w-0 rounded-lg bg-[linear-gradient(145deg,var(--color-surface-1),rgba(255,255,255,0.72))] px-3 py-2.5 shadow-[inset_3px_0_0_color-mix(in_oklab,var(--color-secondary-500)_54%,transparent)]"
+          class="min-w-0 rounded-lg bg-[color:var(--color-surface-1)] px-3 py-2.5 shadow-[inset_3px_0_0_color-mix(in_oklab,var(--color-secondary-500)_54%,transparent)]"
         >
           <dt class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             {item.label}
@@ -195,7 +195,7 @@ export const ResultReasonCallout = component$(
     if (!String(props.text || "").trim()) return null;
 
     return (
-      <div class="rounded-xl bg-[linear-gradient(135deg,var(--color-primary-50),var(--color-secondary-50))] px-4 py-3 shadow-[inset_3px_0_0_var(--color-action),0_8px_22px_rgba(37,99,235,0.08)]">
+      <div class="rounded-xl bg-[color:var(--color-action-soft)] px-4 py-3 shadow-[inset_3px_0_0_var(--color-action)]">
         <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-action)]">
           {props.label || "Why this result"}
         </p>
@@ -260,11 +260,11 @@ export const ResultPricePanel = component$((props: ResultPricePanelProps) => {
       : props.display.totalLabel;
 
   return (
-      <div class={["rounded-2xl bg-[linear-gradient(135deg,var(--color-tertiary-50),var(--color-highlight-soft))] px-3 py-3 shadow-[0_10px_24px_rgba(245,158,11,0.12),inset_0_1px_0_rgba(255,255,255,0.72)]", alignClass]}>
-      <div class="text-3xl font-semibold leading-none text-[color:var(--color-tertiary-800)]">
+      <div class={["rounded-2xl bg-[color:var(--color-highlight-soft)] px-3 py-3 shadow-[var(--shadow-sm)]", alignClass]}>
+      <div class="text-3xl font-semibold leading-none text-[color:var(--color-price)]">
         {formatMoney(props.display.baseAmount, props.currency)}
         {props.display.baseQualifier ? (
-          <span class="ml-1 text-sm font-normal text-[color:var(--color-tertiary-700)]">
+          <span class="ml-1 text-sm font-normal text-[color:var(--color-text-muted)]">
             {formatPriceQualifier(props.display.baseQualifier)}
           </span>
         ) : null}

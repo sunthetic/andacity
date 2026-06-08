@@ -23,7 +23,7 @@ export const ListingCardGrid = component$((props: ListingCardGridProps) => {
 })
 
 const HotelCardDefault = component$(({ hotel }: { hotel: Hotel }) => (
-  <a class="t-card block overflow-hidden hover:bg-white" href={buildHotelDetailHref(hotel.slug)}>
+  <a class="t-card block overflow-hidden hover:bg-[color:var(--color-surface-2)]" href={buildHotelDetailHref(hotel.slug)}>
     <div class="bg-[color:var(--color-neutral-50)]">
       <img
         class="h-40 w-full object-cover"
@@ -80,7 +80,7 @@ const HotelCardDefault = component$(({ hotel }: { hotel: Hotel }) => (
 ))
 
 const HotelCardCompact = component$(({ hotel }: { hotel: Hotel }) => (
-  <a class="t-card block overflow-hidden hover:bg-white" href={buildHotelDetailHref(hotel.slug)}>
+  <a class="t-card block overflow-hidden hover:bg-[color:var(--color-surface-2)]" href={buildHotelDetailHref(hotel.slug)}>
     <div class="bg-[color:var(--color-neutral-50)]">
       <img
         class="h-36 w-full object-cover"
@@ -123,7 +123,7 @@ const CarRentalCardDefault = component$(({ rental }: { rental: CarRental }) => {
   const headlineOffer = rental.offers[0] || null
 
   return (
-    <a class="t-card block overflow-hidden hover:bg-white" href={buildCarRentalDetailHref(rental.slug)}>
+    <a class="t-card block overflow-hidden hover:bg-[color:var(--color-surface-2)]" href={buildCarRentalDetailHref(rental.slug)}>
       <div class="bg-[color:var(--color-neutral-50)]">
         <img
           class="h-40 w-full object-cover"

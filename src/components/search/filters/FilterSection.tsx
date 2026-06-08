@@ -38,7 +38,7 @@ export const FilterSection = component$((props: FilterSectionProps) => {
         </div>
       ) : (
         <select
-          class="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+          class="w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
           disabled={props.disabled}
           value={typeof value === "string" ? value : ""}
           onChange$={(_, el) =>

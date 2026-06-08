@@ -12,7 +12,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
       </h2>
 
       <dl class="mt-5 grid gap-3 sm:grid-cols-2">
-        <div class="rounded-2xl bg-white/72 px-4 py-3">
+        <div class="rounded-2xl bg-[color:var(--color-surface-1)] px-4 py-3">
           <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             Category
           </dt>
@@ -21,7 +21,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
           </dd>
         </div>
 
-        <div class="rounded-2xl bg-white/72 px-4 py-3">
+        <div class="rounded-2xl bg-[color:var(--color-surface-1)] px-4 py-3">
           <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             Transmission
           </dt>
@@ -30,7 +30,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
           </dd>
         </div>
 
-        <div class="rounded-2xl bg-white/72 px-4 py-3">
+        <div class="rounded-2xl bg-[color:var(--color-surface-1)] px-4 py-3">
           <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             Passenger capacity
           </dt>
@@ -39,7 +39,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
           </dd>
         </div>
 
-        <div class="rounded-2xl bg-white/72 px-4 py-3">
+        <div class="rounded-2xl bg-[color:var(--color-surface-1)] px-4 py-3">
           <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
             Baggage
           </dt>
@@ -49,7 +49,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
         </div>
 
         {props.specs.doorCountLabel ? (
-          <div class="rounded-2xl bg-white/72 px-4 py-3">
+          <div class="rounded-2xl bg-[color:var(--color-surface-1)] px-4 py-3">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Doors
             </dt>
@@ -60,7 +60,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
         ) : null}
 
         {props.specs.airConditioningLabel ? (
-          <div class="rounded-2xl bg-white/72 px-4 py-3">
+          <div class="rounded-2xl bg-[color:var(--color-surface-1)] px-4 py-3">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Climate
             </dt>
@@ -71,7 +71,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
         ) : null}
 
         {props.specs.fuelPolicyLabel ? (
-          <div class="rounded-2xl bg-white/72 px-4 py-3">
+          <div class="rounded-2xl bg-[color:var(--color-surface-1)] px-4 py-3">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Fuel policy
             </dt>
@@ -82,7 +82,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
         ) : null}
 
         {props.specs.mileagePolicyLabel ? (
-          <div class="rounded-2xl bg-white/72 px-4 py-3">
+          <div class="rounded-2xl bg-[color:var(--color-surface-1)] px-4 py-3">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Mileage policy
             </dt>
@@ -93,7 +93,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
         ) : null}
 
         {props.specs.ratePlanLabel ? (
-          <div class="rounded-2xl bg-white/72 px-4 py-3 sm:col-span-2">
+          <div class="rounded-2xl bg-[color:var(--color-surface-1)] px-4 py-3 sm:col-span-2">
             <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Rate plan
             </dt>
@@ -113,7 +113,7 @@ export const CarVehicleSpecs = component$((props: CarVehicleSpecsProps) => {
             {props.specs.highlights.map((highlight) => (
               <li
                 key={highlight}
-                class="rounded-full border border-[color:var(--color-border)] bg-white px-3 py-1 text-xs font-medium text-[color:var(--color-text)]"
+                class="rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-1 text-xs font-medium text-[color:var(--color-text)]"
               >
                 {highlight}
               </li>

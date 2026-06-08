@@ -33,7 +33,7 @@ export const ResultsToolbar = component$((props: ResultsToolbarProps) => {
           </label>
           <select
             id={props.sortId}
-            class="rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+            class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
             disabled={props.disabled}
             value={props.sortValue}
             onChange$={(event) => {

@@ -42,7 +42,7 @@ export const FlightEntityUnavailableState = component$(
                 <dt class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
                   {item.label}
                 </dt>
-                <dd class="mt-1 break-all rounded-2xl bg-white/80 px-4 py-3 text-sm text-[color:var(--color-text)]">
+                <dd class="mt-1 break-all rounded-2xl bg-[color:var(--color-surface)] px-4 py-3 text-sm text-[color:var(--color-text)]">
                   {item.value}
                 </dd>
               </div>
@@ -59,7 +59,7 @@ export const FlightEntityUnavailableState = component$(
           </a>
           {props.state.secondaryAction ? (
             <a
-              class="inline-flex min-h-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-white px-5 text-sm font-semibold text-[color:var(--color-action)] transition hover:border-[color:var(--color-action)]"
+              class="inline-flex min-h-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-5 text-sm font-semibold text-[color:var(--color-action)] transition hover:border-[color:var(--color-action)]"
               href={props.state.secondaryAction.href}
             >
               {props.state.secondaryAction.label}

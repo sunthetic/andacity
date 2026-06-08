@@ -19,7 +19,7 @@ export const CompareTray = component$((props: CompareTrayProps) => {
       ]}
     >
       <div class="pointer-events-auto mx-auto max-w-5xl">
-        <div class="t-card flex flex-wrap items-center justify-between gap-3 bg-white/95 p-3 backdrop-blur">
+        <div class="t-card flex flex-wrap items-center justify-between gap-3 bg-[color:var(--color-surface-chrome)] p-3 backdrop-blur">
           <div>
             <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
               Compare

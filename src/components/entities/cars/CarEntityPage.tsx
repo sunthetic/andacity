@@ -14,14 +14,14 @@ import type { BookableEntityPageLoadResult } from "~/types/bookable-entity-route
 
 const headerToneClass = (tone: "neutral" | "warning" | "critical") => {
   if (tone === "critical") {
-    return "border-[color:rgba(185,28,28,0.14)] bg-[linear-gradient(135deg,rgba(185,28,28,0.06),rgba(255,255,255,0.96))]";
+    return "border-[color:var(--color-danger)] border-opacity-20 bg-[color:var(--color-danger-soft)]";
   }
 
   if (tone === "warning") {
-    return "border-[color:rgba(180,83,9,0.16)] bg-[linear-gradient(135deg,rgba(245,158,11,0.08),rgba(255,255,255,0.96))]";
+    return "border-[color:var(--color-warning)] border-opacity-20 bg-[color:var(--color-warning-soft)]";
   }
 
-  return "border-[color:var(--color-border)] bg-[linear-gradient(135deg,rgba(217,119,6,0.09),rgba(14,116,144,0.05),rgba(255,255,255,0.96))]";
+  return "border-[color:var(--color-border)] bg-[color:var(--color-primary-surface)]";
 };
 
 export const CarEntityPage = component$((props: CarEntityPageProps) => {
