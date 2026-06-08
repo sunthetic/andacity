@@ -136,7 +136,7 @@ export const BookableEntityPage = component$(
           },
         ]}
       >
-        <section class="mt-4 rounded-[32px] border border-[color:var(--color-border)] bg-white/90 px-6 py-7 shadow-[var(--shadow-soft)]">
+        <section class="mt-4 rounded-[32px] border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-6 py-7 shadow-[var(--shadow-soft)]">
           <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--color-action)]">
             {copy.badge}
           </p>
@@ -149,8 +149,8 @@ export const BookableEntityPage = component$(
         </section>
 
         {page.kind === "invalid_route" ? (
-          <section class="mt-6 grid gap-4 lg:grid-cols-[2fr,1fr]">
-            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+          <section class="mt-6 grid gap-4 lg:grid-cols-[2fr_1fr]">
+            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-6 py-6 shadow-[var(--shadow-soft)]">
               <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
                 Shared route validation
               </h2>
@@ -164,7 +164,7 @@ export const BookableEntityPage = component$(
               ) : null}
             </div>
 
-            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-6 py-6 shadow-[var(--shadow-soft)]">
               <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
                 Next step
               </h2>
@@ -181,8 +181,8 @@ export const BookableEntityPage = component$(
             </div>
           </section>
         ) : page.kind === "not_found" ? (
-          <section class="mt-6 grid gap-4 lg:grid-cols-[2fr,1fr]">
-            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+          <section class="mt-6 grid gap-4 lg:grid-cols-[2fr_1fr]">
+            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-6 py-6 shadow-[var(--shadow-soft)]">
               <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
                 Resolution boundary
               </h2>
@@ -211,7 +211,7 @@ export const BookableEntityPage = component$(
               </dl>
             </div>
 
-            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-6 py-6 shadow-[var(--shadow-soft)]">
               <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
                 Next step
               </h2>
@@ -228,8 +228,8 @@ export const BookableEntityPage = component$(
             </div>
           </section>
         ) : page.kind === "resolution_error" ? (
-          <section class="mt-6 grid gap-4 lg:grid-cols-[2fr,1fr]">
-            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+          <section class="mt-6 grid gap-4 lg:grid-cols-[2fr_1fr]">
+            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-6 py-6 shadow-[var(--shadow-soft)]">
               <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
                 Temporary resolution failure
               </h2>
@@ -264,7 +264,7 @@ export const BookableEntityPage = component$(
               ) : null}
             </div>
 
-            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-6 py-6 shadow-[var(--shadow-soft)]">
               <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
                 Next step
               </h2>
@@ -289,8 +289,8 @@ export const BookableEntityPage = component$(
             </div>
           </section>
         ) : hasResolvedEntity ? (
-          <section class="mt-6 grid gap-4 lg:grid-cols-[2fr,1fr]">
-            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+          <section class="mt-6 grid gap-4 lg:grid-cols-[2fr_1fr]">
+            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-6 py-6 shadow-[var(--shadow-soft)]">
               <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
                 Canonical entity contract
               </h2>
@@ -375,7 +375,7 @@ export const BookableEntityPage = component$(
               ) : null}
             </div>
 
-            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+            <div class="rounded-[28px] border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-6 py-6 shadow-[var(--shadow-soft)]">
               <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
                 Framework boundary
               </h2>

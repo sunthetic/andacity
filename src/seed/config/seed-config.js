@@ -41,7 +41,9 @@ const toPositiveInt = (value, fallback) => {
 
 const todayUtcIso = () => toIsoDate(new Date());
 
-const normalizeIsoDate = (value, fallback = todayUtcIso()) => {
+const horizonDefaultStartIso = () => toIsoDate(addDays(new Date(), -1));
+
+const normalizeIsoDate = (value, fallback = horizonDefaultStartIso()) => {
   const parsed = parseIsoDate(value);
   return parsed ? toIsoDate(parsed) : fallback;
 };

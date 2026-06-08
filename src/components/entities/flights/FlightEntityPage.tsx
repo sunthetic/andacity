@@ -111,7 +111,7 @@ export const FlightEntityPage = component$((props: FlightEntityPageProps) => {
         model.fareSummary &&
         model.cta &&
         entity ? (
-          <section class="mt-6 grid gap-4 lg:grid-cols-[1.5fr,0.95fr]">
+          <section class="mt-6 grid gap-4 lg:grid-cols-[1.5fr_0.95fr]">
             <FlightEntitySummary
               summary={model.summary}
               status={model.status}

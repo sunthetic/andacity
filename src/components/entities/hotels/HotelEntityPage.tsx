@@ -73,24 +73,27 @@ export const HotelEntityPage = component$((props: HotelEntityPageProps) => {
         model.priceSummary &&
         model.cta &&
         entity ? (
-          <section class="mt-6 grid gap-4 lg:grid-cols-[1.45fr,0.95fr]">
+          <section class="mt-6 grid gap-4 lg:grid-cols-[1.5fr_0.75fr]">
             <HotelEntitySummary summary={model.summary} status={model.status} />
-            <HotelPriceSummary
-              price={model.priceSummary}
-              cta={model.cta}
-              entity={entity}
-            />
+            <div class="flex flex-col gap-4">
+              <HotelPriceSummary
+                price={model.priceSummary}
+                cta={model.cta}
+                entity={entity}
+              />
+              {model.policies ? (
+                <HotelPoliciesSummary policies={model.policies} />
+              ) : null}
+            </div>
           </section>
         ) : null}
 
         {!model.errorState &&
         model.offerSummary &&
-        model.amenities &&
-        model.policies ? (
-          <section class="mt-6 grid gap-4 lg:grid-cols-[1.1fr,0.95fr,0.95fr]">
+        model.amenities ? (
+          <section class="mt-6 grid gap-4 lg:grid-cols-2">
             <HotelOfferSummary offer={model.offerSummary} />
             <HotelAmenitiesList amenities={model.amenities} />
-            <HotelPoliciesSummary policies={model.policies} />
           </section>
         ) : null}
       </div>
