@@ -10,12 +10,14 @@
 import { component$ } from "@builder.io/qwik";
 import type { DocumentHead, RequestHandler } from "@builder.io/qwik-city";
 import { PalettePreview } from "~/components/dev/PalettePreview";
-import { getPublicBaseUrl, shouldIndex } from "~/lib/seo/env";
+import { shouldIndex } from "~/lib/seo/env";
 
 export const onRequest: RequestHandler = ({ url, headers, error }) => {
-  // Keep this surface out of production entirely.
-  const baseUrl = getPublicBaseUrl(url);
-  if (shouldIndex(baseUrl)) {
+  // Gate on the actual incoming request host, not `getPublicBaseUrl`/
+  // `PUBLIC_BASE_URL` — dev and staging intentionally set that env var to
+  // https://andacity.com for canonical-URL generation, which would make
+  // this route 404 itself everywhere except real production.
+  if (shouldIndex(url)) {
     throw error(404, "Not found");
   }
 
