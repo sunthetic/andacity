@@ -26,6 +26,35 @@ const DEFAULT_DB_SCHEMA = "andacity_app";
 const DEFAULT_MAX_FLIGHT_ROUTES = 1200;
 const IDENTIFIER_RE = /^[a-z_][a-z0-9_]*$/;
 
+const UPSERT_BATCH_SIZE = 500;
+
+const chunkArray = (arr, size) => {
+  const result = [];
+  for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size));
+  return result;
+};
+
+const buildValuesSql = (rowCount, columnCount) => {
+  return Array.from({ length: rowCount }, (_, rowIndex) => {
+    const values = Array.from({ length: columnCount }, (_, columnIndex) => {
+      return `$${rowIndex * columnCount + columnIndex + 1}`;
+    }).join(", ");
+    return `(${values})`;
+  }).join(",\n");
+};
+
+const batchInsertRows = async (client, tableName, columns, rows, onConflictSql, returningSql = "") => {
+  if (!rows.length) return { rows: [] };
+  const sql = `
+    insert into ${tableName} (${columns.join(", ")})
+    values
+    ${buildValuesSql(rows.length, columns.length)}
+    ${onConflictSql}
+    ${returningSql}
+  `;
+  return client.query(sql, rows.flat());
+};
+
 const normalizeSchemaName = (value) => {
   const normalized = String(value || "")
     .trim()
@@ -180,713 +209,252 @@ const createReferenceState = () => ({
 });
 
 const upsertCountries = async (client, rows, refs) => {
-  for (const row of rows) {
-    const result = await client.query(
-      `
-      insert into countries (iso2, iso3, slug, name)
-      values ($1, $2, $3, $4)
-      on conflict (slug)
-      do update set
-        iso2 = excluded.iso2,
-        iso3 = excluded.iso3,
-        name = excluded.name,
-        updated_at = now()
-      returning id
-    `,
-      [row.iso2, row.iso3, row.slug, row.name],
+  for (const chunk of chunkArray(rows, UPSERT_BATCH_SIZE)) {
+    const result = await batchInsertRows(
+      client, "countries", ["iso2", "iso3", "slug", "name"],
+      chunk.map((r) => [r.iso2, r.iso3, r.slug, r.name]),
+      `on conflict (slug) do update set iso2=excluded.iso2, iso3=excluded.iso3, name=excluded.name, updated_at=now()`,
+      "returning id, slug",
     );
-
-    refs.countries.set(row.slug, result.rows[0].id);
+    for (const row of result.rows) refs.countries.set(row.slug, row.id);
   }
 };
 
 const upsertRegions = async (client, rows, refs) => {
-  for (const row of rows) {
-    const countryId = refs.countries.get(row.countrySlug);
-    if (!countryId) continue;
-
-    const result = await client.query(
-      `
-      insert into regions (country_id, slug, code, name)
-      values ($1, $2, $3, $4)
-      on conflict (country_id, slug)
-      do update set
-        code = excluded.code,
-        name = excluded.name,
-        updated_at = now()
-      returning id
-    `,
-      [countryId, row.slug, row.code, row.name],
+  const countryIdToSlug = new Map([...refs.countries.entries()].map(([slug, id]) => [id, slug]));
+  const validRows = rows.filter((r) => refs.countries.has(r.countrySlug));
+  for (const chunk of chunkArray(validRows, UPSERT_BATCH_SIZE)) {
+    const result = await batchInsertRows(
+      client, "regions", ["country_id", "slug", "code", "name"],
+      chunk.map((r) => [refs.countries.get(r.countrySlug), r.slug, r.code, r.name]),
+      `on conflict (country_id, slug) do update set code=excluded.code, name=excluded.name, updated_at=now()`,
+      "returning id, slug, country_id",
     );
-
-    refs.regions.set(`${row.countrySlug}:${row.slug}`, result.rows[0].id);
+    for (const row of result.rows) {
+      const countrySlug = countryIdToSlug.get(row.country_id);
+      if (countrySlug) refs.regions.set(`${countrySlug}:${row.slug}`, row.id);
+    }
   }
 };
 
 const upsertCities = async (client, rows, refs) => {
-  for (const row of rows) {
-    const countryId = refs.countries.get(row.countrySlug);
-    if (!countryId) continue;
-
-    const regionId =
-      refs.regions.get(`${row.countrySlug}:${row.regionSlug}`) || null;
-
-    const result = await client.query(
-      `
-      insert into cities (
-        seed_key,
-        slug,
-        name,
-        country_id,
-        region_id,
-        latitude,
-        longitude,
-        popularity_rank,
-        featured_rank,
-        aliases
-      )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      on conflict (slug)
-      do update set
-        seed_key = excluded.seed_key,
-        name = excluded.name,
-        country_id = excluded.country_id,
-        region_id = excluded.region_id,
-        latitude = excluded.latitude,
-        longitude = excluded.longitude,
-        popularity_rank = excluded.popularity_rank,
-        featured_rank = excluded.featured_rank,
-        aliases = excluded.aliases,
-        updated_at = now()
-      returning id
-    `,
-      [
-        row.seedKey,
-        row.slug,
-        row.name,
-        countryId,
-        regionId,
-        row.latitude,
-        row.longitude,
-        row.popularityRank,
-        row.featuredRank,
-        row.aliases,
-      ],
+  const validRows = rows.filter((r) => refs.countries.has(r.countrySlug));
+  for (const chunk of chunkArray(validRows, UPSERT_BATCH_SIZE)) {
+    const result = await batchInsertRows(
+      client,
+      "cities",
+      ["seed_key", "slug", "name", "country_id", "region_id", "latitude", "longitude", "popularity_rank", "featured_rank", "aliases"],
+      chunk.map((r) => [
+        r.seedKey, r.slug, r.name,
+        refs.countries.get(r.countrySlug),
+        refs.regions.get(`${r.countrySlug}:${r.regionSlug}`) || null,
+        r.latitude, r.longitude, r.popularityRank, r.featuredRank, r.aliases,
+      ]),
+      `on conflict (slug) do update set seed_key=excluded.seed_key, name=excluded.name, country_id=excluded.country_id, region_id=excluded.region_id, latitude=excluded.latitude, longitude=excluded.longitude, popularity_rank=excluded.popularity_rank, featured_rank=excluded.featured_rank, aliases=excluded.aliases, updated_at=now()`,
+      "returning id, slug",
     );
-
-    refs.cities.set(row.slug, result.rows[0].id);
+    for (const row of result.rows) refs.cities.set(row.slug, row.id);
   }
 };
 
 const upsertAirports = async (client, rows, refs) => {
-  for (const row of rows) {
-    const cityId = refs.cities.get(row.citySlug);
-    if (!cityId) continue;
-
-    const result = await client.query(
-      `
-      insert into airports (
-        seed_key,
-        city_id,
-        iata_code,
-        name,
-        latitude,
-        longitude,
-        timezone,
-        is_primary
-      )
-      values ($1, $2, $3, $4, $5, $6, $7, $8)
-      on conflict (iata_code)
-      do update set
-        seed_key = excluded.seed_key,
-        city_id = excluded.city_id,
-        name = excluded.name,
-        latitude = excluded.latitude,
-        longitude = excluded.longitude,
-        timezone = excluded.timezone,
-        is_primary = excluded.is_primary,
-        updated_at = now()
-      returning id
-    `,
-      [
-        row.seedKey,
-        cityId,
-        row.iataCode,
-        row.name,
-        row.latitude,
-        row.longitude,
-        row.timezone,
-        row.isPrimary,
-      ],
+  const validRows = rows.filter((r) => refs.cities.has(r.citySlug));
+  for (const chunk of chunkArray(validRows, UPSERT_BATCH_SIZE)) {
+    const result = await batchInsertRows(
+      client,
+      "airports",
+      ["seed_key", "city_id", "iata_code", "name", "latitude", "longitude", "timezone", "is_primary"],
+      chunk.map((r) => [r.seedKey, refs.cities.get(r.citySlug), r.iataCode, r.name, r.latitude, r.longitude, r.timezone, r.isPrimary]),
+      `on conflict (iata_code) do update set seed_key=excluded.seed_key, city_id=excluded.city_id, name=excluded.name, latitude=excluded.latitude, longitude=excluded.longitude, timezone=excluded.timezone, is_primary=excluded.is_primary, updated_at=now()`,
+      "returning id, iata_code",
     );
-
-    refs.airports.set(row.iataCode, result.rows[0].id);
+    for (const row of result.rows) refs.airports.set(row.iata_code, row.id);
   }
 };
 
 const upsertHotelBrands = async (client, rows, refs) => {
-  for (const row of rows) {
-    const result = await client.query(
-      `
-      insert into hotel_brands (slug, name)
-      values ($1, $2)
-      on conflict (slug)
-      do update set
-        name = excluded.name,
-        updated_at = now()
-      returning id
-    `,
-      [row.slug, row.name],
+  for (const chunk of chunkArray(rows, UPSERT_BATCH_SIZE)) {
+    const result = await batchInsertRows(
+      client, "hotel_brands", ["slug", "name"],
+      chunk.map((r) => [r.slug, r.name]),
+      `on conflict (slug) do update set name=excluded.name, updated_at=now()`,
+      "returning id, slug",
     );
-
-    refs.hotelBrands.set(row.slug, result.rows[0].id);
+    for (const row of result.rows) refs.hotelBrands.set(row.slug, row.id);
   }
 };
 
 const upsertHotels = async (client, rows, refs) => {
-  for (const row of rows) {
-    const cityId = refs.cities.get(row.citySlug);
-    if (!cityId) continue;
-
-    const brandId = refs.hotelBrands.get(row.brandSlug) || null;
-
-    const result = await client.query(
-      `
-      insert into hotels (
-        seed_key,
-        slug,
-        city_id,
-        brand_id,
-        name,
-        neighborhood,
-        property_type,
-        address_line,
-        latitude,
-        longitude,
-        stars,
-        rating,
-        review_count,
-        summary,
-        currency_code,
-        from_nightly_cents,
-        free_cancellation,
-        pay_later,
-        no_resort_fees,
-        check_in_time,
-        check_out_time,
-        cancellation_blurb,
-        payment_blurb,
-        fees_blurb,
-        featured_rank
-      )
-      values (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18, $19,
-        $20, $21, $22, $23, $24, $25
-      )
-      on conflict (slug)
-      do update set
-        seed_key = excluded.seed_key,
-        city_id = excluded.city_id,
-        brand_id = excluded.brand_id,
-        name = excluded.name,
-        neighborhood = excluded.neighborhood,
-        property_type = excluded.property_type,
-        address_line = excluded.address_line,
-        latitude = excluded.latitude,
-        longitude = excluded.longitude,
-        stars = excluded.stars,
-        rating = excluded.rating,
-        review_count = excluded.review_count,
-        summary = excluded.summary,
-        currency_code = excluded.currency_code,
-        from_nightly_cents = excluded.from_nightly_cents,
-        free_cancellation = excluded.free_cancellation,
-        pay_later = excluded.pay_later,
-        no_resort_fees = excluded.no_resort_fees,
-        check_in_time = excluded.check_in_time,
-        check_out_time = excluded.check_out_time,
-        cancellation_blurb = excluded.cancellation_blurb,
-        payment_blurb = excluded.payment_blurb,
-        fees_blurb = excluded.fees_blurb,
-        featured_rank = excluded.featured_rank,
-        updated_at = now()
-      returning id
-    `,
-      [
-        row.seedKey,
-        row.slug,
-        cityId,
-        brandId,
-        row.name,
-        row.neighborhood,
-        row.propertyType,
-        row.addressLine,
-        row.latitude,
-        row.longitude,
-        row.stars,
-        row.rating,
-        row.reviewCount,
-        row.summary,
-        row.currencyCode,
-        row.fromNightlyCents,
-        row.freeCancellation,
-        row.payLater,
-        row.noResortFees,
-        row.checkInTime,
-        row.checkOutTime,
-        row.cancellationBlurb,
-        row.paymentBlurb,
-        row.feesBlurb,
-        row.featuredRank,
-      ],
+  const validRows = rows.filter((r) => refs.cities.has(r.citySlug));
+  for (const chunk of chunkArray(validRows, UPSERT_BATCH_SIZE)) {
+    const result = await batchInsertRows(
+      client,
+      "hotels",
+      ["seed_key", "slug", "city_id", "brand_id", "name", "neighborhood", "property_type", "address_line", "latitude", "longitude", "stars", "rating", "review_count", "summary", "currency_code", "from_nightly_cents", "free_cancellation", "pay_later", "no_resort_fees", "check_in_time", "check_out_time", "cancellation_blurb", "payment_blurb", "fees_blurb", "featured_rank"],
+      chunk.map((r) => [
+        r.seedKey, r.slug, refs.cities.get(r.citySlug), refs.hotelBrands.get(r.brandSlug) || null,
+        r.name, r.neighborhood, r.propertyType, r.addressLine, r.latitude, r.longitude,
+        r.stars, r.rating, r.reviewCount, r.summary, r.currencyCode, r.fromNightlyCents,
+        r.freeCancellation, r.payLater, r.noResortFees, r.checkInTime, r.checkOutTime,
+        r.cancellationBlurb, r.paymentBlurb, r.feesBlurb, r.featuredRank,
+      ]),
+      `on conflict (slug) do update set seed_key=excluded.seed_key, city_id=excluded.city_id, brand_id=excluded.brand_id, name=excluded.name, neighborhood=excluded.neighborhood, property_type=excluded.property_type, address_line=excluded.address_line, latitude=excluded.latitude, longitude=excluded.longitude, stars=excluded.stars, rating=excluded.rating, review_count=excluded.review_count, summary=excluded.summary, currency_code=excluded.currency_code, from_nightly_cents=excluded.from_nightly_cents, free_cancellation=excluded.free_cancellation, pay_later=excluded.pay_later, no_resort_fees=excluded.no_resort_fees, check_in_time=excluded.check_in_time, check_out_time=excluded.check_out_time, cancellation_blurb=excluded.cancellation_blurb, payment_blurb=excluded.payment_blurb, fees_blurb=excluded.fees_blurb, featured_rank=excluded.featured_rank, updated_at=now()`,
+      "returning id, slug",
     );
-
-    refs.hotels.set(row.slug, result.rows[0].id);
+    for (const row of result.rows) refs.hotels.set(row.slug, row.id);
   }
 };
 
 const upsertHotelImages = async (client, rows, refs) => {
-  for (const row of rows) {
-    const hotelId = refs.hotels.get(row.hotelSlug);
-    if (!hotelId) continue;
-
-    await client.query(
-      `
-      insert into hotel_images (hotel_id, url, alt_text, sort_order)
-      values ($1, $2, $3, $4)
-      on conflict (hotel_id, sort_order)
-      do update set
-        url = excluded.url,
-        alt_text = excluded.alt_text
-    `,
-      [hotelId, row.url, row.altText, row.sortOrder],
+  const validRows = rows.filter((r) => refs.hotels.has(r.hotelSlug));
+  for (const chunk of chunkArray(validRows, UPSERT_BATCH_SIZE)) {
+    await batchInsertRows(
+      client, "hotel_images", ["hotel_id", "url", "alt_text", "sort_order"],
+      chunk.map((r) => [refs.hotels.get(r.hotelSlug), r.url, r.altText, r.sortOrder]),
+      `on conflict (hotel_id, sort_order) do update set url=excluded.url, alt_text=excluded.alt_text`,
     );
   }
 };
 
 const upsertHotelAmenities = async (client, rows, refs) => {
-  for (const row of rows) {
-    const result = await client.query(
-      `
-      insert into hotel_amenities (slug, label)
-      values ($1, $2)
-      on conflict (slug)
-      do update set
-        label = excluded.label
-      returning id
-    `,
-      [row.slug, row.label],
+  for (const chunk of chunkArray(rows, UPSERT_BATCH_SIZE)) {
+    const result = await batchInsertRows(
+      client, "hotel_amenities", ["slug", "label"],
+      chunk.map((r) => [r.slug, r.label]),
+      `on conflict (slug) do update set label=excluded.label`,
+      "returning id, slug",
     );
-
-    refs.hotelAmenities.set(row.slug, result.rows[0].id);
+    for (const row of result.rows) refs.hotelAmenities.set(row.slug, row.id);
   }
 };
 
 const upsertHotelAmenityLinks = async (client, rows, refs) => {
-  for (const row of rows) {
-    const hotelId = refs.hotels.get(row.hotelSlug);
-    const amenityId = refs.hotelAmenities.get(row.amenitySlug);
-    if (!hotelId || !amenityId) continue;
-
-    await client.query(
-      `
-      insert into hotel_amenity_links (hotel_id, amenity_id)
-      values ($1, $2)
-      on conflict (hotel_id, amenity_id) do nothing
-    `,
-      [hotelId, amenityId],
+  const validRows = rows.filter((r) => refs.hotels.has(r.hotelSlug) && refs.hotelAmenities.has(r.amenitySlug));
+  for (const chunk of chunkArray(validRows, UPSERT_BATCH_SIZE)) {
+    await batchInsertRows(
+      client, "hotel_amenity_links", ["hotel_id", "amenity_id"],
+      chunk.map((r) => [refs.hotels.get(r.hotelSlug), refs.hotelAmenities.get(r.amenitySlug)]),
+      `on conflict (hotel_id, amenity_id) do nothing`,
     );
   }
 };
 
 const upsertHotelOffers = async (client, rows, refs) => {
-  for (const row of rows) {
-    const hotelId = refs.hotels.get(row.hotelSlug);
-    if (!hotelId) continue;
-
-    await client.query(
-      `
-      insert into hotel_offers (
-        hotel_id,
-        external_offer_id,
-        name,
-        sleeps,
-        beds,
-        size_sqft,
-        price_nightly_cents,
-        currency_code,
-        refundable,
-        pay_later,
-        badges,
-        features
-      )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      on conflict (hotel_id, external_offer_id)
-      do update set
-        name = excluded.name,
-        sleeps = excluded.sleeps,
-        beds = excluded.beds,
-        size_sqft = excluded.size_sqft,
-        price_nightly_cents = excluded.price_nightly_cents,
-        currency_code = excluded.currency_code,
-        refundable = excluded.refundable,
-        pay_later = excluded.pay_later,
-        badges = excluded.badges,
-        features = excluded.features,
-        updated_at = now()
-    `,
-      [
-        hotelId,
-        row.externalOfferId,
-        row.name,
-        row.sleeps,
-        row.beds,
-        row.sizeSqft,
-        row.priceNightlyCents,
-        row.currencyCode,
-        row.refundable,
-        row.payLater,
-        row.badges,
-        row.features,
-      ],
+  const validRows = rows.filter((r) => refs.hotels.has(r.hotelSlug));
+  for (const chunk of chunkArray(validRows, UPSERT_BATCH_SIZE)) {
+    await batchInsertRows(
+      client,
+      "hotel_offers",
+      ["hotel_id", "external_offer_id", "name", "sleeps", "beds", "size_sqft", "price_nightly_cents", "currency_code", "refundable", "pay_later", "badges", "features"],
+      chunk.map((r) => [refs.hotels.get(r.hotelSlug), r.externalOfferId, r.name, r.sleeps, r.beds, r.sizeSqft, r.priceNightlyCents, r.currencyCode, r.refundable, r.payLater, r.badges, r.features]),
+      `on conflict (hotel_id, external_offer_id) do update set name=excluded.name, sleeps=excluded.sleeps, beds=excluded.beds, size_sqft=excluded.size_sqft, price_nightly_cents=excluded.price_nightly_cents, currency_code=excluded.currency_code, refundable=excluded.refundable, pay_later=excluded.pay_later, badges=excluded.badges, features=excluded.features, updated_at=now()`,
     );
   }
 };
 
 const upsertHotelAvailability = async (client, rows, refs) => {
-  for (const row of rows) {
-    const hotelId = refs.hotels.get(row.hotelSlug);
-    if (!hotelId) continue;
-
-    await client.query(
-      `
-      insert into hotel_availability_snapshots (
-        hotel_id,
-        snapshot_source,
-        check_in_start,
-        check_in_end,
-        min_nights,
-        max_nights,
-        blocked_weekdays
-      )
-      values ($1, $2, $3, $4, $5, $6, $7)
-      on conflict (hotel_id, snapshot_source)
-      do update set
-        check_in_start = excluded.check_in_start,
-        check_in_end = excluded.check_in_end,
-        min_nights = excluded.min_nights,
-        max_nights = excluded.max_nights,
-        blocked_weekdays = excluded.blocked_weekdays,
-        snapshot_at = now()
-    `,
-      [
-        hotelId,
-        row.snapshotSource,
-        row.checkInStart,
-        row.checkInEnd,
-        row.minNights,
-        row.maxNights,
-        row.blockedWeekdays,
-      ],
+  const validRows = rows.filter((r) => refs.hotels.has(r.hotelSlug));
+  for (const chunk of chunkArray(validRows, UPSERT_BATCH_SIZE)) {
+    await batchInsertRows(
+      client,
+      "hotel_availability_snapshots",
+      ["hotel_id", "snapshot_source", "check_in_start", "check_in_end", "min_nights", "max_nights", "blocked_weekdays"],
+      chunk.map((r) => [refs.hotels.get(r.hotelSlug), r.snapshotSource, r.checkInStart, r.checkInEnd, r.minNights, r.maxNights, r.blockedWeekdays]),
+      `on conflict (hotel_id, snapshot_source) do update set check_in_start=excluded.check_in_start, check_in_end=excluded.check_in_end, min_nights=excluded.min_nights, max_nights=excluded.max_nights, blocked_weekdays=excluded.blocked_weekdays, snapshot_at=now()`,
     );
   }
 };
 
 const upsertCarProviders = async (client, rows, refs) => {
-  for (const row of rows) {
-    const result = await client.query(
-      `
-      insert into car_providers (slug, name)
-      values ($1, $2)
-      on conflict (slug)
-      do update set
-        name = excluded.name,
-        updated_at = now()
-      returning id
-    `,
-      [row.slug, row.name],
+  for (const chunk of chunkArray(rows, UPSERT_BATCH_SIZE)) {
+    const result = await batchInsertRows(
+      client, "car_providers", ["slug", "name"],
+      chunk.map((r) => [r.slug, r.name]),
+      `on conflict (slug) do update set name=excluded.name, updated_at=now()`,
+      "returning id, slug",
     );
-
-    refs.carProviders.set(row.slug, result.rows[0].id);
+    for (const row of result.rows) refs.carProviders.set(row.slug, row.id);
   }
 };
 
 const upsertCarVehicleClasses = async (client, rows, refs) => {
-  for (const row of rows) {
-    const result = await client.query(
-      `
-      insert into car_vehicle_classes (
-        key,
-        category,
-        seats,
-        doors,
-        bags_label,
-        base_daily_cents
-      )
-      values ($1, $2, $3, $4, $5, $6)
-      on conflict (key)
-      do update set
-        category = excluded.category,
-        seats = excluded.seats,
-        doors = excluded.doors,
-        bags_label = excluded.bags_label,
-        base_daily_cents = excluded.base_daily_cents,
-        updated_at = now()
-      returning id
-    `,
-      [
-        row.key,
-        row.category,
-        row.seats,
-        row.doors,
-        row.bagsLabel,
-        row.baseDailyCents,
-      ],
+  for (const chunk of chunkArray(rows, UPSERT_BATCH_SIZE)) {
+    const result = await batchInsertRows(
+      client, "car_vehicle_classes", ["key", "category", "seats", "doors", "bags_label", "base_daily_cents"],
+      chunk.map((r) => [r.key, r.category, r.seats, r.doors, r.bagsLabel, r.baseDailyCents]),
+      `on conflict (key) do update set category=excluded.category, seats=excluded.seats, doors=excluded.doors, bags_label=excluded.bags_label, base_daily_cents=excluded.base_daily_cents, updated_at=now()`,
+      "returning id, key",
     );
-
-    refs.carVehicleClasses.set(row.key, result.rows[0].id);
+    for (const row of result.rows) refs.carVehicleClasses.set(row.key, row.id);
   }
 };
 
 const upsertCarLocations = async (client, rows, refs) => {
-  for (const row of rows) {
-    const cityId = refs.cities.get(row.citySlug);
-    if (!cityId) continue;
-
-    const airportId = row.airportIata
-      ? refs.airports.get(row.airportIata) || null
-      : null;
-
-    const result = await client.query(
-      `
-      insert into car_locations (
-        seed_key,
-        city_id,
-        airport_id,
-        location_type,
-        name,
-        address_line,
-        latitude,
-        longitude
-      )
-      values ($1, $2, $3, $4, $5, $6, $7, $8)
-      on conflict (seed_key)
-      do update set
-        city_id = excluded.city_id,
-        airport_id = excluded.airport_id,
-        location_type = excluded.location_type,
-        name = excluded.name,
-        address_line = excluded.address_line,
-        latitude = excluded.latitude,
-        longitude = excluded.longitude,
-        updated_at = now()
-      returning id
-    `,
-      [
-        row.seedKey,
-        cityId,
-        airportId,
-        row.locationType,
-        row.name,
-        row.addressLine,
-        row.latitude,
-        row.longitude,
-      ],
+  const validRows = rows.filter((r) => refs.cities.has(r.citySlug));
+  for (const chunk of chunkArray(validRows, UPSERT_BATCH_SIZE)) {
+    const result = await batchInsertRows(
+      client,
+      "car_locations",
+      ["seed_key", "city_id", "airport_id", "location_type", "name", "address_line", "latitude", "longitude"],
+      chunk.map((r) => [
+        r.seedKey, refs.cities.get(r.citySlug),
+        r.airportIata ? refs.airports.get(r.airportIata) || null : null,
+        r.locationType, r.name, r.addressLine, r.latitude, r.longitude,
+      ]),
+      `on conflict (seed_key) do update set city_id=excluded.city_id, airport_id=excluded.airport_id, location_type=excluded.location_type, name=excluded.name, address_line=excluded.address_line, latitude=excluded.latitude, longitude=excluded.longitude, updated_at=now()`,
+      "returning id, seed_key",
     );
-
-    refs.carLocations.set(row.seedKey, result.rows[0].id);
+    for (const row of result.rows) refs.carLocations.set(row.seed_key, row.id);
   }
 };
 
 const upsertCarInventory = async (client, rows, refs) => {
-  for (const row of rows) {
-    const providerId = refs.carProviders.get(row.providerSlug);
-    const cityId = refs.cities.get(row.citySlug);
-    const locationId = refs.carLocations.get(row.locationSeedKey);
-
-    if (!providerId || !cityId || !locationId) continue;
-
-    const result = await client.query(
-      `
-      insert into car_inventory (
-        seed_key,
-        slug,
-        provider_id,
-        city_id,
-        location_id,
-        rating,
-        review_count,
-        summary,
-        currency_code,
-        from_daily_cents,
-        free_cancellation,
-        pay_at_counter,
-        security_deposit_required,
-        min_driver_age,
-        fuel_policy,
-        cancellation_blurb,
-        payment_blurb,
-        fees_blurb,
-        deposit_blurb,
-        inclusions,
-        availability_start,
-        availability_end,
-        min_days,
-        max_days,
-        blocked_weekdays,
-        score
-      )
-      values (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18, $19,
-        $20, $21, $22, $23, $24, $25, $26
-      )
-      on conflict (slug)
-      do update set
-        seed_key = excluded.seed_key,
-        provider_id = excluded.provider_id,
-        city_id = excluded.city_id,
-        location_id = excluded.location_id,
-        rating = excluded.rating,
-        review_count = excluded.review_count,
-        summary = excluded.summary,
-        currency_code = excluded.currency_code,
-        from_daily_cents = excluded.from_daily_cents,
-        free_cancellation = excluded.free_cancellation,
-        pay_at_counter = excluded.pay_at_counter,
-        security_deposit_required = excluded.security_deposit_required,
-        min_driver_age = excluded.min_driver_age,
-        fuel_policy = excluded.fuel_policy,
-        cancellation_blurb = excluded.cancellation_blurb,
-        payment_blurb = excluded.payment_blurb,
-        fees_blurb = excluded.fees_blurb,
-        deposit_blurb = excluded.deposit_blurb,
-        inclusions = excluded.inclusions,
-        availability_start = excluded.availability_start,
-        availability_end = excluded.availability_end,
-        min_days = excluded.min_days,
-        max_days = excluded.max_days,
-        blocked_weekdays = excluded.blocked_weekdays,
-        score = excluded.score,
-        updated_at = now()
-      returning id
-    `,
-      [
-        row.seedKey,
-        row.slug,
-        providerId,
-        cityId,
-        locationId,
-        row.rating,
-        row.reviewCount,
-        row.summary,
-        row.currencyCode,
-        row.fromDailyCents,
-        row.freeCancellation,
-        row.payAtCounter,
-        row.securityDepositRequired,
-        row.minDriverAge,
-        row.fuelPolicy,
-        row.cancellationBlurb,
-        row.paymentBlurb,
-        row.feesBlurb,
-        row.depositBlurb,
-        row.inclusions,
-        row.availabilityStart,
-        row.availabilityEnd,
-        row.minDays,
-        row.maxDays,
-        row.blockedWeekdays,
-        row.score,
-      ],
+  const validRows = rows.filter((r) => refs.carProviders.has(r.providerSlug) && refs.cities.has(r.citySlug) && refs.carLocations.has(r.locationSeedKey));
+  for (const chunk of chunkArray(validRows, UPSERT_BATCH_SIZE)) {
+    const result = await batchInsertRows(
+      client,
+      "car_inventory",
+      ["seed_key", "slug", "provider_id", "city_id", "location_id", "rating", "review_count", "summary", "currency_code", "from_daily_cents", "free_cancellation", "pay_at_counter", "security_deposit_required", "min_driver_age", "fuel_policy", "cancellation_blurb", "payment_blurb", "fees_blurb", "deposit_blurb", "inclusions", "availability_start", "availability_end", "min_days", "max_days", "blocked_weekdays", "score"],
+      chunk.map((r) => [
+        r.seedKey, r.slug,
+        refs.carProviders.get(r.providerSlug), refs.cities.get(r.citySlug), refs.carLocations.get(r.locationSeedKey),
+        r.rating, r.reviewCount, r.summary, r.currencyCode, r.fromDailyCents,
+        r.freeCancellation, r.payAtCounter, r.securityDepositRequired, r.minDriverAge, r.fuelPolicy,
+        r.cancellationBlurb, r.paymentBlurb, r.feesBlurb, r.depositBlurb, r.inclusions,
+        r.availabilityStart, r.availabilityEnd, r.minDays, r.maxDays, r.blockedWeekdays, r.score,
+      ]),
+      `on conflict (slug) do update set seed_key=excluded.seed_key, provider_id=excluded.provider_id, city_id=excluded.city_id, location_id=excluded.location_id, rating=excluded.rating, review_count=excluded.review_count, summary=excluded.summary, currency_code=excluded.currency_code, from_daily_cents=excluded.from_daily_cents, free_cancellation=excluded.free_cancellation, pay_at_counter=excluded.pay_at_counter, security_deposit_required=excluded.security_deposit_required, min_driver_age=excluded.min_driver_age, fuel_policy=excluded.fuel_policy, cancellation_blurb=excluded.cancellation_blurb, payment_blurb=excluded.payment_blurb, fees_blurb=excluded.fees_blurb, deposit_blurb=excluded.deposit_blurb, inclusions=excluded.inclusions, availability_start=excluded.availability_start, availability_end=excluded.availability_end, min_days=excluded.min_days, max_days=excluded.max_days, blocked_weekdays=excluded.blocked_weekdays, score=excluded.score, updated_at=now()`,
+      "returning id, slug",
     );
-
-    refs.carInventory.set(row.slug, result.rows[0].id);
+    for (const row of result.rows) refs.carInventory.set(row.slug, row.id);
   }
 };
 
 const upsertCarInventoryImages = async (client, rows, refs) => {
-  for (const row of rows) {
-    const inventoryId = refs.carInventory.get(row.inventorySlug);
-    if (!inventoryId) continue;
-
-    await client.query(
-      `
-      insert into car_inventory_images (inventory_id, url, sort_order)
-      values ($1, $2, $3)
-      on conflict (inventory_id, sort_order)
-      do update set
-        url = excluded.url
-    `,
-      [inventoryId, row.url, row.sortOrder],
+  const validRows = rows.filter((r) => refs.carInventory.has(r.inventorySlug));
+  for (const chunk of chunkArray(validRows, UPSERT_BATCH_SIZE)) {
+    await batchInsertRows(
+      client, "car_inventory_images", ["inventory_id", "url", "sort_order"],
+      chunk.map((r) => [refs.carInventory.get(r.inventorySlug), r.url, r.sortOrder]),
+      `on conflict (inventory_id, sort_order) do update set url=excluded.url`,
     );
   }
 };
 
 const upsertCarOffers = async (client, rows, refs) => {
-  for (const row of rows) {
-    const inventoryId = refs.carInventory.get(row.inventorySlug);
-    const vehicleClassId = refs.carVehicleClasses.get(row.vehicleClassKey);
-    if (!inventoryId || !vehicleClassId) continue;
-
-    await client.query(
-      `
-      insert into car_offers (
-        inventory_id,
-        offer_code,
-        name,
-        vehicle_class_id,
-        transmission,
-        seats,
-        doors,
-        bags_label,
-        air_conditioning,
-        price_daily_cents,
-        currency_code,
-        free_cancellation,
-        pay_at_counter,
-        badges,
-        features
-      )
-      values (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15
-      )
-      on conflict (inventory_id, offer_code)
-      do update set
-        name = excluded.name,
-        vehicle_class_id = excluded.vehicle_class_id,
-        transmission = excluded.transmission,
-        seats = excluded.seats,
-        doors = excluded.doors,
-        bags_label = excluded.bags_label,
-        air_conditioning = excluded.air_conditioning,
-        price_daily_cents = excluded.price_daily_cents,
-        currency_code = excluded.currency_code,
-        free_cancellation = excluded.free_cancellation,
-        pay_at_counter = excluded.pay_at_counter,
-        badges = excluded.badges,
-        features = excluded.features,
-        updated_at = now()
-    `,
-      [
-        inventoryId,
-        row.offerCode,
-        row.name,
-        vehicleClassId,
-        row.transmission,
-        row.seats,
-        row.doors,
-        row.bagsLabel,
-        row.airConditioning,
-        row.priceDailyCents,
-        row.currencyCode,
-        row.freeCancellation,
-        row.payAtCounter,
-        row.badges,
-        row.features,
-      ],
+  const validRows = rows.filter((r) => refs.carInventory.has(r.inventorySlug) && refs.carVehicleClasses.has(r.vehicleClassKey));
+  for (const chunk of chunkArray(validRows, UPSERT_BATCH_SIZE)) {
+    await batchInsertRows(
+      client,
+      "car_offers",
+      ["inventory_id", "offer_code", "name", "vehicle_class_id", "transmission", "seats", "doors", "bags_label", "air_conditioning", "price_daily_cents", "currency_code", "free_cancellation", "pay_at_counter", "badges", "features"],
+      chunk.map((r) => [
+        refs.carInventory.get(r.inventorySlug), r.offerCode, r.name,
+        refs.carVehicleClasses.get(r.vehicleClassKey),
+        r.transmission, r.seats, r.doors, r.bagsLabel, r.airConditioning,
+        r.priceDailyCents, r.currencyCode, r.freeCancellation, r.payAtCounter, r.badges, r.features,
+      ]),
+      `on conflict (inventory_id, offer_code) do update set name=excluded.name, vehicle_class_id=excluded.vehicle_class_id, transmission=excluded.transmission, seats=excluded.seats, doors=excluded.doors, bags_label=excluded.bags_label, air_conditioning=excluded.air_conditioning, price_daily_cents=excluded.price_daily_cents, currency_code=excluded.currency_code, free_cancellation=excluded.free_cancellation, pay_at_counter=excluded.pay_at_counter, badges=excluded.badges, features=excluded.features, updated_at=now()`,
     );
   }
 };
@@ -1184,36 +752,6 @@ const addMinutesToIso = (isoTimestamp, minutes) => {
   const parsed = new Date(isoTimestamp);
   if (Number.isNaN(parsed.getTime())) return null;
   return new Date(parsed.getTime() + Number(minutes || 0) * 60_000).toISOString();
-};
-
-const buildValuesSql = (rowCount, columnCount) => {
-  return Array.from({ length: rowCount }, (_, rowIndex) => {
-    const values = Array.from({ length: columnCount }, (_, columnIndex) => {
-      return `$${rowIndex * columnCount + columnIndex + 1}`;
-    }).join(", ");
-    return `(${values})`;
-  }).join(",\n");
-};
-
-const batchInsertRows = async (
-  client,
-  tableName,
-  columns,
-  rows,
-  onConflictSql,
-  returningSql = "",
-) => {
-  if (!rows.length) return { rows: [] };
-
-  const sql = `
-    insert into ${tableName} (${columns.join(", ")})
-    values
-    ${buildValuesSql(rows.length, columns.length)}
-    ${onConflictSql}
-    ${returningSql}
-  `;
-
-  return client.query(sql, rows.flat());
 };
 
 const createFlightRouteRows = (routes) => {

@@ -10,7 +10,7 @@ import type {
 export const HotelEntitySummary = component$(
   (props: HotelEntitySummaryProps) => {
     return (
-      <section class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+      <section class="rounded-[28px] border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-6 py-6 shadow-[var(--shadow-soft)]">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--color-action)]">
@@ -49,7 +49,7 @@ export const HotelEntitySummary = component$(
           ) : null}
         </div>
 
-        <div class="mt-6 grid gap-4 lg:grid-cols-[1.1fr,1fr]">
+        <div class="mt-6 grid gap-4 lg:grid-cols-[1.1fr_1fr]">
           {props.summary.imageUrl ? (
             <div class="overflow-hidden rounded-[24px] bg-[color:var(--color-surface-muted)]">
               <img

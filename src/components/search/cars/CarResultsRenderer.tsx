@@ -20,7 +20,7 @@ export const CarResultsRenderer = component$((props: CarResultsRendererProps) =>
       <CarSearchSummary summary={props.model.summary} />
 
       {props.model.state === "partial" ? (
-        <div class="rounded-3xl border border-[color:var(--color-border)] bg-white/90 px-5 py-4 text-sm text-[color:var(--color-text-muted)] shadow-[var(--shadow-soft)]">
+        <div class="rounded-3xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-5 py-4 text-sm text-[color:var(--color-text-muted)] shadow-[var(--shadow-soft)]">
           <p class="font-semibold text-[color:var(--color-text)]">{props.model.loading.title}</p>
           <p class="mt-1">{props.model.loading.description}</p>
         </div>

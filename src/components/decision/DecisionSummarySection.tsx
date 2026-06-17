@@ -228,7 +228,7 @@ const blockToneClass = (tone?: DecisionSummaryTone) => {
     return "border-[color:rgba(185,28,28,0.24)] bg-[color:rgba(185,28,28,0.06)]";
   }
 
-  return "border-[color:var(--color-divider)] bg-white/70";
+  return "border-[color:var(--color-divider)] bg-[color:var(--color-surface)]";
 };
 
 const caveatToneClass = (tone?: DecisionSummaryTone) => {

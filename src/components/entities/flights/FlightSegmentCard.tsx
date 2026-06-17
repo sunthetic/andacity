@@ -5,7 +5,7 @@ export const FlightSegmentCard = component$((props: FlightSegmentCardProps) => {
   const segment = props.segment;
 
   return (
-    <article class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-white/84 px-5 py-5 shadow-[var(--shadow-soft)]">
+    <article class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] px-5 py-5 shadow-[var(--shadow-soft)]">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">

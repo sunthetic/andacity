@@ -82,14 +82,14 @@ export const CarEntitySummary = component$((props: CarEntitySummaryProps) => {
         ) : (
           <div class="relative flex min-h-72 items-center justify-center overflow-hidden rounded-[28px] border border-[color:var(--color-border-default)] bg-[image:var(--detail-vehicle-placeholder-bg)] px-6 text-center shadow-[var(--shadow-e2)]">
             <div class="absolute bottom-10 h-16 w-64 rounded-t-[4rem] border-2 border-[color:var(--color-route)] bg-white/34 shadow-[0_28px_0_-12px_var(--color-action)]" />
-            <div class="relative rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium text-[color:var(--color-text)] shadow-[var(--shadow-sm)]">
+            <div class="relative rounded-2xl bg-[color:var(--color-surface)] px-4 py-3 text-sm font-medium text-[color:var(--color-text)] shadow-[var(--shadow-sm)]">
               Vehicle imagery is unavailable for this rental.
             </div>
           </div>
         )}
 
         <div class="grid gap-4 sm:grid-cols-2">
-          <div class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-white/82 px-5 py-5 shadow-[var(--shadow-sm)]">
+          <div class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] px-5 py-5 shadow-[var(--shadow-sm)]">
             <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Pickup
             </p>
@@ -101,7 +101,7 @@ export const CarEntitySummary = component$((props: CarEntitySummaryProps) => {
             </p>
           </div>
 
-          <div class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-white/82 px-5 py-5 shadow-[var(--shadow-sm)]">
+          <div class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] px-5 py-5 shadow-[var(--shadow-sm)]">
             <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Dropoff
             </p>
@@ -113,7 +113,7 @@ export const CarEntitySummary = component$((props: CarEntitySummaryProps) => {
             </p>
           </div>
 
-          <div class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-white/82 px-5 py-5 shadow-[var(--shadow-sm)]">
+          <div class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] px-5 py-5 shadow-[var(--shadow-sm)]">
             <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
               Vehicle
             </p>
@@ -148,13 +148,13 @@ export const CarEntitySummary = component$((props: CarEntitySummaryProps) => {
       {props.status ? (
         <>
           <div class="mt-6 grid gap-4 md:grid-cols-2">
-            <div class="rounded-[24px] border border-[color:var(--color-border-default)] bg-white/72 px-4 py-4">
+            <div class="rounded-[24px] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-1)] px-4 py-4">
               <AvailabilityConfidence
                 confidence={props.status.availability}
                 compact={false}
               />
             </div>
-            <div class="rounded-[24px] border border-[color:var(--color-border-default)] bg-white/72 px-4 py-4">
+            <div class="rounded-[24px] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-1)] px-4 py-4">
               <InventoryFreshness
                 freshness={props.status.freshness}
                 compact={false}

@@ -3,7 +3,7 @@ import type { CarPickupDropoffSummaryModel } from "~/types/car-entity-page";
 
 const LocationCard = component$((props: LocationCardProps) => {
   return (
-    <div class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-white/82 px-5 py-5 shadow-[var(--shadow-sm)]">
+    <div class="rounded-[24px] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] px-5 py-5 shadow-[var(--shadow-sm)]">
       <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
         {props.label}
       </p>

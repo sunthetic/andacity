@@ -8,7 +8,7 @@ import type { BookableEntity } from "~/types/bookable-entity";
 
 export const HotelPriceSummary = component$((props: HotelPriceSummaryProps) => {
   return (
-    <aside class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+    <aside class="rounded-[28px] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-6 py-6 shadow-[var(--shadow-soft)]">
       <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--color-action)]">
         Price summary
       </p>

@@ -468,7 +468,7 @@ export const CanonicalFlightResultsSection = component$(
         />
 
         {props.page.progress?.status === "partial" ? (
-          <div class="mb-4 rounded-3xl border border-[color:var(--color-border)] bg-white/90 px-5 py-4 text-sm text-[color:var(--color-text-muted)] shadow-[var(--shadow-soft)]">
+          <div class="mb-4 rounded-3xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-5 py-4 text-sm text-[color:var(--color-text-muted)] shadow-[var(--shadow-soft)]">
             <p class="font-semibold text-[color:var(--color-text)]">
               Loading more flight results
             </p>

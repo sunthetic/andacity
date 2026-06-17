@@ -50,7 +50,7 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
         tabIndex={-1}
         class="absolute inset-0 bg-[color:var(--color-surface)] outline-none"
       >
-        <header class="sticky top-0 z-20 border-b border-[color:var(--color-divider)] bg-[color:rgba(255,255,255,0.95)] backdrop-blur">
+        <header class="sticky top-0 z-20 border-b border-[color:var(--color-divider)] bg-[color:var(--color-surface-chrome)] backdrop-blur">
           <div class="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-4 py-4 lg:px-6">
             <div>
               <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">

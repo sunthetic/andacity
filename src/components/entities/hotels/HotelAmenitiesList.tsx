@@ -4,7 +4,7 @@ import type { HotelAmenitiesListModel } from "~/types/hotel-entity-page";
 export const HotelAmenitiesList = component$(
   (props: HotelAmenitiesListProps) => {
     return (
-      <section class="rounded-[28px] border border-[color:var(--color-border)] bg-white px-6 py-6 shadow-[var(--shadow-soft)]">
+      <section class="rounded-[28px] border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-6 py-6 shadow-[var(--shadow-soft)]">
         <p class="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--color-action)]">
           Property details
         </p>

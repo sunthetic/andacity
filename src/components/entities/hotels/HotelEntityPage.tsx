@@ -14,14 +14,14 @@ import type { BookableEntityPageLoadResult } from "~/types/bookable-entity-route
 
 const headerToneClass = (tone: "neutral" | "warning" | "critical") => {
   if (tone === "critical") {
-    return "border-[color:rgba(185,28,28,0.14)] bg-[linear-gradient(135deg,rgba(185,28,28,0.06),rgba(255,255,255,0.96))]";
+    return "border-[color:var(--color-danger)] border-opacity-20 bg-[color:var(--color-danger-soft)]";
   }
 
   if (tone === "warning") {
-    return "border-[color:rgba(180,83,9,0.16)] bg-[linear-gradient(135deg,rgba(245,158,11,0.08),rgba(255,255,255,0.96))]";
+    return "border-[color:var(--color-warning)] border-opacity-20 bg-[color:var(--color-warning-soft)]";
   }
 
-  return "border-[color:var(--color-border)] bg-[linear-gradient(135deg,rgba(8,145,178,0.08),rgba(255,255,255,0.96))]";
+  return "border-[color:var(--color-border)] bg-[color:var(--color-primary-surface)]";
 };
 
 export const HotelEntityPage = component$((props: HotelEntityPageProps) => {
@@ -73,24 +73,27 @@ export const HotelEntityPage = component$((props: HotelEntityPageProps) => {
         model.priceSummary &&
         model.cta &&
         entity ? (
-          <section class="mt-6 grid gap-4 lg:grid-cols-[1.45fr,0.95fr]">
+          <section class="mt-6 grid gap-4 lg:grid-cols-[1.5fr_0.75fr]">
             <HotelEntitySummary summary={model.summary} status={model.status} />
-            <HotelPriceSummary
-              price={model.priceSummary}
-              cta={model.cta}
-              entity={entity}
-            />
+            <div class="flex flex-col gap-4">
+              <HotelPriceSummary
+                price={model.priceSummary}
+                cta={model.cta}
+                entity={entity}
+              />
+              {model.policies ? (
+                <HotelPoliciesSummary policies={model.policies} />
+              ) : null}
+            </div>
           </section>
         ) : null}
 
         {!model.errorState &&
         model.offerSummary &&
-        model.amenities &&
-        model.policies ? (
-          <section class="mt-6 grid gap-4 lg:grid-cols-[1.1fr,0.95fr,0.95fr]">
+        model.amenities ? (
+          <section class="mt-6 grid gap-4 lg:grid-cols-2">
             <HotelOfferSummary offer={model.offerSummary} />
             <HotelAmenitiesList amenities={model.amenities} />
-            <HotelPoliciesSummary policies={model.policies} />
           </section>
         ) : null}
       </div>

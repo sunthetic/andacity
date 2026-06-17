@@ -4,7 +4,7 @@ import { getTodayIsoDate } from "~/lib/date/validateDate";
 import { addDays } from "~/lib/trips/date-utils";
 
 const HOTEL_DATE_INPUT_CLASS =
-  "mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]";
+  "mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]";
 
 export const HotelCitySearchCard = component$(
   (props: HotelCitySearchCardProps) => {
@@ -75,7 +75,7 @@ export const HotelCitySearchCard = component$(
               <input
                 id="hotel-city-adults"
                 name="adults"
-                class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
                 placeholder="2"
                 value={props.adults || ""}
               />
@@ -91,7 +91,7 @@ export const HotelCitySearchCard = component$(
               <input
                 id="hotel-city-rooms"
                 name="rooms"
-                class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
                 placeholder="1"
                 value={props.rooms || ""}
               />

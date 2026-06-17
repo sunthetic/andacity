@@ -4,7 +4,7 @@ export const ResultsFilters = component$((props: ResultsFiltersProps) => {
   return (
     <section
       class={[
-        "rounded-[var(--radius-xl)] bg-[linear-gradient(160deg,rgba(255,255,255,0.86),rgba(228,233,252,0.64),rgba(224,245,241,0.58))] p-4 shadow-[var(--shadow-md)] backdrop-blur",
+        "rounded-[var(--radius-xl)] bg-[color:var(--color-surface-chrome)] p-4 shadow-[var(--shadow-md)] backdrop-blur",
         props.class,
       ]}
     >

@@ -120,7 +120,7 @@ export const ResultsShell = component$((props: ResultsShellProps) => {
               <div class="relative">
                 {asyncState === "refreshing" ? (
                   <div class="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
-                    <div class="rounded-full border border-[color:var(--color-border)] bg-[color:rgba(255,255,255,0.92)] px-3 py-1 shadow-[var(--shadow-sm)]">
+                    <div class="rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-surface-chrome)] px-3 py-1 shadow-[var(--shadow-sm)]">
                       <AsyncInlineSpinner
                         compact={true}
                         label={

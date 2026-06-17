@@ -18,7 +18,7 @@ export const ResultsSort = component$((props: ResultsSortProps) => {
               "rounded-full border px-3 py-1 text-xs font-medium transition",
               option.active
                 ? "border-[color:var(--color-action)] bg-[color:var(--color-primary-50)] text-[color:var(--color-action)]"
-                : "border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] text-[color:var(--color-text)] hover:bg-white",
+                : "border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] text-[color:var(--color-text)] hover:bg-[color:var(--color-surface-2)]",
               props.disabled
                 ? "pointer-events-none cursor-not-allowed opacity-60"
                 : null,

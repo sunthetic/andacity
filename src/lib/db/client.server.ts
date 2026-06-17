@@ -56,13 +56,39 @@ const configSignature = (config: DbRuntimeConfig) => {
   return `${config.connectionString}::${config.max}`
 }
 
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1'])
+
+const isLocalConnection = (connectionString: string) => {
+  try {
+    return LOCAL_HOSTS.has(new URL(connectionString).hostname)
+  } catch {
+    return false
+  }
+}
+
+// Strip SSL search params from the connection string so pg 8.x doesn't
+// apply its own sslmode handling, which conflicts with the pool's ssl option.
+const stripSslParams = (connectionString: string) => {
+  try {
+    const u = new URL(connectionString)
+    u.searchParams.delete('sslmode')
+    u.searchParams.delete('ssl')
+    return u.toString()
+  } catch {
+    return connectionString
+  }
+}
+
 function createDb(config: DbRuntimeConfig) {
-  const { connectionString, max } = config
+  const { max } = config
+  const isLocal = isLocalConnection(config.connectionString)
+  const connectionString = isLocal ? config.connectionString : stripSslParams(config.connectionString)
+  const ssl = isLocal ? undefined : { rejectUnauthorized: false }
 
   pool = new Pool({
     connectionString,
     max,
-    ssl: { rejectUnauthorized: false },
+    ssl,
   })
 
   return drizzle(pool, {
