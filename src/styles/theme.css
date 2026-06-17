@@ -31,6 +31,20 @@
   --color-secondary-900: #431403;
   --color-secondary-950: #291107;
 
+  /* Tertiary — Cyan (added in CLAUDE-UI-002: home referenced --color-tertiary-* with no definition) */
+  --color-tertiary-25:  #ECFEFF;
+  --color-tertiary-50:  #CFFAFE;
+  --color-tertiary-100: #A5F3FC;
+  --color-tertiary-200: #67E8F9;
+  --color-tertiary-300: #22D3EE;
+  --color-tertiary-400: #06B6D4;
+  --color-tertiary-500: #0891B2;
+  --color-tertiary-600: #0E7490;
+  --color-tertiary-700: #155E75;
+  --color-tertiary-800: #164E63;
+  --color-tertiary-900: #083344;
+  --color-tertiary-950: #052735;
+
   /* Neutral — Slate */
   --color-neutral-25:  #F8FAFC;
   --color-neutral-50:  #F1F5F9;
