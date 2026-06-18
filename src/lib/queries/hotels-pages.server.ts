@@ -288,6 +288,7 @@ export type DestinationTopStay = {
   slug: string
   name: string
   area: string
+  stars: number
   rating: number
   reviewCount: number
   from: number
@@ -314,6 +315,7 @@ export async function loadTopDestinationStaysFromDb(
       slug: row.slug,
       name: row.name,
       area: row.neighborhood,
+      stars: toStars(row.stars),
       rating: toRating(row.rating),
       reviewCount: row.reviewCount,
       from: toMoneyAmount(row.fromNightlyCents),
