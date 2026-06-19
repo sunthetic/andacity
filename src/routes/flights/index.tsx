@@ -3,7 +3,7 @@ import type { DocumentHead } from "@builder.io/qwik-city";
 import type { RequestHandler } from "@builder.io/qwik-city";
 import { useLocation } from "@builder.io/qwik-city";
 import { routeLoader$ } from "@builder.io/qwik-city";
-import { VerticalHeroSearchLayout } from "~/components/search/VerticalHeroSearchLayout";
+import { FlightsLanding } from "~/components/flights/landing/FlightsLanding";
 import { FlightsSearchCard } from "~/components/flights/search/FlightsSearchCard";
 import { normalizeFlightItineraryType } from "~/lib/search/flights/routing";
 import { buildCanonicalFlightSearchHref } from "~/lib/search/entry-routes";
@@ -100,15 +100,10 @@ export default component$(() => {
   const cabin = String(location.url.searchParams.get("cabin") || "").trim();
 
   return (
-    <VerticalHeroSearchLayout
-      breadcrumbs={[{ label: "Home", href: "/" }, { label: "Flights" }]}
-      eyebrow="Flights"
-      title="Find smarter flights with flexible planning"
-      description="Search routes, compare schedules, and plan around your dates and preferences with less friction."
-      heroImageUrl="/images/hero/flights.svg"
-      heroOverlay="flights"
+    <FlightsLanding
       searchCard={
         <FlightsSearchCard
+          surface="plain"
           initialItineraryType={itineraryType}
           initialFrom={data.fromLocation?.displayName || from}
           initialFromLocation={data.fromLocation}
@@ -121,18 +116,7 @@ export default component$(() => {
           autoResolveOriginLocation={true}
         />
       }
-    >
-      <section class="mx-auto max-w-4xl">
-        <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-          Plan air travel with clarity
-        </h2>
-
-        <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)] md:text-base">
-          Compare routes, timing, and options faster so you can book with
-          confidence.
-        </p>
-      </section>
-    </VerticalHeroSearchLayout>
+    />
   );
 });
 
