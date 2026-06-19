@@ -43,15 +43,11 @@ import {
 } from "~/lib/pricing/refresh-price-snapshot";
 import { buildHotelSavedItem } from "~/lib/save-compare/item-builders";
 import { getOgSecret, encodeOgPayload, signOgPayload } from "~/lib/seo/og-sign";
-import {
-  DecisionSummarySection,
-  type DecisionSummaryBlock,
-  type DecisionSummaryCaveat,
-} from "~/components/decision/DecisionSummarySection";
 import { addDays } from "~/lib/trips/date-utils";
 import type { Hotel } from "~/data/hotels";
 import { loadHotelBySlugFromDb } from "~/lib/queries/hotels-pages.server";
 import { Page } from "~/components/site/Page";
+import { HotelGallery } from "~/components/hotels/HotelGallery";
 
 export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
   const slug = String(params.slug || "")
@@ -107,7 +103,6 @@ export const useHotelPage = routeLoader$(async ({ params, url, error }) => {
 
   const pricing = computePricing(hotelWithConfidence, nights, active.rooms);
 
-  // Suggested backlinks (search is noindex, fine for conversion)
   const searchHref = buildSearchHotelsHref({
     query: hotel.cityQuery,
     page: 1,
@@ -194,7 +189,10 @@ export default component$(() => {
           { label: "Hotel details" },
         ]}
       >
-        <div class="mt-6 rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-6 shadow-[var(--shadow-sm)]">
+        <div
+          class="mt-6 p-6"
+          style="background:var(--ui-surface);border:1px solid var(--ui-border);border-radius:var(--ui-radius-lg);box-shadow:var(--ui-shadow-card)"
+        >
           <AsyncStateNotice
             state="failed"
             title="Hotel details could not be loaded"
@@ -315,6 +313,8 @@ export default component$(() => {
     decisioning.clearComparedItems$("hotels");
   });
 
+  const policyHighlights = buildPolicyHighlights(h);
+
   return (
     <Page
       breadcrumbs={[
@@ -336,317 +336,462 @@ export default component$(() => {
         />
       ) : null}
 
-      {/* Hero: hotel name + trust row */}
-      <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-        <div class="min-w-0">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="t-badge">{h.stars}★</span>
-            <span class="t-badge">{h.neighborhood}</span>
-            <span class="t-badge">{h.city}</span>
-          </div>
-
-          <h1 class="mt-3 text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)] lg:text-4xl">
-            {h.name}
-          </h1>
-
-          <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-[color:var(--color-text-muted)]">
-            <span class="font-medium text-[color:var(--color-text)]">
-              {h.rating.toFixed(1)} ★
-            </span>
-            <span>({h.reviewCount.toLocaleString("en-US")} reviews)</span>
-            <span class="text-[color:var(--color-text-subtle)]">·</span>
-            <span>{h.addressLine}</span>
-          </div>
-
-          {/* Heatmap-informed trust + clarity row */}
-          <div class="mt-4 flex flex-wrap gap-2">
-            {h.policies.freeCancellation ? (
-              <span class="t-badge t-badge--deal">Free cancellation</span>
-            ) : (
-              <span class="t-badge">Cancellation varies</span>
-            )}
-            {h.policies.payLater ? (
-              <span class="t-badge t-badge--deal">Pay later</span>
-            ) : (
-              <span class="t-badge">Prepay options</span>
-            )}
-            {h.policies.noResortFees ? (
-              <span class="t-badge">No resort fees</span>
-            ) : (
-              <span class="t-badge">Fees may apply</span>
-            )}
-            <span class="t-badge">Transparent totals</span>
-          </div>
-
-          {/* Gallery */}
-          <div class="mt-6 grid gap-3 lg:grid-cols-[2fr_1fr]">
-            <div class="t-card overflow-hidden">
-              <img
-                class="h-64 w-full object-cover lg:h-96"
-                src={h.images[0] || "/img/demo/hotel-1.jpg"}
-                alt={h.name}
-                loading="eager"
-                width={1280}
-                height={768}
-              />
+      {/* ── Title header ── */}
+      <header>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <span
+                class="text-[13px]"
+                style="color:var(--ui-accent)"
+                aria-label={`${h.stars} star`}
+              >
+                {"★".repeat(h.stars)}
+              </span>
+              <span
+                class="rounded-full px-2.5 py-0.5 text-[12px] font-medium"
+                style="background:var(--ui-surface-muted);border:1px solid var(--ui-border);color:var(--ui-text-muted)"
+              >
+                {h.neighborhood}, {h.city}
+              </span>
             </div>
-            <div class="grid gap-3">
-              {h.images.slice(1, 3).map((src) => (
-                <div key={src} class="t-card overflow-hidden">
-                  <img
-                    class="h-32 w-full object-cover lg:h-[186px]"
-                    src={src}
-                    alt={h.name}
-                    loading="lazy"
-                    width={640}
-                    height={372}
-                  />
-                </div>
-              ))}
+
+            <h1
+              class="mt-2 text-balance text-3xl font-bold tracking-tight md:text-4xl"
+              style="color:var(--ui-text);font-family:'Lexend Variable',var(--system-font-family)"
+            >
+              {h.name}
+            </h1>
+
+            <div
+              class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
+              style="color:var(--ui-text-muted)"
+            >
+              <span class="inline-flex items-center gap-1.5">
+                <span
+                  class="grid place-items-center rounded-lg px-2 py-0.5 text-[12px] font-extrabold"
+                  style="background:var(--ui-primary);color:var(--ui-on-primary)"
+                >
+                  {h.rating.toFixed(1)}
+                </span>
+                <span class="font-semibold" style="color:var(--ui-text)">
+                  {resolveReviewLabel(h.rating)}
+                </span>
+              </span>
+              <span>· {h.reviewCount.toLocaleString("en-US")} reviews</span>
+              <span aria-hidden="true">·</span>
+              <span>{h.addressLine}</span>
             </div>
           </div>
 
-          <section class="mt-8">
-            <DecisionSummarySection
-              title="Should you shortlist this stay?"
-              description="Quick fit and tradeoff scan from the current stay data."
-              blocks={buildHotelDecisionSummaryBlocks(h, stayPriceDisplay)}
-              primaryBlockCount={3}
-              detailTitle="Stay notes and constraints"
-              detailCtaLabel="Notes"
-              caveat={buildHotelDecisionCaveat(h)}
-              note="Derived from property policies, listed rooms, location fields, and current availability signals."
+          <div class="flex shrink-0 gap-2">
+            <SaveButton
+              saved={isShortlisted(
+                decisioning.state,
+                "hotels",
+                decisionItem.id,
+              )}
+              idleLabel="Save"
+              activeLabel="Saved"
+              telemetry={{
+                vertical: "hotels",
+                itemId: decisionItem.id,
+                surface: "detail",
+              }}
+              onToggle$={onToggleShortlist$}
             />
-          </section>
+            <CompareButton
+              selected={compared}
+              disabled={compareDisabled}
+              telemetry={{
+                vertical: "hotels",
+                itemId: decisionItem.id,
+                surface: "detail",
+              }}
+              onToggle$={onToggleCompare$}
+            />
+          </div>
+        </div>
 
-          {/* Summary + amenities (high scan zone) */}
-          <section class="mt-8 t-card p-5">
-            <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
+        {/* Policy highlight row — distributed trust, no heavy block */}
+        <ul class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          {policyHighlights.map((hl) => (
+            <li
+              key={hl}
+              class="flex items-center gap-1.5 text-[12px]"
+              style="color:var(--ui-text-secondary)"
+            >
+              <span aria-hidden="true" style="color:var(--ui-success)">
+                ✓
+              </span>
+              {hl}
+            </li>
+          ))}
+        </ul>
+      </header>
+
+      {/* ── Gallery ── */}
+      <div class="mt-5">
+        <HotelGallery images={h.images} hotelName={h.name} />
+      </div>
+
+      {/* ── Two-column layout: content | booking rail ── */}
+      <div class="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        {/* Content column */}
+        <div class="flex min-w-0 flex-col gap-10">
+          {/* Overview */}
+          <section>
+            <h2
+              class="text-xl font-bold"
+              style="color:var(--ui-text);font-family:'Lexend Variable',var(--system-font-family)"
+            >
               Overview
             </h2>
-            <p class="mt-2 max-w-[90ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
+            <p
+              class="mt-2 max-w-[68ch] text-sm md:text-base"
+              style="color:var(--ui-text-muted)"
+            >
               {h.summary}
             </p>
-
-            <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {h.amenities.slice(0, 9).map((a) => (
-                <div
-                  key={a}
-                  class="t-panel flex items-center justify-between gap-3 px-4 py-3"
-                >
-                  <span class="text-sm text-[color:var(--color-text)]">
-                    {a}
-                  </span>
-                  <span class="t-badge">Included</span>
-                </div>
-              ))}
-            </div>
-
-            <div class="mt-4">
-              <a
-                class="text-sm text-[color:var(--color-action)] hover:underline"
-                href="#amenities"
-              >
-                See all amenities →
-              </a>
-            </div>
           </section>
 
-          {/* Rooms (conversion core) */}
-          <section class="mt-8" id="rooms">
-            <div class="flex items-end justify-between gap-3">
-              <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
-                Rooms
+          {/* Rooms */}
+          <section id="rooms">
+            <div class="flex flex-wrap items-end justify-between gap-2">
+              <h2
+                class="text-xl font-bold"
+                style="color:var(--ui-text);font-family:'Lexend Variable',var(--system-font-family)"
+              >
+                Choose your room
               </h2>
-              <div class="text-sm text-[color:var(--color-text-muted)]">
+              <span class="text-[12px]" style="color:var(--ui-text-muted)">
                 {data.nights ? (
                   <span>
-                    {data.nights} nights · {data.partyLabel}
+                    {data.nights} night{data.nights === 1 ? "" : "s"} ·{" "}
+                    {data.partyLabel}
                   </span>
                 ) : (
                   <a
-                    class="text-[color:var(--color-action)] hover:underline"
-                    href="#stay"
+                    href="#booking"
+                    style="color:var(--ui-primary)"
+                    class="hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)]"
                   >
                     Add dates to see totals
                   </a>
                 )}
-              </div>
+              </span>
             </div>
 
-            <div class="mt-4 grid gap-3">
-              {h.rooms.map((r) => (
-                <RoomCard
-                  key={r.id}
-                  room={r}
-                  nights={data.nights}
-                  currency={h.currency}
-                  roomsCount={data.active.rooms}
-                />
-              ))}
-            </div>
+            {h.rooms.length ? (
+              <div class="mt-4 flex flex-col gap-3">
+                {h.rooms.map((r) => (
+                  <RoomCard
+                    key={r.id}
+                    room={r}
+                    nights={data.nights}
+                    currency={h.currency}
+                    roomsCount={data.active.rooms}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div
+                class="mt-4 p-5"
+                style="background:var(--ui-surface-muted);border:1px solid var(--ui-border);border-radius:var(--ui-radius)"
+              >
+                <p class="text-sm" style="color:var(--ui-text-muted)">
+                  Room options are not currently listed. Set your dates and
+                  search again to see available rooms.
+                </p>
+                <a
+                  href="#booking"
+                  class="mt-3 inline-flex items-center gap-1 text-sm font-semibold hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)]"
+                  style="color:var(--ui-primary)"
+                >
+                  Set dates to check availability →
+                </a>
+              </div>
+            )}
           </section>
 
-          {/* Amenities full */}
-          <section class="mt-8 t-card p-5" id="amenities">
-            <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
+          {/* Amenities */}
+          <section id="amenities">
+            <h2
+              class="text-xl font-bold"
+              style="color:var(--ui-text);font-family:'Lexend Variable',var(--system-font-family)"
+            >
               Amenities
             </h2>
-            <div class="mt-4 flex flex-wrap gap-2">
+            <div class="mt-4 grid gap-2 sm:grid-cols-2">
               {h.amenities.map((a) => (
-                <span key={a} class="t-badge">
-                  {a}
+                <div
+                  key={a}
+                  class="flex items-center gap-2 px-3 py-2.5"
+                  style="background:var(--ui-surface);border:1px solid var(--ui-border);border-radius:var(--ui-radius)"
+                >
+                  <span
+                    aria-hidden="true"
+                    class="shrink-0 text-[12px]"
+                    style="color:var(--ui-success)"
+                  >
+                    ✓
+                  </span>
+                  <span class="text-[13px]" style="color:var(--ui-text-secondary)">
+                    {a}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Location */}
+          <section id="location">
+            <h2
+              class="text-xl font-bold"
+              style="color:var(--ui-text);font-family:'Lexend Variable',var(--system-font-family)"
+            >
+              Where you'll be
+            </h2>
+            <p class="mt-1 text-sm" style="color:var(--ui-text-muted)">
+              {h.addressLine}
+            </p>
+
+            <div class="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+              {/* CSS-only map concept */}
+              <div
+                class="relative overflow-hidden"
+                style="background:var(--ui-surface-muted);border:1px solid var(--ui-border);border-radius:var(--ui-radius);min-height:14rem"
+                role="img"
+                aria-label={`Map area for ${h.name} in ${h.neighborhood}, ${h.city} — layout concept, not a geocoded map`}
+              >
+                <div
+                  class="absolute inset-0 opacity-50"
+                  aria-hidden="true"
+                  style="background-image:repeating-linear-gradient(0deg,transparent 0 30px,var(--ui-border) 30px 31px),repeating-linear-gradient(90deg,transparent 0 34px,var(--ui-border) 34px 35px)"
+                />
+                <span
+                  class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full px-3 py-1.5 text-[12px] font-bold"
+                  style="background:var(--ui-primary);color:var(--ui-on-primary);box-shadow:var(--ui-shadow-card)"
+                  aria-hidden="true"
+                >
+                  {h.name}
                 </span>
-              ))}
+                <span
+                  class="absolute right-2.5 top-2.5 rounded-full px-2.5 py-1 text-[10px] font-bold"
+                  style="background:var(--ui-surface);color:var(--ui-text-muted);border:1px solid var(--ui-border)"
+                >
+                  Map layout · concept
+                </span>
+              </div>
+
+              {/* Location context */}
+              <div
+                class="p-4"
+                style="background:var(--ui-surface);border:1px solid var(--ui-border);border-radius:var(--ui-radius);box-shadow:var(--ui-shadow-card)"
+              >
+                <h3 class="text-[14px] font-bold" style="color:var(--ui-text)">
+                  Location
+                </h3>
+                <dl class="mt-3 flex flex-col gap-2">
+                  {[
+                    { label: "Neighborhood", value: h.neighborhood },
+                    { label: "City", value: h.city },
+                    { label: "Region", value: h.region },
+                    { label: "Country", value: h.country },
+                  ]
+                    .filter((row) => Boolean(row.value))
+                    .map((row) => (
+                      <div
+                        key={row.label}
+                        class="flex items-center justify-between gap-3 text-[13px]"
+                      >
+                        <dt style="color:var(--ui-text-muted)">{row.label}</dt>
+                        <dd
+                          class="font-medium"
+                          style="color:var(--ui-text-secondary)"
+                        >
+                          {row.value}
+                        </dd>
+                      </div>
+                    ))}
+                </dl>
+                <div class="mt-3 border-t pt-3" style="border-color:var(--ui-divider)">
+                  <a
+                    href={`/hotels/in/${encodeURIComponent(h.cityQuery)}`}
+                    class="text-[12px] font-semibold hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)]"
+                    style="color:var(--ui-primary)"
+                  >
+                    Browse all hotels in {h.city} →
+                  </a>
+                </div>
+              </div>
             </div>
           </section>
 
-          {/* Policies (trust) */}
-          <section class="mt-8 t-card p-5" id="policies">
-            <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
-              Policies
+          {/* Policies */}
+          <section id="policies">
+            <h2
+              class="text-xl font-bold"
+              style="color:var(--ui-text);font-family:'Lexend Variable',var(--system-font-family)"
+            >
+              Policies &amp; what to know
             </h2>
-
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
-              <div class="t-panel p-4">
-                <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                  Cancellation
-                </div>
-                <div class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-                  {h.policies.cancellationBlurb}
-                </div>
-              </div>
-
-              <div class="t-panel p-4">
-                <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                  Payment
-                </div>
-                <div class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-                  {h.policies.paymentBlurb}
-                </div>
-              </div>
-
-              <div class="t-panel p-4">
-                <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                  Fees
-                </div>
-                <div class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-                  {h.policies.feesBlurb}
-                </div>
-              </div>
-
-              <div class="t-panel p-4">
-                <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                  Check-in
-                </div>
-                <div class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-                  Check-in {h.policies.checkInTime} · Check-out{" "}
-                  {h.policies.checkOutTime}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* FAQ (indexable) */}
-          <section class="mt-8 t-card p-5" id="faq">
-            <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
-              FAQ
-            </h2>
-            <div class="mt-4 space-y-3">
-              {h.faq.map((qa) => (
-                <div key={qa.q} class="t-panel p-4">
-                  <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-                    {qa.q}
+              {[
+                {
+                  title: "Cancellation",
+                  body: h.policies.cancellationBlurb,
+                },
+                { title: "Payment", body: h.policies.paymentBlurb },
+                { title: "Taxes & fees", body: h.policies.feesBlurb },
+                {
+                  title: "Check-in / out",
+                  body: `Check-in from ${h.policies.checkInTime} · Check-out by ${h.policies.checkOutTime}`,
+                },
+              ].map((p) => (
+                <div
+                  key={p.title}
+                  class="p-4"
+                  style="background:var(--ui-surface);border:1px solid var(--ui-border);border-radius:var(--ui-radius);box-shadow:var(--ui-shadow-card)"
+                >
+                  <div class="text-sm font-bold" style="color:var(--ui-text)">
+                    {p.title}
                   </div>
-                  <div class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-                    {qa.a}
-                  </div>
+                  <p
+                    class="mt-1.5 text-[13px]"
+                    style="color:var(--ui-text-muted)"
+                  >
+                    {p.body}
+                  </p>
                 </div>
               ))}
             </div>
+
+            {/* Trust badges — distributed model */}
+            <div class="mt-4 flex flex-wrap gap-2">
+              <span
+                class="rounded-full px-3 py-1 text-[12px] font-semibold"
+                style="background:var(--ui-success-soft, color-mix(in srgb, var(--ui-success) 12%, transparent));color:var(--ui-success);border:1px solid color-mix(in srgb, var(--ui-success) 20%, transparent)"
+              >
+                Total price shown up front
+              </span>
+              <span
+                class="rounded-full px-3 py-1 text-[12px] font-semibold"
+                style="background:var(--ui-surface-muted);color:var(--ui-text-muted);border:1px solid var(--ui-border)"
+              >
+                No countdown timers
+              </span>
+              <span
+                class="rounded-full px-3 py-1 text-[12px] font-semibold"
+                style="background:var(--ui-surface-muted);color:var(--ui-text-muted);border:1px solid var(--ui-border)"
+              >
+                No "1 room left!" pressure
+              </span>
+            </div>
           </section>
+
+          {/* FAQ */}
+          {h.faq && h.faq.length > 0 ? (
+            <section id="faq">
+              <h2
+                class="text-xl font-bold"
+                style="color:var(--ui-text);font-family:'Lexend Variable',var(--system-font-family)"
+              >
+                Common questions
+              </h2>
+              <div class="mt-4 flex flex-col gap-3">
+                {h.faq.map((qa) => (
+                  <div
+                    key={qa.q}
+                    class="p-4"
+                    style="background:var(--ui-surface);border:1px solid var(--ui-border);border-radius:var(--ui-radius)"
+                  >
+                    <div
+                      class="text-sm font-bold"
+                      style="color:var(--ui-text)"
+                    >
+                      {qa.q}
+                    </div>
+                    <p
+                      class="mt-1.5 text-[13px]"
+                      style="color:var(--ui-text-muted)"
+                    >
+                      {qa.a}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
 
-        {/* Sticky booking card (primary conversion zone) */}
+        {/* ── Booking rail (desktop sticky) ── */}
         <aside
           class="min-w-0 lg:sticky lg:self-start"
-          style={{ top: "var(--sticky-top-offset)" }}
+          style={{ top: "var(--sticky-top-offset, 1.25rem)" }}
+          id="booking"
+          aria-label="Booking"
         >
-          <div class="t-card p-5 bg-surface" id="stay">
-            <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <span class="t-badge">Hotels</span>
-              <div class="flex flex-wrap gap-2">
-                <SaveButton
-                  saved={isShortlisted(
-                    decisioning.state,
-                    "hotels",
-                    decisionItem.id,
-                  )}
-                  idleLabel="Shortlist"
-                  activeLabel="Shortlisted"
-                  telemetry={{
-                    vertical: "hotels",
-                    itemId: decisionItem.id,
-                    surface: "detail",
-                  }}
-                  onToggle$={onToggleShortlist$}
-                />
-                <CompareButton
-                  selected={compared}
-                  disabled={compareDisabled}
-                  telemetry={{
-                    vertical: "hotels",
-                    itemId: decisionItem.id,
-                    surface: "detail",
-                  }}
-                  onToggle$={onToggleCompare$}
-                />
-                <AddToTripButton item={decisionItem} telemetrySource="detail" />
-              </div>
-            </div>
-
-            <div class="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-panel)] px-4 py-4">
-              <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
-                {stayPriceDisplay.baseLabel}
-              </div>
-              <div class="mt-2 flex items-end gap-2">
-                <span class="text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-                  {formatMoney(stayPriceDisplay.baseAmount, h.currency)}
-                </span>
-                <span class="pb-1 text-sm text-[color:var(--color-text-muted)]">
-                  {formatPriceQualifier(stayPriceDisplay.baseQualifier)}
-                </span>
-              </div>
-              {stayPriceDisplay.totalAmount != null ? (
-                <div class="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                  {stayPriceDisplay.totalLabel}:{" "}
-                  <span class="font-medium text-[color:var(--color-text)]">
-                    {formatMoney(stayPriceDisplay.totalAmount, h.currency)}
+          <div
+            class="p-5"
+            style="background:var(--ui-surface);border:1px solid var(--ui-border);border-radius:var(--ui-radius-lg);box-shadow:var(--ui-shadow-panel)"
+          >
+            {/* Price module */}
+            <div class="flex items-end justify-between gap-2">
+              <div>
+                <div
+                  class="text-[11px] font-semibold uppercase tracking-[0.08em]"
+                  style="color:var(--ui-text-muted)"
+                >
+                  {stayPriceDisplay.baseLabel}
+                </div>
+                <div class="mt-0.5 flex items-end gap-1.5">
+                  <span
+                    class="text-3xl font-extrabold leading-none"
+                    style="color:var(--ui-text)"
+                  >
+                    {formatMoney(stayPriceDisplay.baseAmount, h.currency)}
                   </span>
-                  {stayPriceDisplay.unitCountLabel ? (
-                    <span class="ml-1">
-                      ({stayPriceDisplay.unitCountLabel})
-                    </span>
-                  ) : null}
+                  <span
+                    class="pb-0.5 text-sm"
+                    style="color:var(--ui-text-muted)"
+                  >
+                    {formatPriceQualifier(stayPriceDisplay.baseQualifier)}
+                  </span>
                 </div>
-              ) : null}
-              {stayPriceDisplay.supportText ? (
-                <div class="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                  {stayPriceDisplay.supportText}
-                </div>
-              ) : null}
+              </div>
             </div>
 
-            <div class="mt-4 text-xs text-[color:var(--color-text-muted)]">
-              Set dates to reveal totals. GET URLs stay shareable.
-            </div>
+            {stayPriceDisplay.totalAmount != null ? (
+              <p class="mt-1 text-[12px]" style="color:var(--ui-text-muted)">
+                {stayPriceDisplay.totalLabel}:{" "}
+                <span class="font-semibold" style="color:var(--ui-text)">
+                  {formatMoney(stayPriceDisplay.totalAmount, h.currency)}
+                </span>
+                {stayPriceDisplay.unitCountLabel ? (
+                  <span> ({stayPriceDisplay.unitCountLabel})</span>
+                ) : null}
+              </p>
+            ) : (
+              <p class="mt-1 text-[12px]" style="color:var(--ui-text-muted)">
+                Set dates to see your full stay total.
+              </p>
+            )}
 
-            <form method="get" class="mt-4 grid gap-3">
-              <div class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            {stayPriceDisplay.supportText ? (
+              <p class="mt-1 text-[12px]" style="color:var(--ui-text-muted)">
+                {stayPriceDisplay.supportText}
+              </p>
+            ) : null}
+
+            {/* Date / guests form */}
+            <form method="get" class="mt-4 grid gap-2">
+              <div class="grid grid-cols-2 gap-2">
                 <div class="min-w-0">
                   <label
                     for="hotel-detail-check-in"
-                    class="text-xs font-medium text-[color:var(--color-text-subtle)]"
+                    class="text-[10px] font-bold uppercase tracking-[0.1em]"
+                    style="color:var(--ui-text-muted)"
                   >
                     Check-in
                   </label>
@@ -656,7 +801,7 @@ export default component$(() => {
                     value={stayCheckIn}
                     minValue={todayIsoDate}
                     class="w-full min-w-0"
-                    inputClass="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    inputClass="mt-1 w-full rounded-xl border border-[color:var(--ui-border)] bg-[color:var(--ui-surface-muted)] px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
                     iconLabel="Open check-in date picker"
                     overlayLabel="Check-in date picker"
                   />
@@ -664,7 +809,8 @@ export default component$(() => {
                 <div class="min-w-0">
                   <label
                     for="hotel-detail-check-out"
-                    class="text-xs font-medium text-[color:var(--color-text-subtle)]"
+                    class="text-[10px] font-bold uppercase tracking-[0.1em]"
+                    style="color:var(--ui-text-muted)"
                   >
                     Check-out
                   </label>
@@ -674,7 +820,7 @@ export default component$(() => {
                     value={stayCheckOut}
                     minValue={minimumCheckoutDate}
                     class="w-full min-w-0"
-                    inputClass="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    inputClass="mt-1 w-full rounded-xl border border-[color:var(--ui-border)] bg-[color:var(--ui-surface-muted)] px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
                     iconLabel="Open check-out date picker"
                     overlayLabel="Check-out date picker"
                     overlayPosition="right"
@@ -686,14 +832,16 @@ export default component$(() => {
                 <div>
                   <label
                     for="hotel-detail-adults"
-                    class="text-xs font-medium text-[color:var(--color-text-subtle)]"
+                    class="text-[10px] font-bold uppercase tracking-[0.1em]"
+                    style="color:var(--ui-text-muted)"
                   >
                     Adults
                   </label>
                   <input
                     id="hotel-detail-adults"
                     name="adults"
-                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    class="mt-1 w-full rounded-xl border px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    style="border-color:var(--ui-border);background:var(--ui-surface-muted);color:var(--ui-text)"
                     placeholder="2"
                     value={
                       data.active.adults != null
@@ -705,14 +853,16 @@ export default component$(() => {
                 <div>
                   <label
                     for="hotel-detail-rooms"
-                    class="text-xs font-medium text-[color:var(--color-text-subtle)]"
+                    class="text-[10px] font-bold uppercase tracking-[0.1em]"
+                    style="color:var(--ui-text-muted)"
                   >
                     Rooms
                   </label>
                   <input
                     id="hotel-detail-rooms"
                     name="rooms"
-                    class="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    class="mt-1 w-full rounded-xl border px-3 py-2 text-sm outline-none focus-visible:shadow-[var(--ring-focus)]"
+                    style="border-color:var(--ui-border);background:var(--ui-surface-muted);color:var(--ui-text)"
                     placeholder="1"
                     value={
                       data.active.rooms != null ? String(data.active.rooms) : ""
@@ -721,20 +871,76 @@ export default component$(() => {
                 </div>
               </div>
 
-              <button class="t-btn-primary" type="submit">
-                Update
+              <button
+                class="mt-1 w-full rounded-xl py-2.5 text-sm font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)]"
+                style="background:var(--ui-surface-muted);border:1px solid var(--ui-border);color:var(--ui-text)"
+                type="submit"
+              >
+                Update dates
               </button>
             </form>
 
-            <div class="mt-5 border-t border-[color:var(--color-divider)] pt-5">
+            {/* Primary CTA */}
+            <div class="mt-3">
+              <a
+                href="#rooms"
+                class="block w-full rounded-xl py-3 text-center text-sm font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)] focus-visible:ring-offset-1"
+                style="background:var(--ui-primary);color:var(--ui-on-primary)"
+              >
+                Select a room
+              </a>
+            </div>
+
+            {/* Decisioning actions */}
+            <div class="mt-3 flex flex-wrap gap-2">
+              <SaveButton
+                saved={isShortlisted(
+                  decisioning.state,
+                  "hotels",
+                  decisionItem.id,
+                )}
+                idleLabel="♡ Save"
+                activeLabel="♥ Saved"
+                telemetry={{
+                  vertical: "hotels",
+                  itemId: decisionItem.id,
+                  surface: "detail",
+                }}
+                onToggle$={onToggleShortlist$}
+              />
+              <CompareButton
+                selected={compared}
+                disabled={compareDisabled}
+                telemetry={{
+                  vertical: "hotels",
+                  itemId: decisionItem.id,
+                  surface: "detail",
+                }}
+                onToggle$={onToggleCompare$}
+              />
+              <AddToTripButton item={decisionItem} telemetrySource="detail" />
+            </div>
+
+            {/* Availability + refresh */}
+            <div
+              class="mt-4 border-t pt-4"
+              style="border-color:var(--ui-divider)"
+            >
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <div class="text-xs font-semibold text-[color:var(--color-text-strong)]">
-                    {h.availabilityConfidence?.label || "Unknown availability"}
+                  <div
+                    class="text-[12px] font-semibold"
+                    style="color:var(--ui-text)"
+                  >
+                    {h.availabilityConfidence?.label || "Availability unknown"}
                     {h.freshness ? ` · ${h.freshness.relativeLabel}` : ""}
                   </div>
-                  <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                    {buildHotelSidebarStatusNote(h)}
+                  <div
+                    class="mt-0.5 text-[12px]"
+                    style="color:var(--ui-text-muted)"
+                  >
+                    {h.availabilityConfidence?.supportText ||
+                      "Refresh before booking to confirm current inventory."}
                   </div>
                 </div>
 
@@ -767,72 +973,108 @@ export default component$(() => {
               </div>
 
               {refreshPriceSummary.value ? (
-                <div class="mt-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
+                <div
+                  class="mt-3 rounded-xl px-4 py-3 text-sm"
+                  style="background:var(--ui-accent-soft);border:1px solid var(--ui-border);color:var(--ui-text)"
+                >
                   {refreshPriceSummary.value}
                 </div>
               ) : null}
-
-              <div class="mt-4">
-                <a class="t-btn-primary block text-center" href="#rooms">
-                  Select a room
-                </a>
-              </div>
             </div>
+
+            {/* Confidence note */}
+            <p
+              class="mt-3 text-[12px]"
+              style="color:var(--ui-text-muted)"
+            >
+              Prices and availability update when you set dates. Shareable link
+              — no account needed to compare.
+            </p>
           </div>
 
-          {/* Secondary trust card */}
-          <div class="mt-4 t-card p-5">
-            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+          {/* Trust mini-card */}
+          <div
+            class="mt-4 p-5"
+            style="background:var(--ui-surface);border:1px solid var(--ui-border);border-radius:var(--ui-radius);box-shadow:var(--ui-shadow-card)"
+          >
+            <div class="text-sm font-bold" style="color:var(--ui-text)">
               Why Andacity
             </div>
-            <ul class="mt-3 space-y-2 text-sm text-[color:var(--color-text-muted)]">
-              <li>Transparent totals and policy clarity</li>
-              <li>Fast filtering and shareable URLs</li>
-              <li>SEO: destinations + hotels earn rankings</li>
+            <ul class="mt-3 flex flex-col gap-2">
+              {[
+                "Transparent total pricing",
+                "Policies shown before you book",
+                "Compare stays without pressure",
+              ].map((t) => (
+                <li
+                  key={t}
+                  class="flex items-center gap-2 text-[13px]"
+                  style="color:var(--ui-text-secondary)"
+                >
+                  <span aria-hidden="true" style="color:var(--ui-success)">
+                    ✓
+                  </span>
+                  {t}
+                </li>
+              ))}
             </ul>
-
             <div class="mt-4">
               <a
-                class="t-badge block text-center hover:bg-white"
                 href={data.searchHref}
+                class="block w-full rounded-xl py-2 text-center text-[13px] font-semibold transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)]"
+                style="background:var(--ui-surface-muted);border:1px solid var(--ui-border);color:var(--ui-text)"
               >
-                Compare more hotels →
+                Compare more hotels in {h.city} →
               </a>
             </div>
           </div>
         </aside>
       </div>
 
-      {/* Mobile sticky CTA */}
-      <div class="fixed inset-x-0 bottom-0 z-50 border-t border-[color:var(--color-divider)] bg-white/95 backdrop-blur lg:hidden">
+      {/* Mobile spacer so sticky CTA doesn't cover content */}
+      <div class="h-20 lg:hidden" />
+
+      {/* ── Mobile sticky CTA ── */}
+      <div
+        class="fixed inset-x-0 bottom-0 z-40 lg:hidden"
+        style="background:var(--ui-surface);border-top:1px solid var(--ui-border);box-shadow:0 -8px 24px rgba(8,12,22,0.12)"
+      >
         <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5">
           <div class="min-w-0">
             <div class="flex items-baseline gap-1.5">
-              <span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+              <span
+                class="text-[11px] font-semibold uppercase tracking-[0.08em]"
+                style="color:var(--ui-text-muted)"
+              >
                 {stayPriceDisplay.baseLabel}
               </span>
-              <span class="truncate text-lg font-semibold text-[color:var(--color-text-strong)]">
+              <span
+                class="truncate text-lg font-extrabold"
+                style="color:var(--ui-text)"
+              >
                 {formatMoney(stayPriceDisplay.baseAmount, h.currency)}
               </span>
-              <span class="truncate text-xs font-medium text-[color:var(--color-text-muted)]">
+              <span
+                class="truncate text-[12px]"
+                style="color:var(--ui-text-muted)"
+              >
                 {formatPriceQualifier(stayPriceDisplay.baseQualifier)}
               </span>
             </div>
-            <div class="truncate text-[11px] leading-4 text-[color:var(--color-text-muted)]">
-              {stayPriceDisplay.unitCountLabel
-                ? `${stayPriceDisplay.unitCountLabel} · `
-                : ""}
+            <div class="truncate text-[11px]" style="color:var(--ui-text-muted)">
               {data.partyLabel}
             </div>
           </div>
 
-          <a class="t-btn-primary px-4 py-2.5 text-sm" href="#rooms">
-            Select room
+          <a
+            href="#rooms"
+            class="inline-flex shrink-0 items-center justify-center rounded-xl px-5 py-2.5 text-sm font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[color:var(--ui-ring)]"
+            style="background:var(--ui-primary);color:var(--ui-on-primary);min-height:44px"
+          >
+            Select a room
           </a>
         </div>
       </div>
-
-      <div class="h-16 lg:hidden" />
 
       {decisioning.state.compare.hotels.length ? (
         <CompareTray
@@ -877,14 +1119,11 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
   const title = `${data.hotel.name} | Andacity Travel`;
   const description = `Browse ${data.hotel.name}. Compare totals and policies with clarity.`;
 
-  // Canonical
   const canonicalHref = new URL(
     `/hotels/${encodeURIComponent(data.hotel.slug)}`,
     url.origin,
   ).href;
 
-  // IMPORTANT: head must be sync -> no signing here
-  // Use your path-based OG route (no query params)
   const ogImage = new URL(
     `/og/hotel/${encodeURIComponent(data.hotel.slug)}.png`,
     url.origin,
@@ -910,6 +1149,173 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
     ],
     links: [{ rel: "canonical", href: canonicalHref }],
   };
+};
+
+/* ------------------------------------------------------------------ */
+/* Room card — premium visual using --ui-* tokens                     */
+/* ------------------------------------------------------------------ */
+
+const RoomCard = component$(
+  ({ room, nights, currency, roomsCount }: RoomCardProps) => {
+    const count = roomsCount ?? 1;
+    const priceDisplay = buildHotelPriceDisplay({
+      currencyCode: currency,
+      nightlyRate: room.priceFrom,
+      nights,
+      rooms: count,
+    });
+
+    return (
+      <article
+        class="overflow-hidden"
+        style="background:var(--ui-surface);border:1px solid var(--ui-border);border-radius:var(--ui-radius);box-shadow:var(--ui-shadow-card)"
+      >
+        <div class="grid gap-0 sm:grid-cols-[180px_minmax(0,1fr)]">
+          {/* Room media — gradient placeholder; room-level images are deferred */}
+          <div
+            class="min-h-[8rem]"
+            style="background-image:var(--ui-hero)"
+            role="img"
+            aria-label={`${room.name} room photo`}
+          />
+
+          <div class="p-4">
+            <h3
+              class="text-base font-bold"
+              style="color:var(--ui-text);font-family:'Lexend Variable',var(--system-font-family)"
+            >
+              {room.name}
+            </h3>
+            <p class="mt-0.5 text-[12px]" style="color:var(--ui-text-muted)">
+              Sleeps {room.sleeps} · {room.beds} · {room.sizeSqft} sq ft
+            </p>
+
+            {room.features.length ? (
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                {room.features.map((f) => (
+                  <span
+                    key={f}
+                    class="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+                    style="background:var(--ui-surface-muted);border:1px solid var(--ui-border);color:var(--ui-text-muted)"
+                  >
+                    {f}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Rate row */}
+        <div
+          class="border-t"
+          style="border-color:var(--ui-divider)"
+        >
+          <div class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                {room.refundable ? (
+                  <p
+                    class="inline-flex items-center gap-1 text-[12px] font-medium"
+                    style="color:var(--ui-success)"
+                  >
+                    <span aria-hidden="true">✓</span>
+                    Free cancellation
+                  </p>
+                ) : (
+                  <p class="text-[12px] font-medium" style="color:var(--ui-text-muted)">
+                    Cancellation terms vary
+                  </p>
+                )}
+                {room.payLater ? (
+                  <span
+                    class="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                    style="background:var(--ui-accent-soft);color:var(--ui-accent);border:1px solid color-mix(in srgb, var(--ui-accent) 20%, transparent)"
+                  >
+                    Pay later
+                  </span>
+                ) : (
+                  <span
+                    class="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+                    style="background:var(--ui-surface-muted);color:var(--ui-text-muted);border:1px solid var(--ui-border)"
+                  >
+                    Prepay
+                  </span>
+                )}
+              </div>
+
+              {room.badges.length ? (
+                <div class="mt-2 flex flex-wrap gap-1.5">
+                  {room.badges.map((b) => (
+                    <span
+                      key={b}
+                      class="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+                      style="background:var(--ui-surface-muted);border:1px solid var(--ui-border);color:var(--ui-text-muted)"
+                    >
+                      {b}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div class="flex shrink-0 items-center justify-between gap-4 sm:flex-col sm:items-end sm:justify-center sm:text-right">
+              <div>
+                <div
+                  class="text-lg font-extrabold leading-none"
+                  style="color:var(--ui-price)"
+                >
+                  {formatMoney(priceDisplay.baseAmount, currency)}
+                </div>
+                <div class="text-[11px]" style="color:var(--ui-text-muted)">
+                  {formatPriceQualifier(priceDisplay.baseQualifier)}
+                </div>
+                {priceDisplay.totalAmount != null ? (
+                  <div class="mt-1 text-[11px]" style="color:var(--ui-text-muted)">
+                    Total: {formatMoney(priceDisplay.totalAmount, currency)}
+                  </div>
+                ) : (
+                  <div class="mt-1 text-[11px]" style="color:var(--ui-text-muted)">
+                    Add dates for total
+                  </div>
+                )}
+              </div>
+              <a
+                href="#booking"
+                class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)] focus-visible:ring-offset-1"
+                style="background:var(--ui-primary);color:var(--ui-on-primary);min-height:36px"
+                aria-label={`Select ${room.name}`}
+              >
+                Select
+              </a>
+            </div>
+          </div>
+        </div>
+      </article>
+    );
+  },
+);
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                            */
+/* ------------------------------------------------------------------ */
+
+const resolveReviewLabel = (rating: number) => {
+  if (rating >= 9.5) return "Exceptional";
+  if (rating >= 9.0) return "Superb";
+  if (rating >= 8.5) return "Excellent";
+  if (rating >= 8.0) return "Very good";
+  if (rating >= 7.0) return "Good";
+  return "Reviewed";
+};
+
+const buildPolicyHighlights = (h: Hotel): string[] => {
+  const out: string[] = [];
+  if (h.policies.freeCancellation) out.push("Free cancellation available");
+  if (h.policies.payLater) out.push("Pay later options");
+  if (h.policies.noResortFees) out.push("No resort fees");
+  out.push("Transparent totals");
+  return out;
 };
 
 const buildHotelDetailStatusNotice = (
@@ -946,346 +1352,9 @@ const buildHotelDetailStatusNotice = (
   return undefined;
 };
 
-const buildHotelDecisionFacts = (
-  hotel: Hotel,
-  priceDisplay: ReturnType<typeof buildHotelPriceDisplay>,
-): Array<{
-  label: string;
-  value: string;
-  detail?: string | null;
-  tone?: "warning" | "default";
-}> => {
-  const roomCount = hotel.rooms.length;
-  const refundableCount = hotel.rooms.filter((room) => room.refundable).length;
-  const payLaterCount = hotel.rooms.filter((room) => room.payLater).length;
-  const priceDetail = [
-    priceDisplay.totalAmount != null
-      ? `${priceDisplay.totalLabel || "Estimated total"} ${formatMoney(
-          priceDisplay.totalAmount,
-          hotel.currency,
-        )}${priceDisplay.unitCountLabel ? ` for ${priceDisplay.unitCountLabel}` : ""}`
-      : "Add dates to estimate the full stay total.",
-    priceDisplay.supportText || null,
-    priceDisplay.delta &&
-    priceDisplay.delta.status !== "unchanged" &&
-    priceDisplay.delta.status !== "unavailable"
-      ? formatPriceChange(priceDisplay.delta, hotel.currency)
-      : null,
-  ]
-    .filter(Boolean)
-    .join(". ");
-
-  return [
-    {
-      label: "Price summary",
-      value: `From ${formatMoney(hotel.fromNightly, hotel.currency)}${formatPriceQualifier(
-        priceDisplay.baseQualifier,
-      )}`,
-      detail: priceDetail,
-    },
-    {
-      label: "Room terms",
-      value: buildHotelRoomTermsValue(
-        roomCount,
-        refundableCount,
-        payLaterCount,
-      ),
-      detail: buildHotelRoomTermsDetail(
-        roomCount,
-        refundableCount,
-        payLaterCount,
-      ),
-    },
-    {
-      label: "Important constraints",
-      value: buildHotelConstraintSummary(hotel),
-      detail: buildHotelConstraintDetail(hotel),
-      tone: hotel.availabilityConfidence?.degraded ? "warning" : "default",
-    },
-  ];
-};
-
-const buildHotelDecisionSummaryBlocks = (
-  hotel: Hotel,
-  priceDisplay: ReturnType<typeof buildHotelPriceDisplay>,
-): DecisionSummaryBlock[] => {
-  const trustFacts = buildHotelDecisionFacts(hotel, priceDisplay);
-  const amenityPreview = hotel.amenities.slice(0, 3);
-  const keyNotes = [
-    `${hotel.rating.toFixed(1)} ★ from ${hotel.reviewCount.toLocaleString("en-US")} guest reviews.`,
-    hotel.rooms.length
-      ? `${hotel.rooms.length.toLocaleString("en-US")} listed room option${hotel.rooms.length === 1 ? "" : "s"} right now.`
-      : "Room options are not listed yet.",
-    amenityPreview.length
-      ? `Top amenity signals: ${joinShortList(amenityPreview)}.`
-      : null,
-    `Check-in ${hotel.policies.checkInTime}; check-out ${hotel.policies.checkOutTime}.`,
-  ].filter(Boolean) as string[];
-  const constraints = hotel.availability
-    ? [
-        buildNightRangeLabel(
-          hotel.availability.minNights,
-          hotel.availability.maxNights,
-        ),
-        `Check-in window: ${formatCalendarDate(
-          hotel.availability.checkInStart,
-        )} to ${formatCalendarDate(hotel.availability.checkInEnd)}.`,
-        hotel.availability.blockedWeekdays.length
-          ? `Blocked check-in days: ${formatWeekdayList(
-              hotel.availability.blockedWeekdays,
-            )}.`
-          : "No blocked check-in weekdays are posted.",
-      ]
-    : ["Live stay window is unavailable; refresh after adding dates."];
-  const location = [
-    [hotel.neighborhood, hotel.city, hotel.region].filter(Boolean).join(", "),
-    hotel.addressLine,
-    hotel.propertyType
-      ? `${hotel.propertyType} inventory in ${hotel.city}.`
-      : null,
-  ].filter(Boolean) as string[];
-
-  return [
-    ...trustFacts.map((row) => ({
-      label: row.label,
-      items: [row.value, row.detail].filter(Boolean) as string[],
-      tone: row.tone,
-    })),
-    { label: "Stay notes", items: keyNotes },
-    { label: "Location context", items: location },
-    {
-      label: "Stay rules",
-      items: constraints,
-      tone: hotel.availabilityConfidence?.degraded ? "warning" : "default",
-    },
-  ];
-};
-
-const buildHotelDecisionCaveat = (
-  hotel: Hotel,
-): DecisionSummaryCaveat | null => {
-  const confidence = hotel.availabilityConfidence;
-  if (!confidence?.degraded) return null;
-
-  return {
-    title:
-      confidence.state === "unavailable"
-        ? "Current dates do not cleanly fit this stay"
-        : "Availability confidence is reduced",
-    summary:
-      confidence.state === "unavailable"
-        ? "Review the current rules before relying on this stay."
-        : "Open the detail notes before treating this stay as current.",
-    message: [
-      confidence.supportText ||
-        "Refresh availability before relying on this stay.",
-      "Room policies and final totals can still vary by selected rate.",
-    ].join(" "),
-    tone: confidence.state === "unavailable" ? "critical" : "warning",
-  };
-};
-
-const buildHotelConstraintSummary = (hotel: Hotel) => {
-  if (!hotel.availability) {
-    return "Live stay window unavailable";
-  }
-
-  const weekdayCount = hotel.availability.blockedWeekdays.length;
-  const blockedLabel =
-    weekdayCount > 0
-      ? `some check-in days blocked`
-      : "no blocked weekdays posted";
-
-  return `${hotel.availability.minNights}-${hotel.availability.maxNights} night stays · ${blockedLabel}`;
-};
-
-const buildHotelConstraintDetail = (hotel: Hotel) => {
-  if (!hotel.availability) {
-    return "Refresh availability after adding dates to confirm current stay rules.";
-  }
-
-  return `Check-in window ${formatCalendarDate(
-    hotel.availability.checkInStart,
-  )} to ${formatCalendarDate(hotel.availability.checkInEnd)}.`;
-};
-
-const buildHotelSidebarStatusNote = (hotel: Hotel) => {
-  if (hotel.availabilityConfidence?.supportText) {
-    return hotel.availabilityConfidence.supportText;
-  }
-
-  return "Refresh before booking to confirm the latest inventory.";
-};
-
-const buildHotelRoomTermsValue = (
-  roomCount: number,
-  refundableCount: number,
-  payLaterCount: number,
-) => {
-  if (!roomCount) return "Room terms load with current inventory";
-
-  if (refundableCount === roomCount && payLaterCount === roomCount) {
-    return "All listed rooms show flexible terms";
-  }
-
-  if (refundableCount > 0 || payLaterCount > 0) {
-    return "Flexibility depends on the room you choose";
-  }
-
-  return "Listed rooms skew toward firmer terms";
-};
-
-const buildHotelRoomTermsDetail = (
-  roomCount: number,
-  refundableCount: number,
-  payLaterCount: number,
-) => {
-  if (!roomCount) {
-    return "Refresh room inventory to confirm cancellation and payment options.";
-  }
-
-  return `${refundableCount} of ${roomCount} room${roomCount === 1 ? "" : "s"} show refundable terms. ${payLaterCount} of ${roomCount} show pay-later terms.`;
-};
-
-const buildNightRangeLabel = (minNights: number, maxNights: number) => {
-  if (minNights === maxNights) {
-    return `Stay length is fixed at ${minNights} night${minNights === 1 ? "" : "s"}.`;
-  }
-
-  return `Stay length must be ${minNights}-${maxNights} nights.`;
-};
-
-const joinShortList = (items: string[]) => {
-  if (items.length <= 1) return items[0] || "";
-  if (items.length === 2) return `${items[0]} and ${items[1]}`;
-  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
-};
-
-const formatWeekdayList = (days: number[]) => {
-  const labels = Array.from(
-    new Set(days.filter((day) => day >= 0 && day <= 6)),
-  ).map(
-    (day) =>
-      ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day] || "Unknown",
-  );
-
-  return joinShortList(labels);
-};
-
-const RoomCard = component$(
-  ({ room, nights, currency, roomsCount }: RoomCardProps) => {
-    const count = roomsCount ?? 1;
-    const priceDisplay = buildHotelPriceDisplay({
-      currencyCode: currency,
-      nightlyRate: room.priceFrom,
-      nights,
-      rooms: count,
-    });
-
-    return (
-      <div class="t-card p-5">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div class="text-base font-semibold text-[color:var(--color-text-strong)]">
-              {room.name}
-            </div>
-            <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-              Sleeps {room.sleeps} · {room.beds} · {room.sizeSqft} sq ft
-            </div>
-
-            <div class="mt-3 flex flex-wrap gap-2">
-              {room.refundable ? (
-                <span class="t-badge t-badge--deal">Free cancellation</span>
-              ) : (
-                <span class="t-badge">Cancellation varies</span>
-              )}
-              {room.payLater ? (
-                <span class="t-badge t-badge--deal">Pay later</span>
-              ) : (
-                <span class="t-badge">Prepay</span>
-              )}
-              {room.badges.map((b) => (
-                <span key={b} class="t-badge">
-                  {b}
-                </span>
-              ))}
-            </div>
-
-            <div class="mt-4 flex flex-wrap gap-2">
-              {room.features.map((f) => (
-                <span key={f} class="t-badge">
-                  {f}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div class="min-w-[220px] text-right">
-            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
-              {priceDisplay.baseLabel}{" "}
-              {formatMoney(priceDisplay.baseAmount, currency)}
-              <span class="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">
-                {formatPriceQualifier(priceDisplay.baseQualifier)}
-              </span>
-            </div>
-
-            {priceDisplay.baseTotalAmount != null ? (
-              <div class="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                {priceDisplay.baseTotalLabel}:{" "}
-                <span class="font-medium text-[color:var(--color-text)]">
-                  {formatMoney(priceDisplay.baseTotalAmount, currency)}
-                </span>
-                {priceDisplay.unitCountLabel ? (
-                  <span class="ml-1">({priceDisplay.unitCountLabel})</span>
-                ) : null}
-              </div>
-            ) : null}
-
-            {priceDisplay.totalAmount != null &&
-            priceDisplay.estimatedFeesAmount != null ? (
-              <div class="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                {priceDisplay.totalLabel}:{" "}
-                <span class="font-medium text-[color:var(--color-text)]">
-                  {formatMoney(priceDisplay.totalAmount, currency)}
-                </span>
-                <span class="ml-1">
-                  incl.{" "}
-                  {formatMoney(priceDisplay.estimatedFeesAmount, currency)} est.
-                </span>
-              </div>
-            ) : (
-              <div class="mt-2 text-xs text-[color:var(--color-text-muted)]">
-                Add dates to see totals
-              </div>
-            )}
-
-            {priceDisplay.supportText ? (
-              <div class="mt-2 max-w-[220px] text-xs text-[color:var(--color-text-muted)]">
-                {priceDisplay.supportText}
-              </div>
-            ) : null}
-
-            <div class="mt-4 flex flex-col gap-2">
-              <a class="t-btn-primary block text-center" href="#">
-                Choose
-              </a>
-              <a
-                class="t-badge block text-center hover:bg-white"
-                href="#policies"
-              >
-                View policies
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  },
-);
-
-/* -----------------------------
-   Stay params + pricing
------------------------------ */
+/* ------------------------------------------------------------------ */
+/* Stay params + pricing                                              */
+/* ------------------------------------------------------------------ */
 
 const parseHotelStayParams = (sp: URLSearchParams): StayParams => {
   const checkIn = normalizeIsoDate(sp.get("checkIn"));
@@ -1337,10 +1406,6 @@ const buildSearchHotelsHref = (d: {
   return qs ? `${base}?${qs}` : base;
 };
 
-/* -----------------------------
-   Helpers
------------------------------ */
-
 const computeNights = (checkIn: string | null, checkOut: string | null) => {
   if (!checkIn || !checkOut) return null;
   const a = Date.parse(checkIn);
@@ -1360,25 +1425,9 @@ const clampMaybeInt = (raw: string | null, min: number, max: number) => {
   return n;
 };
 
-const formatCalendarDate = (value: string | null | undefined) => {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value))
-    return value || "date unavailable";
-  const [year, month, day] = value
-    .split("-")
-    .map((part) => Number.parseInt(part, 10));
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(date);
-};
-
-/* -----------------------------
-   Types
------------------------------ */
+/* ------------------------------------------------------------------ */
+/* Types                                                              */
+/* ------------------------------------------------------------------ */
 
 type StayParams = {
   checkIn: string | null;
