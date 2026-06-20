@@ -1,3 +1,18 @@
+/**
+ * CLAUDE-UI-016 — production flight route results page.
+ *
+ * Rewrites the presentation layer to use the `--ui-*` system via
+ * FlightResultsPage while preserving ALL existing behavior:
+ *  - onRequest noindex/follow header
+ *  - useCanonicalFlightSearchPage loader (SSR + progressive polling)
+ *  - Incremental polling loop (250ms intervals until complete)
+ *  - Real URL-driven sort/filter via searchStateFromUrl/searchStateToUrl
+ *  - Canonical route shape: /flights/search/{FROM}-{TO}/{depart}[/return/{ret}]
+ *  - head metadata (title, description, canonical, noindex,follow)
+ *
+ * The production CanonicalFlightResultsSection is no longer rendered by this
+ * route; its filter/sort logic is replicated in FlightResultsSection on --ui-*.
+ */
 import { component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import {
   routeLoader$,
@@ -5,10 +20,8 @@ import {
   type DocumentHead,
   type RequestHandler,
 } from "@builder.io/qwik-city";
-import { CanonicalFlightResultsSection } from "~/components/search/flights/CanonicalFlightResultsSection";
-import { FlightResultsRenderer } from "~/components/search/flights/FlightResultsRenderer";
+import { FlightResultsPage } from "~/components/flights/results/FlightResultsPage";
 import { resolveFlightResultsRendererModel } from "~/components/search/flights/flightResultsRendererModel";
-import { Page } from "~/components/site/Page";
 import { mapFlightResultsForUi } from "~/server/search/mapFlightResultsForUi";
 import {
   loadCanonicalFlightSearchProgressivePage,
@@ -68,9 +81,7 @@ export default component$(() => {
       try {
         const response = await fetch(
           buildIncrementalSearchRequestUrl(initialPage.progress?.endpoint || currentPath, cursor),
-          {
-            cache: "no-store",
-          },
+          { cache: "no-store" },
         );
         const body = (await response.json()) as
           | SearchResultsIncrementalApiResponse<FlightSearchEntity>
@@ -85,9 +96,7 @@ export default component$(() => {
           return;
         }
 
-        if (body.data.request.type !== "flight") {
-          return;
-        }
+        if (body.data.request.type !== "flight") return;
 
         const merged = mergeIncrementalSearchResponse(results, batches, body);
         results = merged.results;
@@ -113,11 +122,9 @@ export default component$(() => {
           }),
         };
 
-        if (body.data.metadata.status === "complete") {
-          return;
-        }
+        if (body.data.metadata.status === "complete") return;
       } catch {
-        // Keep the current partial state on transient polling failures.
+        // Keep current partial state on transient polling failures.
       }
 
       if (stopped) return;
@@ -139,32 +146,14 @@ export default component$(() => {
     isLoading: location.isNavigating,
     currentPath,
   });
-  const breadcrumbLabel =
-    "error" in data || location.isNavigating ? "Search results" : data.ui.summary.routeTitle;
-  const showShell =
-    !("error" in data) &&
-    rendererModel.state !== "loading" &&
-    rendererModel.state !== "error";
 
   return (
-    <Page
-      breadcrumbs={[
-        { label: "Andacity Travel", href: "/" },
-        { label: "Flights", href: "/flights" },
-        { label: "Search", href: "/flights/search" },
-        { label: breadcrumbLabel, href: location.url.pathname },
-      ]}
-    >
-      {showShell ? (
-        <CanonicalFlightResultsSection
-          page={data}
-          currentPath={currentPath}
-          isNavigating={location.isNavigating}
-        />
-      ) : (
-        <FlightResultsRenderer model={rendererModel} />
-      )}
-    </Page>
+    <FlightResultsPage
+      data={data}
+      rendererModel={rendererModel}
+      currentPath={currentPath}
+      isNavigating={location.isNavigating}
+    />
   );
 });
 
@@ -179,10 +168,7 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
           name: "description",
           content: "Review canonical flight search results and search status in Andacity.",
         },
-        {
-          name: "robots",
-          content: "noindex,follow,max-image-preview:large",
-        },
+        { name: "robots", content: "noindex,follow,max-image-preview:large" },
       ],
     };
   }
