@@ -1,11 +1,23 @@
+/**
+ * CLAUDE-UI-018 — production car rentals landing page.
+ *
+ * Rewrites the presentation layer to use the `--ui-*` system via
+ * CarRentalsLanding while preserving ALL existing behavior:
+ *  - onGet canonical search redirect (search=1 + resolvable pickup location)
+ *  - useCarRentalsIndexPage loader (city items + featured rentals for JSON-LD)
+ *  - useCarRentalsSearchState loader (pickup location prefill from URL)
+ *  - head metadata (title, description, canonical, JSON-LD)
+ *
+ * CarRentalSearchCard inner styling stays as-is (shared with home/city pages);
+ * CarRentalsLanding supplies the --ui-* frame around it.
+ */
 import { component$ } from "@builder.io/qwik";
 import { routeLoader$ } from "@builder.io/qwik-city";
 import type { DocumentHead } from "@builder.io/qwik-city";
 import type { RequestHandler } from "@builder.io/qwik-city";
 import { useLocation } from "@builder.io/qwik-city";
-import { VerticalHeroSearchLayout } from "~/components/search/VerticalHeroSearchLayout";
+import { CarRentalsLanding } from "~/components/car-rentals/landing/CarRentalsLanding";
 import { CarRentalSearchCard } from "~/components/car-rentals/CarRentalSearchCard";
-import { SearchEmptyState } from "~/components/search/SearchEmptyState";
 import {
   loadCarRentalCitiesFromDb,
   loadFeaturedCarRentalsFromDb,
@@ -76,30 +88,20 @@ export const useCarRentalsSearchState = routeLoader$(async ({ url }) => {
 });
 
 export default component$(() => {
-  const { cityItems } = useCarRentalsIndexPage().value;
   const { pickupLocation } = useCarRentalsSearchState().value;
   const loc = useLocation();
 
   const q = String(loc.url.searchParams.get("q") || "").trim();
-  const pickupDate = String(
-    loc.url.searchParams.get("pickupDate") || "",
-  ).trim();
-  const dropoffDate = String(
-    loc.url.searchParams.get("dropoffDate") || "",
-  ).trim();
+  const pickupDate = String(loc.url.searchParams.get("pickupDate") || "").trim();
+  const dropoffDate = String(loc.url.searchParams.get("dropoffDate") || "").trim();
   const drivers = String(loc.url.searchParams.get("drivers") || "").trim();
 
   return (
-    <VerticalHeroSearchLayout
-      breadcrumbs={[{ label: "Home", href: "/" }, { label: "Car Rentals" }]}
-      eyebrow="Car Rentals"
-      title="Get the right car for where the trip takes you"
-      description="Search pickup locations, dates, and vehicle types so your plans stay flexible on the ground."
-      heroImageUrl="/images/hero/cars.svg"
-      heroOverlay="cars"
+    <CarRentalsLanding
       searchCard={
         <CarRentalSearchCard
           variant="hero"
+          surface="plain"
           destinationValue={pickupLocation?.displayName || q}
           initialPickupLocation={pickupLocation}
           pickupDate={pickupDate}
@@ -108,80 +110,7 @@ export default component$(() => {
           submitLabel="Search car rentals"
         />
       }
-      helperLinks={[
-        { label: "Las Vegas", href: "/car-rentals/in/las-vegas" },
-        { label: "Orlando", href: "/car-rentals/in/orlando" },
-        { label: "New York", href: "/car-rentals/in/new-york" },
-      ]}
-    >
-      <section class="mx-auto max-w-4xl">
-        <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-          Stay flexible on the ground
-        </h2>
-
-        <p class="mt-3 text-sm leading-6 text-[color:var(--color-text-muted)] md:text-base">
-          Find vehicles by location and timing so your trip doesn't depend on
-          rigid schedules.
-        </p>
-      </section>
-
-      <section class="mt-10">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-              Browse car rental cities
-            </h2>
-
-            <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-              City pages support rental discovery, itinerary planning, and
-              stronger internal linking across the Car Rentals vertical.
-            </p>
-          </div>
-
-          <a
-            class="t-btn-primary px-5 text-center"
-            href="/search/car-rentals/anywhere/1"
-          >
-            Search car rentals
-          </a>
-        </div>
-
-        {cityItems.length ? (
-          <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {cityItems.map((city) => (
-              <a
-                key={city.slug}
-                href={`/car-rentals/in/${city.slug}`}
-                class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-4 shadow-[var(--shadow-sm)] transition hover:-translate-y-px hover:shadow-[var(--shadow-md)]"
-              >
-                <div class="text-base font-medium text-[color:var(--color-text-strong)]">
-                  {city.name}
-                </div>
-
-                <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                  Browse car rentals in {city.name}
-                </div>
-              </a>
-            ))}
-          </div>
-        ) : (
-          <div class="mt-6">
-            <SearchEmptyState
-              title="No rental cities are available right now"
-              description="Try searching car rentals directly while city pages are refreshed."
-              primaryAction={{
-                label: "Search car rentals again",
-                href: "/car-rentals",
-              }}
-              secondaryAction={{
-                label: "Browse rental cities",
-                href: "/car-rentals/in",
-              }}
-            />
-          </div>
-        )}
-      </section>
-    </VerticalHeroSearchLayout>
+    />
   );
 });
 
@@ -189,7 +118,7 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
   const { featuredRentals } = resolveValue(useCarRentalsIndexPage);
   const title = "Car Rentals | Andacity Travel";
   const description =
-    "Browse indexable car rental guides with clear inclusions and policy summaries. Search pages stay noindex; detail pages earn rankings.";
+    "Search car rentals by pickup location and dates. Compare vehicles by class, seats, and luggage space — taxes and fees included in every total.";
 
   const canonicalHref = new URL("/car-rentals", url.origin).href;
 
