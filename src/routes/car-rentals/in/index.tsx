@@ -27,7 +27,7 @@ export default component$(() => {
             Car rental cities
           </h1>
           <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-            Indexable city guides that link into noindex search results. This is your scalable SEO layer.
+            Browse car rental city guides by destination.
           </p>
         </div>
 
@@ -80,7 +80,7 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
   const { items } = resolveValue(useCarRentalCitiesPage)
   const title = 'Car rental cities | Andacity Travel'
   const description =
-    'Browse indexable car rental city guides. City pages link into noindex search results; detail pages earn rankings.'
+    'Browse car rental city guides by destination. Compare vehicles and rates in popular cities before you book.'
 
   const canonicalHref = new URL('/car-rentals/in', url.origin).href
 

@@ -474,7 +474,7 @@ export default component$(() => {
               { label: "Country", value: city.country || "—" },
               { label: "Rentals available", value: data.totalCount > 0 ? String(data.totalCount) : "Search to see" },
               { label: "Pickup types", value: "Airport & city desk" },
-              { label: "Cancellation", value: "Free on most bookings" },
+              { label: "Cancellation", value: "Terms shown before booking" },
             ].map((fact) => (
               <div
                 key={fact.label}

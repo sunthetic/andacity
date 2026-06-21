@@ -165,7 +165,7 @@ const VIBE_ITEMS: ThemeOption[] = [
       'Start with mountain-friendly routes and continue into stay and transport planning.',
     popularTitle: 'Popular destinations for mountain getaways',
     popularDescription:
-      'Prioritizing cities that pair well with short mountain escapes and flexible planning.',
+      'Cities with good mountain access and flexible trip options.',
     destinationSlugs: ['denver', 'san-diego', 'las-vegas'],
     nextSteps: [
       {
@@ -199,7 +199,7 @@ const VIBE_ITEMS: ThemeOption[] = [
     label: 'Weekend cities',
     contextBanner: 'Showing weekend-city trip ideas',
     nextStepsIntro:
-      'Use city-break routes with low-friction flight, stay, and local mobility options.',
+      'Jump directly into flights, stays, and car rentals for your city break.',
     popularTitle: 'Popular destinations for weekend city breaks',
     popularDescription:
       'These cities pair well with short lead times and flexible departure windows.',
@@ -207,7 +207,7 @@ const VIBE_ITEMS: ThemeOption[] = [
     nextSteps: [
       {
         title: 'Flights to New York',
-        description: 'Check high-frequency routes for fast-turn city travel.',
+        description: 'Find routes that work for quick city trips.',
         href: buildFlightsToHref('New York'),
         cta: 'Search flights',
       },
@@ -236,9 +236,9 @@ const VIBE_ITEMS: ThemeOption[] = [
     label: 'Warm weather',
     contextBanner: 'Showing warm-weather trip ideas',
     nextStepsIntro:
-      'Start from sunny-weather intent, then branch into destination-specific booking surfaces.',
+      'Browse flights, stays, and car rentals for warm-weather destinations.',
     popularTitle: 'Popular destinations for warm-weather trips',
-    popularDescription: 'Prioritizing destinations that support beach or mild-climate planning.',
+    popularDescription: 'Destinations with beach access and mild-climate options.',
     destinationSlugs: ['honolulu', 'miami', 'san-diego'],
     nextSteps: [
       {
@@ -275,7 +275,7 @@ const VIBE_ITEMS: ThemeOption[] = [
       'Shift from premium inspiration into practical booking paths with city and route context.',
     popularTitle: 'Popular destinations for luxury stays',
     popularDescription:
-      'Starting with destinations that support upscale inventory and premium trip pacing.',
+      'Destinations with a range of upscale stay options and flexible pacing.',
     destinationSlugs: ['miami', 'honolulu', 'new-york'],
     nextSteps: [
       {
@@ -309,7 +309,7 @@ const VIBE_ITEMS: ThemeOption[] = [
     label: 'Budget trips',
     contextBanner: 'Showing budget-oriented trip ideas',
     nextStepsIntro:
-      'Move from price-sensitive inspiration into low-friction booking surfaces by vertical.',
+      'Browse flights, stays, and car rentals with budget-friendly options front and center.',
     popularTitle: 'Popular destinations for budget trips',
     popularDescription:
       'These destinations typically support wider price spread and short-trip flexibility.',
@@ -349,7 +349,7 @@ const VIBE_ITEMS: ThemeOption[] = [
       'Start with family-friendly planning and move directly into bookable routes and stays.',
     popularTitle: 'Popular destinations for family travel',
     popularDescription:
-      'Destinations below are prioritized for practical family logistics and flexibility.',
+      'Destinations with family-friendly access and practical lodging variety.',
     destinationSlugs: ['san-diego', 'miami', 'honolulu'],
     nextSteps: [
       {
@@ -383,7 +383,7 @@ const VIBE_ITEMS: ThemeOption[] = [
     label: 'Solo escapes',
     contextBanner: 'Showing solo-travel trip ideas',
     nextStepsIntro:
-      'Move from solo-travel inspiration into clear booking paths with minimal friction.',
+      'Browse flights, stays, and car rentals tailored for solo travel.',
     popularTitle: 'Popular destinations for solo escapes',
     popularDescription:
       'These destinations combine easy access, broad lodging options, and flexible mobility.',
@@ -391,7 +391,7 @@ const VIBE_ITEMS: ThemeOption[] = [
     nextSteps: [
       {
         title: 'Flights to New York',
-        description: 'Search high-frequency routes that work for short notice solo trips.',
+        description: 'Find routes that work for last-minute solo trips.',
         href: buildFlightsToHref('New York'),
         cta: 'Search flights',
       },
@@ -426,9 +426,9 @@ const FLEX_IDEAS: IdeaOption[] = [
     description: 'Find sunny destinations when late-winter weather is still holding on at home.',
     contextBanner: 'Showing ideas for warm places in March',
     nextStepsIntro:
-      'Use this warm-weather idea to move directly into route, stay, and mobility planning.',
+      'Browse warm-weather destinations with flights, stays, and car rentals ready to compare.',
     popularTitle: 'Destinations for warm places in March',
-    popularDescription: 'Prioritizing mild and sunny destinations for late-winter travel windows.',
+    popularDescription: 'Mild and sunny destinations for late-winter and early-spring travel.',
     destinationSlugs: ['miami', 'san-diego', 'honolulu'],
     nextSteps: [
       {
@@ -463,7 +463,7 @@ const FLEX_IDEAS: IdeaOption[] = [
     description: 'Compare short getaways with lower total trip cost and easy timing windows.',
     contextBanner: 'Showing ideas for cheap long weekends',
     nextStepsIntro:
-      'Focus on short-trip value by jumping straight into budget-aware booking surfaces.',
+      'Compare flights, stays, and car rentals for a short trip without stretching the budget.',
     popularTitle: 'Destinations for cheap long weekends',
     popularDescription:
       'Cities below are good first stops when balancing cost, schedule, and flexibility.',
@@ -501,7 +501,7 @@ const FLEX_IDEAS: IdeaOption[] = [
     description: 'Plan route-first escapes with beach towns, viewpoints, and flexible stops.',
     contextBanner: 'Showing ideas for scenic coastal drives',
     nextStepsIntro:
-      'Start with coastal-route intent, then move into flights, hotels, and rental planning.',
+      'Find scenic coastal destinations and compare flights, hotels, and rental cars.',
     popularTitle: 'Destinations for scenic coastal drives',
     popularDescription:
       'These destinations support shoreline itineraries with flexible ground travel.',
@@ -536,10 +536,10 @@ const FLEX_IDEAS: IdeaOption[] = [
   {
     key: 'city-breaks-with-easy-flights',
     title: 'City breaks with easy flights',
-    description: 'Prioritize destinations with frequent air service and low-friction arrivals.',
+    description: 'Look for destinations with frequent flights and easy airport access.',
     contextBanner: 'Showing ideas for city breaks with easy flights',
     nextStepsIntro:
-      'Use high-frequency routes as the entry point, then narrow to stays and local mobility.',
+      'Start with easy-access flights, then compare stays and car rentals.',
     popularTitle: 'Destinations for city breaks with easy flights',
     popularDescription:
       'These cities work well when air access and quick planning are the priorities.',
@@ -547,13 +547,13 @@ const FLEX_IDEAS: IdeaOption[] = [
     nextSteps: [
       {
         title: 'Flights to New York',
-        description: 'Start with high-frequency routes for short city windows.',
+        description: 'Start with routes that work for quick city trips.',
         href: buildFlightsToHref('New York'),
         cta: 'Search flights',
       },
       {
         title: 'Flights to Las Vegas',
-        description: 'Compare nonstop-heavy options for low-friction arrivals.',
+        description: 'Compare nonstop options for simpler arrivals.',
         href: buildFlightsToHref('Las Vegas'),
         cta: 'Search flights',
       },
@@ -580,7 +580,7 @@ const FLEX_IDEAS: IdeaOption[] = [
       'Plan beach trips with mobility first so destination and stay choices stay flexible.',
     popularTitle: 'Destinations for beach trips with rental flexibility',
     popularDescription:
-      'Prioritizing destinations where shoreline plans benefit from flexible car access.',
+      'Destinations where beach itineraries work well with a rental car.',
     destinationSlugs: ['miami', 'san-diego', 'honolulu'],
     nextSteps: [
       {
@@ -617,7 +617,7 @@ const FLEX_IDEAS: IdeaOption[] = [
     nextStepsIntro:
       'Keep lead times short by moving from mountain inspiration to direct booking paths.',
     popularTitle: 'Destinations for quick mountain escapes',
-    popularDescription: 'Prioritizing cities that support fast mountain-adjacent planning.',
+    popularDescription: 'Cities with quick mountain access and easy trip planning.',
     destinationSlugs: ['denver', 'las-vegas', 'san-diego'],
     nextSteps: [
       {
@@ -819,7 +819,7 @@ const deriveExploreContext = (
   return {
     bannerText: null,
     nextStepsIntro:
-      'Start with one vertical, then expand into hotels, flights, and rentals as your plan takes shape.',
+      'Start with one travel type, then expand into hotels, flights, and rentals as your plan takes shape.',
     nextSteps: DEFAULT_NEXT_STEPS,
     destinationPriority: [],
     popularTitle: 'Popular destinations',

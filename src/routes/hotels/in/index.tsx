@@ -26,7 +26,7 @@ export default component$(() => {
             Hotel destinations by city
           </h1>
           <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-            Browse city guides. Indexable city guides that link into noindex search results. This is your scalable SEO layer.
+            Browse hotel city guides by destination.
           </p>
         </div>
 
@@ -89,7 +89,7 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
   const { items } = resolveValue(useHotelCitiesPage)
   const title = 'Hotel Destinations | Andacity Travel'
   const description =
-    'Browse indexable hotel city guides. Each city page links into noindex hotel search results while earning rankings.'
+    'Browse hotel city guides by destination. Find hotels in popular cities and compare rates before you book.'
 
   // New canonical for the city index
   const canonicalHref = new URL('/hotels/in', url.origin).href
