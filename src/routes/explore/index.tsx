@@ -1,17 +1,22 @@
+/**
+ * CLAUDE-UI-022 — Production Explore page implementation.
+ *
+ * Approved direction from CLAUDE-UI-021 sample:
+ * - Cinematic discovery hero (--ui-hero gradient, no image file)
+ * - Sticky mood/theme filter bar (8 chips, replaces vibe-card grid)
+ * - Editorial idea cards with --ui-hero gradient header bands
+ * - Destination cards with city name overlaid on gradient header
+ * - Guided mode: next steps promoted above the grid
+ * - Default mode: next steps at bottom
+ * - Whole-trip handoff panel at the bottom
+ * - All filter URLs target /explore?theme=<key> etc.
+ */
 import { component$ } from '@builder.io/qwik'
 import { useLocation } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
-import { ExplorePresetChips } from '~/components/explore/ExplorePresetChips'
-import { HeroBackground } from '~/components/hero/HeroBackground'
-import { Page } from '~/components/site/Page'
 import { buildFlightsSearchPath, slugifyLocation } from '~/lib/search/flights/routing'
-import type {
-  ExploreCarPresets,
-  ExploreDateHints,
-  ExploreHotelPresets,
-  ExploreIntent,
-  ExploreTravelStyle,
-} from '~/types/explore/intent'
+
+// ─── types ───────────────────────────────────────────────────────────────────
 
 type ThemeKey =
   | 'beach'
@@ -88,249 +93,42 @@ type ExploreContext = {
   popularDescription: string
 }
 
-type ExploreHeroOverlayVariant =
-  | 'explore-default'
-  | 'explore-guided'
-  | 'explore-beach'
-  | 'explore-mountains'
-  | 'explore-weekend-cities'
-  | 'explore-warm-weather'
-  | 'explore-luxury'
-  | 'explore-budget'
-  | 'explore-family'
-  | 'explore-solo'
-
-const EXPLORE_BASE_HERO_IMAGE_URL = '/images/hero/explore.svg'
-
-const EXPLORE_THEME_OVERLAY_MAP: Record<ThemeKey, ExploreHeroOverlayVariant> = {
-  beach: 'explore-beach',
-  mountains: 'explore-mountains',
-  'weekend-cities': 'explore-weekend-cities',
-  'warm-weather': 'explore-warm-weather',
-  luxury: 'explore-luxury',
-  budget: 'explore-budget',
-  family: 'explore-family',
-  solo: 'explore-solo',
-}
-
-const EXPLORE_IDEA_OVERLAY_MAP: Record<IdeaKey, ExploreHeroOverlayVariant> = {
-  'warm-places-in-march': 'explore-warm-weather',
-  'cheap-long-weekends': 'explore-budget',
-  'scenic-coastal-drives': 'explore-beach',
-  'city-breaks-with-easy-flights': 'explore-weekend-cities',
-  'beach-trips-with-rental-flexibility': 'explore-beach',
-  'quick-mountain-escapes': 'explore-mountains',
-}
+// ─── url helpers ─────────────────────────────────────────────────────────────
 
 const buildFlightsToHref = (to: string) => {
   const toSlug = slugifyLocation(to) || 'anywhere'
   return buildFlightsSearchPath('anywhere', toSlug, 'round-trip', 1)
 }
-const buildHotelsDestinationHref = (destination: string) => `/hotels?destination=${encodeURIComponent(destination)}`
-const buildCarRentalsDestinationHref = (destination: string) => `/car-rentals?q=${encodeURIComponent(destination)}`
+const buildHotelsDestinationHref = (destination: string) =>
+  `/hotels?destination=${encodeURIComponent(destination)}`
+const buildCarRentalsDestinationHref = (destination: string) =>
+  `/car-rentals?q=${encodeURIComponent(destination)}`
 
-const DESTINATION_CITY_LABELS: Record<DestinationKey, string> = {
-  miami: 'Miami',
-  'las-vegas': 'Las Vegas',
-  'san-diego': 'San Diego',
-  'new-york': 'New York',
-  denver: 'Denver',
-  honolulu: 'Honolulu',
+const buildExploreHref = (params: {
+  theme?: ThemeKey | null
+  idea?: IdeaKey | null
+  destination?: DestinationKey | null
+}) => {
+  const sp = new URLSearchParams()
+  if (params.theme) sp.set('theme', params.theme)
+  if (params.idea) sp.set('idea', params.idea)
+  if (params.destination) sp.set('destination', params.destination)
+  const q = sp.toString()
+  return q ? `/explore?${q}` : '/explore'
 }
 
-const THEME_TRAVEL_STYLE_MAP: Record<ThemeKey, ExploreTravelStyle[]> = {
-  beach: ['beach'],
-  mountains: ['adventure'],
-  'weekend-cities': ['urban'],
-  'warm-weather': ['beach', 'wellness'],
-  luxury: ['luxury'],
-  budget: ['budget'],
-  family: ['family'],
-  solo: ['urban', 'adventure'],
-}
-
-const THEME_HOTEL_PRESET_MAP: Partial<Record<ThemeKey, ExploreHotelPresets>> = {
-  beach: {
-    amenities: ['pool', 'beachfront'],
-    propertyTypes: ['resort'],
-    priceTier: 'upscale',
-  },
-  mountains: {
-    amenities: ['parking'],
-    propertyTypes: ['lodge', 'hotel'],
-    priceTier: 'mid',
-  },
-  'weekend-cities': {
-    neighborhoods: ['downtown', 'city center'],
-    propertyTypes: ['hotel'],
-    priceTier: 'mid',
-  },
-  'warm-weather': {
-    amenities: ['pool'],
-    priceTier: 'mid',
-  },
-  luxury: {
-    starRatingMin: 5,
-    amenities: ['spa', 'pool'],
-    priceTier: 'luxury',
-  },
-  budget: {
-    starRatingMin: 3,
-    priceTier: 'budget',
-  },
-  family: {
-    amenities: ['pool', 'family rooms'],
-    propertyTypes: ['resort', 'aparthotel'],
-    priceTier: 'mid',
-  },
-  solo: {
-    amenities: ['wifi'],
-    priceTier: 'mid',
-  },
-}
-
-const THEME_CAR_PRESET_MAP: Partial<Record<ThemeKey, ExploreCarPresets>> = {
-  beach: { vehicleClasses: ['convertible', 'suv'], pickupType: 'airport' },
-  mountains: { vehicleClasses: ['suv'], pickupType: 'airport' },
-  'weekend-cities': { vehicleClasses: ['compact'], pickupType: 'city' },
-  'warm-weather': { vehicleClasses: ['suv'], pickupType: 'airport' },
-  luxury: { vehicleClasses: ['luxury', 'convertible'], pickupType: 'airport' },
-  budget: { vehicleClasses: ['economy', 'compact'], pickupType: 'city' },
-  family: { vehicleClasses: ['suv', 'minivan'], pickupType: 'airport' },
-  solo: { vehicleClasses: ['compact'], pickupType: 'city' },
-}
-
-const THEME_DATE_HINT_MAP: Partial<Record<ThemeKey, ExploreDateHints>> = {
-  beach: { season: 'summer', tripLengthDays: 5 },
-  mountains: { season: 'fall', tripLengthDays: 4 },
-  'weekend-cities': { weekendFriendly: true, tripLengthDays: 3 },
-  'warm-weather': { season: 'spring', tripLengthDays: 4 },
-  luxury: { season: 'winter', tripLengthDays: 5 },
-  budget: { weekendFriendly: true, tripLengthDays: 3 },
-  family: { season: 'summer', tripLengthDays: 6 },
-  solo: { season: 'spring', weekendFriendly: true, tripLengthDays: 3 },
-}
-
-const THEME_ACCENT_MAP: Record<ThemeKey, string> = {
-  beach: 'amber',
-  mountains: 'cobalt',
-  'weekend-cities': 'slate',
-  'warm-weather': 'sun',
-  luxury: 'orchid',
-  budget: 'mint',
-  family: 'sea',
-  solo: 'steel',
-}
-
-const IDEA_TRAVEL_STYLE_MAP: Record<IdeaKey, ExploreTravelStyle[]> = {
-  'warm-places-in-march': ['beach', 'wellness'],
-  'cheap-long-weekends': ['budget', 'urban'],
-  'scenic-coastal-drives': ['adventure', 'beach'],
-  'city-breaks-with-easy-flights': ['urban', 'business'],
-  'beach-trips-with-rental-flexibility': ['beach', 'adventure'],
-  'quick-mountain-escapes': ['adventure'],
-}
-
-const IDEA_HOTEL_PRESET_MAP: Partial<Record<IdeaKey, ExploreHotelPresets>> = {
-  'warm-places-in-march': {
-    amenities: ['pool', 'beachfront'],
-    priceTier: 'mid',
-  },
-  'cheap-long-weekends': {
-    starRatingMin: 3,
-    priceTier: 'budget',
-  },
-  'scenic-coastal-drives': {
-    amenities: ['parking'],
-    propertyTypes: ['hotel', 'motel'],
-  },
-  'city-breaks-with-easy-flights': {
-    neighborhoods: ['downtown'],
-    propertyTypes: ['hotel'],
-    priceTier: 'mid',
-  },
-  'beach-trips-with-rental-flexibility': {
-    amenities: ['pool'],
-    propertyTypes: ['resort'],
-  },
-  'quick-mountain-escapes': {
-    propertyTypes: ['lodge', 'hotel'],
-    amenities: ['parking'],
-    priceTier: 'mid',
-  },
-}
-
-const IDEA_CAR_PRESET_MAP: Partial<Record<IdeaKey, ExploreCarPresets>> = {
-  'warm-places-in-march': { vehicleClasses: ['compact', 'suv'], pickupType: 'airport' },
-  'cheap-long-weekends': { vehicleClasses: ['economy', 'compact'], pickupType: 'city' },
-  'scenic-coastal-drives': { vehicleClasses: ['convertible', 'suv'], pickupType: 'city' },
-  'city-breaks-with-easy-flights': { vehicleClasses: ['compact'], pickupType: 'airport' },
-  'beach-trips-with-rental-flexibility': { vehicleClasses: ['suv', 'convertible'], pickupType: 'airport' },
-  'quick-mountain-escapes': { vehicleClasses: ['suv'], pickupType: 'airport' },
-}
-
-const IDEA_DATE_HINT_MAP: Partial<Record<IdeaKey, ExploreDateHints>> = {
-  'warm-places-in-march': { season: 'spring', tripLengthDays: 5 },
-  'cheap-long-weekends': { weekendFriendly: true, tripLengthDays: 3 },
-  'scenic-coastal-drives': { weekendFriendly: true, tripLengthDays: 5 },
-  'city-breaks-with-easy-flights': { weekendFriendly: true, tripLengthDays: 3 },
-  'beach-trips-with-rental-flexibility': { season: 'summer', tripLengthDays: 5 },
-  'quick-mountain-escapes': { season: 'fall', weekendFriendly: true, tripLengthDays: 3 },
-}
-
-const IDEA_ACCENT_MAP: Record<IdeaKey, string> = {
-  'warm-places-in-march': 'sun',
-  'cheap-long-weekends': 'mint',
-  'scenic-coastal-drives': 'amber',
-  'city-breaks-with-easy-flights': 'slate',
-  'beach-trips-with-rental-flexibility': 'teal',
-  'quick-mountain-escapes': 'cobalt',
-}
-
-const DESTINATION_TRAVEL_STYLE_MAP: Record<DestinationKey, ExploreTravelStyle[]> = {
-  miami: ['beach', 'nightlife'],
-  'las-vegas': ['nightlife', 'urban'],
-  'san-diego': ['beach', 'family'],
-  'new-york': ['urban', 'business'],
-  denver: ['adventure'],
-  honolulu: ['beach', 'wellness'],
-}
-
-const DESTINATION_HOTEL_PRESET_MAP: Partial<Record<DestinationKey, ExploreHotelPresets>> = {
-  miami: { amenities: ['pool'], propertyTypes: ['resort'], priceTier: 'upscale' },
-  'las-vegas': { starRatingMin: 4, propertyTypes: ['hotel'], priceTier: 'mid' },
-  'san-diego': { amenities: ['pool'], propertyTypes: ['hotel'], priceTier: 'mid' },
-  'new-york': { neighborhoods: ['manhattan'], propertyTypes: ['hotel'], priceTier: 'upscale' },
-  denver: { amenities: ['parking'], propertyTypes: ['hotel'], priceTier: 'mid' },
-  honolulu: { amenities: ['pool', 'beachfront'], propertyTypes: ['resort'], priceTier: 'upscale' },
-}
-
-const DESTINATION_CAR_PRESET_MAP: Partial<Record<DestinationKey, ExploreCarPresets>> = {
-  miami: { vehicleClasses: ['suv', 'convertible'], pickupType: 'airport' },
-  'las-vegas': { vehicleClasses: ['compact', 'suv'], pickupType: 'airport' },
-  'san-diego': { vehicleClasses: ['compact', 'suv'], pickupType: 'city' },
-  'new-york': { vehicleClasses: ['compact'], pickupType: 'city' },
-  denver: { vehicleClasses: ['suv'], pickupType: 'airport' },
-  honolulu: { vehicleClasses: ['compact', 'suv'], pickupType: 'airport' },
-}
-
-const DESTINATION_ACCENT_MAP: Record<DestinationKey, string> = {
-  miami: 'amber',
-  'las-vegas': 'neon',
-  'san-diego': 'teal',
-  'new-york': 'slate',
-  denver: 'cobalt',
-  honolulu: 'sun',
-}
+// ─── themes (8) ──────────────────────────────────────────────────────────────
 
 const VIBE_ITEMS: ThemeOption[] = [
   {
     key: 'beach',
     label: 'Beach escapes',
     contextBanner: 'Showing beach-inspired trip ideas',
-    nextStepsIntro: 'Take this beach theme into real booking paths across flights, stays, and car rentals.',
+    nextStepsIntro:
+      'Take this beach theme into real booking paths across flights, stays, and car rentals.',
     popularTitle: 'Popular destinations for beach escapes',
-    popularDescription: 'Start with beach-forward cities, then move directly into flights, hotels, and car rentals.',
+    popularDescription:
+      'Start with beach-forward cities, then move directly into flights, hotels, and car rentals.',
     destinationSlugs: ['miami', 'san-diego', 'honolulu'],
     nextSteps: [
       {
@@ -357,21 +155,17 @@ const VIBE_ITEMS: ThemeOption[] = [
         href: buildHotelsDestinationHref('Honolulu'),
         cta: 'View hotels',
       },
-      {
-        title: 'Car rentals in Miami',
-        description: 'Add flexible ground travel for beach neighborhoods and day trips.',
-        href: buildCarRentalsDestinationHref('Miami'),
-        cta: 'Explore car rentals',
-      },
     ],
   },
   {
     key: 'mountains',
     label: 'Mountain getaways',
     contextBanner: 'Showing mountain-inspired trip ideas',
-    nextStepsIntro: 'Start with mountain-friendly routes and continue into stay and transport planning.',
+    nextStepsIntro:
+      'Start with mountain-friendly routes and continue into stay and transport planning.',
     popularTitle: 'Popular destinations for mountain getaways',
-    popularDescription: 'Prioritizing cities that pair well with short mountain escapes and flexible planning.',
+    popularDescription:
+      'Prioritizing cities that pair well with short mountain escapes and flexible planning.',
     destinationSlugs: ['denver', 'san-diego', 'las-vegas'],
     nextSteps: [
       {
@@ -404,9 +198,11 @@ const VIBE_ITEMS: ThemeOption[] = [
     key: 'weekend-cities',
     label: 'Weekend cities',
     contextBanner: 'Showing weekend-city trip ideas',
-    nextStepsIntro: 'Use city-break routes with low-friction flight, stay, and local mobility options.',
+    nextStepsIntro:
+      'Use city-break routes with low-friction flight, stay, and local mobility options.',
     popularTitle: 'Popular destinations for weekend city breaks',
-    popularDescription: 'These cities pair well with short lead times and flexible departure windows.',
+    popularDescription:
+      'These cities pair well with short lead times and flexible departure windows.',
     destinationSlugs: ['new-york', 'las-vegas', 'miami'],
     nextSteps: [
       {
@@ -439,7 +235,8 @@ const VIBE_ITEMS: ThemeOption[] = [
     key: 'warm-weather',
     label: 'Warm weather',
     contextBanner: 'Showing warm-weather trip ideas',
-    nextStepsIntro: 'Start from sunny-weather intent, then branch into destination-specific booking surfaces.',
+    nextStepsIntro:
+      'Start from sunny-weather intent, then branch into destination-specific booking surfaces.',
     popularTitle: 'Popular destinations for warm-weather trips',
     popularDescription: 'Prioritizing destinations that support beach or mild-climate planning.',
     destinationSlugs: ['honolulu', 'miami', 'san-diego'],
@@ -474,9 +271,11 @@ const VIBE_ITEMS: ThemeOption[] = [
     key: 'luxury',
     label: 'Luxury stays',
     contextBanner: 'Showing luxury-focused trip ideas',
-    nextStepsIntro: 'Shift from premium inspiration into practical booking paths with city and route context.',
+    nextStepsIntro:
+      'Shift from premium inspiration into practical booking paths with city and route context.',
     popularTitle: 'Popular destinations for luxury stays',
-    popularDescription: 'Starting with destinations that support upscale inventory and premium trip pacing.',
+    popularDescription:
+      'Starting with destinations that support upscale inventory and premium trip pacing.',
     destinationSlugs: ['miami', 'honolulu', 'new-york'],
     nextSteps: [
       {
@@ -509,9 +308,11 @@ const VIBE_ITEMS: ThemeOption[] = [
     key: 'budget',
     label: 'Budget trips',
     contextBanner: 'Showing budget-oriented trip ideas',
-    nextStepsIntro: 'Move from price-sensitive inspiration into low-friction booking surfaces by vertical.',
+    nextStepsIntro:
+      'Move from price-sensitive inspiration into low-friction booking surfaces by vertical.',
     popularTitle: 'Popular destinations for budget trips',
-    popularDescription: 'These destinations typically support wider price spread and short-trip flexibility.',
+    popularDescription:
+      'These destinations typically support wider price spread and short-trip flexibility.',
     destinationSlugs: ['las-vegas', 'denver', 'miami'],
     nextSteps: [
       {
@@ -544,9 +345,11 @@ const VIBE_ITEMS: ThemeOption[] = [
     key: 'family',
     label: 'Family travel',
     contextBanner: 'Showing family-focused trip ideas',
-    nextStepsIntro: 'Start with family-friendly planning and move directly into bookable routes and stays.',
+    nextStepsIntro:
+      'Start with family-friendly planning and move directly into bookable routes and stays.',
     popularTitle: 'Popular destinations for family travel',
-    popularDescription: 'Destinations below are prioritized for practical family logistics and flexibility.',
+    popularDescription:
+      'Destinations below are prioritized for practical family logistics and flexibility.',
     destinationSlugs: ['san-diego', 'miami', 'honolulu'],
     nextSteps: [
       {
@@ -579,9 +382,11 @@ const VIBE_ITEMS: ThemeOption[] = [
     key: 'solo',
     label: 'Solo escapes',
     contextBanner: 'Showing solo-travel trip ideas',
-    nextStepsIntro: 'Move from solo-travel inspiration into clear booking paths with minimal friction.',
+    nextStepsIntro:
+      'Move from solo-travel inspiration into clear booking paths with minimal friction.',
     popularTitle: 'Popular destinations for solo escapes',
-    popularDescription: 'These destinations combine easy access, broad lodging options, and flexible mobility.',
+    popularDescription:
+      'These destinations combine easy access, broad lodging options, and flexible mobility.',
     destinationSlugs: ['new-york', 'miami', 'san-diego'],
     nextSteps: [
       {
@@ -612,13 +417,16 @@ const VIBE_ITEMS: ThemeOption[] = [
   },
 ]
 
+// ─── ideas (6) ───────────────────────────────────────────────────────────────
+
 const FLEX_IDEAS: IdeaOption[] = [
   {
     key: 'warm-places-in-march',
     title: 'Warm places in March',
     description: 'Find sunny destinations when late-winter weather is still holding on at home.',
     contextBanner: 'Showing ideas for warm places in March',
-    nextStepsIntro: 'Use this warm-weather idea to move directly into route, stay, and mobility planning.',
+    nextStepsIntro:
+      'Use this warm-weather idea to move directly into route, stay, and mobility planning.',
     popularTitle: 'Destinations for warm places in March',
     popularDescription: 'Prioritizing mild and sunny destinations for late-winter travel windows.',
     destinationSlugs: ['miami', 'san-diego', 'honolulu'],
@@ -654,9 +462,11 @@ const FLEX_IDEAS: IdeaOption[] = [
     title: 'Cheap long weekends',
     description: 'Compare short getaways with lower total trip cost and easy timing windows.',
     contextBanner: 'Showing ideas for cheap long weekends',
-    nextStepsIntro: 'Focus on short-trip value by jumping straight into budget-aware booking surfaces.',
+    nextStepsIntro:
+      'Focus on short-trip value by jumping straight into budget-aware booking surfaces.',
     popularTitle: 'Destinations for cheap long weekends',
-    popularDescription: 'Cities below are good first stops when balancing cost, schedule, and flexibility.',
+    popularDescription:
+      'Cities below are good first stops when balancing cost, schedule, and flexibility.',
     destinationSlugs: ['las-vegas', 'denver', 'new-york'],
     nextSteps: [
       {
@@ -690,9 +500,11 @@ const FLEX_IDEAS: IdeaOption[] = [
     title: 'Scenic coastal drives',
     description: 'Plan route-first escapes with beach towns, viewpoints, and flexible stops.',
     contextBanner: 'Showing ideas for scenic coastal drives',
-    nextStepsIntro: 'Start with coastal-route intent, then move into flights, hotels, and rental planning.',
+    nextStepsIntro:
+      'Start with coastal-route intent, then move into flights, hotels, and rental planning.',
     popularTitle: 'Destinations for scenic coastal drives',
-    popularDescription: 'These destinations support shoreline itineraries with flexible ground travel.',
+    popularDescription:
+      'These destinations support shoreline itineraries with flexible ground travel.',
     destinationSlugs: ['san-diego', 'miami', 'honolulu'],
     nextSteps: [
       {
@@ -726,9 +538,11 @@ const FLEX_IDEAS: IdeaOption[] = [
     title: 'City breaks with easy flights',
     description: 'Prioritize destinations with frequent air service and low-friction arrivals.',
     contextBanner: 'Showing ideas for city breaks with easy flights',
-    nextStepsIntro: 'Use high-frequency routes as the entry point, then narrow to stays and local mobility.',
+    nextStepsIntro:
+      'Use high-frequency routes as the entry point, then narrow to stays and local mobility.',
     popularTitle: 'Destinations for city breaks with easy flights',
-    popularDescription: 'These cities work well when air access and quick planning are the priorities.',
+    popularDescription:
+      'These cities work well when air access and quick planning are the priorities.',
     destinationSlugs: ['new-york', 'las-vegas', 'miami'],
     nextSteps: [
       {
@@ -762,9 +576,11 @@ const FLEX_IDEAS: IdeaOption[] = [
     title: 'Beach trips with rental flexibility',
     description: 'Pair shoreline stays with pickup-friendly car options for more freedom.',
     contextBanner: 'Showing ideas for beach trips with rental flexibility',
-    nextStepsIntro: 'Plan beach trips with mobility first so destination and stay choices stay flexible.',
+    nextStepsIntro:
+      'Plan beach trips with mobility first so destination and stay choices stay flexible.',
     popularTitle: 'Destinations for beach trips with rental flexibility',
-    popularDescription: 'Prioritizing destinations where shoreline plans benefit from flexible car access.',
+    popularDescription:
+      'Prioritizing destinations where shoreline plans benefit from flexible car access.',
     destinationSlugs: ['miami', 'san-diego', 'honolulu'],
     nextSteps: [
       {
@@ -798,7 +614,8 @@ const FLEX_IDEAS: IdeaOption[] = [
     title: 'Quick mountain escapes',
     description: 'Browse high-altitude weekend options with shorter planning lead times.',
     contextBanner: 'Showing ideas for quick mountain escapes',
-    nextStepsIntro: 'Keep lead times short by moving from mountain inspiration to direct booking paths.',
+    nextStepsIntro:
+      'Keep lead times short by moving from mountain inspiration to direct booking paths.',
     popularTitle: 'Destinations for quick mountain escapes',
     popularDescription: 'Prioritizing cities that support fast mountain-adjacent planning.',
     destinationSlugs: ['denver', 'las-vegas', 'san-diego'],
@@ -830,6 +647,8 @@ const FLEX_IDEAS: IdeaOption[] = [
     ],
   },
 ]
+
+// ─── destinations (6) ────────────────────────────────────────────────────────
 
 const POPULAR_DESTINATIONS: DestinationOption[] = [
   {
@@ -894,6 +713,8 @@ const POPULAR_DESTINATIONS: DestinationOption[] = [
   },
 ]
 
+// ─── default next steps (no active filter) ───────────────────────────────────
+
 const DEFAULT_NEXT_STEPS: ExploreStep[] = [
   {
     title: 'Start with Flights',
@@ -921,136 +742,43 @@ const DEFAULT_NEXT_STEPS: ExploreStep[] = [
   },
 ]
 
-const findThemeByKey = (key: string): ThemeOption | null => {
-  return VIBE_ITEMS.find((theme) => theme.key === key) || null
-}
+// ─── context helpers ──────────────────────────────────────────────────────────
 
-const findIdeaByKey = (key: string): IdeaOption | null => {
-  return FLEX_IDEAS.find((idea) => idea.key === key) || null
-}
+const findThemeByKey = (key: string): ThemeOption | null =>
+  VIBE_ITEMS.find((theme) => theme.key === key) || null
 
-const findDestinationByKey = (key: string): DestinationOption | null => {
-  return POPULAR_DESTINATIONS.find((destination) => destination.key === key) || null
-}
+const findIdeaByKey = (key: string): IdeaOption | null =>
+  FLEX_IDEAS.find((idea) => idea.key === key) || null
 
-const buildExploreHref = (params: {
-  theme?: ThemeKey | null
-  idea?: IdeaKey | null
-  destination?: DestinationKey | null
-}) => {
-  const sp = new URLSearchParams()
-  if (params.theme) sp.set('theme', params.theme)
-  if (params.idea) sp.set('idea', params.idea)
-  if (params.destination) sp.set('destination', params.destination)
-  const q = sp.toString()
-  return q ? `/explore?${q}` : '/explore'
-}
+const findDestinationByKey = (key: string): DestinationOption | null =>
+  POPULAR_DESTINATIONS.find((destination) => destination.key === key) || null
 
-const buildDestinationSteps = (destination: DestinationOption): ExploreStep[] => {
-  return [
-    {
-      title: `Flights to ${destination.name}`,
-      description: `Search air routes that fit ${destination.name} timing and trip flexibility.`,
-      href: destination.flightLink.href,
-      cta: 'Search flights',
-    },
-    {
-      title: `${destination.name} hotels`,
-      description: `Browse accommodation paths for ${destination.name} before fixing dates.`,
-      href: destination.hotelLink.href,
-      cta: 'Browse hotels',
-    },
-    {
-      title: `Car rentals in ${destination.name}`,
-      description: `Keep local transport optional with destination-aligned rental paths.`,
-      href: destination.carLink.href,
-      cta: 'Explore rentals',
-    },
-    {
-      title: `Guide for ${destination.name}`,
-      description: `Use destination content to align neighborhood and planning tradeoffs.`,
-      href: destination.guideLink.href,
-      cta: 'Read guide',
-    },
-  ]
-}
-
-const toIntentLocation = (destinationKey: DestinationKey | undefined) => {
-  if (!destinationKey) return undefined
-  const city = DESTINATION_CITY_LABELS[destinationKey]
-  if (!city) return undefined
-
-  return {
-    city,
-    country: 'US',
-  }
-}
-
-const toThemeExploreIntent = (theme: ThemeOption): ExploreIntent => {
-  return {
-    kind: 'vibe',
-    label: theme.label,
-    slug: theme.key,
-    location: toIntentLocation(theme.destinationSlugs[0]),
-    travelStyle: THEME_TRAVEL_STYLE_MAP[theme.key],
-    hotelPresets: THEME_HOTEL_PRESET_MAP[theme.key],
-    carPresets: THEME_CAR_PRESET_MAP[theme.key],
-    dateHints: THEME_DATE_HINT_MAP[theme.key],
-    ui: {
-      accent: THEME_ACCENT_MAP[theme.key],
-      heroMode: EXPLORE_THEME_OVERLAY_MAP[theme.key],
-      backgroundMode: 'explore-hero',
-    },
-  }
-}
-
-const toIdeaExploreIntent = (idea: IdeaOption): ExploreIntent => {
-  const kind = idea.key === 'warm-places-in-march' ? 'seasonal' : 'idea'
-
-  return {
-    kind,
-    label: idea.title,
-    slug: idea.key,
-    location: toIntentLocation(idea.destinationSlugs[0]),
-    travelStyle: IDEA_TRAVEL_STYLE_MAP[idea.key],
-    hotelPresets: IDEA_HOTEL_PRESET_MAP[idea.key],
-    carPresets: IDEA_CAR_PRESET_MAP[idea.key],
-    dateHints: IDEA_DATE_HINT_MAP[idea.key],
-    ui: {
-      accent: IDEA_ACCENT_MAP[idea.key],
-      heroMode: EXPLORE_IDEA_OVERLAY_MAP[idea.key],
-      backgroundMode: 'explore-hero',
-    },
-  }
-}
-
-const toDestinationExploreIntent = (destination: DestinationOption): ExploreIntent => {
-  return {
-    kind: 'city',
-    label: destination.name,
-    slug: destination.key,
-    location: toIntentLocation(destination.key),
-    travelStyle: DESTINATION_TRAVEL_STYLE_MAP[destination.key],
-    hotelPresets: DESTINATION_HOTEL_PRESET_MAP[destination.key],
-    carPresets: DESTINATION_CAR_PRESET_MAP[destination.key],
-    ui: {
-      accent: DESTINATION_ACCENT_MAP[destination.key],
-      heroMode: 'explore-guided',
-      backgroundMode: 'explore-hero',
-    },
-  }
-}
-
-const deriveActiveExploreIntent = (
-  activeTheme: ThemeOption | null,
-  activeIdea: IdeaOption | null,
-  activeDestination: DestinationOption | null,
-): ExploreIntent | null => {
-  if (activeIdea) return toIdeaExploreIntent(activeIdea)
-  if (activeTheme) return toThemeExploreIntent(activeTheme)
-  if (activeDestination) return toDestinationExploreIntent(activeDestination)
-  return null
-}
+const buildDestinationSteps = (destination: DestinationOption): ExploreStep[] => [
+  {
+    title: `Flights to ${destination.name}`,
+    description: `Search air routes that fit ${destination.name} timing and trip flexibility.`,
+    href: destination.flightLink.href,
+    cta: 'Search flights',
+  },
+  {
+    title: `${destination.name} hotels`,
+    description: `Browse accommodation paths for ${destination.name} before fixing dates.`,
+    href: destination.hotelLink.href,
+    cta: 'Browse hotels',
+  },
+  {
+    title: `Car rentals in ${destination.name}`,
+    description: 'Keep local transport optional with destination-aligned rental paths.',
+    href: destination.carLink.href,
+    cta: 'Explore rentals',
+  },
+  {
+    title: `Guide for ${destination.name}`,
+    description: 'Use destination content to align neighborhood and planning tradeoffs.',
+    href: destination.guideLink.href,
+    cta: 'Read guide',
+  },
+]
 
 const deriveExploreContext = (
   activeTheme: ThemeOption | null,
@@ -1067,7 +795,6 @@ const deriveExploreContext = (
       popularDescription: activeIdea.popularDescription,
     }
   }
-
   if (activeTheme) {
     return {
       bannerText: activeTheme.contextBanner,
@@ -1078,7 +805,6 @@ const deriveExploreContext = (
       popularDescription: activeTheme.popularDescription,
     }
   }
-
   if (activeDestination) {
     return {
       bannerText: `Showing trip paths for ${activeDestination.name}`,
@@ -1086,17 +812,19 @@ const deriveExploreContext = (
       nextSteps: buildDestinationSteps(activeDestination),
       destinationPriority: [activeDestination.key],
       popularTitle: `Popular destination paths from ${activeDestination.name}`,
-      popularDescription: 'Keep exploring nearby planning patterns while staying grounded in the selected destination.',
+      popularDescription:
+        'Keep exploring nearby planning patterns while staying grounded in the selected destination.',
     }
   }
-
   return {
     bannerText: null,
-    nextStepsIntro: 'Start with one vertical, then expand into hotels, flights, and rentals as your plan takes shape.',
+    nextStepsIntro:
+      'Start with one vertical, then expand into hotels, flights, and rentals as your plan takes shape.',
     nextSteps: DEFAULT_NEXT_STEPS,
     destinationPriority: [],
     popularTitle: 'Popular destinations',
-    popularDescription: 'Jump into places that pair well with flexible planning and multi-vertical booking.',
+    popularDescription:
+      'Jump into places that pair well with flexible planning and multi-vertical booking.',
   }
 }
 
@@ -1105,7 +833,6 @@ const orderDestinationsByPriority = (
   priority: DestinationKey[],
 ): DestinationOption[] => {
   if (!priority.length) return items
-
   const rank = new Map(priority.map((key, i) => [key, i]))
   return [...items].sort((a, b) => {
     const aRank = rank.has(a.key) ? (rank.get(a.key) as number) : Number.MAX_SAFE_INTEGER
@@ -1115,23 +842,45 @@ const orderDestinationsByPriority = (
   })
 }
 
-const deriveExploreOverlayVariant = (params: {
-  rawTheme: string
-  rawIdea: string
-  rawDestination: string
-  activeTheme: ThemeOption | null
-  activeIdea: IdeaOption | null
-  activeDestination: DestinationOption | null
-}): ExploreHeroOverlayVariant => {
-  const querySelectionCount = [params.rawTheme, params.rawIdea, params.rawDestination].filter((value) => value).length
+// ─── shared styles ────────────────────────────────────────────────────────────
 
-  if (querySelectionCount > 1) return 'explore-guided'
-  if (params.activeTheme) return EXPLORE_THEME_OVERLAY_MAP[params.activeTheme.key]
-  if (params.activeIdea) return EXPLORE_IDEA_OVERLAY_MAP[params.activeIdea.key]
-  if (params.activeDestination) return 'explore-guided'
-  if (querySelectionCount === 1) return 'explore-guided'
-  return 'explore-default'
-}
+const FONT_DISPLAY = "'Lexend Variable',var(--system-font-family)"
+const FONT_BODY = "'Poppins',var(--system-font-family)"
+
+// ─── next step cards ──────────────────────────────────────────────────────────
+
+const NextStepsGrid = (props: { steps: ExploreStep[] }) => (
+  <div class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    {props.steps.map((step) => (
+      <a
+        key={step.href}
+        href={step.href}
+        class="block rounded-[var(--ui-radius)] p-5 transition hover:-translate-y-px focus:outline-none focus-visible:ring-2"
+        style="background:var(--ui-surface);border:1px solid var(--ui-border);box-shadow:var(--ui-shadow-card)"
+      >
+        <div
+          class="mb-3 h-0.5 w-8 rounded-full"
+          style="background:var(--ui-primary)"
+          aria-hidden="true"
+        />
+        <h3
+          class="text-sm font-bold tracking-tight"
+          style={`color:var(--ui-text);font-family:${FONT_DISPLAY}`}
+        >
+          {step.title}
+        </h3>
+        <p class="mt-1 text-xs leading-relaxed" style="color:var(--ui-text-muted)">
+          {step.description}
+        </p>
+        <div class="mt-3 text-xs font-semibold" style="color:var(--ui-primary)">
+          {step.cta} &rarr;
+        </div>
+      </a>
+    ))}
+  </div>
+)
+
+// ─── main component ───────────────────────────────────────────────────────────
 
 export default component$(() => {
   const location = useLocation()
@@ -1142,267 +891,428 @@ export default component$(() => {
   const activeTheme = findThemeByKey(rawTheme)
   const activeIdea = findIdeaByKey(rawIdea)
   const activeDestination = findDestinationByKey(rawDestination)
-  const activeExploreIntent = deriveActiveExploreIntent(activeTheme, activeIdea, activeDestination)
   const context = deriveExploreContext(activeTheme, activeIdea, activeDestination)
-  const heroOverlayVariant = deriveExploreOverlayVariant({
-    rawTheme,
-    rawIdea,
-    rawDestination,
-    activeTheme,
-    activeIdea,
-    activeDestination,
-  })
-  const orderedDestinations = orderDestinationsByPriority(POPULAR_DESTINATIONS, context.destinationPriority)
-  const activeSelectionCount = [activeTheme, activeIdea, activeDestination].reduce(
-    (count, selection) => (selection ? count + 1 : count),
-    0,
+  const orderedDestinations = orderDestinationsByPriority(
+    POPULAR_DESTINATIONS,
+    context.destinationPriority,
   )
   const isGuidedMode = context.bannerText !== null
-  const heroEyebrow = isGuidedMode ? 'Explore Results' : 'Explore'
+
+  const heroEyebrow = isGuidedMode ? 'Explore · Guided' : 'Explore'
   const heroTitle = isGuidedMode
     ? 'Exploring trips that match your selection'
-    : 'Discover trips by mood, season, or budget'
-  const heroDescription = isGuidedMode
-    ? 'Use your current selection to discover destinations, trip ideas, and next steps across Andacity.'
-    : "Browse destinations, flexible ideas, and trip inspiration when you're not starting with a fixed plan."
-  const contextSurfaceText =
-    activeSelectionCount > 1 ? 'Showing trips that match your selections' : context.bannerText
-
-  const nextStepsSection = (
-    <section class="mt-10">
-      <div class="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-            Suggested next steps
-          </h2>
-          <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-            {context.nextStepsIntro}
-          </p>
-        </div>
-      </div>
-
-      <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {context.nextSteps.map((step) => (
-          <a
-            key={`${step.title}-${step.href}`}
-            href={step.href}
-            class="t-card block h-full rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] p-5 transition hover:-translate-y-px hover:bg-white"
-          >
-            <h3 class="text-base font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-              {step.title}
-            </h3>
-            <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-              {step.description}
-            </p>
-            <div class="mt-4 pt-1 text-sm font-medium text-[color:var(--color-action)]">
-              {step.cta} →
-            </div>
-          </a>
-        ))}
-      </div>
-    </section>
-  )
+    : 'Discover where to go next'
+  const heroSubtitle = isGuidedMode
+    ? 'Use the suggested next steps below to move from inspiration to active trip planning.'
+    : 'Browse trips by mood, season, or budget — then turn inspiration into a whole-trip plan.'
 
   return (
-    <Page
-      breadcrumbs={[
-        { label: 'Home', href: '/' },
-        { label: 'Explore' },
-      ]}
-    >
-      <section class="relative left-1/2 right-1/2 w-screen -translate-x-1/2 overflow-hidden">
-        <HeroBackground imageUrl={EXPLORE_BASE_HERO_IMAGE_URL} overlay={heroOverlayVariant}>
-          <div class="mx-auto max-w-6xl px-4 py-10 md:py-14 lg:py-16">
-            <div class="max-w-3xl">
-              <p class="text-sm font-medium text-[color:var(--color-text-on-hero-muted)]">{heroEyebrow}</p>
+    <div style={`background:var(--ui-bg);color:var(--ui-text);font-family:${FONT_BODY}`}>
 
-              <h1 class="mt-2 text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-on-hero)] md:text-5xl">
-                {heroTitle}
-              </h1>
+      {/* ── Cinematic hero ───────────────────────────────────────────────── */}
+      <section
+        class="relative isolate overflow-hidden"
+        style="background-image:var(--ui-hero)"
+        aria-labelledby="explore-heading"
+      >
+        <div
+          class="absolute inset-0 -z-10"
+          style="background-image:var(--ui-hero-scrim)"
+          aria-hidden="true"
+        />
+        <div class="mx-auto max-w-6xl px-4 py-20 md:py-28">
 
-              <p class="mt-3 max-w-[68ch] text-sm leading-6 text-[color:var(--color-text-on-hero-muted)] md:text-base">
-                {heroDescription}
-              </p>
+          <nav aria-label="Breadcrumb" class="mb-6">
+            <ol
+              class="flex flex-wrap items-center gap-2 text-[12px]"
+              style="color:rgba(255,255,255,0.65)"
+            >
+              <li class="flex items-center gap-2">
+                <a
+                  href="/"
+                  class="hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                >
+                  Home
+                </a>
+                <span aria-hidden="true">/</span>
+              </li>
+              <li style="color:rgba(255,255,255,0.9)" aria-current="page">
+                Explore
+              </li>
+            </ol>
+          </nav>
 
-              {activeExploreIntent ? (
-                <ExplorePresetChips class="mt-6 max-w-3xl" intent={activeExploreIntent} />
-              ) : null}
+          <div class="max-w-2xl">
+            <p
+              class="text-[11px] font-bold uppercase tracking-[0.22em]"
+              style="color:rgba(255,255,255,0.6)"
+            >
+              {heroEyebrow}
+            </p>
+            <h1
+              id="explore-heading"
+              class="mt-3 text-balance text-4xl font-bold leading-[1.05] md:text-6xl"
+              style={`color:#fff;font-family:${FONT_DISPLAY}`}
+            >
+              {heroTitle}
+            </h1>
+            <p
+              class="mt-4 max-w-[56ch] text-base leading-relaxed"
+              style="color:rgba(255,255,255,0.82)"
+            >
+              {heroSubtitle}
+            </p>
 
-              {isGuidedMode && contextSurfaceText ? (
-                <div class="mt-6 max-w-2xl rounded-2xl border border-white/35 bg-white/15 p-5 shadow-[var(--shadow-md)] backdrop-blur-[2px]">
-                  <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-on-hero-muted)]">
-                    Current selection
-                  </p>
-                  <p class="mt-2 text-sm font-semibold text-[color:var(--color-text-on-hero)] md:text-base">
-                    {contextSurfaceText}
-                  </p>
-                  <p class="mt-2 text-sm text-[color:var(--color-text-on-hero-muted)]">
-                    Use the suggested next steps below to move from inspiration to active trip planning.
-                  </p>
-                  <a
-                    class="mt-4 inline-flex rounded-xl border border-white/40 bg-white px-4 py-2 text-sm font-medium text-[color:var(--color-text-strong)] transition hover:bg-white/90"
-                    href="/explore"
+            {isGuidedMode && context.bannerText ? (
+              <div
+                class="mt-6 max-w-xl rounded-[var(--ui-radius-lg)] p-5"
+                style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.28);backdrop-filter:blur(4px)"
+              >
+                <p
+                  class="text-[11px] font-bold uppercase tracking-[0.15em]"
+                  style="color:rgba(255,255,255,0.62)"
+                >
+                  Current selection
+                </p>
+                <p
+                  class="mt-2 text-sm font-semibold"
+                  style={`color:#fff;font-family:${FONT_DISPLAY}`}
+                >
+                  {context.bannerText}
+                </p>
+                <p class="mt-1 text-sm" style="color:rgba(255,255,255,0.75)">
+                  Use the next steps below to move from this mood into active booking.
+                </p>
+                <a
+                  href="/explore"
+                  class="mt-4 inline-flex rounded-[var(--ui-radius)] px-4 py-2 text-sm font-semibold transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  style="background:#fff;color:var(--ui-text)"
+                >
+                  Clear selection
+                </a>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Sticky mood filter bar ────────────────────────────────────────── */}
+      <div
+        class="sticky top-0 z-20 overflow-x-auto"
+        style="background:var(--ui-bg);border-bottom:1px solid var(--ui-border)"
+        role="navigation"
+        aria-label="Browse by mood"
+      >
+        <div class="mx-auto flex max-w-6xl items-center gap-2 px-4 py-3">
+          <span
+            class="shrink-0 text-[11px] font-bold uppercase tracking-[0.15em]"
+            style="color:var(--ui-text-muted)"
+          >
+            Mood
+          </span>
+          {VIBE_ITEMS.map((theme) => {
+            const isActive = rawTheme === theme.key
+            return (
+              <a
+                key={theme.key}
+                href={buildExploreHref({ theme: theme.key })}
+                class="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+                style={
+                  isActive
+                    ? 'background:var(--ui-primary);color:var(--ui-on-primary);border:1px solid transparent'
+                    : 'background:var(--ui-surface);color:var(--ui-text);border:1px solid var(--ui-border)'
+                }
+                aria-current={isActive ? ('page' as const) : undefined}
+              >
+                {theme.label}
+              </a>
+            )
+          })}
+          {rawTheme ? (
+            <a
+              href="/explore"
+              class="shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition focus:outline-none focus-visible:ring-2"
+              style="background:var(--ui-surface-muted);color:var(--ui-text-muted);border:1px solid var(--ui-border)"
+            >
+              Clear
+            </a>
+          ) : null}
+        </div>
+      </div>
+
+      {/* ── Guided next steps (top position) ─────────────────────────────── */}
+      {isGuidedMode ? (
+        <section class="mx-auto mt-10 max-w-6xl px-4">
+          <h2
+            class="text-2xl font-bold tracking-tight"
+            style={`color:var(--ui-text);font-family:${FONT_DISPLAY}`}
+          >
+            Suggested next steps
+          </h2>
+          <p class="mt-2 max-w-[72ch] text-sm" style="color:var(--ui-text-muted)">
+            {context.nextStepsIntro}
+          </p>
+          <NextStepsGrid steps={context.nextSteps} />
+        </section>
+      ) : null}
+
+      {/* ── Trip ideas ────────────────────────────────────────────────────── */}
+      <section class="mx-auto mt-12 max-w-6xl px-4">
+        <h2
+          class="text-2xl font-bold tracking-tight"
+          style={`color:var(--ui-text);font-family:${FONT_DISPLAY}`}
+        >
+          Trip ideas
+        </h2>
+        <p class="mt-2 max-w-[72ch] text-sm" style="color:var(--ui-text-muted)">
+          Use themed starters when your destination is still open.
+        </p>
+
+        <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {FLEX_IDEAS.map((idea) => {
+            const isActive = rawIdea === idea.key
+            return (
+              <a
+                key={idea.key}
+                href={buildExploreHref({ idea: idea.key })}
+                class="group block overflow-hidden rounded-[var(--ui-radius)] transition hover:-translate-y-px focus:outline-none focus-visible:ring-2"
+                style={
+                  isActive
+                    ? 'background:var(--ui-surface);border:2px solid var(--ui-primary);box-shadow:var(--ui-shadow-panel)'
+                    : 'background:var(--ui-surface);border:1px solid var(--ui-border);box-shadow:var(--ui-shadow-card)'
+                }
+                aria-current={isActive ? ('page' as const) : undefined}
+              >
+                {/* Gradient header band */}
+                <div
+                  class="flex items-end px-4 pb-3"
+                  style="height:80px;background-image:var(--ui-hero);border-radius:var(--ui-radius) var(--ui-radius) 0 0"
+                  aria-hidden="true"
+                >
+                  <span
+                    class="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide"
+                    style="background:rgba(255,255,255,0.2);color:rgba(255,255,255,0.9)"
                   >
-                    Clear selection
-                  </a>
+                    Flexible idea
+                  </span>
                 </div>
-              ) : null}
-            </div>
-          </div>
-        </HeroBackground>
-      </section>
 
-      {isGuidedMode ? nextStepsSection : null}
-
-      <section class="mt-8">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-              Browse by vibe
-            </h2>
-            <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-              Start from how you want the trip to feel, then drill into destination and timing.
-            </p>
-          </div>
-        </div>
-
-        <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {VIBE_ITEMS.map((item) => (
-            <a
-              key={item.key}
-              class={[
-                't-card block p-4 text-sm font-medium text-[color:var(--color-text-strong)] transition hover:-translate-y-px hover:bg-white',
-                activeTheme?.key === item.key ? 'border-[color:var(--color-action)] bg-white shadow-[var(--shadow-md)]' : '',
-              ]}
-              href={buildExploreHref({ theme: item.key })}
-              aria-current={activeTheme?.key === item.key ? 'page' : undefined}
-            >
-              {item.label}
-            </a>
-          ))}
-        </div>
-      </section>
-
-      <section class="mt-10">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-              Flexible trip ideas
-            </h2>
-            <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-              Use themed starters when your destination is still open.
-            </p>
-          </div>
-        </div>
-
-        <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {FLEX_IDEAS.map((idea) => (
-            <a
-              key={idea.key}
-              href={buildExploreHref({ idea: idea.key })}
-              class={[
-                't-card block h-full rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] p-5 transition hover:-translate-y-px hover:bg-white',
-                activeIdea?.key === idea.key ? 'border-[color:var(--color-action)] bg-white shadow-[var(--shadow-md)]' : '',
-              ]}
-              aria-current={activeIdea?.key === idea.key ? 'page' : undefined}
-            >
-              <h3 class="text-lg font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-                {idea.title}
-              </h3>
-              <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
-                {idea.description}
-              </p>
-              <div class="mt-4 pt-1 text-sm font-medium text-[color:var(--color-action)]">
-                Explore idea →
-              </div>
-            </a>
-          ))}
-        </div>
-      </section>
-
-      <section class="mt-10">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 class="text-balance text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-              {context.popularTitle}
-            </h2>
-            <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-              {context.popularDescription}
-            </p>
-          </div>
-        </div>
-
-        <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {orderedDestinations.map((destination) => (
-            <article
-              key={destination.key}
-              class={[
-                't-card p-5 transition hover:bg-white',
-                activeDestination?.key === destination.key
-                  ? 'border-[color:var(--color-action)] bg-white shadow-[var(--shadow-md)]'
-                  : '',
-              ]}
-            >
-              <div class="flex items-start justify-between gap-2">
-                <div class="text-base font-semibold text-[color:var(--color-text-strong)]">
-                  {destination.name}
+                <div class="p-4">
+                  <h3
+                    class="text-base font-bold tracking-tight"
+                    style={`color:var(--ui-text);font-family:${FONT_DISPLAY}`}
+                  >
+                    {idea.title}
+                  </h3>
+                  <p class="mt-1 text-sm leading-relaxed" style="color:var(--ui-text-muted)">
+                    {idea.description}
+                  </p>
+                  <div class="mt-3 text-sm font-semibold" style="color:var(--ui-primary)">
+                    Explore idea &rarr;
+                  </div>
                 </div>
-                {activeDestination?.key === destination.key ? (
-                  <span class="t-badge">In focus</span>
-                ) : null}
-              </div>
-
-              <div class="mt-1 text-sm text-[color:var(--color-text-muted)]">
-                {destination.blurb}
-              </div>
-
-              <div class="mt-4 flex flex-wrap gap-2">
-                <a
-                  class="rounded-full border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] px-3 py-1 text-xs font-medium text-[color:var(--color-text)] transition hover:bg-white"
-                  href={destination.flightLink.href}
-                >
-                  {destination.flightLink.label}
-                </a>
-                <a
-                  class="rounded-full border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] px-3 py-1 text-xs font-medium text-[color:var(--color-text)] transition hover:bg-white"
-                  href={destination.hotelLink.href}
-                >
-                  {destination.hotelLink.label}
-                </a>
-                <a
-                  class="rounded-full border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] px-3 py-1 text-xs font-medium text-[color:var(--color-text)] transition hover:bg-white"
-                  href={destination.carLink.href}
-                >
-                  {destination.carLink.label}
-                </a>
-              </div>
-
-              <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
-                <a class="text-sm font-medium text-[color:var(--color-action)]" href={destination.primaryLink.href}>
-                  {destination.primaryLink.label} →
-                </a>
-
-                <a
-                  class="text-xs font-medium text-[color:var(--color-text-muted)] hover:text-[color:var(--color-action)] hover:underline"
-                  href={buildExploreHref({ destination: destination.key })}
-                >
-                  Use in Explore
-                </a>
-              </div>
-            </article>
-          ))}
+              </a>
+            )
+          })}
         </div>
       </section>
 
-      {!isGuidedMode ? nextStepsSection : null}
-    </Page>
+      {/* ── Popular destinations ──────────────────────────────────────────── */}
+      <section class="mx-auto mt-12 max-w-6xl px-4">
+        <h2
+          class="text-2xl font-bold tracking-tight"
+          style={`color:var(--ui-text);font-family:${FONT_DISPLAY}`}
+        >
+          {context.popularTitle}
+        </h2>
+        <p class="mt-2 max-w-[72ch] text-sm" style="color:var(--ui-text-muted)">
+          {context.popularDescription}
+        </p>
+
+        <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {orderedDestinations.map((destination) => {
+            const isActive = rawDestination === destination.key
+            return (
+              <article
+                key={destination.key}
+                class="overflow-hidden rounded-[var(--ui-radius)] transition"
+                style={
+                  isActive
+                    ? 'background:var(--ui-surface);border:2px solid var(--ui-primary);box-shadow:var(--ui-shadow-panel)'
+                    : 'background:var(--ui-surface);border:1px solid var(--ui-border);box-shadow:var(--ui-shadow-card)'
+                }
+              >
+                {/* Gradient header with city name — not aria-hidden so screen readers get the name */}
+                <div
+                  class="relative flex items-end justify-between px-4 pb-3"
+                  style="height:72px;background-image:var(--ui-hero)"
+                >
+                  <span
+                    class="text-xl font-bold"
+                    style={`color:#fff;font-family:${FONT_DISPLAY};text-shadow:0 1px 4px rgba(0,0,0,0.4)`}
+                  >
+                    {destination.name}
+                  </span>
+                  {isActive ? (
+                    <span
+                      class="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide"
+                      style="background:rgba(255,255,255,0.25);color:#fff"
+                    >
+                      In focus
+                    </span>
+                  ) : null}
+                </div>
+
+                <div class="p-4">
+                  <p class="text-sm" style="color:var(--ui-text-muted)">
+                    {destination.blurb}
+                  </p>
+
+                  {/* Quick links */}
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <a
+                      href={destination.flightLink.href}
+                      class="rounded-full px-3 py-1 text-xs font-semibold transition hover:-translate-y-px focus:outline-none focus-visible:ring-2"
+                      style="background:var(--ui-surface-muted);color:var(--ui-text-secondary);border:1px solid var(--ui-border)"
+                    >
+                      Flights
+                    </a>
+                    <a
+                      href={destination.hotelLink.href}
+                      class="rounded-full px-3 py-1 text-xs font-semibold transition hover:-translate-y-px focus:outline-none focus-visible:ring-2"
+                      style="background:var(--ui-surface-muted);color:var(--ui-text-secondary);border:1px solid var(--ui-border)"
+                    >
+                      Hotels
+                    </a>
+                    <a
+                      href={destination.carLink.href}
+                      class="rounded-full px-3 py-1 text-xs font-semibold transition hover:-translate-y-px focus:outline-none focus-visible:ring-2"
+                      style="background:var(--ui-surface-muted);color:var(--ui-text-secondary);border:1px solid var(--ui-border)"
+                    >
+                      Cars
+                    </a>
+                  </div>
+
+                  {/* Primary action + Use in Explore */}
+                  <div class="mt-4 flex items-center justify-between gap-2">
+                    <a
+                      href={destination.primaryLink.href}
+                      class="text-sm font-semibold focus:outline-none focus-visible:ring-2"
+                      style="color:var(--ui-primary)"
+                    >
+                      {destination.primaryLink.label} &rarr;
+                    </a>
+                    <a
+                      href={buildExploreHref({ destination: destination.key })}
+                      class="text-xs font-medium transition hover:underline focus:outline-none focus-visible:ring-2"
+                      style="color:var(--ui-text-muted)"
+                    >
+                      Use in Explore
+                    </a>
+                  </div>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* ── Default next steps (bottom position) ─────────────────────────── */}
+      {!isGuidedMode ? (
+        <section class="mx-auto mt-12 max-w-6xl px-4">
+          <h2
+            class="text-2xl font-bold tracking-tight"
+            style={`color:var(--ui-text);font-family:${FONT_DISPLAY}`}
+          >
+            Suggested next steps
+          </h2>
+          <p class="mt-2 max-w-[72ch] text-sm" style="color:var(--ui-text-muted)">
+            {context.nextStepsIntro}
+          </p>
+          <NextStepsGrid steps={context.nextSteps} />
+        </section>
+      ) : null}
+
+      {/* ── Whole-trip handoff ────────────────────────────────────────────── */}
+      <section class="mx-auto mb-16 mt-14 max-w-6xl px-4">
+        <div
+          class="relative isolate overflow-hidden rounded-[var(--ui-radius-lg)] px-6 py-10 md:px-10"
+          style="background-image:var(--ui-hero)"
+        >
+          <div
+            class="absolute inset-0 -z-10"
+            style="background-image:var(--ui-hero-scrim)"
+            aria-hidden="true"
+          />
+
+          <p
+            class="text-[11px] font-bold uppercase tracking-[0.2em]"
+            style="color:rgba(255,255,255,0.62)"
+          >
+            Plan your trip
+          </p>
+
+          <h2
+            class="mt-2 text-balance text-2xl font-bold md:text-3xl"
+            style={`color:#fff;font-family:${FONT_DISPLAY}`}
+          >
+            Turn inspiration into a whole-trip plan
+          </h2>
+
+          <p class="mt-2 max-w-[56ch] text-sm leading-relaxed" style="color:rgba(255,255,255,0.8)">
+            Pick a vertical to start — flights, hotels, or car rentals. Each opens a full
+            search experience with filters, transparent totals, and clear policies.
+          </p>
+
+          <div class="mt-6 grid gap-3 sm:grid-cols-3">
+            {(
+              [
+                {
+                  label: 'Search Flights',
+                  href: '/flights',
+                  sub: 'Routes, schedules, and nonstop options',
+                },
+                {
+                  label: 'Browse Hotels',
+                  href: '/hotels',
+                  sub: 'Destination-aware stays with clear totals',
+                },
+                {
+                  label: 'Compare Cars',
+                  href: '/car-rentals',
+                  sub: 'Flexible pickup dates and vehicle classes',
+                },
+              ] as const
+            ).map(({ label, href, sub }) => (
+              <a
+                key={href}
+                href={href}
+                class="block rounded-[var(--ui-radius)] px-5 py-4 transition hover:-translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                style="background:rgba(255,255,255,0.13);border:1px solid rgba(255,255,255,0.28)"
+              >
+                <div
+                  class="text-base font-bold"
+                  style={`color:#fff;font-family:${FONT_DISPLAY}`}
+                >
+                  {label}
+                </div>
+                <div class="mt-1 text-xs" style="color:rgba(255,255,255,0.75)">
+                  {sub}
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+    </div>
   )
 })
 
 export const head: DocumentHead = ({ url }) => {
   const title = 'Explore | Andacity'
   const description =
-    'Discover trips by mood, season, or budget with discovery-first destination ideas across flights, stays, and car rentals.'
+    'Discover where to go next. Browse trips by mood, season, or budget — then turn inspiration into a whole-trip plan across flights, hotels, and car rentals.'
   const canonicalHref = new URL('/explore', url.origin).href
 
   return {
