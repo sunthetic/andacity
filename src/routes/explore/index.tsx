@@ -139,7 +139,7 @@ const VIBE_ITEMS: ThemeOption[] = [
       },
       {
         title: 'Miami hotels',
-        description: 'Browse indexable Miami hotel inventory before committing to dates.',
+        description: 'Browse stays in a beach-forward city with flexible booking options.',
         href: '/hotels/in/miami',
         cta: 'Browse hotels',
       },

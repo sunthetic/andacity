@@ -388,12 +388,6 @@ export default component$(() => {
                 </button>
               </form>
 
-              <p
-                class="mt-2 text-center text-[11px]"
-                style="color:var(--ui-text-muted)"
-              >
-                City page is indexable. Search results remain noindex.
-              </p>
             </div>
           </div>
         </div>
@@ -733,8 +727,7 @@ export default component$(() => {
               Other top destinations
             </h2>
             <p class="mt-1 text-sm" style="color:var(--ui-text-muted)">
-              Compare city hub pages — each one is indexable with transparent
-              totals.
+              Explore hotels in other popular destinations.
             </p>
 
             <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -916,10 +909,6 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
           name: h.name,
           url: new URL(buildHotelDetailHref(h.slug), url.origin).href,
         })),
-      },
-      {
-        name: "robots",
-        content: "index,follow,max-image-preview:large",
       },
     ],
   });

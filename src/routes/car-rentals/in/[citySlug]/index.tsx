@@ -252,9 +252,6 @@ export default component$(() => {
                   submitLabel="See results"
                 />
               </div>
-              <p class="mt-2 text-center text-[11px]" style="color:var(--ui-text-muted)">
-                City page is indexable. Search results remain noindex.
-              </p>
             </div>
           </div>
         </div>
@@ -477,7 +474,7 @@ export default component$(() => {
               { label: "Country", value: city.country || "—" },
               { label: "Rentals available", value: data.totalCount > 0 ? String(data.totalCount) : "Search to see" },
               { label: "Pickup types", value: "Airport & city desk" },
-              { label: "Search results", value: "noindex — city page indexable" },
+              { label: "Cancellation", value: "Free on most bookings" },
             ].map((fact) => (
               <div
                 key={fact.label}
@@ -565,7 +562,7 @@ export default component$(() => {
               Other top rental cities
             </h2>
             <p class="mt-1 text-sm" style="color:var(--ui-text-muted)">
-              Each city hub is indexable with vehicle guidance and policy clarity.
+              Explore rental options in other popular destinations.
             </p>
 
             <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
