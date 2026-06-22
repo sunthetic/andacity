@@ -24,7 +24,6 @@
 import { component$, useSignal } from "@builder.io/qwik";
 import { routeLoader$ } from "@builder.io/qwik-city";
 import type { DocumentHead } from "@builder.io/qwik-city";
-import type { RequestHandler } from "@builder.io/qwik-city";
 import { CarRentalsResultsAdapter } from "~/components/car-rentals/CarRentalsResultsAdapter";
 import { CarRentalSearchCard } from "~/components/car-rentals/CarRentalSearchCard";
 import { normalizeIsoDate } from "~/lib/date/validateDate";

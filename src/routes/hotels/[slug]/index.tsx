@@ -32,7 +32,6 @@ import {
   buildHotelPriceDisplay,
   describePriceChangeCollection,
   formatMoney,
-  formatPriceChange,
   formatPriceQualifier,
   type PriceChange,
 } from "~/lib/pricing/price-display";
