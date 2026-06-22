@@ -1,13 +1,11 @@
 import { component$ } from '@builder.io/qwik'
 import { routeLoader$ } from '@builder.io/qwik-city'
 import type { DocumentHead } from '@builder.io/qwik-city'
-import { Page } from '~/components/site/Page'
 import { SearchEmptyState } from '~/components/search/SearchEmptyState'
 import { loadCarRentalCitiesFromDb } from '~/lib/queries/car-rentals-pages.server'
 
 export const useCarRentalCitiesPage = routeLoader$(async () => {
   const items = await loadCarRentalCitiesFromDb()
-
   return { items }
 })
 
@@ -15,74 +13,176 @@ export default component$(() => {
   const { items } = useCarRentalCitiesPage().value
 
   return (
-    <Page breadcrumbs={[
-      { label: 'Home', href: '/' },
-      { label: 'Car Rentals', href: '/car-rentals' },
-      { label: 'Cities' },
-    ]}>
+    <div style="background:var(--ui-bg);color:var(--ui-text)">
 
-      <div class="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 class="text-balance text-3xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
-            Car rental cities
-          </h1>
-          <p class="mt-2 max-w-[72ch] text-sm text-[color:var(--color-text-muted)] lg:text-base">
-            Browse car rental city guides by destination.
-          </p>
-        </div>
+      {/* ── Hero ─────────────────────────────────────────────── */}
+      <section
+        class="relative isolate overflow-hidden"
+        style="background-image:var(--ui-hero)"
+        aria-label="Car rental destinations directory"
+      >
+        <div
+          class="absolute inset-0 -z-10"
+          style="background-image:var(--ui-hero-scrim)"
+          aria-hidden="true"
+        />
 
-        <div class="flex flex-wrap gap-2">
-          <a class="t-btn-primary px-4 text-center" href="/search/car-rentals/anywhere/1">
-            Search car rentals
-          </a>
-          <a class="t-btn-primary px-4 text-center" href="/car-rentals">
-            All car rentals
-          </a>
+        <div class="mx-auto max-w-6xl px-4 pt-10 pb-8 md:pt-14 md:pb-10">
+          <nav aria-label="Breadcrumb" class="mb-4">
+            <ol
+              class="flex flex-wrap items-center gap-2 text-[12px]"
+              style="color:rgba(255,255,255,0.7)"
+            >
+              <li class="flex items-center gap-2">
+                <a
+                  href="/"
+                  class="hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                >
+                  Home
+                </a>
+                <span aria-hidden="true">/</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <a
+                  href="/car-rentals"
+                  class="hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                >
+                  Car Rentals
+                </a>
+                <span aria-hidden="true">/</span>
+              </li>
+              <li aria-current="page" style="color:rgba(255,255,255,0.95)">
+                Cities
+              </li>
+            </ol>
+          </nav>
+
+          <div class="max-w-2xl">
+            <h1
+              class="text-balance text-4xl font-bold leading-[1.05] md:text-5xl"
+              style="color:#fff;font-family:'Lexend Variable',var(--system-font-family)"
+            >
+              Car rental destinations by city
+            </h1>
+
+            <p
+              class="mt-3 max-w-[52ch] text-base"
+              style="color:rgba(255,255,255,0.88)"
+            >
+              Browse car rental guides for popular cities. Compare vehicles,
+              pickup types, and policy terms before you book.
+            </p>
+
+            {items.length > 0 && (
+              <div class="mt-4 flex flex-wrap gap-2">
+                <span
+                  class="rounded-full px-3 py-1 text-[12px] font-semibold"
+                  style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.25)"
+                >
+                  {items.length} {items.length === 1 ? 'city' : 'cities'}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
+      </section>
+
+      {/* ── City directory ──────────────────────────────────── */}
+      <div class="mx-auto max-w-6xl px-4 py-8">
+        {items.length ? (
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((c) => (
+              <a
+                key={c.slug}
+                href={buildCityHref(c.slug)}
+                class="group relative block transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)]"
+                style="background:var(--ui-surface);border:1px solid var(--ui-border);border-radius:var(--ui-radius);box-shadow:var(--ui-shadow-card)"
+              >
+                <div
+                  class="h-1.5 w-full"
+                  style="background-image:var(--ui-hero);border-radius:var(--ui-radius) var(--ui-radius) 0 0"
+                  aria-hidden="true"
+                />
+                <div class="p-5">
+                  <div
+                    class="text-sm font-bold transition group-hover:underline"
+                    style="color:var(--ui-text);font-family:'Lexend Variable',var(--system-font-family)"
+                  >
+                    {c.name}
+                  </div>
+                  <div class="mt-0.5 text-[12px]" style="color:var(--ui-text-muted)">
+                    {c.region} · {c.country}
+                  </div>
+
+                  <div
+                    class="mt-3 flex items-center gap-1 text-[13px] font-semibold"
+                    style="color:var(--ui-primary)"
+                  >
+                    Browse rentals <span aria-hidden="true">→</span>
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        ) : (
+          <div class="mt-2">
+            <SearchEmptyState
+              title="No rental cities are available right now"
+              description="Try returning to the Car Rentals hub and starting a new search."
+              primaryAction={{ label: 'Go to Car Rentals', href: '/car-rentals' }}
+            />
+          </div>
+        )}
       </div>
 
-      {items.length ? (
-        <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((c) => (
-            <a
-              key={c.slug}
-              class="t-card block p-5 hover:bg-white"
-              href={buildCityHref(c.slug)}
-            >
-              <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">{c.name}</div>
-              <div class="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                {c.region} · {c.country}
-              </div>
+      {/* ── Handoff section ─────────────────────────────────── */}
+      <section style="border-top:1px solid var(--ui-divider)">
+        <div class="mx-auto max-w-6xl px-4 py-8">
+          <h2
+            class="text-xl font-bold"
+            style="color:var(--ui-text);font-family:'Lexend Variable',var(--system-font-family)"
+          >
+            Where to next
+          </h2>
+          <p class="mt-1 text-sm" style="color:var(--ui-text-muted)">
+            Search by dates, browse hotel guides, or explore your destination.
+          </p>
 
-              <div class="mt-4 flex flex-wrap gap-2">
-                <span class="t-badge">City guide</span>
-                <span class="t-badge">Search</span>
-              </div>
+          <div class="mt-5 grid gap-3 sm:grid-cols-3">
+            {HANDOFF_LINKS.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                class="group flex flex-col gap-1 p-4 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)]"
+                style="background:var(--ui-surface);border:1px solid var(--ui-border);border-radius:var(--ui-radius);box-shadow:var(--ui-shadow-card)"
+              >
+                <span
+                  class="text-sm font-bold transition group-hover:underline"
+                  style="color:var(--ui-text);font-family:'Lexend Variable',var(--system-font-family)"
+                >
+                  {link.label}
+                </span>
+                <span class="text-[12px]" style="color:var(--ui-text-muted)">
+                  {link.blurb}
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
 
-              <div class="mt-4 text-sm text-[color:var(--color-action)]">Browse {c.name} →</div>
-            </a>
-          ))}
-        </div>
-      ) : (
-        <div class="mt-6">
-          <SearchEmptyState
-            title="No rental cities are available right now"
-            description="Try returning to the Car Rentals hub and starting a new search."
-            primaryAction={{ label: 'Go to Car Rentals', href: '/car-rentals' }}
-          />
-        </div>
-      )}
-    </Page>
+    </div>
   )
 })
 
 export const head: DocumentHead = ({ resolveValue, url }) => {
   const { items } = resolveValue(useCarRentalCitiesPage)
-  const title = 'Car rental cities | Andacity Travel'
+  const title = 'Car Rental Destinations | Andacity Travel'
   const description =
-    'Browse car rental city guides by destination. Compare vehicles and rates in popular cities before you book.'
+    'Browse car rental city guides by destination. Compare vehicles and pickup types in popular cities before you book.'
 
   const canonicalHref = new URL('/car-rentals/in', url.origin).href
+  const listCap = 48
 
   const jsonLd = JSON.stringify({
     '@context': 'https://schema.org',
@@ -106,13 +206,12 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
       },
       {
         '@type': 'ItemList',
-        name: 'Andacity car rental cities',
-        itemListElement: items.map((c, i) => ({
+        name: 'Andacity car rental destinations by city',
+        itemListElement: items.slice(0, listCap).map((c, i) => ({
           '@type': 'ListItem',
           position: i + 1,
           name: c.name,
           url: new URL(buildCityHref(c.slug), url.origin).href,
-          numberOfItems: items.length,
         })),
       },
     ],
@@ -141,6 +240,27 @@ export const head: DocumentHead = ({ resolveValue, url }) => {
   }
 }
 
-const buildCityHref = (citySlug: string) => {
-  return `/car-rentals/in/${encodeURIComponent(citySlug)}`
-}
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+const buildCityHref = (citySlug: string) =>
+  `/car-rentals/in/${encodeURIComponent(citySlug)}`
+
+const HANDOFF_LINKS = [
+  {
+    label: 'Search car rentals',
+    blurb: 'Enter pickup dates and compare vehicles',
+    href: '/car-rentals',
+  },
+  {
+    label: 'Hotel city guides',
+    blurb: 'Browse hotels in popular destinations',
+    href: '/hotels/in',
+  },
+  {
+    label: 'Destinations',
+    blurb: 'Get an overview of a city or region',
+    href: '/destinations',
+  },
+] as const
