@@ -1,6 +1,8 @@
 import { component$, useStyles$ } from '@builder.io/qwik'
 import { QwikCityProvider, RouterOutlet, ServiceWorkerRegister } from '@builder.io/qwik-city'
 import { RouterHead } from './routes/router-head'
+import { AnalyticsProvider } from '~/components/analytics/AnalyticsProvider'
+import { ErrorMonitor } from '~/components/analytics/ErrorMonitor'
 import { PageView } from '~/components/analytics/PageView'
 import { UI_THEME_FOUC_SCRIPT } from '~/lib/ui-theme/theme'
 import globalCss from '~/styles/global.css?inline'
@@ -26,6 +28,8 @@ export default component$(() => {
         <script dangerouslySetInnerHTML={UI_THEME_FOUC_SCRIPT} />
         <RouterHead />
         <PageView />
+        <AnalyticsProvider />
+        <ErrorMonitor />
       </head>
       <body lang="en">
         <RouterOutlet />

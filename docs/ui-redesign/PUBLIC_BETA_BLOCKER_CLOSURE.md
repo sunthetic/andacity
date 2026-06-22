@@ -277,12 +277,31 @@ All must-fix blockers from CLAUDE-UI-031 are now closed.
 | Footer legal links missing | ✅ Fixed |
 | ORIGIN undocumented | ✅ Documented in `.env.example` |
 
-**Remaining pre-launch items (from CLAUDE-UI-031 "Strongly Recommended"):**
-- Analytics provider not wired (must decide and wire before launch)
-- Error monitoring not configured
-- Sitemap does not include hotel detail pages (those are in the sub-sitemap)
-- Contact email placeholder (`hello@andacity.com`) must be set to a real address
+---
+
+## CLAUDE-UI-033 — Analytics and Monitoring Integration
+
+**Date:** 2026-06-22
+**Full doc:** `docs/ui-redesign/ANALYTICS_MONITORING_INTEGRATION.md`
+
+Items closed in CLAUDE-UI-033:
+
+| Item | Status |
+|------|--------|
+| Analytics provider not wired | ✅ Provider-ready (Cloudflare or GA4 via env var) |
+| Error monitoring not configured | ✅ First-party capture active; Sentry upgrade documented |
+| Contact email hardcoded placeholder | ✅ Configurable via `CONTACT_EMAIL` env var |
+| Privacy/legal emails hardcoded | ✅ Configurable via `PRIVACY_EMAIL` / `LEGAL_EMAIL` |
+| `.env.example` missing observability vars | ✅ All new variables documented |
+| `/privacy` analytics section incomplete | ✅ Updated to describe all three provider states |
+
+**Remaining pre-launch items after CLAUDE-UI-033:**
+- Choose analytics provider and set env vars before launch
+- Verify `CONTACT_EMAIL`, `PRIVACY_EMAIL`, `LEGAL_EMAIL` are monitored addresses
+- Install `@sentry/browser` for full Sentry error monitoring (optional upgrade to first-party capture)
+- If GA4 is chosen: add cookie consent banner; review GDPR obligations
 - Legal pages should receive legal review before full commercial launch
+- Sitemap does not include hotel detail pages (those are in the sub-sitemap — deferred)
 
 ---
 

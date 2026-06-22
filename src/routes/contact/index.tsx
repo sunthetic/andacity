@@ -1,10 +1,11 @@
-// Contact email is a configurable placeholder. Set CONTACT_EMAIL in production config
-// or replace the href/text below before full commercial launch.
+// TODO: Legal review recommended before full commercial launch.
 import { component$ } from '@builder.io/qwik'
-import type { DocumentHead } from '@builder.io/qwik-city'
+import { routeLoader$, type DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
 
-const CONTACT_EMAIL = 'hello@andacity.com'
+export const useContactConfig = routeLoader$(({ env }) => ({
+  email: env.get('CONTACT_EMAIL') || 'hello@andacity.com',
+}))
 
 const TOPICS = [
   {
@@ -30,6 +31,9 @@ const TOPICS = [
 ]
 
 export default component$(() => {
+  const config = useContactConfig()
+  const email = config.value.email
+
   return (
     <Page breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'Contact' }]}>
       <div class="max-w-2xl">
@@ -51,11 +55,11 @@ export default component$(() => {
         >
           <p class="text-sm font-medium" style="color:var(--ui-text)">Email us</p>
           <a
-            href={`mailto:${CONTACT_EMAIL}`}
+            href={`mailto:${email}`}
             class="mt-1 inline-block text-base font-semibold underline underline-offset-2"
             style="color:var(--ui-link)"
           >
-            {CONTACT_EMAIL}
+            {email}
           </a>
           <p class="mt-2 text-xs" style="color:var(--ui-text-muted)">
             We aim to respond within a few business days.

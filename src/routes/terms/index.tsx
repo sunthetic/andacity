@@ -1,11 +1,18 @@
 // TODO: Legal review recommended before full commercial launch.
 import { component$ } from '@builder.io/qwik'
-import type { DocumentHead } from '@builder.io/qwik-city'
+import { routeLoader$, type DocumentHead } from '@builder.io/qwik-city'
 import { Page } from '~/components/site/Page'
 
-const LAST_UPDATED = '2026-06-21'
+const LAST_UPDATED = '2026-06-22'
+
+export const useTermsConfig = routeLoader$(({ env }) => ({
+  email: env.get('LEGAL_EMAIL') || 'legal@andacity.com',
+}))
 
 export default component$(() => {
+  const config = useTermsConfig()
+  const email = config.value.email
+
   return (
     <Page breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'Terms of Service' }]}>
       <div class="max-w-3xl">
@@ -133,11 +140,11 @@ export default component$(() => {
             <p>
               Questions about these Terms? Contact us at{' '}
               <a
-                href="mailto:legal@andacity.com"
+                href={`mailto:${email}`}
                 class="underline underline-offset-2"
                 style="color:var(--ui-link)"
               >
-                legal@andacity.com
+                {email}
               </a>
               {' '}or visit our{' '}
               <a href="/contact" class="underline underline-offset-2" style="color:var(--ui-link)">

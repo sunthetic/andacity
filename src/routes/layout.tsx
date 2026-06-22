@@ -7,7 +7,20 @@ import {
 import { UndoSnackbar } from '~/components/save-compare/UndoSnackbar'
 import { SiteFooter } from '~/components/site/SiteFooter'
 import { SiteHeader } from '~/components/site/SiteHeader'
+import { ANALYTICS_PROVIDER } from '~/components/analytics/provider-config'
 import { getPublicBaseUrl, shouldIndex } from '~/lib/seo/env'
+
+// Extra script-src hosts required by the configured analytics provider.
+// Value is baked at build time; dead branches are eliminated.
+const analyticsScriptSrcs = (): string[] => {
+  if (ANALYTICS_PROVIDER === 'cloudflare') {
+    return ['https://static.cloudflareinsights.com']
+  }
+  if (ANALYTICS_PROVIDER === 'ga4') {
+    return ['https://www.googletagmanager.com']
+  }
+  return []
+}
 
 export const onRequest: RequestHandler = ({ url, headers }) => {
   const baseUrl = getPublicBaseUrl(url)
@@ -74,6 +87,13 @@ const DecisioningChrome = component$(() => {
 })
 
 const cspCommon = () => {
+  const extraScriptSrcs = analyticsScriptSrcs()
+  const scriptSrc = [
+    "'self'",
+    "'unsafe-inline'",
+    ...extraScriptSrcs,
+  ].join(' ')
+
   return [
     "default-src 'self'",
     "base-uri 'self'",
@@ -83,7 +103,7 @@ const cspCommon = () => {
     "img-src 'self' data: https:",
     "font-src 'self' data:",
     "style-src 'self' 'unsafe-inline'",
-    "script-src 'self' 'unsafe-inline'",
+    `script-src ${scriptSrc}`,
   ]
 }
 
@@ -96,9 +116,17 @@ const cspProd = () => {
 }
 
 const cspDev = () => {
+  const extraScriptSrcs = analyticsScriptSrcs()
+  const devScriptSrc = [
+    "'self'",
+    "'unsafe-inline'",
+    "'unsafe-eval'",
+    ...extraScriptSrcs,
+  ].join(' ')
+
   return [
-    ...cspCommon(),
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    ...cspCommon().filter((d) => !d.startsWith('script-src')),
+    `script-src ${devScriptSrc}`,
     "connect-src 'self' ws: wss: http: https:",
   ].join('; ')
 }
