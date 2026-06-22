@@ -5,7 +5,11 @@ declare module "pg" {
   };
 
   export class Pool {
-    constructor(config?: { connectionString?: string; max?: number });
+    constructor(config?: {
+      connectionString?: string;
+      max?: number;
+      ssl?: boolean | { rejectUnauthorized?: boolean; [key: string]: unknown };
+    });
 
     end(): Promise<void>;
   }

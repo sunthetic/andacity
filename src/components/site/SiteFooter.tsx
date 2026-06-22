@@ -103,14 +103,17 @@ export const SiteFooter = component$(() => {
           </p>
 
           <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px]">
+            <a href="/privacy" class="focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)]" style="color:var(--ui-text-muted)">
+              Privacy
+            </a>
+            <a href="/terms" class="focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)]" style="color:var(--ui-text-muted)">
+              Terms
+            </a>
+            <a href="/contact" class="focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)]" style="color:var(--ui-text-muted)">
+              Contact
+            </a>
             <a href="/sitemap.xml" class="focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)]" style="color:var(--ui-text-muted)">
               Sitemap
-            </a>
-            <a href="/hotels/in" class="focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)]" style="color:var(--ui-text-muted)">
-              Hotel cities
-            </a>
-            <a href="/my-trips" class="focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ui-ring)]" style="color:var(--ui-text-muted)">
-              My Trips
             </a>
           </div>
         </div>

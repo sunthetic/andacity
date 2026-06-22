@@ -7,6 +7,7 @@
 # Development
 node_modules
 .env*
+!.env.example
 *.local
 
 # Cache
