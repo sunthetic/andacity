@@ -150,7 +150,7 @@ export default component$(() => {
   return (
     <div style="background:var(--ui-bg);color:var(--ui-text)">
       <section
-        class="relative isolate"
+        class="relative isolate z-10"
         style="background-image:var(--ui-hero)"
         aria-label={heroData ? `Car rental search results at ${heroData.request.airport}` : "Car rental search results"}
       >

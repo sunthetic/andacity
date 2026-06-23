@@ -56,7 +56,7 @@ const CarGlyph = component$(() => (
 
 const CarsHero = component$((props: { searchCard: JSXOutput }) => (
   <section
-    class="relative isolate"
+    class="relative isolate z-10"
     style="background-image:var(--ui-hero)"
     aria-label="Car rental search"
   >

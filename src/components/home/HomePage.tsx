@@ -33,7 +33,7 @@ import { FOOTER_TRUST } from "~/components/site/siteNav";
 
 const Hero = component$(() => (
   <section
-    class="relative isolate overflow-hidden"
+    class="relative isolate z-10"
     style="background-image:var(--ui-hero)"
   >
     <div

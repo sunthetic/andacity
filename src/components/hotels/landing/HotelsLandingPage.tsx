@@ -72,7 +72,7 @@ type HotelsLandingPageProps = {
 const Hero = component$(
   (props: { search: HotelsLandingPageProps["search"] }) => (
     <section
-      class="relative isolate"
+      class="relative isolate z-10"
       style="background-image:var(--ui-hero)"
     >
       <div

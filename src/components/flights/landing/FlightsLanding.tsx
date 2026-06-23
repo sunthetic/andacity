@@ -39,7 +39,7 @@ const HEADING_FONT = "'Lexend Variable',var(--system-font-family)";
 
 const FlightHero = component$((props: { searchCard: JSXOutput }) => (
   <section
-    class="relative isolate overflow-hidden"
+    class="relative isolate z-10"
     style="background-image:var(--ui-hero)"
     aria-label="Flight search"
   >
