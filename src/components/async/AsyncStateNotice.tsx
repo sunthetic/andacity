@@ -17,7 +17,7 @@ export const AsyncStateNotice = component$((props: AsyncStateNoticeProps) => {
   return (
     <div
       class={[
-        "rounded-[var(--radius-xl)] border px-4 py-3 shadow-[var(--shadow-sm)]",
+        "rounded-xl border px-4 py-3 shadow-sm",
         palette.wrapper,
         props.class,
       ]}
@@ -45,7 +45,7 @@ export const AsyncStateNotice = component$((props: AsyncStateNoticeProps) => {
           </div>
 
           {props.message ? (
-            <p class="mt-2 text-sm text-[color:var(--color-text-muted)]">
+            <p class="mt-2 text-sm text-[color:var(--ui-text-muted)]">
               {props.message}
             </p>
           ) : null}
@@ -75,27 +75,24 @@ const defaultTitle = (state: BookingAsyncState) => {
 const paletteForState = (state: BookingAsyncState) => {
   if (state === "refreshing") {
     return {
-      wrapper:
-        "border-[color:var(--color-primary-150)] bg-[color:var(--color-primary-25)]",
-      dot: "bg-[color:var(--color-action)]",
-      text: "text-[color:var(--color-action)]",
+      wrapper: "border-[color:var(--ui-accent)] bg-[color:var(--ui-accent-soft)]",
+      dot: "bg-[color:var(--ui-primary)]",
+      text: "text-[color:var(--ui-primary)]",
     };
   }
 
   if (state === "failed") {
     return {
-      wrapper:
-        "border-[color:var(--color-danger,#dc2626)] bg-[color:var(--color-danger-soft,#fef2f2)]",
-      dot: "bg-[color:var(--color-danger,#dc2626)]",
-      text: "text-[color:var(--color-danger,#b91c1c)]",
+      wrapper: "border-[color:var(--ui-danger)] bg-[color:var(--ui-danger-soft)]",
+      dot: "bg-[color:var(--ui-danger)]",
+      text: "text-[color:var(--ui-danger)]",
     };
   }
 
   return {
-    wrapper:
-      "border-[color:var(--color-warning,#b45309)] bg-[color:var(--color-warning-soft)]",
-    dot: "bg-[color:var(--color-warning,#b45309)]",
-    text: "text-[color:var(--color-warning,#92400e)]",
+    wrapper: "border-[color:var(--ui-warning)] bg-[color:var(--ui-warning-soft)]",
+    dot: "bg-[color:var(--ui-warning)]",
+    text: "text-[color:var(--ui-warning)]",
   };
 };
 

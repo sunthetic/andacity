@@ -8,7 +8,7 @@ export const Page = component$((props: PageProps) => {
     <>
       {/* Breadcrumb band (edge-aligned) */}
       {breadcrumbs.length ? (
-        <div class="border-b border-[color:var(--color-border)]">
+        <div class="border-b border-[color:var(--ui-border)]">
           <div class="mx-auto max-w-6xl px-4 py-3.5">
             <Breadcrumbs items={breadcrumbs} />
           </div>

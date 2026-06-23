@@ -7,7 +7,7 @@ import {
 export const AsyncRetryControl = component$((props: AsyncRetryControlProps) => {
   if (!props.onRetry$ && !props.href) {
     return props.message ? (
-      <p class={["text-sm text-[color:var(--color-text-muted)]", props.class]}>
+      <p class={["text-sm text-[color:var(--ui-text-muted)]", props.class]}>
         {props.message}
       </p>
     ) : null;
@@ -22,13 +22,13 @@ export const AsyncRetryControl = component$((props: AsyncRetryControlProps) => {
       ]}
     >
       {props.message ? (
-        <p class="text-[color:var(--color-text-muted)]">{props.message}</p>
+        <p class="text-[color:var(--ui-text-muted)]">{props.message}</p>
       ) : null}
 
       {props.onRetry$ ? (
         <button
           type="button"
-          class="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 font-medium text-[color:var(--color-action)] hover:border-[color:var(--color-action)]"
+          class="rounded-lg border border-[color:var(--ui-border)] px-3 py-1.5 font-medium text-[color:var(--ui-primary)] hover:border-[color:var(--ui-primary)]"
           onClick$={() => {
             if (props.telemetry) {
               trackBookingEvent("booking_retry_requested", {
@@ -46,7 +46,7 @@ export const AsyncRetryControl = component$((props: AsyncRetryControlProps) => {
         </button>
       ) : props.href ? (
         <a
-          class="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 font-medium text-[color:var(--color-action)] hover:border-[color:var(--color-action)]"
+          class="rounded-lg border border-[color:var(--ui-border)] px-3 py-1.5 font-medium text-[color:var(--ui-primary)] hover:border-[color:var(--ui-primary)]"
           href={props.href}
           onClick$={() => {
             if (!props.telemetry) return;

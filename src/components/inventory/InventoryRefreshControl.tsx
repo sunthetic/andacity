@@ -187,11 +187,11 @@ export const InventoryRefreshControl = component$(
           type="button"
           class={[
             props.compact
-              ? "rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs"
-              : "rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm",
+              ? "rounded-lg border border-[color:var(--ui-border)] px-3 py-1.5 text-xs"
+              : "rounded-lg border border-[color:var(--ui-border)] px-3 py-2 text-sm",
             props.mode === "unsupported" || props.disabled
               ? "cursor-not-allowed opacity-60"
-              : "hover:border-[color:var(--color-action)]",
+              : "hover:border-[color:var(--ui-primary)]",
           ]}
           pending={state.value === "refreshing"}
           pendingLabel={props.refreshingLabel || "Refreshing..."}
@@ -206,8 +206,8 @@ export const InventoryRefreshControl = component$(
             class={[
               props.compact ? "text-[11px]" : "text-xs",
               state.value === "failed"
-                ? "text-[color:var(--color-error,#b91c1c)]"
-                : "text-[color:var(--color-text-muted)]",
+                ? "text-[color:var(--ui-danger)]"
+                : "text-[color:var(--ui-text-muted)]",
             ]}
           >
             {message.value}

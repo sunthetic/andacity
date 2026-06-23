@@ -6,7 +6,7 @@ export const Breadcrumbs = component$((props: BreadcrumbsProps) => {
 
   return (
     <nav aria-label="Breadcrumb">
-      <ol class="flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-text-muted)]">
+      <ol class="flex flex-wrap items-center gap-2 text-xs text-[color:var(--ui-text-muted)]">
         {items.map((item, index) => {
           const isLast = index === items.length - 1
           return (
@@ -14,7 +14,7 @@ export const Breadcrumbs = component$((props: BreadcrumbsProps) => {
               {item.href && !isLast ? (
                 <a
                   href={item.href}
-                  class="transition-colors hover:text-[color:var(--color-text-strong)]"
+                  class="transition-colors hover:text-[color:var(--ui-text)]"
                 >
                   {item.label}
                 </a>

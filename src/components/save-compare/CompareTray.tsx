@@ -19,16 +19,19 @@ export const CompareTray = component$((props: CompareTrayProps) => {
       ]}
     >
       <div class="pointer-events-auto mx-auto max-w-5xl">
-        <div class="t-card flex flex-wrap items-center justify-between gap-3 bg-[color:var(--color-surface-chrome)] p-3 backdrop-blur">
+        <div
+          class="flex flex-wrap items-center justify-between gap-3 p-3 backdrop-blur"
+          style="background:var(--ui-surface);border:1px solid var(--ui-border);border-radius:var(--ui-radius);box-shadow:var(--ui-shadow-panel)"
+        >
           <div>
-            <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+            <p class="text-xs uppercase tracking-[0.08em] text-[color:var(--ui-text-muted)]">
               Compare
             </p>
-            <p class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+            <p class="text-sm font-semibold text-[color:var(--ui-text)]">
               {compareCountLabel(props.vertical, props.compareCount)}
             </p>
             {!canOpen ? (
-              <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+              <p class="mt-1 text-xs text-[color:var(--ui-text-muted)]">
                 Select one more item to open comparison.
               </p>
             ) : null}
@@ -38,7 +41,7 @@ export const CompareTray = component$((props: CompareTrayProps) => {
             <button
               type="button"
               onClick$={props.onClear$}
-              class="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-strong)]"
+              class="rounded-lg border border-[color:var(--ui-border)] px-3 py-1.5 text-xs font-medium text-[color:var(--ui-text-muted)] hover:text-[color:var(--ui-text)]"
             >
               Clear all
             </button>

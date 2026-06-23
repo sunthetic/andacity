@@ -9,7 +9,7 @@ export const AsyncInlineSpinner = component$(
     return (
       <span
         class={[
-          "inline-flex items-center gap-2 text-[color:var(--color-text-muted)]",
+          "inline-flex items-center gap-2 text-[color:var(--ui-text-muted)]",
           props.class,
         ]}
         role="status"
@@ -18,7 +18,7 @@ export const AsyncInlineSpinner = component$(
         <span
           aria-hidden="true"
           class={[
-            "inline-block animate-spin rounded-full border-2 border-[color:var(--color-border)] border-t-[color:var(--color-action)]",
+            "inline-block animate-spin rounded-full border-2 border-[color:var(--ui-border)] border-t-[color:var(--ui-primary)]",
             sizeClass,
           ]}
         />

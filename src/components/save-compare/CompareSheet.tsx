@@ -48,15 +48,19 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
         aria-modal="true"
         aria-label={verticalCompareTitle(props.vertical)}
         tabIndex={-1}
-        class="absolute inset-0 bg-[color:var(--color-surface)] outline-none"
+        class="absolute inset-0 outline-none"
+        style="background:var(--ui-bg)"
       >
-        <header class="sticky top-0 z-20 border-b border-[color:var(--color-divider)] bg-[color:var(--color-surface-chrome)] backdrop-blur">
+        <header
+          class="sticky top-0 z-20 backdrop-blur"
+          style="border-bottom:1px solid var(--ui-divider);background:var(--ui-surface)"
+        >
           <div class="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-4 py-4 lg:px-6">
             <div>
-              <h2 class="text-lg font-semibold text-[color:var(--color-text-strong)]">
+              <h2 class="text-lg font-semibold" style="color:var(--ui-text)">
                 {verticalCompareTitle(props.vertical)}
               </h2>
-              <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+              <p class="mt-1 text-sm" style="color:var(--ui-text-muted)">
                 Side-by-side comparison of the most practical decision fields.
               </p>
             </div>
@@ -72,7 +76,8 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
                   })
                   return decisioning.clearComparedItems$(props.vertical)
                 }}
-                class="rounded-full border border-[color:var(--color-border)] px-3 py-2 text-xs font-semibold text-[color:var(--color-text-muted)]"
+                class="rounded-full px-3 py-2 text-xs font-semibold"
+                style="border:1px solid var(--ui-border);color:var(--ui-text-muted)"
               >
                 Clear all
               </button>
@@ -97,11 +102,14 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
 
         <div class="mx-auto h-[calc(100vh-81px)] max-w-[1400px] overflow-auto px-4 py-4 lg:px-6">
           <div
-            class="grid min-w-max gap-px rounded-3xl border border-[color:var(--color-border)] bg-[color:var(--color-divider)]"
-            style={{ gridTemplateColumns }}
+            class="grid min-w-max gap-px rounded-3xl"
+            style={{ gridTemplateColumns, border: '1px solid var(--ui-border)', background: 'var(--ui-divider)' }}
           >
-            <div class="sticky left-0 z-10 flex items-end border-r border-[color:var(--color-divider)] bg-[color:var(--color-panel)] px-4 py-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+            <div
+              class="sticky left-0 z-10 flex items-end border-r px-4 py-4"
+              style="border-color:var(--ui-divider);background:var(--ui-surface-muted)"
+            >
+              <p class="text-xs font-semibold uppercase tracking-[0.08em]" style="color:var(--ui-text-muted)">
                 Criteria
               </p>
             </div>
@@ -114,7 +122,8 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
               return (
                 <article
                   key={item.id}
-                  class="flex h-full flex-col gap-3 bg-[color:var(--color-surface)] px-4 py-4"
+                  class="flex h-full flex-col gap-3 px-4 py-4"
+                  style="background:var(--ui-surface)"
                 >
                   {item.image ? (
                     <img
@@ -126,22 +135,25 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
                       loading="lazy"
                     />
                   ) : (
-                    <div class="flex h-28 items-center justify-center rounded-2xl bg-[color:var(--color-neutral-50)] text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+                    <div
+                      class="flex h-28 items-center justify-center rounded-2xl text-xs font-semibold uppercase tracking-[0.08em]"
+                      style="background:var(--ui-surface-muted);color:var(--ui-text-muted)"
+                    >
                       {props.vertical}
                     </div>
                   )}
 
                   <div>
-                    <h3 class="text-base font-semibold text-[color:var(--color-text-strong)]">
+                    <h3 class="text-base font-semibold" style="color:var(--ui-text)">
                       {item.title}
                     </h3>
                     {item.subtitle ? (
-                      <p class="mt-1 text-sm text-[color:var(--color-text-muted)]">
+                      <p class="mt-1 text-sm" style="color:var(--ui-text-muted)">
                         {item.subtitle}
                       </p>
                     ) : null}
                     {item.price ? (
-                      <p class="mt-2 text-sm font-semibold text-[color:var(--color-text-strong)]">
+                      <p class="mt-2 text-sm font-semibold" style="color:var(--ui-text)">
                         {item.price}
                       </p>
                     ) : null}
@@ -169,7 +181,8 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
                         })
                         return decisioning.removeComparedItem$(props.vertical, item.id)
                       }}
-                      class="rounded-full border border-[color:var(--color-border)] px-3 py-1 text-xs font-semibold text-[color:var(--color-text-muted)]"
+                      class="rounded-full px-3 py-1 text-xs font-semibold"
+                      style="border:1px solid var(--ui-border);color:var(--ui-text-muted)"
                     >
                       Remove
                     </button>
@@ -178,7 +191,8 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
                   <div class="mt-auto flex flex-wrap gap-2">
                     <a
                       href={item.href}
-                      class="rounded-full border border-[color:var(--color-border)] px-3 py-2 text-xs font-semibold text-[color:var(--color-text-strong)]"
+                      class="rounded-full px-3 py-2 text-xs font-semibold"
+                      style="border:1px solid var(--ui-border);color:var(--ui-text)"
                     >
                       View
                     </a>
@@ -195,9 +209,10 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
               <>
                 <div
                   key={`label:${field.key}`}
-                  class="sticky left-0 z-10 border-r border-t border-[color:var(--color-divider)] bg-[color:var(--color-panel)] px-4 py-4"
+                  class="sticky left-0 z-10 border-r border-t px-4 py-4"
+                  style="border-color:var(--ui-divider);background:var(--ui-surface-muted)"
                 >
-                  <div class="text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-muted)]">
+                  <div class="text-xs font-semibold uppercase tracking-[0.08em]" style="color:var(--ui-text-muted)">
                     {field.label}
                   </div>
                 </div>
@@ -205,9 +220,10 @@ export const CompareSheet = component$((props: CompareSheetProps) => {
                 {props.items.map((item) => (
                   <div
                     key={`${field.key}:${item.id}`}
-                    class="border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface)] px-4 py-4 text-sm text-[color:var(--color-text)]"
+                    class="border-t px-4 py-4 text-sm"
+                    style="border-color:var(--ui-divider);background:var(--ui-surface);color:var(--ui-text)"
                   >
-                    {item.compareData?.[field.key] || <span class="text-[color:var(--color-text-subtle)]">—</span>}
+                    {item.compareData?.[field.key] || <span style="color:var(--ui-text-muted)">—</span>}
                   </div>
                 ))}
               </>
