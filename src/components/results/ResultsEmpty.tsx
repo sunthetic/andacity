@@ -2,9 +2,12 @@ import { component$ } from '@builder.io/qwik'
 
 export const ResultsEmpty = component$((props: ResultsEmptyProps) => {
   return (
-    <div class="rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] p-6 text-center shadow-[var(--shadow-sm)] md:p-8">
-      <h3 class="text-balance text-lg font-semibold text-[color:var(--color-text-strong)]">{props.title}</h3>
-      <p class="mx-auto mt-2 max-w-[56ch] text-sm text-[color:var(--color-text-muted)]">{props.description}</p>
+    <div
+      class="rounded-xl p-6 text-center md:p-8"
+      style="background:var(--ui-surface);border:1px solid var(--ui-border);box-shadow:var(--ui-shadow-card)"
+    >
+      <h3 class="text-balance text-lg font-semibold" style="color:var(--ui-text)">{props.title}</h3>
+      <p class="mx-auto mt-2 max-w-[56ch] text-sm" style="color:var(--ui-text-muted)">{props.description}</p>
 
       <div class="mt-5 flex flex-wrap items-center justify-center gap-2">
         {props.primaryAction ? (

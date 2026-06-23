@@ -385,6 +385,7 @@ export const CanonicalHotelResultsSection = component$(
           props.page.request,
           props.page.ui.summary.cityLabel,
         )}
+        hideHeader={props.hideHeader}
         filtersTitle="Hotel filters"
         asyncState={props.isNavigating ? "refreshing" : undefined}
         refreshingOverlayLabel="Updating stays"
@@ -452,8 +453,8 @@ export const CanonicalHotelResultsSection = component$(
         />
 
         {props.page.progress?.status === "partial" ? (
-          <div class="mb-4 rounded-3xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-5 py-4 text-sm text-[color:var(--color-text-muted)] shadow-[var(--shadow-soft)]">
-            <p class="font-semibold text-[color:var(--color-text)]">
+          <div class="mb-4 rounded-xl px-5 py-4 text-sm" style="background:var(--ui-surface);border:1px solid var(--ui-border);color:var(--ui-text-muted);box-shadow:var(--ui-shadow-card)">
+            <p class="font-semibold" style="color:var(--ui-text)">
               Loading more hotel results
             </p>
             <p class="mt-1">
@@ -472,4 +473,5 @@ type CanonicalHotelResultsSectionProps = {
   page: CanonicalHotelSearchPageSuccess;
   currentPath: string;
   isNavigating?: boolean;
+  hideHeader?: boolean;
 };

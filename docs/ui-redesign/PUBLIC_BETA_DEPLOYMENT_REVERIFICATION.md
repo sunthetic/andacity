@@ -195,10 +195,33 @@ Unchanged from CLAUDE-UI-034:
 
 ---
 
+## CLAUDE-UI-041 addendum (2026-06-23)
+
+**Search Overlay and Vertical Results UI Blocker Remediation** resolved three additional public-beta blockers after this document was originally written. These changes are now included in the deploy-ready candidate.
+
+### Changes in CLAUDE-UI-041
+
+| Area | Files changed |
+|---|---|
+| Overlay fix — `overflow-hidden` removed from 4 hero sections | `HotelsLandingPage.tsx`, `CarRentalsLanding.tsx`, `hotels/in/[citySlug]/index.tsx`, `car-rentals/in/[citySlug]/index.tsx` |
+| Hotel/car search page hero header | `hotels/search/.../index.tsx`, `car-rentals/search/.../index.tsx` — `Page` wrapper replaced with `--ui-hero` gradient header |
+| `ResultsShell` and 9 sub-components | Full `--color-*` → `--ui-*` migration across `ResultsHeader`, `ResultsControlBar`, `ResultsFilters`, `ResultsFilterGroups`, `ResultsEmpty`, `ResultsPagination`, `ResultsSort`, `ResultCardScaffold`, `ResultCardHeader` |
+| Result cards and adapters | `HotelResultCard`, `CarResultCard`, `HotelResultsErrorState`, `CarResultsErrorState`, partial notice fixes in 4 files |
+| `DateField.tsx` calendar overlay | All legacy tokens migrated; calendar now renders above hero content |
+
+No new environment variables. No changes to routes, auth, or DB. No sitemap changes. `noindex`/`follow` on search routes unchanged.
+
+Post-CLAUDE-UI-041 build verification:
+- `yarn run build.types` ✅
+- `yarn run lint` ✅ (0 errors, 2 pre-existing warnings)
+- `yarn run build` ✅
+
+---
+
 ## Classification
 
 **Ready to deploy after environment variables are set.**
 
-All builds pass. Sitemap verified. Dev route protection confirmed. SEO gates unchanged. Analytics/error monitoring unchanged. No new env vars required. Remaining legacy tokens are deferred non-blockers per CLAUDE-UI-039 QA.
+All builds pass. Sitemap verified. Dev route protection confirmed. SEO gates unchanged. Analytics/error monitoring unchanged. No new env vars required. All three CLAUDE-UI-041 public-beta blockers resolved.
 
 Next step: set the 7 required environment variables listed above, then execute the Docker deploy per `PUBLIC_BETA_DEPLOYMENT_VERIFICATION.md` (CLAUDE-UI-034) deploy procedure.

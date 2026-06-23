@@ -4,28 +4,34 @@ import type { HotelResultsErrorStateModel } from "~/types/search-ui";
 export const HotelResultsErrorState = component$((props: HotelResultsErrorStateProps) => {
   return (
     <section
-      class="rounded-3xl border border-[color:var(--color-danger-border,#f1b3b8)] bg-[color:var(--color-danger-surface,#fff5f5)] p-6"
+      class="rounded-xl p-6"
       role="alert"
+      style="background:var(--ui-danger-soft,#fff5f5);border:1px solid var(--ui-danger,#b91c1c)"
     >
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
-          <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--color-text-muted)]">
+          <p class="text-xs font-semibold uppercase tracking-[0.12em]" style="color:var(--ui-text-muted)">
             Hotel search error
           </p>
-          <h2 class="mt-2 text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+          <h2 class="mt-2 text-2xl font-semibold tracking-tight" style="color:var(--ui-text)">
             {props.model.title}
           </h2>
-          <p class="mt-3 max-w-[64ch] text-sm leading-6 text-[color:var(--color-text-muted)]">
+          <p class="mt-3 max-w-[64ch] text-sm leading-6" style="color:var(--ui-text-muted)">
             {props.model.description}
           </p>
           {props.model.routeLabel ? (
-            <p class="mt-3 text-sm font-medium text-[color:var(--color-text-strong)]">
+            <p class="mt-3 text-sm font-medium" style="color:var(--ui-text)">
               City: {props.model.routeLabel}
             </p>
           ) : null}
         </div>
 
-        <span class="t-badge bg-[color:var(--color-surface)]">{props.model.statusLabel}</span>
+        <span
+          class="rounded-full px-2.5 py-1 text-xs font-medium"
+          style="background:var(--ui-surface);border:1px solid var(--ui-border);color:var(--ui-text)"
+        >
+          {props.model.statusLabel}
+        </span>
       </div>
 
       <div class="mt-5 flex flex-wrap gap-3">

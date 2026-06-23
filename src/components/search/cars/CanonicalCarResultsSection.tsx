@@ -390,6 +390,7 @@ export const CanonicalCarResultsSection = component$(
       <ResultsShell
         querySummary={buildQuerySummary(props.page)}
         editSearchHref={buildCarSearchEditorHref(props.page.request)}
+        hideHeader={props.hideHeader}
         filtersTitle="Car rental filters"
         asyncState={props.isNavigating ? "refreshing" : undefined}
         refreshingOverlayLabel="Updating rentals"
@@ -451,8 +452,8 @@ export const CanonicalCarResultsSection = component$(
         />
 
         {props.page.progress?.status === "partial" ? (
-          <div class="mb-4 rounded-3xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] px-5 py-4 text-sm text-[color:var(--color-text-muted)] shadow-[var(--shadow-soft)]">
-            <p class="font-semibold text-[color:var(--color-text)]">
+          <div class="mb-4 rounded-xl px-5 py-4 text-sm" style="background:var(--ui-surface);border:1px solid var(--ui-border);color:var(--ui-text-muted);box-shadow:var(--ui-shadow-card)">
+            <p class="font-semibold" style="color:var(--ui-text)">
               Loading more car rental results
             </p>
             <p class="mt-1">
@@ -471,4 +472,5 @@ type CanonicalCarResultsSectionProps = {
   page: CanonicalCarSearchPageSuccess;
   currentPath: string;
   isNavigating?: boolean;
+  hideHeader?: boolean;
 };

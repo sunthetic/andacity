@@ -154,7 +154,7 @@ export const DateField = component$((props: DateFieldProps) => {
           class={[
             props.inputClass,
             "w-full min-w-0 pr-10",
-            inlineMessage ? "text-[color:var(--color-danger,#b91c1c)]" : null,
+            inlineMessage ? "text-[color:var(--ui-danger,#b91c1c)]" : null,
           ]}
           disabled={props.disabled}
           readOnly={pickerOpen.value}
@@ -252,7 +252,8 @@ export const DateField = component$((props: DateFieldProps) => {
         <button
           type="button"
           aria-label={props.iconLabel || "Open date picker"}
-          class="absolute inset-y-1 right-1 inline-flex w-8 items-center justify-center rounded-md text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)] disabled:cursor-not-allowed disabled:opacity-60"
+          class="absolute inset-y-1 right-1 inline-flex w-8 items-center justify-center rounded-md focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
+          style="color:var(--ui-text-muted)"
           disabled={props.disabled}
           onClick$={() => {
             if (props.disabled) return;
@@ -274,7 +275,8 @@ export const DateField = component$((props: DateFieldProps) => {
         <p
           id={errorId}
           aria-live="polite"
-          class="mt-1 text-xs text-[color:var(--color-danger,#b91c1c)]"
+          class="mt-1 text-xs"
+          style="color:var(--ui-danger,#b91c1c)"
         >
           {inlineMessage}
         </p>
@@ -287,14 +289,16 @@ export const DateField = component$((props: DateFieldProps) => {
           aria-modal="false"
           aria-label={props.overlayLabel || "Calendar date picker"}
           class={[
-            "absolute top-[calc(100%+0.5rem)] z-30 w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-3 shadow-[var(--shadow-e3)]",
+            "absolute top-[calc(100%+0.5rem)] z-30 w-[min(18rem,calc(100vw-2rem))] rounded-2xl p-3",
             props.overlayPosition === "right" ? "right-0" : "left-0",
           ]}
+          style="background:var(--ui-surface);border:1px solid var(--ui-border);box-shadow:var(--ui-shadow-panel)"
         >
           <div class="flex items-center justify-between gap-2">
             <button
               type="button"
-              class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-strong)] hover:bg-[color:var(--color-surface-elevated)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)]"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2"
+              style="border:1px solid var(--ui-border);color:var(--ui-text)"
               aria-label="Show previous month"
               onClick$={() => {
                 monthAnchor.value = shiftMonthAnchor(monthAnchor.value, -1);
@@ -303,13 +307,14 @@ export const DateField = component$((props: DateFieldProps) => {
               <span aria-hidden="true">&lt;</span>
             </button>
 
-            <div class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+            <div class="text-sm font-semibold" style="color:var(--ui-text)">
               {formatMonthLabel(monthAnchor.value)}
             </div>
 
             <button
               type="button"
-              class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-strong)] hover:bg-[color:var(--color-surface-elevated)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)]"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2"
+              style="border:1px solid var(--ui-border);color:var(--ui-text)"
               aria-label="Show next month"
               onClick$={() => {
                 monthAnchor.value = shiftMonthAnchor(monthAnchor.value, 1);
@@ -323,7 +328,8 @@ export const DateField = component$((props: DateFieldProps) => {
             {WEEKDAY_LABELS.map((label) => (
               <div
                 key={label}
-                class="pb-1 text-center text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]"
+                class="pb-1 text-center text-[11px] font-semibold uppercase tracking-[0.08em]"
+                style="color:var(--ui-text-muted)"
               >
                 {label}
               </div>
@@ -350,16 +356,16 @@ export const DateField = component$((props: DateFieldProps) => {
                     data-date-disabled={isDisabled ? "true" : "false"}
                     data-date-selected={isSelected ? "true" : "false"}
                     data-iso-value={day.isoValue}
-                    class={[
-                      "inline-flex h-9 items-center justify-center rounded-full text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-ring)]",
+                    class="inline-flex h-9 items-center justify-center rounded-full text-sm transition-colors focus:outline-none focus-visible:ring-2"
+                    style={
                       isDisabled
-                        ? "cursor-not-allowed text-[color:var(--color-text-subtle)] opacity-45"
+                        ? "color:var(--ui-text-muted);opacity:0.45;cursor:not-allowed"
                         : isSelected
-                          ? "bg-[color:var(--color-action)] text-white"
+                          ? "background:var(--ui-primary);color:var(--ui-on-primary)"
                           : day.inMonth
-                            ? "text-[color:var(--color-text-strong)] hover:bg-[color:var(--color-surface-elevated)]"
-                            : "text-[color:var(--color-text-subtle)] hover:bg-[color:var(--color-surface-elevated)]",
-                    ]}
+                            ? "color:var(--ui-text)"
+                            : "color:var(--ui-text-muted)"
+                    }
                     onClick$={() => {
                       const nextDisplay = formatIsoDateInputValue(day.isoValue);
                       displayValue.value = nextDisplay;

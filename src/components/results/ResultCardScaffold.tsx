@@ -21,7 +21,10 @@ export const ResultCardScaffold = component$(
       : undefined;
 
     return (
-      <article class="t-card overflow-hidden transition hover:-translate-y-px hover:shadow-[var(--shadow-lg)]">
+      <article
+        class="overflow-hidden rounded-xl transition hover:-translate-y-px"
+        style="background:var(--ui-surface);border:1px solid var(--ui-border);box-shadow:var(--ui-shadow-card)"
+      >
         <div
           class={[
             "grid gap-0",
@@ -31,7 +34,10 @@ export const ResultCardScaffold = component$(
           ]}
         >
           {props.hasMedia ? (
-            <div class="bg-[linear-gradient(145deg,var(--color-primary-50),var(--color-secondary-50))] md:shadow-[inset_-1px_0_0_var(--color-divider)]">
+            <div
+              class="md:shadow-[inset_-1px_0_0_var(--ui-divider)]"
+              style="background:var(--ui-surface-muted)"
+            >
               <Slot name="media" />
             </div>
           ) : null}
@@ -61,7 +67,10 @@ export const ResultCardScaffold = component$(
               </div>
 
               {showAside ? (
-                <aside class="flex min-w-0 flex-col gap-4 rounded-2xl bg-[color:var(--color-deal-soft)] p-3 shadow-[inset_3px_0_0_var(--color-price)] md:p-3 xl:p-4">
+                <aside
+                  class="flex min-w-0 flex-col gap-4 rounded-2xl p-3 xl:p-4"
+                  style="background:var(--ui-surface-muted);border-left:3px solid var(--ui-primary)"
+                >
                   {props.hasSecondaryActions ? (
                     <div class="flex flex-wrap gap-2 md:justify-end">
                       <Slot name="secondary-actions" />
@@ -84,7 +93,7 @@ export const ResultCardScaffold = component$(
             </div>
 
             {props.hasTrust ? (
-              <div class="mt-4 rounded-2xl bg-[color:var(--color-surface-1)] px-3 py-3">
+              <div class="mt-4 rounded-2xl px-3 py-3" style="background:var(--ui-surface-muted)">
                 <Slot name="trust" />
               </div>
             ) : null}
@@ -101,11 +110,6 @@ export const ResultFactGrid = component$((props: ResultFactGridProps) => {
   );
   if (!items.length) return null;
 
-  const surfaceClass =
-    props.surface === "soft"
-      ? "bg-[color:var(--color-surface-3)]"
-      : "bg-[color:var(--color-panel)]";
-
   return (
     <div
       class={[
@@ -118,19 +122,17 @@ export const ResultFactGrid = component$((props: ResultFactGridProps) => {
       {items.map((item) => (
         <div
           key={`${item.label}:${item.value}`}
-          class={[
-            "rounded-xl px-3 py-2.5 shadow-[var(--shadow-sm)]",
-            surfaceClass,
-          ]}
+          class="rounded-xl px-3 py-2.5 shadow-sm"
+          style="background:var(--ui-surface-muted)"
         >
-          <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.08em]" style="color:var(--ui-text-muted)">
             {item.label}
           </p>
-          <p class="mt-1 text-sm font-semibold leading-5 text-[color:var(--color-text-strong)]">
+          <p class="mt-1 text-sm font-semibold leading-5" style="color:var(--ui-text)">
             {item.value}
           </p>
           {item.detail ? (
-            <p class="mt-1 text-[11px] leading-4 text-[color:var(--color-text-muted)]">
+            <p class="mt-1 text-[11px] leading-4" style="color:var(--ui-text-muted)">
               {item.detail}
             </p>
           ) : null}
@@ -166,19 +168,20 @@ export const ResultFactList = component$((props: ResultFactListProps) => {
       {items.map((item) => (
         <div
           key={`${item.label}:${item.value}:${item.detail || ""}`}
-          class="min-w-0 rounded-lg bg-[color:var(--color-surface-1)] px-3 py-2.5 shadow-[inset_3px_0_0_color-mix(in_oklab,var(--color-secondary-500)_54%,transparent)]"
+          class="min-w-0 rounded-lg px-3 py-2.5"
+          style="background:var(--ui-surface-muted);border-left:3px solid var(--ui-accent)"
         >
-          <dt class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+          <dt class="text-[10px] font-semibold uppercase tracking-[0.08em]" style="color:var(--ui-text-muted)">
             {item.label}
           </dt>
-          <dd class="mt-1 min-w-0 text-sm leading-5 text-[color:var(--color-text)]">
+          <dd class="mt-1 min-w-0 text-sm leading-5" style="color:var(--ui-text)">
             {item.value ? (
-              <span class="font-semibold text-[color:var(--color-text-strong)]">
+              <span class="font-semibold" style="color:var(--ui-text)">
                 {item.value}
               </span>
             ) : null}
             {item.detail ? (
-              <span class="text-[color:var(--color-text-muted)]">
+              <span style="color:var(--ui-text-muted)">
                 {item.value ? " · " : null}
                 {item.detail}
               </span>
@@ -195,11 +198,11 @@ export const ResultReasonCallout = component$(
     if (!String(props.text || "").trim()) return null;
 
     return (
-      <div class="rounded-xl bg-[color:var(--color-action-soft)] px-4 py-3 shadow-[inset_3px_0_0_var(--color-action)]">
-        <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-action)]">
+      <div class="rounded-xl px-4 py-3" style="background:var(--ui-accent-soft);border-left:3px solid var(--ui-accent)">
+        <p class="text-[10px] font-semibold uppercase tracking-[0.08em]" style="color:var(--ui-accent)">
           {props.label || "Why this result"}
         </p>
-        <p class="mt-1 text-sm leading-5 text-[color:var(--color-text)]">
+        <p class="mt-1 text-sm leading-5" style="color:var(--ui-text)">
           {props.text}
         </p>
       </div>
@@ -230,11 +233,11 @@ export const ResultTrustBar = component$((props: ResultTrustBarProps) => {
 
       {detailText ? (
         <div class="sm:max-w-[280px] sm:text-right">
-          <p class="text-[11px] leading-4 text-[color:var(--color-text-muted)]">
+          <p class="text-[11px] leading-4" style="color:var(--ui-text-muted)">
             {detailText}
           </p>
           {props.note && props.note !== detailText ? (
-            <p class="mt-1 text-[11px] leading-4 text-[color:var(--color-text-muted)]">
+            <p class="mt-1 text-[11px] leading-4" style="color:var(--ui-text-muted)">
               {props.note}
             </p>
           ) : null}
@@ -260,21 +263,21 @@ export const ResultPricePanel = component$((props: ResultPricePanelProps) => {
       : props.display.totalLabel;
 
   return (
-      <div class={["rounded-2xl bg-[color:var(--color-highlight-soft)] px-3 py-3 shadow-[var(--shadow-sm)]", alignClass]}>
-      <div class="text-3xl font-semibold leading-none text-[color:var(--color-price)]">
+    <div class={["rounded-2xl px-3 py-3 shadow-sm", alignClass]} style="background:var(--ui-surface-muted)">
+      <div class="text-3xl font-semibold leading-none" style="color:var(--ui-price)">
         {formatMoney(props.display.baseAmount, props.currency)}
         {props.display.baseQualifier ? (
-          <span class="ml-1 text-sm font-normal text-[color:var(--color-text-muted)]">
+          <span class="ml-1 text-sm font-normal" style="color:var(--ui-text-muted)">
             {formatPriceQualifier(props.display.baseQualifier)}
           </span>
         ) : null}
       </div>
 
       {props.display.baseTotalAmount != null && !hasEstimatedTotal ? (
-        <p class="mt-2 text-xs leading-5 text-[color:var(--color-text-muted)]">
+        <p class="mt-2 text-xs leading-5" style="color:var(--ui-text-muted)">
           <span>{props.display.baseTotalLabel}</span>
           <span aria-hidden="true">: </span>
-          <span class="font-medium text-[color:var(--color-text)]">
+          <span class="font-medium" style="color:var(--ui-text)">
             {formatMoney(props.display.baseTotalAmount, props.currency)}
           </span>
           {props.display.unitCountLabel ? (
@@ -284,16 +287,16 @@ export const ResultPricePanel = component$((props: ResultPricePanelProps) => {
           ) : null}
         </p>
       ) : props.missingTotalText ? (
-        <p class="mt-2 text-xs leading-5 text-[color:var(--color-text-muted)]">
+        <p class="mt-2 text-xs leading-5" style="color:var(--ui-text-muted)">
           {props.missingTotalText}
         </p>
       ) : null}
 
       {hasEstimatedTotal ? (
-        <p class="mt-2 text-xs leading-5 text-[color:var(--color-text-muted)]">
+        <p class="mt-2 text-xs leading-5" style="color:var(--ui-text-muted)">
           <span>{totalLabel}</span>
           <span aria-hidden="true"> </span>
-          <span class="font-medium text-[color:var(--color-text)]">
+          <span class="font-medium" style="color:var(--ui-text)">
             {formatMoney(props.display.totalAmount, props.currency)}
           </span>
           {props.display.unitCountLabel ? (
@@ -307,9 +310,10 @@ export const ResultPricePanel = component$((props: ResultPricePanelProps) => {
       {props.display.supportText ? (
         <p
           class={[
-            "mt-2 text-[11px] leading-4 text-[color:var(--color-text-subtle)]",
+            "mt-2 text-[11px] leading-4",
             supportClass,
           ]}
+          style="color:var(--ui-text-muted)"
         >
           {props.display.supportText}
         </p>
@@ -322,8 +326,8 @@ export const ResultPricePanel = component$((props: ResultPricePanelProps) => {
           class={[
             "mt-2 text-xs font-medium",
             props.display.delta.status === "increased"
-              ? "text-[color:var(--color-error,#b91c1c)]"
-              : "text-[color:var(--color-success,#0f766e)]",
+              ? "text-[color:var(--ui-danger,#b91c1c)]"
+              : "text-[color:var(--ui-success,#0f766e)]",
           ]}
         >
           {formatPriceChange(props.display.delta, props.currency)}

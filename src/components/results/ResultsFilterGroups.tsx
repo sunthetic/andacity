@@ -10,7 +10,10 @@ export const ResultsFilterGroups = component$(
       <div class="grid gap-5">
         {props.groups.map((group) => (
           <section key={group.title}>
-            <h4 class="inline-flex rounded-full bg-[color:var(--color-route-soft)] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--color-route)]">
+            <h4
+              class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em]"
+              style="background:var(--ui-accent-soft);color:var(--ui-accent)"
+            >
               {group.title}
             </h4>
             <div class="mt-2 flex flex-wrap gap-2">
@@ -32,14 +35,16 @@ export const ResultsFilterGroups = component$(
                   aria-disabled={props.disabled || undefined}
                   tabIndex={props.disabled ? -1 : undefined}
                   class={[
-                    "rounded-full px-3 py-1 text-xs font-semibold shadow-[var(--shadow-sm)] transition",
-                    option.active
-                      ? "bg-[linear-gradient(135deg,var(--color-action),var(--color-route))] text-white"
-                      : "bg-[color:var(--color-surface-1)] text-[color:var(--color-text)] hover:bg-[color:var(--color-highlight-soft)] hover:text-[color:var(--color-highlight)]",
+                    "rounded-full px-3 py-1 text-xs font-semibold shadow-sm transition",
                     props.disabled
                       ? "pointer-events-none cursor-not-allowed opacity-60"
                       : null,
                   ]}
+                  style={
+                    option.active
+                      ? "background:var(--ui-primary);color:var(--ui-on-primary)"
+                      : "background:var(--ui-surface-muted);color:var(--ui-text);border:1px solid var(--ui-border)"
+                  }
                   aria-current={option.active ? "page" : undefined}
                 >
                   {option.label}

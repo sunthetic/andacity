@@ -7,8 +7,7 @@ import {
 } from "@builder.io/qwik-city";
 import { CanonicalHotelResultsSection } from "~/components/search/hotels/CanonicalHotelResultsSection";
 import { HotelResultsRenderer } from "~/components/search/hotels/HotelResultsRenderer";
-import { resolveHotelResultsRendererModel } from "~/components/search/hotels/hotelResultsRendererModel";
-import { Page } from "~/components/site/Page";
+import { buildHotelSearchEditorHref, resolveHotelResultsRendererModel } from "~/components/search/hotels/hotelResultsRendererModel";
 import { mapHotelResultsForUi } from "~/server/search/mapHotelResultsForUi";
 import {
   loadCanonicalHotelSearchProgressivePage,
@@ -146,25 +145,68 @@ export default component$(() => {
     rendererModel.state !== "loading" &&
     rendererModel.state !== "error";
 
+  const heroData = !("error" in data) ? data : null;
+
   return (
-    <Page
-      breadcrumbs={[
-        { label: "Andacity Travel", href: "/" },
-        { label: "Hotels", href: "/hotels" },
-        { label: "Search", href: "/hotels/search" },
-        { label: breadcrumbLabel, href: location.url.pathname },
-      ]}
-    >
-      {showShell ? (
-        <CanonicalHotelResultsSection
-          page={data}
-          currentPath={currentPath}
-          isNavigating={location.isNavigating}
-        />
-      ) : (
-        <HotelResultsRenderer model={rendererModel} />
-      )}
-    </Page>
+    <div style="background:var(--ui-bg);color:var(--ui-text)">
+      <section
+        class="relative isolate"
+        style="background-image:var(--ui-hero)"
+        aria-label={heroData ? `Hotel search results for ${heroData.ui.summary.cityLabel}` : "Hotel search results"}
+      >
+        <div class="absolute inset-0 -z-10" style="background-image:var(--ui-hero-scrim)" aria-hidden="true" />
+        <div class="mx-auto max-w-6xl px-4 pt-8 pb-7 md:pt-10 md:pb-8">
+          <nav aria-label="Breadcrumb" class="mb-4">
+            <ol class="flex flex-wrap items-center gap-2 text-[12px]" style="color:rgba(255,255,255,0.72)">
+              <li class="flex items-center gap-2">
+                <a href="/" class="hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">Home</a>
+                <span aria-hidden="true">/</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <a href="/hotels" class="hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">Hotels</a>
+                <span aria-hidden="true">/</span>
+              </li>
+              <li aria-current="page" style="color:rgba(255,255,255,0.95)">{breadcrumbLabel}</li>
+            </ol>
+          </nav>
+
+          <div class="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1 class="text-2xl font-bold md:text-3xl" style="color:#fff;font-family:'Lexend Variable',var(--system-font-family)">
+                {heroData ? `Hotels in ${heroData.ui.summary.cityLabel}` : "Hotel search results"}
+              </h1>
+              {heroData ? (
+                <p class="mt-1 text-sm" style="color:rgba(255,255,255,0.88)">
+                  {heroData.ui.summary.checkInDateLabel} – {heroData.ui.summary.checkOutDateLabel}
+                </p>
+              ) : null}
+            </div>
+            {heroData ? (
+              <a
+                href={buildHotelSearchEditorHref(heroData.request, heroData.ui.summary.cityLabel)}
+                class="inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                style="background:rgba(255,255,255,0.16);color:#fff;border:1px solid rgba(255,255,255,0.3);min-height:44px"
+              >
+                Edit search
+              </a>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <div class="mx-auto max-w-6xl px-4 py-8">
+        {showShell ? (
+          <CanonicalHotelResultsSection
+            page={data}
+            currentPath={currentPath}
+            isNavigating={location.isNavigating}
+            hideHeader={true}
+          />
+        ) : (
+          <HotelResultsRenderer model={rendererModel} />
+        )}
+      </div>
+    </div>
   );
 });
 

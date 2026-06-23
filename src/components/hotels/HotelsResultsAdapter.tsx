@@ -614,7 +614,7 @@ export const HotelsResultsAdapter = component$(
         />
 
         {refreshPriceSummary.value ? (
-          <div class="mb-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-primary-50)] px-4 py-3 text-sm text-[color:var(--color-text)]">
+          <div class="mb-4 rounded-xl px-4 py-3 text-sm" style="background:var(--ui-accent-soft);border:1px solid var(--ui-border);color:var(--ui-text)">
             {refreshPriceSummary.value}
           </div>
         ) : null}

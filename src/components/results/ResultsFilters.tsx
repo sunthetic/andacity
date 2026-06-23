@@ -3,13 +3,11 @@ import { Slot, component$, type QRL } from "@builder.io/qwik";
 export const ResultsFilters = component$((props: ResultsFiltersProps) => {
   return (
     <section
-      class={[
-        "rounded-[var(--radius-xl)] bg-[color:var(--color-surface-chrome)] p-4 shadow-[var(--shadow-md)] backdrop-blur",
-        props.class,
-      ]}
+      class={["rounded-xl p-4 backdrop-blur", props.class]}
+      style="background:var(--ui-surface);border:1px solid var(--ui-border);box-shadow:var(--ui-shadow-card)"
     >
       <div class="flex items-center justify-between gap-3">
-        <h3 class="text-sm font-semibold text-[color:var(--color-text-strong)]">
+        <h3 class="text-sm font-semibold" style="color:var(--ui-text)">
           {props.title || "Filters"}
         </h3>
         {props.actionLabel ? (
@@ -19,11 +17,12 @@ export const ResultsFilters = component$((props: ResultsFiltersProps) => {
               aria-disabled={props.actionDisabled || undefined}
               tabIndex={props.actionDisabled ? -1 : undefined}
               class={[
-                "text-xs font-medium text-[color:var(--color-action)] hover:underline",
+                "text-xs font-medium hover:underline",
                 props.actionDisabled
                   ? "pointer-events-none opacity-60"
                   : null,
               ]}
+              style="color:var(--ui-primary)"
             >
               {props.actionLabel}
             </a>
@@ -31,7 +30,8 @@ export const ResultsFilters = component$((props: ResultsFiltersProps) => {
             <button
               type="button"
               disabled={props.actionDisabled}
-              class="text-xs font-medium text-[color:var(--color-action)] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+              class="text-xs font-medium hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+              style="color:var(--ui-primary)"
               onClick$={props.onAction$}
             >
               {props.actionLabel}

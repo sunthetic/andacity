@@ -77,13 +77,13 @@ export const CarResultCard = component$((props: CarResultCardProps) => {
       </div>
 
       <div q:slot="price" class="text-left md:text-right">
-        <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+        <p class="text-[10px] font-semibold uppercase tracking-[0.08em]" style="color:var(--ui-text-muted)">
           Total rental
         </p>
-        <p class="mt-1 text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+        <p class="mt-1 text-2xl font-semibold tracking-tight" style="color:var(--ui-price)">
           {card.price.totalDisplay}
         </p>
-        <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+        <p class="mt-1 text-xs" style="color:var(--ui-text-muted)">
           {card.price.supportingDisplay ||
             (card.price.currency ? `${card.price.currency} pricing` : "Pricing updates at selection")}
         </p>

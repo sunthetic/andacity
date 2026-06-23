@@ -192,7 +192,7 @@ export default component$(() => {
     <div style="background:var(--ui-bg);color:var(--ui-text)">
       {/* ── City hero ──────────────────────────────────────────── */}
       <section
-        class="relative isolate overflow-hidden"
+        class="relative isolate"
         style="background-image:var(--ui-hero)"
         aria-label={`Hotels in ${c.city} — search and overview`}
       >

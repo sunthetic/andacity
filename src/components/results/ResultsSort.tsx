@@ -2,8 +2,11 @@ import { component$ } from "@builder.io/qwik";
 
 export const ResultsSort = component$((props: ResultsSortProps) => {
   return (
-    <div class="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-xl)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface)] px-4 py-3 shadow-[var(--shadow-sm)]">
-      <p class="text-sm text-[color:var(--color-text-muted)]">
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3"
+      style="background:var(--ui-surface);border:1px solid var(--ui-border);box-shadow:var(--ui-shadow-card)"
+    >
+      <p class="text-sm" style="color:var(--ui-text-muted)">
         {props.resultCountLabel}
       </p>
 
@@ -15,14 +18,16 @@ export const ResultsSort = component$((props: ResultsSortProps) => {
             aria-disabled={props.disabled || undefined}
             tabIndex={props.disabled ? -1 : undefined}
             class={[
-              "rounded-full border px-3 py-1 text-xs font-medium transition",
-              option.active
-                ? "border-[color:var(--color-action)] bg-[color:var(--color-primary-50)] text-[color:var(--color-action)]"
-                : "border-[color:var(--color-border-default)] bg-[color:var(--color-surface-elevated)] text-[color:var(--color-text)] hover:bg-[color:var(--color-surface-2)]",
+              "rounded-full px-3 py-1 text-xs font-medium transition",
               props.disabled
                 ? "pointer-events-none cursor-not-allowed opacity-60"
                 : null,
             ]}
+            style={
+              option.active
+                ? "background:var(--ui-accent-soft);border:1px solid var(--ui-primary);color:var(--ui-primary)"
+                : "background:var(--ui-surface);border:1px solid var(--ui-border);color:var(--ui-text)"
+            }
             aria-current={option.active ? "page" : undefined}
           >
             {option.label}

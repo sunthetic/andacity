@@ -95,24 +95,24 @@ export const HotelResultCard = component$((props: HotelResultCardProps) => {
       />
 
       {card.amenitiesSummary.length ? (
-        <div q:slot="details" class="rounded-xl bg-[color:var(--color-neutral-50)] px-4 py-3">
-          <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+        <div q:slot="details" class="rounded-xl px-4 py-3" style="background:var(--ui-surface-muted)">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.08em]" style="color:var(--ui-text-muted)">
             Top inclusions
           </p>
-          <p class="mt-2 text-sm leading-5 text-[color:var(--color-text-muted)]">
+          <p class="mt-2 text-sm leading-5" style="color:var(--ui-text-muted)">
             {card.amenitiesSummary.join(" · ")}
           </p>
         </div>
       ) : null}
 
       <div q:slot="price" class="text-left md:text-right">
-        <p class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-text-subtle)]">
+        <p class="text-[10px] font-semibold uppercase tracking-[0.08em]" style="color:var(--ui-text-muted)">
           Total stay
         </p>
-        <p class="mt-1 text-2xl font-semibold tracking-tight text-[color:var(--color-text-strong)]">
+        <p class="mt-1 text-2xl font-semibold tracking-tight" style="color:var(--ui-price)">
           {card.price.totalDisplay}
         </p>
-        <p class="mt-1 text-xs text-[color:var(--color-text-muted)]">
+        <p class="mt-1 text-xs" style="color:var(--ui-text-muted)">
           {card.price.nightlyDisplay || (card.price.currency ? `${card.price.currency} pricing` : "Pricing updates at selection")}
         </p>
       </div>

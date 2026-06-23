@@ -150,7 +150,7 @@ export default component$(() => {
 
       {/* ── City hero + real CarRentalSearchCard ──────────────── */}
       <section
-        class="relative isolate overflow-hidden"
+        class="relative isolate"
         style="background-image:var(--ui-hero)"
         aria-label={`Car rentals in ${city.name} — search`}
       >
