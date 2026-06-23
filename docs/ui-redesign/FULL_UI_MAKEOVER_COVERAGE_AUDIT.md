@@ -600,3 +600,22 @@ Routes classified as partial or legacy were confirmed by:
 | `/search/all/miami/1` | 200, Complete, noindex | ✅ |
 | `/dev/ui-trips` | 200 on dev, 404 on prod | ✅ Confirmed gate |
 | `/trips` | 200, Legacy, noindex | ✅ Confirmed `--color-*` throughout (210 instances) |
+
+---
+
+## Post-Remediation Status Update
+
+**Updated:** 2026-06-23 — CLAUDE-UI-039
+
+The following "Must complete" and "Strongly recommended" items from this audit have been completed:
+
+| Item | Task | Status |
+|---|---|---|
+| Hotels all-cities index redesign (`/hotels/in`) | CLAUDE-UI-036 | ✅ Complete |
+| Car rentals all-cities index redesign (`/car-rentals/in`) | CLAUDE-UI-037 | ✅ Complete |
+| Shared component token migration (CompareSheet, CompareTray, AsyncStateNotice, AsyncInlineSpinner, AsyncRetryControl, InventoryRefreshControl, NotFoundPage, Breadcrumbs, Page) | CLAUDE-UI-038 | ✅ Complete |
+| Root layout `--color-text` → `--ui-text` (1-instance fix) | CLAUDE-UI-039 | ✅ Complete |
+
+**Final QA classification (CLAUDE-UI-039):** Ready to resume public beta launch execution.
+
+All "Safe to defer after public beta" items remain deferred. Full report: `docs/ui-redesign/FINAL_FULL_SURFACE_UI_QA.md`.
