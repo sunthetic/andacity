@@ -319,7 +319,8 @@ export const FlightsSearchCard = component$((props: FlightsSearchCardProps) => {
           />
           {showOriginAutofillNotice ? (
             <p
-              class="mt-1 text-xs text-[color:var(--color-text-muted)]"
+              class="mt-1 text-xs"
+              style="color:var(--ui-text-muted)"
               aria-live="polite"
             >
               {originAutofillNotice}

@@ -17,7 +17,7 @@ export default component$(() => {
 
       {/* ── Hero ─────────────────────────────────────────────── */}
       <section
-        class="relative isolate overflow-hidden"
+        class="relative isolate z-10"
         style="background-image:var(--ui-hero)"
         aria-label="Car rental destinations directory"
       >

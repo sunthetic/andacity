@@ -235,3 +235,19 @@ The following items were in scope for this task but remain with legacy tokens. T
 - All result components migrated from `--color-*` to `--ui-*` token system
 - DateField calendar uses `--ui-*` tokens and now renders correctly above hero content
 - Build, types, and lint all pass with zero new errors
+
+---
+
+## CLAUDE-UI-042 addendum (2026-06-23)
+
+**Hero stacking-context fix:** Removing `overflow-hidden` fixed overlay clipping, but hero sections with `relative isolate` (no explicit z-index) still painted under the next DOM section. Added `z-10` to all 8 hero sections containing search forms (flights, hotels, car-rentals landing pages; hotel/car city pages; hotel/car search result pages). Also removed residual `overflow-hidden` from `FlightsLanding.tsx` and `HomePage.tsx` heroes.
+
+Committed as `feat(ui-redesign): CLAUDE-UI-042`.
+
+---
+
+## CLAUDE-UI-043 addendum (2026-06-23)
+
+**Final interactive public-surface QA:** Verified all hero sections via dev-server curl checks. Remaining two directory-page heroes (`/hotels/in`, `/car-rentals/in`) changed from `relative isolate overflow-hidden` to `relative isolate z-10`. `LocationAutosuggestField.tsx` dropdown (city/location autosuggest used on all public search entry pages) migrated from `--color-*` to `--ui-*`. `FlightsSearchCard.tsx` origin autofill notice migrated from `--color-text-muted` to `--ui-text-muted`. Build verified — 0 errors.
+
+See `FINAL_INTERACTIVE_PUBLIC_SURFACE_QA.md` (CLAUDE-UI-043) for full report.

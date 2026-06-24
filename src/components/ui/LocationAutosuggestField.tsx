@@ -333,16 +333,17 @@ export const LocationAutosuggestField = component$(
           <div
             id={listboxId}
             role="listbox"
-            class="absolute left-0 top-full z-30 mt-2 max-h-72 min-w-full max-w-[min(48rem,calc(100vw-2rem))] overflow-y-auto rounded-[var(--radius-lg)] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface)] shadow-[var(--shadow-lg)] [width:max-content]"
+            style="background:var(--ui-surface);border:1px solid var(--ui-border);box-shadow:var(--ui-shadow-panel);border-radius:var(--ui-radius-lg)"
+            class="absolute left-0 top-full z-30 mt-2 max-h-72 min-w-full max-w-[min(48rem,calc(100vw-2rem))] overflow-y-auto [width:max-content]"
           >
             {loading.value ? (
-              <div class="px-3 py-2 text-sm text-[color:var(--color-text-muted)]">
+              <div class="px-3 py-2 text-sm" style="color:var(--ui-text-muted)">
                 {String(props.value.value || "").trim().length
                   ? "Searching locations..."
                   : "Loading suggestions..."}
               </div>
             ) : errorMessage.value ? (
-              <div class="px-3 py-2 text-sm text-[color:var(--color-danger,#b91c1c)]">
+              <div class="px-3 py-2 text-sm" style="color:var(--ui-danger,#b91c1c)">
                 {errorMessage.value}
               </div>
             ) : suggestions.value.length ? (
@@ -359,12 +360,12 @@ export const LocationAutosuggestField = component$(
                     type="button"
                     role="option"
                     aria-selected={isHighlighted ? "true" : "false"}
-                    class={[
-                      "flex w-full items-start justify-between gap-3 px-3 py-2 text-left text-sm transition-colors",
+                    class="flex w-full items-start justify-between gap-3 px-3 py-2 text-left text-sm transition-colors"
+                    style={
                       isHighlighted
-                        ? "bg-[color:var(--color-primary-50)] text-[color:var(--color-text-strong)]"
-                        : "text-[color:var(--color-text-strong)] hover:bg-[color:var(--color-surface-elevated)]",
-                    ]}
+                        ? "background:var(--ui-accent-soft);color:var(--ui-text)"
+                        : "color:var(--ui-text)"
+                    }
                     onMouseDown$={(event) => {
                       event.preventDefault();
                     }}
@@ -379,7 +380,7 @@ export const LocationAutosuggestField = component$(
                       <span class="block break-words sm:whitespace-nowrap">
                         {location.displayName}
                       </span>
-                      <span class="mt-0.5 block text-xs text-[color:var(--color-text-muted)]">
+                      <span class="mt-0.5 block text-xs" style="color:var(--ui-text-muted)">
                         {typeof location.providerMetadata?.suggestionReason ===
                         "string"
                           ? location.providerMetadata.suggestionReason
@@ -392,7 +393,7 @@ export const LocationAutosuggestField = component$(
                     </span>
 
                     {isSelected ? (
-                      <span class="text-xs font-semibold text-[color:var(--color-action)]">
+                      <span class="text-xs font-semibold" style="color:var(--ui-primary)">
                         Selected
                       </span>
                     ) : null}
@@ -400,7 +401,7 @@ export const LocationAutosuggestField = component$(
                 );
               })
             ) : (
-              <div class="px-3 py-2 text-sm text-[color:var(--color-text-muted)]">
+              <div class="px-3 py-2 text-sm" style="color:var(--ui-text-muted)">
                 No matching locations found.
               </div>
             )}

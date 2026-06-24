@@ -225,3 +225,31 @@ Post-CLAUDE-UI-041 build verification:
 All builds pass. Sitemap verified. Dev route protection confirmed. SEO gates unchanged. Analytics/error monitoring unchanged. No new env vars required. All three CLAUDE-UI-041 public-beta blockers resolved.
 
 Next step: set the 7 required environment variables listed above, then execute the Docker deploy per `PUBLIC_BETA_DEPLOYMENT_VERIFICATION.md` (CLAUDE-UI-034) deploy procedure.
+
+---
+
+## CLAUDE-UI-042 addendum (2026-06-23)
+
+**Hero stacking-context fix** — Added `z-10` to all 8 search-bearing hero sections; removed residual `overflow-hidden` from `FlightsLanding.tsx` and `HomePage.tsx`. Build verified. No new env vars; no SEO changes.
+
+## CLAUDE-UI-043 addendum (2026-06-23)
+
+**Final interactive QA** completed across all public surfaces.
+
+Additional fixes applied:
+
+| Fix | File |
+|---|---|
+| City/location dropdown token migration | `src/components/ui/LocationAutosuggestField.tsx` |
+| Flight search card autofill notice | `src/components/flights/search/FlightsSearchCard.tsx` |
+| `/hotels/in` hero stacking | `src/routes/hotels/in/index.tsx` |
+| `/car-rentals/in` hero stacking | `src/routes/car-rentals/in/index.tsx` |
+
+Build verified after CLAUDE-UI-043 fixes:
+- `yarn run build.types` ✅ exit 0
+- `yarn run lint` ✅ exit 0 (2 pre-existing warnings, 0 errors)
+- `yarn run build` ✅ exit 0 — Done in 27.52s
+
+All hero sections on public search-entry pages confirmed to use `relative isolate z-10`. No `overflow-hidden` on any hero section containing interactive overlays. All public-surface components migrated to `--ui-*` token system. No remaining public-beta blockers.
+
+**Updated classification: Ready to deploy after environment variables are set.**

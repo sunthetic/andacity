@@ -424,3 +424,27 @@ yarn run build          ✅  exit 0
 ```
 
 Post-QA grep: zero `--color-*` instances in root layout, `/hotels/in`, `/car-rentals/in`, or any CLAUDE-UI-038 migrated component files.
+
+---
+
+## CLAUDE-UI-041 addendum (2026-06-23)
+
+**Search Overlay and Vertical Results UI Blocker Remediation** resolved three additional public-beta blockers after this QA was originally completed:
+
+1. Removed `overflow-hidden` from 4 hero sections (hotels/car-rental landing and city pages)
+2. Hotel/car-rental search routes rewritten with `--ui-hero` gradient header (matching flights reference)
+3. All `src/components/results/` components, `HotelResultCard`, `CarResultCard`, `HotelResultsErrorState`, `CarResultsErrorState`, `DateField`, and supporting adapters migrated from `--color-*` to `--ui-*`
+
+Added `hideHeader` chain through `ResultsShell` → `CanonicalHotelResultsSection` → `CanonicalCarResultsSection`.
+
+27 files changed. Build, lint, types: all pass with 0 errors.
+
+## CLAUDE-UI-042 addendum (2026-06-23)
+
+**Hero stacking-context fix:** Added `z-10` to all 8 search-bearing hero sections. Removed residual `overflow-hidden` from `FlightsLanding.tsx` and `HomePage.tsx`.
+
+## CLAUDE-UI-043 addendum (2026-06-23)
+
+**Final interactive QA:** Extended hero stacking fix to `/hotels/in` and `/car-rentals/in` directory pages. Migrated `LocationAutosuggestField.tsx` dropdown and `FlightsSearchCard.tsx` autofill notice from `--color-*` to `--ui-*`. No remaining blockers on any public indexable surface. Classification: **Ready for deployment reverification.**
+
+See `FINAL_INTERACTIVE_PUBLIC_SURFACE_QA.md` for complete report.
