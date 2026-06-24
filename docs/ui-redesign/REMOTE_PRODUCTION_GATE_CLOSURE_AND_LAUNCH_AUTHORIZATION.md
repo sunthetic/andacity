@@ -423,4 +423,22 @@ Build gates (verified in CLAUDE-UI-047):
   ✅  yarn run build.server exit 0
   ✅  yarn run lint         exit 0 — 0 errors, 2 pre-existing warnings
   ✅  yarn run build        exit 0 — Done in 36.80s
+
+---
+
+## CLAUDE-UI-049 addendum (2026-06-24)
+
+**Public Beta Live Deployment Report** completed. Deployment not yet executed.
+
+**New DNS finding:** `andacity.com` uses AWS Route53 nameservers. Nameservers confirmed active via DNS trace. However, the hosted zone is empty — no SOA or A records. Domain is registered and delegated to Route53 but zone must be populated via AWS Console.
+
+**AWS CLI status:** Both `default` (InvalidClientTokenId) and `admin` (no credentials) profiles are invalid. Route53 cannot be configured from this environment.
+
+**EC2 SSH status:** `agcom-ec2-deployment-production` key exists locally. EC2 hostname is unknown — stored only in GitHub Actions `vars.EC2_SERVER_HOST`. No `~/.ssh/config` entry. Cannot SSH to EC2.
+
+**No changes to blockers:** All four critical blockers from CLAUDE-UI-048 remain open. No new code or CI changes required.
+
+**Classification: Ready for deploy after external operator action.**
+
+See `PUBLIC_BETA_LIVE_DEPLOYMENT_REPORT.md` (CLAUDE-UI-049) for full report, ordered manual actions checklist, and smoke test plan.
 ```

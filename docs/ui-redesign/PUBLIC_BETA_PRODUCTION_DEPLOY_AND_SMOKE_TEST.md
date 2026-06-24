@@ -481,3 +481,17 @@ scripts/check-production-env.sh (smoke test, CLAUDE-UI-046):
 Four critical items remain: (1) replace `OG_SIGNING_SECRET` placeholder, (2) add missing env vars, (3) configure DNS, (4) confirm GitHub Actions environment and EC2 deploy.sh.
 
 See `REMOTE_PRODUCTION_GATE_CLOSURE_AND_LAUNCH_AUTHORIZATION.md` (CLAUDE-UI-048) for full report.
+
+---
+
+## CLAUDE-UI-049 addendum (2026-06-24)
+
+**Public Beta Live Deployment Report** completed. Deployment not yet executed.
+
+**New DNS finding:** `andacity.com` is registered and delegated to AWS Route53 nameservers. Confirmed via `dig +trace`. However, the Route53 hosted zone is empty — nameservers return SERVFAIL (no SOA, no A records). AWS credentials expired; zone cannot be populated from this environment.
+
+**No new blockers added.** All four critical items from CLAUDE-UI-048 remain. Classification unchanged.
+
+**Classification: Ready for deploy after external operator action.**
+
+See `PUBLIC_BETA_LIVE_DEPLOYMENT_REPORT.md` (CLAUDE-UI-049) for full report with ordered manual actions.

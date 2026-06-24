@@ -448,3 +448,27 @@ All remaining items are operational. No further code changes are required. See `
 **Classification: Ready after one or more external settings are corrected.**
 
 See `REMOTE_PRODUCTION_GATE_CLOSURE_AND_LAUNCH_AUTHORIZATION.md` (CLAUDE-UI-048) for full report and ordered required manual actions checklist.
+
+---
+
+## CLAUDE-UI-049 addendum (2026-06-24) — Gate status: Ready for deploy after external operator action
+
+**Public Beta Live Deployment Report** created. All remaining blockers confirmed as external operator actions.
+
+| Item | Status |
+|---|---|
+| Route53 nameservers confirmed active | ✅ Domain registered and delegated |
+| Route53 hosted zone A record | ❌ Zone empty — requires AWS Console |
+| AWS CLI credentials | ❌ Both profiles invalid/missing |
+| EC2 hostname known locally | ❌ Stored in GitHub Actions vars only |
+| EC2 SSH access | ❌ No config entry, hostname unknown |
+| OG_SIGNING_SECRET real value | 🚨 Placeholder — must replace on EC2 |
+| Missing env vars (ORIGIN + emails) | ❌ Must add to EC2 environment |
+| GitHub Actions env confirmed | ❌ gh CLI unavailable |
+| deploy.sh APP_ORIGIN build arg | ❌ Cannot inspect without SSH |
+| Merge dev → main authorized | ❌ Not yet granted |
+| andacity.com live | ❌ Not deployed |
+
+**Classification: Ready for deploy after external operator action.**
+
+See `PUBLIC_BETA_LIVE_DEPLOYMENT_REPORT.md` (CLAUDE-UI-049) for complete manual actions checklist and smoke test plan.

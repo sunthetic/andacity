@@ -477,3 +477,19 @@ Critical new finding: local `.env production` file has `OG_SIGNING_SECRET` set t
 Classification updated: **Ready after one or more external settings are corrected.**
 
 See `REMOTE_PRODUCTION_GATE_CLOSURE_AND_LAUNCH_AUTHORIZATION.md` (CLAUDE-UI-048) for full report.
+
+---
+
+## CLAUDE-UI-049 addendum (2026-06-24)
+
+**Public Beta Live Deployment Report** completed. No new code or CI changes. All codebase and CI gates remain closed and verified.
+
+**DNS finding:** `andacity.com` is on AWS Route53. Nameservers active, but hosted zone is empty. AWS credentials expired — cannot configure from this environment. Requires AWS Console.
+
+**check-production-env.sh:** Cannot run on EC2 (no SSH access). Script logic and exit codes verified correct in CLAUDE-UI-046 smoke test.
+
+**deploy-template.sh:** Cannot verify against EC2's actual deploy.sh (no SSH access). Template available as reference.
+
+**Classification: Ready for deploy after external operator action.**
+
+No further code or CI changes are needed. See `PUBLIC_BETA_LIVE_DEPLOYMENT_REPORT.md` (CLAUDE-UI-049) for the complete operator manual actions checklist.
