@@ -510,3 +510,22 @@ Sitemap: 313 URLs ✅
 
 Release tag: beta-launch-v1 @ 6133148 ✅ (local, not yet pushed)
 ```
+
+---
+
+## CLAUDE-UI-046 addendum (2026-06-23)
+
+**Production Environment and Deploy Gate Closure** completed. Deploy script gap identified and closed.
+
+**Critical fix:** The `deploy-production.yml` CI workflow did not previously pass `APP_ORIGIN` to the SSH session. The Dockerfile defaults `APP_ORIGIN` to `http://localhost`. Without the fix, Docker images built on EC2 would have `ORIGIN=http://localhost` baked in, causing Qwik CSRF protection to reject all production form submissions.
+
+**Fix applied:** CI workflow now injects `APP_ORIGIN=${{ vars.APP_ORIGIN || 'https://andacity.com' }}` before calling `deploy.sh`.
+
+**Also added:**
+- `scripts/check-production-env.sh` — preflight validator for all 8 required production variables
+- `scripts/deploy-template.sh` — reference implementation for EC2's `deploy.sh` showing correct `--build-arg APP_ORIGIN` usage
+- `.env.example` — `APP_ORIGIN` documented as Docker build arg
+
+**Updated classification: Ready after production secrets are set.**
+
+See `PRODUCTION_ENV_AND_DEPLOY_GATE_CLOSURE.md` (CLAUDE-UI-046) for full gate closure report.

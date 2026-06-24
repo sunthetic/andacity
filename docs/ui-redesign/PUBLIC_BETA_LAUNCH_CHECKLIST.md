@@ -383,3 +383,25 @@ npm run build.client
 - Classification: **Ready for manual deployment**
 
 See `PUBLIC_BETA_LAUNCH_EXECUTION.md` (CLAUDE-UI-045) for the full launch execution report and required manual action steps.
+
+---
+
+## CLAUDE-UI-046 addendum (2026-06-23) — Gate classification: Ready after production secrets are set
+
+**Deploy script gap identified and closed.**
+
+| Gate | Status | Fix |
+|---|---|---|
+| `deploy-production.yml` passes `APP_ORIGIN` to EC2 | ✅ Fixed | CI workflow updated to inject `APP_ORIGIN` before calling `deploy.sh` |
+| Dockerfile defaults `APP_ORIGIN=http://localhost` | ✅ Mitigated | CI now passes `APP_ORIGIN=https://andacity.com` — image correctly bakes in production origin |
+| EC2 `deploy.sh` must use `--build-arg APP_ORIGIN` | ⚠ Manual action required | See `scripts/deploy-template.sh` — operator must verify/update EC2 script |
+| Production env vars confirmed on EC2 | ⚠ Manual action required | Use `scripts/check-production-env.sh` to validate before deploy |
+| `OG_SIGNING_SECRET` is not `change-me` | ⚠ Manual action required | Must generate a new random string for production |
+| Contact/privacy/legal emails are monitored | ⚠ Manual action required | Confirm or set `CONTACT_EMAIL`, `PRIVACY_EMAIL`, `LEGAL_EMAIL` |
+| Analytics off by default | ✅ Confirmed | `PUBLIC_ANALYTICS_PROVIDER` empty; first-party logging always active |
+
+**New files added (CLAUDE-UI-046):**
+- `scripts/check-production-env.sh` — preflight validator (exits 1 if any required var is missing)
+- `scripts/deploy-template.sh` — reference implementation for EC2's `deploy.sh`
+
+See `PRODUCTION_ENV_AND_DEPLOY_GATE_CLOSURE.md` (CLAUDE-UI-046) for full gate closure report.
