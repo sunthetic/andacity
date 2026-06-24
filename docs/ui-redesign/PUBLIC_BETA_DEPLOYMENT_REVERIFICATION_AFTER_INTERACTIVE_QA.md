@@ -455,6 +455,16 @@ yarn run lint           ✅  exit 0 — 0 errors, 2 pre-existing warnings
 yarn run build          ✅  exit 0 — Done in 33.43s
 ```
 
+---
+
+## CLAUDE-UI-045 addendum (2026-06-23)
+
+**Public Beta Launch Execution** completed. All local build gates re-verified at commit `6133148` with the same exit-0 results (build in 26.42s). Release tag `beta-launch-v1` created at HEAD. Docker build was not possible from this environment (permission denied on Docker socket — user not in docker group; not a code issue). Deployment was not executed — requires production env vars, EC2 credentials, and explicit user authorization to merge/push to `main`.
+
+**Final classification: Ready for manual deployment.**
+
+See `PUBLIC_BETA_LAUNCH_EXECUTION.md` (CLAUDE-UI-045) for full launch execution report including rollback plan, environment variable checklist, required manual actions, and go/no-go recommendation.
+
 Docker: Dockerfile unchanged since CLAUDE-UI-040 (verified successful). Build gate (`yarn run build`) passes. Expected result with `docker build --build-arg APP_ORIGIN=https://andacity.com .`: ✅ success.
 
 Dev server smoke test (20 routes): All 200 ✅

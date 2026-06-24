@@ -353,3 +353,33 @@ npm run build.client
 # Docker: Dockerfile present, uses yarn run build (will fail until SSL fix)
 # Health check: no /healthz route — manual check only
 ```
+
+---
+
+## CLAUDE-UI-045 addendum (2026-06-23) — Launch Status: Ready for manual deployment
+
+**All launch-checklist blockers from CLAUDE-UI-031 are resolved.** Status at CLAUDE-UI-045:
+
+| Original blocker | Resolution | Task |
+|---|---|---|
+| DB SSL TypeScript error blocked Docker build | ✅ Fixed (type annotation corrected) | CLAUDE-UI-032 |
+| No Privacy Policy / Terms / Contact pages | ✅ Created and live on dev server | CLAUDE-UI-032 |
+| `/sitemap.xml` empty | ✅ 313 URLs (151 hotels, 151 car-rentals, index pages) | CLAUDE-UI-032 |
+| `/healthz` health-check missing | ✅ `{"ok":true}` endpoint live | CLAUDE-UI-032 |
+| Analytics no-op stub | ✅ First-party provider abstraction; Cloudflare recommended post-launch | CLAUDE-UI-033 |
+| Error monitoring missing | ✅ First-party via `/api/errors` + `window.onerror` | CLAUDE-UI-033 |
+| Search overlays clipped by `overflow-hidden` | ✅ Removed from all 4 hero sections | CLAUDE-UI-041 |
+| Hotel/car search pages using legacy UI | ✅ New `--ui-hero` gradient header | CLAUDE-UI-041 |
+| Results shell on legacy tokens | ✅ Full `--ui-*` migration across 10+ components | CLAUDE-UI-041 |
+| Hero stacking context — overlays painted over | ✅ `z-10` on all search-bearing heroes | CLAUDE-UI-042 |
+| LocationAutosuggestField on `--color-*` | ✅ Migrated to `--ui-*` | CLAUDE-UI-043 |
+| Build gate | ✅ `yarn run build` exits 0 — Done in 26.42s | CLAUDE-UI-045 verified |
+
+**Launch execution summary** (CLAUDE-UI-045):
+- Release tag `beta-launch-v1` created at commit `6133148`
+- Final build gates re-verified: all exit 0
+- Docker build requires interactive sudo locally; Dockerfile unchanged from verified state (CLAUDE-UI-040)
+- Deployment requires production env vars + EC2 credentials + user authorization to push `main`
+- Classification: **Ready for manual deployment**
+
+See `PUBLIC_BETA_LAUNCH_EXECUTION.md` (CLAUDE-UI-045) for the full launch execution report and required manual action steps.
