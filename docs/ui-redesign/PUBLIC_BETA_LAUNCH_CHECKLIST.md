@@ -427,3 +427,24 @@ See `PRODUCTION_ENV_AND_DEPLOY_GATE_CLOSURE.md` (CLAUDE-UI-046) for full gate cl
 **Classification: Ready for manual deployment after EC2 secret/deploy.sh confirmation.**
 
 All remaining items are operational. No further code changes are required. See `PUBLIC_BETA_PRODUCTION_DEPLOY_AND_SMOKE_TEST.md` (CLAUDE-UI-047) for the full deploy report and complete required manual actions checklist.
+
+---
+
+## CLAUDE-UI-048 addendum (2026-06-24) — Gate status: Ready after external settings corrected
+
+**Remote gate closure actions taken:**
+
+| Item | Status |
+|---|---|
+| `dev` pushed to `origin/dev` | ✅ Done — all 13 CLAUDE-UI commits on remote |
+| `beta-launch-v1-final` created at `6e925c7` | ✅ Done — pushed to remote |
+| Remote URL updated to `sunthetic/andacity` | ✅ Done |
+| `OG_SIGNING_SECRET` confirmed | 🚨 Local `.env production` has literal placeholder — not a real secret |
+| Missing env vars found | ❌ `ORIGIN`, `CONTACT_EMAIL`, `PRIVACY_EMAIL`, `LEGAL_EMAIL` absent from `.env production` |
+| DNS configured | ❌ `andacity.com` has no A records |
+| GitHub Actions env confirmed | ❌ `gh` CLI unavailable |
+| EC2 SSH / deploy.sh confirmed | ❌ EC2 hostname not known locally |
+
+**Classification: Ready after one or more external settings are corrected.**
+
+See `REMOTE_PRODUCTION_GATE_CLOSURE_AND_LAUNCH_AUTHORIZATION.md` (CLAUDE-UI-048) for full report and ordered required manual actions checklist.

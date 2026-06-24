@@ -462,3 +462,18 @@ No code changes required. All gates documented and closed on the codebase side. 
 **Tag note:** `beta-launch-v1` points to `6133148` (missing CLAUDE-UI-045/046). Operator should run `git tag beta-launch-v1-final dc848ad && git push origin beta-launch-v1-final` before or after merging to `main`.
 
 See `PUBLIC_BETA_PRODUCTION_DEPLOY_AND_SMOKE_TEST.md` (CLAUDE-UI-047) for full deploy attempt report.
+
+---
+
+## CLAUDE-UI-048 addendum (2026-06-24)
+
+**Remote Production Gate Closure** partially completed. Key actions executed:
+- `dev` pushed to `origin/dev` — all 13 CLAUDE-UI commits now on remote ✅
+- `beta-launch-v1-final` tag created at `6e925c7` and pushed ✅
+- Remote URL updated to `git@github.com:sunthetic/andacity.git` (repo moved from `brazenest` to `sunthetic`) ✅
+
+Critical new finding: local `.env production` file has `OG_SIGNING_SECRET` set to a literal placeholder, not a real signing secret. This must be replaced before deployment.
+
+Classification updated: **Ready after one or more external settings are corrected.**
+
+See `REMOTE_PRODUCTION_GATE_CLOSURE_AND_LAUNCH_AUTHORIZATION.md` (CLAUDE-UI-048) for full report.

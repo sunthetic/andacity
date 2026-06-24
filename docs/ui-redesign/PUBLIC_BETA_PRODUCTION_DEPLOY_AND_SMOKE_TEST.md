@@ -456,3 +456,28 @@ scripts/check-production-env.sh (smoke test, CLAUDE-UI-046):
   ✅  Exits 1 and reports 8 missing vars when no env set
   ✅  Does not print secret values
 ```
+
+---
+
+## CLAUDE-UI-048 addendum (2026-06-24)
+
+**Remote Production Gate Closure and Launch Authorization** completed.
+
+**Actions taken this task:**
+- `dev` pushed to `origin/dev` at `6e925c7` ✅
+- `beta-launch-v1-final` tag created at `6e925c7` and pushed ✅
+- Remote URL updated to canonical `git@github.com:sunthetic/andacity.git` (repo moved from `brazenest` to `sunthetic`) ✅
+
+**New findings from local `.env production` file:**
+- `DATABASE_URL`: present (RDS endpoint confirmed)
+- `OG_SIGNING_SECRET`: 🚨 **literal placeholder — must replace with real secret**
+- Missing: `ORIGIN`, `CONTACT_EMAIL`, `PRIVACY_EMAIL`, `LEGAL_EMAIL`
+- Dev and production share the same `DATABASE_URL` — separate production DB recommended
+
+**DNS:** `andacity.com` has no A records. Domain not configured.
+
+**Classification: Ready after one or more external settings are corrected.**
+
+Four critical items remain: (1) replace `OG_SIGNING_SECRET` placeholder, (2) add missing env vars, (3) configure DNS, (4) confirm GitHub Actions environment and EC2 deploy.sh.
+
+See `REMOTE_PRODUCTION_GATE_CLOSURE_AND_LAUNCH_AUTHORIZATION.md` (CLAUDE-UI-048) for full report.
