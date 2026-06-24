@@ -405,3 +405,25 @@ See `PUBLIC_BETA_LAUNCH_EXECUTION.md` (CLAUDE-UI-045) for the full launch execut
 - `scripts/deploy-template.sh` — reference implementation for EC2's `deploy.sh`
 
 See `PRODUCTION_ENV_AND_DEPLOY_GATE_CLOSURE.md` (CLAUDE-UI-046) for full gate closure report.
+
+---
+
+## CLAUDE-UI-047 addendum (2026-06-24) — Deploy status: Not yet deployed
+
+**Public Beta Production Deploy and Live Smoke Test** attempted. Deployment could not be executed.
+
+| Item | Status |
+|---|---|
+| GitHub Actions production env vars | ⚠ Cannot confirm — `gh` CLI not installed |
+| EC2 SSH access | ⚠ No credentials available — cannot inspect `deploy.sh` or run preflight |
+| Docker build (local) | ⚠ Permission denied on socket |
+| `andacity.com` DNS | ⚠ Not resolving (exit code 6) — not yet live |
+| `dev` pushed to `origin/dev` | ⚠ 12 commits ahead, not yet pushed |
+| `dev` merged to `main` | ⚠ Not done — requires explicit user authorization |
+| `beta-launch-v1` tag | ⚠ Points to `6133148` (CLAUDE-UI-044) — missing CLAUDE-UI-045/046 changes |
+
+**Tag action needed:** `beta-launch-v1` should be retagged or a new `beta-launch-v1-final` tag should be created at `dc848ad` (CLAUDE-UI-046 HEAD).
+
+**Classification: Ready for manual deployment after EC2 secret/deploy.sh confirmation.**
+
+All remaining items are operational. No further code changes are required. See `PUBLIC_BETA_PRODUCTION_DEPLOY_AND_SMOKE_TEST.md` (CLAUDE-UI-047) for the full deploy report and complete required manual actions checklist.

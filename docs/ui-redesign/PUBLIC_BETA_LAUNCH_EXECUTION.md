@@ -529,3 +529,23 @@ Release tag: beta-launch-v1 @ 6133148 ✅ (local, not yet pushed)
 **Updated classification: Ready after production secrets are set.**
 
 See `PRODUCTION_ENV_AND_DEPLOY_GATE_CLOSURE.md` (CLAUDE-UI-046) for full gate closure report.
+
+---
+
+## CLAUDE-UI-047 addendum (2026-06-24)
+
+**Public Beta Production Deploy and Live Smoke Test** executed. Deployment was not completed from this environment.
+
+**Confirmed not accessible from this environment:**
+- `gh` CLI not installed — GitHub Actions production variables/secrets cannot be inspected
+- No EC2 SSH credentials — `deploy.sh` cannot be inspected or updated; preflight cannot be run on EC2
+- Docker socket requires sudo — Docker build cannot be run locally
+- `andacity.com` DNS does not resolve (exit code 6) — site is not yet live
+
+**Tag discrepancy noted:** `beta-launch-v1` points to `6133148` (CLAUDE-UI-044). The deployment-ready commit is `dc848ad` (CLAUDE-UI-046), which includes the critical CI workflow fix for `APP_ORIGIN`. Operator should create `beta-launch-v1-final` at `dc848ad` before or after merging to `main`.
+
+**All local build gates re-verified at `dc848ad`:** types ✅ client ✅ server ✅ lint ✅ build ✅ — Done in 36.80s.
+
+**Classification: Ready for manual deployment after EC2 secret/deploy.sh confirmation.**
+
+See `PUBLIC_BETA_PRODUCTION_DEPLOY_AND_SMOKE_TEST.md` (CLAUDE-UI-047) for full deploy attempt report and complete required manual actions checklist.

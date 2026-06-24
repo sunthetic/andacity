@@ -444,3 +444,21 @@ deploy-production.yml:
   ✅  Distinction from runtime ORIGIN var clearly explained
   ✅  No real secrets added
 ```
+
+---
+
+## CLAUDE-UI-047 addendum (2026-06-24)
+
+**Public Beta Production Deploy and Live Smoke Test** attempted. Deployment not executed.
+
+Deployment gates could not be verified or executed from this environment:
+- `gh` CLI not installed — GitHub Actions production variables not confirmable
+- No EC2 SSH credentials — cannot inspect EC2 `deploy.sh` or run preflight on server
+- Docker socket inaccessible without sudo
+- `andacity.com` DNS not resolving — domain not yet live
+
+No code changes required. All gates documented and closed on the codebase side. Remaining work is entirely operational.
+
+**Tag note:** `beta-launch-v1` points to `6133148` (missing CLAUDE-UI-045/046). Operator should run `git tag beta-launch-v1-final dc848ad && git push origin beta-launch-v1-final` before or after merging to `main`.
+
+See `PUBLIC_BETA_PRODUCTION_DEPLOY_AND_SMOKE_TEST.md` (CLAUDE-UI-047) for full deploy attempt report.
