@@ -253,3 +253,13 @@ Build verified after CLAUDE-UI-043 fixes:
 All hero sections on public search-entry pages confirmed to use `relative isolate z-10`. No `overflow-hidden` on any hero section containing interactive overlays. All public-surface components migrated to `--ui-*` token system. No remaining public-beta blockers.
 
 **Updated classification: Ready to deploy after environment variables are set.**
+
+---
+
+## CLAUDE-UI-044 addendum (2026-06-23)
+
+**Public Beta Deployment Reverification After Interactive QA** completed. Confirmed no deployment-gate regressions from CLAUDE-UI-041/042/043. No new env vars, no new dependencies, no new routes. All 20 smoke-test routes return 200. All 10 search-bearing hero sections confirmed at `relative isolate z-10`. `x-robots-tag: noindex, follow` on hotel/car search routes and `/search/*`. Sitemap: 313 URLs. `/healthz`: `{"ok":true}`. Dockerfile and CI pipeline unchanged. Docker build expected to succeed (Dockerfile unchanged since CLAUDE-UI-040 verification).
+
+See `PUBLIC_BETA_DEPLOYMENT_REVERIFICATION_AFTER_INTERACTIVE_QA.md` (CLAUDE-UI-044) for full report.
+
+**Final classification: Ready to deploy after environment variables are set.**
