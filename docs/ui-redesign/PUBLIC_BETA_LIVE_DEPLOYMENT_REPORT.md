@@ -472,3 +472,36 @@ Build gates (CLAUDE-UI-047):
   ✅  lint         exit 0 — 0 errors, 2 pre-existing warnings
   ✅  build        exit 0 — Done in 36.80s
 ```
+
+---
+
+## CLAUDE-UI-050 addendum (2026-06-25)
+
+**External Operator Launch Gate Execution** completed. EC2 infrastructure substantially set up.
+
+**New findings:**
+- EC2 SSH confirmed via `sunthetic--aws-001.pem` / `aws` SSH alias
+- EC2 public IP: `3.133.250.166` — this is the Route53 A record target
+- EC2 public hostname: `ec2-3-133-250-166.us-east-2.compute.amazonaws.com`
+- EC2 Docker daemon: active (running) since 2026-06-21
+- `~/website` on EC2 was the old unrelated codebase — NOT the Qwik rebuild
+
+**Actions taken:**
+- `sunthetic/andacity` cloned to `/home/ec2-user/andacity/` via HTTPS ✅
+- `deploy.sh` created at `/home/ec2-user/andacity/deploy.sh` — sources env file, correct `--build-arg APP_ORIGIN` ✅
+- `scripts/check-production-env.sh` and `deploy-template.sh` fetched from `dev` branch onto EC2 ✅
+- `OG_SIGNING_SECRET` generated (`openssl rand -hex 32`) on EC2, stored in `/home/ec2-user/.env.andacity.production` (never printed) ✅
+- Preflight passes (8/8) with env file sourced ✅
+- nginx config template at `~/andacity.com.nginx.conf` ready for operator review ✅
+
+**Remaining operator actions (6 steps):**
+1. Fill in real values for `DATABASE_URL`, `CONTACT_EMAIL`, `PRIVACY_EMAIL`, `LEGAL_EMAIL` in `/home/ec2-user/.env.andacity.production`
+2. `sudo usermod -aG docker ec2-user`
+3. Route53 A record: `andacity.com → 3.133.250.166` (AWS Console)
+4. Install nginx config + `sudo certbot --nginx -d andacity.com -d www.andacity.com`
+5. Confirm GitHub Actions production environment (see `EXTERNAL_OPERATOR_LAUNCH_GATE_EXECUTION.md`)
+6. Authorize and merge `dev → main`
+
+**Classification: Blocked by external access or infrastructure.**
+
+See `EXTERNAL_OPERATOR_LAUNCH_GATE_EXECUTION.md` (CLAUDE-UI-050) for full report, expected GitHub Actions values, and ordered operator runbook.

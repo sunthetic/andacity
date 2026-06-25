@@ -472,3 +472,32 @@ See `REMOTE_PRODUCTION_GATE_CLOSURE_AND_LAUNCH_AUTHORIZATION.md` (CLAUDE-UI-048)
 **Classification: Ready for deploy after external operator action.**
 
 See `PUBLIC_BETA_LIVE_DEPLOYMENT_REPORT.md` (CLAUDE-UI-049) for complete manual actions checklist and smoke test plan.
+
+---
+
+## CLAUDE-UI-050 addendum (2026-06-25) — Gate status: Blocked by external access or infrastructure
+
+**External Operator Launch Gate Execution** completed. EC2 substantially set up.
+
+| Item | Status |
+|---|---|
+| EC2 SSH confirmed | ✅ `sunthetic--aws-001.pem` works (aws SSH alias) |
+| EC2 public IP confirmed | ✅ `3.133.250.166` |
+| `sunthetic/andacity` cloned to EC2 | ✅ `/home/ec2-user/andacity/` |
+| `deploy.sh` created on EC2 | ✅ Correct `--build-arg APP_ORIGIN` and env file sourcing |
+| `OG_SIGNING_SECRET` generated | ✅ Real 64-char hex, stored in EC2 env file |
+| `ORIGIN`, `PUBLIC_BASE_URL` set | ✅ In EC2 env file |
+| Production preflight (with env file) | ✅ 8/8 pass (with env file sourced) |
+| `DATABASE_URL` real value | ❌ Placeholder — operator must copy from local `.env production` |
+| `CONTACT_EMAIL`, `PRIVACY_EMAIL`, `LEGAL_EMAIL` | ❌ Placeholder — operator must supply real inboxes |
+| `ec2-user` in docker group | ❌ Operator: `sudo usermod -aG docker ec2-user` |
+| Route53 A record `andacity.com → 3.133.250.166` | ❌ AWS Console required |
+| nginx config installed | ❌ Template at `~/andacity.com.nginx.conf` — operator must sudo install |
+| SSL cert via certbot | ❌ Requires DNS to be live first |
+| GitHub Actions production env | ❌ Cannot confirm without gh CLI (expected values documented) |
+| Merge dev → main authorized | ❌ Not yet granted |
+| andacity.com live | ❌ Not deployed |
+
+**Classification: Blocked by external access or infrastructure.**
+
+See `EXTERNAL_OPERATOR_LAUNCH_GATE_EXECUTION.md` (CLAUDE-UI-050) for full report and operator runbook.
