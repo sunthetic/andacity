@@ -17,7 +17,8 @@ export type PaletteId =
   | "sandbar"
   | "sunset"
   | "alpine"
-  | "midnight";
+  | "midnight"
+  | "baseline";
 
 /** Resolved render mode applied to `data-mode`. */
 export type ThemeMode = "light" | "dark";
@@ -80,6 +81,13 @@ export const PALETTES: PaletteMeta[] = [
     tagline: "Cinematic night-travel.",
     swatch: { primary: "#4F86FF", accent: "#8B5CF6", surface: "#0B0E1A" },
     logoCompat: "Needs refresh",
+  },
+  {
+    id: "baseline",
+    name: "Baseline",
+    tagline: "Typographic restraint.",
+    swatch: { primary: "#1B1A13", accent: "#1B4FD1", surface: "#FFFFFF" },
+    logoCompat: "Very high",
   },
 ];
 

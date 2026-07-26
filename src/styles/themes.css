@@ -33,6 +33,39 @@
   --ui-shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 12px 28px rgba(16, 24, 40, 0.10);
   --ui-shadow-panel: 0 24px 50px rgba(16, 24, 40, 0.20);
   --ui-hero-scrim: linear-gradient(180deg, rgba(8, 12, 22, 0.12) 0%, rgba(8, 12, 22, 0.50) 100%);
+
+  /* ---- Derived aliases (CLAUDE-UI-051) -------------------------
+     `--ui-link` and `--ui-surface-raised` were consumed by
+     src/routes/{contact,terms,privacy} but never defined in any palette,
+     so those pages rendered with an invalid var() (transparent /
+     inherited). Defined here as derivations so every palette — existing
+     and future — resolves them correctly. A palette may still override
+     either one explicitly inside its own block. */
+  --ui-link: var(--ui-primary);
+  --ui-surface-raised: var(--ui-surface);
+
+  /* ---- Tabular data layer (CLAUDE-UI-051) ----------------------
+     Needed by dense comparison surfaces (Ledger). Palette-agnostic:
+     derived from existing tokens so they hold across all palettes. */
+
+  /* A third, lighter line weight below --ui-divider, for the internal
+     gridlines of a dense table where --ui-divider is still too heavy. */
+  --ui-rule: color-mix(in srgb, var(--ui-border) 50%, transparent);
+
+  /* Row rhythm. Dense tables need a fixed rhythm so numeric columns
+     scan vertically; Tailwind spacing utilities can't guarantee this. */
+  --ui-row-h: 3.5rem;
+  --ui-row-h-compact: 2.75rem;
+
+  /* Price movement. Aliased to the status hues because in a travel
+     context the direction genuinely IS good/bad for the buyer — a price
+     drop is a win. Kept as separate tokens so they can be re-stepped
+     without touching status semantics. Never rendered as color alone:
+     TrendIndicator always ships a glyph and a text label. */
+  --ui-trend-down: var(--ui-success);
+  --ui-trend-down-soft: var(--ui-success-soft);
+  --ui-trend-up: var(--ui-danger);
+  --ui-trend-up-soft: var(--ui-danger-soft);
 }
 
 /* ---- Shared effects (DARK overrides; placed AFTER light) -------- */
@@ -383,6 +416,101 @@
   --ui-danger-soft: rgba(248, 113, 113, 0.16);
   --ui-ring: #4F86FF;
   --ui-hero: linear-gradient(135deg, #0B0E1A 0%, #1B2550 42%, #3B82F6 78%, #8B5CF6 100%);
+}
+
+/* ================================================================
+   7 · BASELINE — typographic. No cards, no gradients, no photography.
+   A strict grid, hairline rules, and one signal color. Confidence
+   expressed as restraint. This is the skin the Ledger surface is
+   designed against, and the condition the product is actually in:
+   `public/` holds icons and OG images, not a destination library.
+
+   Signal color note (CLAUDE-UI-051)
+   ---------------------------------
+   The Swiss reference for this direction uses a signal RED. That was
+   tested and rejected on measurement, not taste: a red accent sits
+   ~5° of hue from `--ui-danger` in both modes, so an emphasis mark and
+   an error state become indistinguishable. Ink blue measures 141° from
+   danger and >=69° from every status hue, at 6.81:1 (light) and
+   7.51:1 (dark) against `--ui-surface`. If the red is wanted for brand
+   reasons it is a two-line change here, but `--ui-danger` must then be
+   re-stepped to a much darker maroon and every danger state must carry
+   an icon and a text label.
+
+   Radius and shadow are overridden inside this block: Baseline's
+   structural move is removing the card as a unit, so elevation comes
+   from rules and alignment rather than from shadow.
+   ================================================================ */
+[data-palette="baseline"] {
+  --ui-radius-sm: 2px;
+  --ui-radius: 4px;
+  --ui-radius-lg: 6px;
+  --ui-shadow-card: none;
+  --ui-shadow-panel: 0 16px 40px rgba(21, 20, 14, 0.14);
+
+  --ui-bg: #FBFBF9;
+  --ui-surface: #FFFFFF;
+  --ui-surface-muted: #F3F3F0;
+  --ui-surface-strong: #E8E8E3;
+  --ui-text: #15140E;
+  --ui-text-secondary: #4B4941;
+  --ui-text-muted: #6E6B60;
+  --ui-border: rgba(21, 20, 14, 0.16);
+  --ui-divider: rgba(21, 20, 14, 0.09);
+  --ui-primary: #1B1A13;
+  --ui-primary-hover: #34322A;
+  --ui-on-primary: #FBFBF9;
+  --ui-secondary: #4B4941;
+  --ui-accent: #1B4FD1;
+  --ui-accent-soft: #E7EDFC;
+  --ui-price: #15140E;
+  --ui-success: #1D6A43;
+  --ui-success-soft: #E4F2EA;
+  --ui-warning: #8A5A05;
+  --ui-warning-soft: #F7EEDC;
+  --ui-danger: #9B1C13;
+  --ui-danger-soft: #F8E4E2;
+  --ui-ring: #1B4FD1;
+  --ui-hero: linear-gradient(180deg, #FBFBF9 0%, #EFEFEA 100%);
+}
+[data-palette="baseline"][data-mode="dark"] {
+  --ui-shadow-card: none;
+  --ui-shadow-panel: 0 20px 48px rgba(0, 0, 0, 0.65);
+
+  --ui-bg: #0E0E0C;
+  --ui-surface: #171714;
+  --ui-surface-muted: #1F1F1B;
+  --ui-surface-strong: #2A2A25;
+  --ui-text: #F5F4EF;
+  --ui-text-secondary: #C6C4B9;
+  --ui-text-muted: #918E82;
+  --ui-border: rgba(245, 244, 239, 0.16);
+  --ui-divider: rgba(245, 244, 239, 0.09);
+  --ui-primary: #F5F4EF;
+  --ui-primary-hover: #FFFFFF;
+  --ui-on-primary: #15140E;
+  --ui-secondary: #C6C4B9;
+  --ui-accent: #7EA6FF;
+  --ui-accent-soft: rgba(126, 166, 255, 0.16);
+  --ui-price: #F5F4EF;
+  --ui-success: #4FBF8B;
+  --ui-success-soft: rgba(79, 191, 139, 0.16);
+  --ui-warning: #E0A526;
+  --ui-warning-soft: rgba(224, 165, 38, 0.16);
+  --ui-danger: #F0796B;
+  --ui-danger-soft: rgba(240, 121, 107, 0.16);
+  --ui-ring: #7EA6FF;
+  --ui-hero: linear-gradient(180deg, #0E0E0C 0%, #1F1F1B 100%);
+}
+
+/* ---- Numeric typography (CLAUDE-UI-051) ------------------------
+   No `--font-*` is registered with Tailwind anywhere in this project and
+   Poppins ships proportional figures, so numbers in a comparison column
+   do not align vertically. `.ui-num` is the opt-in for any cell whose
+   value is meant to be scanned down a column rather than read in prose. */
+.ui-num {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
 }
 
 /* ---- Skeleton shimmer (reduced-motion-aware) ------------------- */
